@@ -1,0 +1,23 @@
+name: Godot headless checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install headless Godot
+        run: |
+          wget -q https://github.com/godotengine/godot/releases/download/4.5.1-stable/Godot_v4.5.1-stable_linux.x86_64.zip
+          unzip -q Godot_v4.5.1-stable_linux.x86_64.zip
+          chmod +x Godot_v4.5.1-stable_linux.x86_64
+      - name: Import project
+        run: ./Godot_v4.5.1-stable_linux.x86_64 --headless --path . --editor --quit
+      - name: Run full smoke test
+        run: ./Godot_v4.5.1-stable_linux.x86_64 --headless --path . --script res://tests/smoke.gd
