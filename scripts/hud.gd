@@ -1,6 +1,8 @@
 extends CanvasLayer
 ## Native Godot touch UI. Full game remains playable offline and by keyboard.
 
+const FONT_HEAVY = preload("res://assets/fonts/Rajdhani-Bold.ttf")
+const FONT_REGULAR = preload("res://assets/fonts/Rajdhani-Medium.ttf")
 const TEXT := Color("#fff1dc")
 const DIM := Color("#c8bbb0")
 const ORANGE := Color("#ffb449")
@@ -26,6 +28,7 @@ var place_label: Label
 var remaining_label: Label
 var leaderboard: Label
 var boost_label: Label
+var speed_label: Label
 var countdown_label: Label
 var selected_name := ""
 var select_buttons: Array[Button] = []
@@ -63,6 +66,7 @@ func _surface(bg: Color, border: Color = Color(1,1,1,0.09), radius: int = 12) ->
 func _text(value: String, size: int = 21, color: Color = TEXT) -> Label:
     var label = Label.new()
     label.text = value
+    label.add_theme_font_override("font", FONT_HEAVY if size >= 23 else FONT_REGULAR)
     label.add_theme_font_size_override("font_size", size)
     label.add_theme_color_override("font_color", color)
     label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -72,13 +76,15 @@ func _action(value: String, fill: Color = Color("#343947"), font_color: Color = 
     var button = Button.new()
     button.text = value
     button.custom_minimum_size = Vector2(0, 51)
-    button.add_theme_font_size_override("font_size", 20)
+    button.add_theme_font_override("font", FONT_HEAVY)
+    button.add_theme_font_size_override("font_size", 23)
     button.add_theme_color_override("font_color", font_color)
     button.add_theme_color_override("font_hover_color", font_color)
     button.add_theme_stylebox_override("normal", _surface(fill))
     button.add_theme_stylebox_override("hover", _surface(fill.lightened(0.12)))
     button.add_theme_stylebox_override("pressed", _surface(fill.darkened(0.18)))
     button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+    button.pressed.connect(func(): game.audio.ui_click())
     return button
 
 func _shade() -> ColorRect:
@@ -132,6 +138,13 @@ func _build_menu() -> void:
     col.add_child(solo)
     col.add_child(_text("40 RACERS   •   1 WINNER   •   PHYSICS FIRST", 14, DIM))
     col.add_child(_text("Android / offline / no account", 13, Color("#9fabb1")))
+    var sound = _action("SOUND  ON  /  OFF", Color("#292e39"))
+    sound.custom_minimum_size.y = 37
+    sound.pressed.connect(func():
+        var active = game.audio.toggle_sound()
+        sound.text = "SOUND ON" if active else "SOUND OFF"
+    )
+    col.add_child(sound)
 
 func _build_perks() -> void:
     perks_layer = Control.new()
@@ -212,6 +225,7 @@ func _build_race_hud() -> void:
 
     clock_label = _small_panel_text("00:00.00", 23, Rect2(0.016,0.025,0.155,0.081))
     place_label = _small_panel_text("40th", 22, Rect2(0.016,0.115,0.155,0.082))
+    speed_label = _small_panel_text("00  SPEED", 17, Rect2(0.016,0.21,0.155,0.066))
     remaining_label = _small_panel_text("0 / 40 FINISHED", 19, Rect2(0.355,0.02,0.290,0.080), HORIZONTAL_ALIGNMENT_CENTER)
     leaderboard = _small_panel_text("LEADERBOARD", 16, Rect2(0.79,0.025,0.195,0.39))
     countdown_label = _text("3", 86, ORANGE)
@@ -259,10 +273,10 @@ func _build_race_hud() -> void:
     ctrl_row.add_child(boost)
 
     boost_label = _text("BOOST 100%", 14, ORANGE)
-    boost_label.anchor_left = 0.54
-    boost_label.anchor_right = 0.72
-    boost_label.anchor_top = 0.91
-    boost_label.anchor_bottom = 0.975
+    boost_label.anchor_left = 0.428
+    boost_label.anchor_right = 0.555
+    boost_label.anchor_top = 0.815
+    boost_label.anchor_bottom = 0.870
     hud_layer.add_child(boost_label)
     var cam_button = _action("CAMERA", Color("#353944"))
     cam_button.anchor_left = 0.73
@@ -367,6 +381,7 @@ func update_hud() -> void:
     place_label.text = "#%d / 40" % place
     remaining_label.text = "%d / 40 FINISHED" % game.racer_finish_order.size()
     boost_label.text = "BOOST %d%%" % int(game.boost_energy * 100.0)
+    speed_label.text = "%02d  SPEED" % int(game.player.linear_velocity.length() * 3.6)
     var ranking = game.get_rankings()
     var table = "POSITION\n"
     for i in range(min(7,ranking.size())):

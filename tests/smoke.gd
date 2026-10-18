@@ -47,4 +47,7 @@ func _run_checks() -> void:
     race.return_to_menu()
     assert(race.race_state == "MENU", "Menu return failed")
     print("SMOKE_PASS: scene, course, 40 marbles, perks, countdown, physics, camera, HUD")
+    race.queue_free()
+    for i in range(4):
+        await process_frame
     quit(0)

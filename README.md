@@ -1,33 +1,64 @@
 # Marble Race: Lost Tracks
 
-An original, offline-first **3D Android marble racing game** inspired by Meticulai Games' *Lost Marbles* visual reference.
+Original **3D Android marble-racing game** inspired by the look and mechanics shown in Meticulai Games' [Lost Marbles](https://x.com/MeticulAi/status/2111568537684955500) reference video.
 
-Built with **Godot 4.5**, physics-driven 40-racer tournament, procedural glass marble shader, wooden tabletop racecourse with colorful modular sidewalls, kinetic rotating paddles, posts, slalom, 6 gameplay perks, touch steering, rechargeable boost, selectable 3D cameras, results, and leaderboard.
+Independent implementation in **Godot 4.5.1**, focused on real mobile playability, physics, and stylized toy-table graphics. No proprietary material from the reference game is redistributed.
 
-## Run
+## Current state: Android QA build (v0.2)
 
-Open `project.godot` in Godot 4.5.x and press F6/F5, or run:
+- 40 independently simulated rigid-body glass marbles with seeded visual variations and position-aware AI
+- 18 segments of inclined wooden planks, rounded colorful safety rails, toy blocks, posts, slalom, rotating paddles, *new swinging hammers*, start/finish arches, checkpoint gates
+- Procedural PBR-ish oak color + normal maps; glossy 3D glass shader and soft rim highlights; rounded wooden and plastic geometry
+- Warm miniature-workshop environment: walnut workbench, shelves, colored toys, suspended lights, distance fog
+- Six perks: Lead Core, Grip Tape, Bounce Back, Aerodynamic, Sticky Magnet and Head Start
+- Physically driven recovery impulse for marbles wedged against obstacles — no teleporting or forced scripted paths
+- Responsive orbit-style third-person camera with velocity-dependent field of view and impact camera shake; touch steering, rechargeable boost, three views
+- Animated player spark trail, responsive 2D menu and racing HUD with Rajdhani UI fonts
+- **Audio**: quiet original synthesized looping soundtrack, original countdown/start/finish/boost tones, speed-following wooden rolling loop, CC0 wood/glass impacts and UI click samples with a channel pool; in-game mute toggle
+- All gameplay content works without internet access; no tracking, no ads and no account.
+
+## Play
+
+Requires [Godot 4.5.1](https://godotengine.org/download/).
 
 ```bash
-godot --path . --editor --quit
-godot --path . --script res://tests/smoke.gd --headless
+godot --headless --editor --path . --quit
 godot --path .
 ```
 
-## Controls
+On Android: landscape orientation → **QUICK PLAY** → select perk → **START RACE**. Hold LEFT/RIGHT to steer, hold BOOST to accelerate, select CAMERA to switch angle. On PC: **A/D** or arrow keys, **Space**, **C**. Sound may be disabled in the main menu.
 
-Android landscape: tap **QUICK PLAY**, select a perk, tap **START RACE**. Hold **LEFT/RIGHT** to influence a marble's travel, hold **BOOST**, tap **CAMERA** to cycle views. Keyboard: A/D or arrows, Space for boost, C for camera. Physical collisions determine the outcome.
+## Get a debug Android APK
 
-## Build Android
+**GitHub Actions → "Verify and build Android APK" → latest successful run → Artifacts → marble-race-android-debug.** The workflow downloads matching Godot 4.5.1 export templates, tests gameplay, builds an ARM64 debug APK, verifies signature and publishes the artifact for 21 days.
 
-Install Godot 4.5.1 stable, matching **Android export templates**, Android SDK (platform 35, build-tools), JDK 17+, and configure editor paths. In Godot: **Project → Export → Add Android**, package identifier `com.dbrckk.marble_race`, export APK for device QA or signed AAB for Play Store. **A release keystore must be supplied by the publisher**; do not commit private keys.
+To build locally with Godot: install matching export templates, Android SDK platform 35 + build-tools 35, JDK 17; configure **Editor Settings → Export → Android** for JDK/SDK; run:
+
+```bash
+godot --headless --editor --path . --quit
+godot --headless --path . --export-debug Android build/marble-race-debug.apk
+```
+
+This produces a **debug-signed** APK for direct installation. For Play Store release, create a private release keystore, sign an **AAB**, validate the Android policy and capture real-device performance; do not commit signing keys or secrets.
 
 ## Verification
 
-`tests/smoke.gd` asserts course creation, 40 racers, perk physics, unique starts, countdown, rigidbody motion, camera, boost and navigation. Headless smoke test passes on Godot 4.5.1.
+```bash
+godot --headless --path . --script res://tests/smoke.gd
+godot --headless --fixed-fps 60 --path . --script res://tests/race_diagnostic.gd
+```
 
-## Scope and attribution
+The smoke test asserts scene, track, 40 physical racers, six-perk-compatible state, player selection, countdown, motion, boost and camera; the long-running diagnostic simulates 110 seconds of game physics and verifies actual racer progress and finishers. Both passed in the build environment. A GL Compatibility rendering pass at 1280×720 was also captured under Mesa; an Android device GPU performance benchmark is still required.
 
-Original code, original generated geometry, and original shader. No original game's proprietary assets are bundled. Reference video: https://x.com/MeticulAi/status/2111568537684955500. This is an independent inspired work, not an official Meticulai product.
+## Assets and reproducibility
 
-**Status:** initial playable prototype with passing Godot automated smoke checks; real-device rendering, performance, controls and signed Android packaging are not yet validated.
+- Original procedural textures/music/icon are generated by `tools/generate_assets.py` and `tools/generate_icon.py`.
+- Regenerate with `pip install numpy Pillow imageio-ffmpeg` and run both scripts.
+- CC0 impact and UI samples from **Kenney**, and **Rajdhani** fonts under SIL OFL. See [asset sources and licenses](assets/licenses/ASSET-SOURCES.md).
+- No proprietary graphics, sounds or character designs from the reference video were imported.
+
+## Architecture
+
+`scripts/game.gd` owns the modular environment and race state; `scripts/marble.gd` owns physics and AI; `scripts/audio.gd` owns soundtrack and pooled Foley; `scripts/hud.gd` handles touch UI; `scripts/visuals.gd` generates reusable rounded geometry. Shader materials reside in `shaders/` and assets in `assets/`.
+
+**Roadmap:** real Android handset profiling, collision tuning with real touch, audio mix QA, richer workshop props/track variations, saveable settings and release signing.

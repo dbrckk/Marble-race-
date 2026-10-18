@@ -31,6 +31,8 @@ var mesh: MeshInstance3D
 var collision: CollisionShape3D
 var seed_value := 0.0
 var target_sway := 0.0
+var stuck_seconds := 0.0
+var recovery_count := 0
 
 func setup(index: int, player: bool, base_position: Vector3, chosen_perk: String = "") -> void:
     racer_id = index
@@ -94,7 +96,7 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
     if finished or eliminated or sleeping:
         return
     # Downhill assistance counteracts stalls without prescribing a trajectory.
-    var drive_force := 5.2
+    var drive_force := 12.5
     if perk == "Aerodynamic":
         drive_force *= 1.22
     if is_player and boosting:
@@ -106,6 +108,19 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
         # Small seed-deterministic AI corrections. Physics and collisions remain authoritative.
         var drift = sin(elapsed * (0.63 + racer_id * 0.013) + seed_value) * 0.65
         side_force = drift + (-position.x * 0.065)
+    # Real physics recovery: give a marble a small nudge if trapped against a
+    # rail/post for >2 sec. No teleportation, no fake position interpolation.
+    var wall_proximity := clampf((absf(position.x)-5.2)/0.95,0.0,1.0)
+    side_force += -signf(position.x) * 26.0 * wall_proximity
+    if linear_velocity.length() < 0.35:
+        stuck_seconds += delta
+    else:
+        stuck_seconds = maxf(0.0,stuck_seconds - delta*3.0)
+    if stuck_seconds > 2.0:
+        var push_side := -signf(position.x) * 1.7 if absf(position.x)>2.1 else (1.0 if recovery_count%2==0 else -1.0)*1.2
+        apply_central_impulse(Vector3(push_side,0.24,-4.4) * mass)
+        stuck_seconds = 0.0
+        recovery_count += 1
     apply_central_force(Vector3(side_force, 0.0, -drive_force) * mass)
     if linear_velocity.length() > 24.0:
         linear_velocity = linear_velocity.limit_length(24.0)
@@ -121,4 +136,6 @@ func teleport_to_start(new_position: Vector3) -> void:
     finished = false
     eliminated = false
     finish_time = 0.0
+    stuck_seconds = 0.0
+    recovery_count = 0
     freeze = false

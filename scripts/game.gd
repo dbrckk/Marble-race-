@@ -5,6 +5,10 @@ extends Node3D
 const Racer = preload("res://scripts/marble.gd")
 const HUD = preload("res://scripts/hud.gd")
 const WOOD_SHADER = preload("res://shaders/wood.gdshader")
+const OAK = preload("res://assets/textures/oak_albedo.png")
+const OAK_NORMAL = preload("res://assets/textures/oak_normal.png")
+const Audio = preload("res://scripts/audio.gd")
+const Visuals = preload("res://scripts/visuals.gd")
 
 const MARBLE_COUNT := 40
 const SLOPE := 0.085
@@ -24,6 +28,7 @@ const WOOD_COLORS := [
 
 var rng := RandomNumberGenerator.new()
 var ui: CanvasLayer
+var audio: Node3D
 var camera: Camera3D
 var board: Node3D
 var moving_obstacles: Array[Node3D] = []
@@ -42,6 +47,9 @@ var selected_perk := ""
 var cam_mode := 0
 var world_time := 0.0
 var finish_announced := false
+var camera_shake := 0.0
+var last_count := -1
+var trail: CPUParticles3D
 var starting_camera_target := Vector3(0, 0, 0)
 
 func _ready() -> void:
@@ -55,10 +63,14 @@ func _ready() -> void:
     camera.near = 0.05
     camera.far = 300.0
     add_child(camera)
+    audio = Audio.new()
+    audio.name = "RaceAudio"
+    add_child(audio)
     ui = HUD.new()
     add_child(ui)
     ui.attach_game(self)
     _position_intro_camera(true)
+    _spawn_racers() # Frozen showroom preview gives the menu moving-world context.
     ui.show_menu()
 
 func _make_environment() -> void:
@@ -66,11 +78,16 @@ func _make_environment() -> void:
     env_node.name = "StudioEnvironment"
     var env = Environment.new()
     env.background_mode = Environment.BG_COLOR
-    env.background_color = Color("#342820")
+    env.background_color = Color("#211b1d")
     env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-    env.ambient_light_color = Color("#f2d8bd")
-    env.ambient_light_energy = 0.85
+    env.ambient_light_color = Color("#e5d2bb")
+    env.ambient_light_energy = 0.53
     env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+    env.fog_enabled = true
+    env.fog_light_color = Color("#40332f")
+    env.fog_density = 0.007
+    env.glow_enabled = true
+    env.glow_intensity = 0.24
     env_node.environment = env
     add_child(env_node)
 
@@ -78,7 +95,8 @@ func _make_environment() -> void:
     sun.name = "LargeSoftbox"
     sun.rotation_degrees = Vector3(-48, -28, -8)
     sun.light_color = Color("#ffecd5")
-    sun.light_energy = 1.25
+    sun.light_energy = 0.96
+    sun.light_angular_distance = 0.55
     sun.shadow_enabled = true
     sun.directional_shadow_max_distance = 75.0
     add_child(sun)
@@ -87,7 +105,7 @@ func _make_environment() -> void:
     fill.name = "CoolFill"
     fill.rotation_degrees = Vector3(-30, 150, 0)
     fill.light_color = Color("#cae4f4")
-    fill.light_energy = 0.52
+    fill.light_energy = 0.31
     add_child(fill)
 
 func height_at(z: float) -> float:
@@ -111,6 +129,9 @@ func _wood_mat(color: Color) -> ShaderMaterial:
     var m = ShaderMaterial.new()
     m.shader = WOOD_SHADER
     m.set_shader_parameter("timber_color", color)
+    m.set_shader_parameter("oak_albedo", OAK)
+    m.set_shader_parameter("oak_normal", OAK_NORMAL)
+    m.set_shader_parameter("grain_offset", float(render_materials.size() % 8)*0.13)
     render_materials[key] = m
     return m
 
@@ -133,9 +154,8 @@ func _box(parent: Node3D, location: Vector3, dimensions: Vector3, material: Mate
     if tilt:
         holder.rotation.x = -atan(SLOPE)
     var art = MeshInstance3D.new()
-    var mesh = BoxMesh.new()
-    mesh.size = dimensions
-    art.mesh = mesh
+    var bevel := minf(0.11, minf(dimensions.x, minf(dimensions.y, dimensions.z)) * 0.12)
+    art.mesh = Visuals.rounded_box(dimensions, bevel)
     art.material_override = material
     holder.add_child(art)
     parent.add_child(holder)
@@ -156,10 +176,20 @@ func _cylinder(parent: Node3D, location: Vector3, radius: float, tall: float, co
     mesh.top_radius = radius
     mesh.bottom_radius = radius
     mesh.height = tall
-    mesh.radial_segments = 18
+    mesh.radial_segments = 24
     art.mesh = mesh
     art.material_override = _mat(color, 0.35)
     body.add_child(art)
+    var cap = MeshInstance3D.new()
+    var cap_mesh = SphereMesh.new()
+    cap_mesh.radius = radius * 0.99
+    cap_mesh.height = radius * 0.30
+    cap_mesh.radial_segments = 16
+    cap_mesh.rings = 4
+    cap.mesh = cap_mesh
+    cap.position.y = tall * 0.5
+    cap.material_override = _mat(color.lightened(0.17), 0.19)
+    body.add_child(cap)
     return body
 
 func _make_course() -> void:
@@ -205,6 +235,7 @@ func _make_course() -> void:
 
     _start_arch()
     _finish_arch()
+    _checkpoint_arches()
     _decorations()
     _showroom()
 
@@ -225,6 +256,30 @@ func _gate_with_posts(parent: Node3D, center_z: float, n: int) -> void:
             _box(parent, Vector3(x, height_at(z)+0.67, z),
                 Vector3(0.91, 1.37, 1.25), _mat(BARRIER_COLORS[(n+row+i)%6], 0.45), true, true)
     _add_spinner(parent, center_z, n)
+    _swing_hammer(parent, center_z - 1.6, n)
+
+func _swing_hammer(parent: Node3D, z: float, n: int) -> void:
+    var hinge = AnimatableBody3D.new()
+    hinge.name = "SwingHammer_%02d" % n
+    hinge.sync_to_physics = true
+    hinge.position = Vector3(2.4 if n%2==0 else -2.4, height_at(z)+1.25, z)
+    parent.add_child(hinge)
+    var size := Vector3(2.25, 0.52, 0.72)
+    var hit = CollisionShape3D.new()
+    var shape = BoxShape3D.new()
+    shape.size = size
+    hit.shape = shape
+    hit.position.y = -0.45
+    hinge.add_child(hit)
+    var art = MeshInstance3D.new()
+    art.mesh = Visuals.rounded_box(size, 0.15)
+    art.position = hit.position
+    art.material_override = _mat(BARRIER_COLORS[(n+3)%6],0.23,0.07)
+    hinge.add_child(art)
+    hinge.set_meta("motion_kind","hammer")
+    hinge.set_meta("speed",1.3+float(n%3)*0.22)
+    hinge.set_meta("phase",float(n)*1.8)
+    moving_obstacles.append(hinge)
 
 func _slalom(parent: Node3D, center_z: float, n: int) -> void:
     for i in range(4):
@@ -269,6 +324,7 @@ func _add_spinner(parent: Node3D, z: float, n: int) -> void:
     axle.mesh = cyl
     axle.material_override = _mat(Color("#f0c361"), 0.25, 0.16)
     pivot.add_child(axle)
+    pivot.set_meta("motion_kind","spinner")
     pivot.set_meta("spin_speed", (1.0 if n%2==0 else -1.0) * (0.72 + n*0.022))
     moving_obstacles.append(pivot)
 
@@ -293,6 +349,17 @@ func _finish_arch() -> void:
     for i in range(12):
         _box(board, Vector3(-5.75 + i*1.04, height_at(z)+0.034, z),
             Vector3(1.02, 0.045, 0.63), _mat(Color("#f2e5d0") if i%2==0 else Color("#342a28")), false)
+
+func _checkpoint_arches() -> void:
+    for n in [4,9,14]:
+        var z = 8.0 - float(n) * SEGMENT_LENGTH
+        var y = height_at(z)
+        for side in [-1.0,1.0]:
+            _box(board,Vector3(side*6.28,y+2.4,z),Vector3(0.21,4.7,0.28),
+                _mat(Color("#e6c488"),0.3,0.28),false)
+        _box(board,Vector3(0,y+4.65,z),Vector3(12.7,0.32,0.38),
+            _mat(Color("#dfb66c"),0.35,0.2),false)
+        _floating_sign("CHECKPOINT %d" % int(n/5+1),Vector3(0,y+5.22,z))
 
 func _floating_sign(message: String, location: Vector3) -> void:
     var label = Label3D.new()
@@ -324,13 +391,54 @@ func _decorations() -> void:
                 Vector3(0.6, 4.4, 0.65), _mat(Color("#79523b")), false)
 
 func _showroom() -> void:
-    # No asset dependencies: warm blurred-out-look room made with large muted geometry.
-    for i in range(8):
-        var z = 24.0 - float(i)*34.0
-        for side in [-1,1]:
-            var c = Color("#5b3f33") if i%2==0 else Color("#6e5345")
-            _box(board, Vector3(side*18.0,height_at(z)+3.4,z),
-                Vector3(2.2,10.0,7.0), _mat(c), false)
+    # Warm miniature workshop: walnut workbench, paneled walls, lit windows and
+    # hanging display lamps. Deliberately sparse near the play area for 60fps.
+    for i in range(SEGMENTS):
+        var z = 8.0 - i * SEGMENT_LENGTH
+        _box(board,Vector3(0,height_at(z)-3.7,z),
+            Vector3(35.0,0.75,SEGMENT_LENGTH+0.12),_wood_mat(Color("#604535")),false,true)
+        for side in [-1.0,1.0]:
+            var base_x = side * 17.0
+            _box(board,Vector3(base_x,height_at(z)+4.5,z),
+                Vector3(1.3,19.0,SEGMENT_LENGTH+0.05),_mat(Color("#4c3933")),false)
+            if i%2==0:
+                _box(board,Vector3(base_x-side*0.73,height_at(z)+0.5,z),
+                    Vector3(0.2,0.28,SEGMENT_LENGTH-0.6),
+                    _mat(Color("#957052"),0.64),false)
+    # Exposed beams, side shelves and colored toy cartons.
+    for i in range(11):
+        var z = 7.5-i*18.0
+        for side in [-1.0,1.0]:
+            var x=side*15.5
+            _box(board,Vector3(x,height_at(z)+3.9,z),Vector3(2.5,0.28,8.5),
+                _wood_mat(Color("#91715a")),false)
+            for k in range(3):
+                var box_color=BARRIER_COLORS[(i+k+(0 if side>0 else 3))%6]
+                _box(board,Vector3(x-side*0.25,height_at(z)+4.6,z+(k-1)*2.7),
+                    Vector3(1.0,1.1,1.6),_mat(box_color.darkened(0.28),0.63),false)
+        var lamp=OmniLight3D.new()
+        lamp.name="PendantLight_%02d" % i
+        lamp.position=Vector3(0,height_at(z)+10.5,z)
+        lamp.light_color=Color("#ffe3b4")
+        lamp.light_energy=0.22
+        lamp.omni_range=22
+        lamp.shadow_enabled=false
+        board.add_child(lamp)
+        var glass=MeshInstance3D.new()
+        var globe=SphereMesh.new()
+        globe.radius=0.45
+        globe.height=0.9
+        glass.mesh=globe
+        var mat=StandardMaterial3D.new()
+        mat.albedo_color=Color("#f5d39b")
+        mat.emission_enabled=true
+        mat.emission=Color("#e9b96d")
+        mat.emission_energy_multiplier=0.75
+        glass.material_override=mat
+        glass.position=lamp.position
+        board.add_child(glass)
+    # Big workshop awning visible above the distant track.
+    _box(board,Vector3(0,14,-80),Vector3(38,0.8,192),_mat(Color("#49342d")),false)
 
 func _spawn_racers() -> void:
     for m in racers:
@@ -353,7 +461,10 @@ func _spawn_racers() -> void:
         racers.append(m)
         if is_you:
             player = m
+            m.contact_monitor = true
+            m.max_contacts_reported = 6
             _add_player_marker(m)
+            _add_player_trail(m)
 
     if selected_perk == "Head Start" and is_instance_valid(player):
         player.position.z -= 3.2
@@ -373,6 +484,35 @@ func _add_player_marker(m: RigidBody3D) -> void:
     tag.position = Vector3(0, 1.23, 0)
     m.add_child(tag)
 
+func _add_player_trail(m: RigidBody3D) -> void:
+    trail = CPUParticles3D.new()
+    trail.name = "CopperDustSpeedTrail"
+    trail.position = Vector3(0,0,0.12)
+    trail.amount = 28
+    trail.lifetime = 0.52
+    trail.explosiveness = 0.0
+    trail.randomness = 0.35
+    trail.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+    trail.emission_sphere_radius = 0.18
+    trail.direction = Vector3(0,0,1)
+    trail.spread = 20.0
+    trail.gravity = Vector3(0,-0.12,0)
+    trail.initial_velocity_min = 0.2
+    trail.initial_velocity_max = 0.8
+    trail.color = Color(1.0,0.66,0.24,0.65)
+    var dust = SphereMesh.new()
+    dust.radius = 0.053
+    dust.height = 0.105
+    dust.radial_segments = 6
+    dust.rings = 3
+    trail.mesh = dust
+    trail.emitting = false
+    m.add_child(trail)
+
+func _camera_bump(_body: Node) -> void:
+    if is_instance_valid(player):
+        camera_shake = minf(0.19,camera_shake+player.linear_velocity.length()*0.009)
+
 func start_race(perk_name: String) -> void:
     selected_perk = perk_name
     race_state = "COUNTDOWN"
@@ -384,6 +524,10 @@ func start_race(perk_name: String) -> void:
     boosting = false
     cam_mode = 0
     _spawn_racers()
+    audio.bind_marble(player)
+    player.body_entered.connect(_camera_bump)
+    audio.begin_race()
+    last_count = -1
     ui.show_race_ui()
     ui.show_countdown("READY?")
     _update_camera(0.1, true)
@@ -398,27 +542,32 @@ func return_to_menu() -> void:
     racers.clear()
     player = null
     race_state = "MENU"
+    audio.menu_music()
     ui.show_menu()
 
 func _process(delta: float) -> void:
     world_time += delta
-    for obj in moving_obstacles:
-        if is_instance_valid(obj):
-            obj.rotation.y += delta * float(obj.get_meta("spin_speed"))
     if race_state == "COUNTDOWN":
         countdown -= delta
         if countdown > 0.0:
-            ui.show_countdown(str(int(ceil(countdown))))
+            var count := int(ceil(countdown))
+            ui.show_countdown(str(count))
+            if count != last_count and count < 4:
+                audio.tone("count")
+                last_count = count
         else:
             race_state = "RACING"
             for m in racers:
                 m.freeze = false
                 m.sleeping = false
             ui.show_countdown("GO!")
+            audio.tone("start")
     elif race_state == "RACING":
         race_time += delta
         if race_time > 1.0:
             ui.hide_countdown()
+        if is_instance_valid(trail) and is_instance_valid(player):
+            trail.emitting = player.linear_velocity.length() > 4.0
         if boosting:
             boost_energy = max(0.0, boost_energy - delta * 0.26)
             if boost_energy <= 0.0:
@@ -437,6 +586,13 @@ func _process(delta: float) -> void:
         ui.update_hud()
 
 func _physics_process(delta: float) -> void:
+    for obj in moving_obstacles:
+        if not is_instance_valid(obj):
+            continue
+        if obj.get_meta("motion_kind", "") == "spinner":
+            obj.rotation.y += delta * float(obj.get_meta("spin_speed"))
+        else:
+            obj.rotation.z = sin(world_time*float(obj.get_meta("speed"))+float(obj.get_meta("phase")))*0.65
     if race_state != "RACING":
         return
     for m in racers:
@@ -479,8 +635,12 @@ func _update_camera(delta: float, force := false) -> void:
     else:
         desired = target + Vector3(0, 6.5, 11.5)
         focus = target + Vector3(0, 0.3, -5.5)
-    camera.global_position = desired if force else camera.global_position.lerp(desired, min(delta*3.7,1.0))
+    camera_shake = move_toward(camera_shake,0.0,delta*0.42)
+    var jitter := Vector3(sin(world_time*49.0), cos(world_time*43.0),0.0)*camera_shake
+    camera.global_position = desired if force else camera.global_position.lerp(desired,min(delta*3.5,1.0))
+    camera.global_position += jitter
     camera.look_at(focus, Vector3.UP)
+    camera.fov = lerpf(camera.fov,clampf(62.0+player.linear_velocity.length()*0.48,64.0,76.0),minf(1,delta*2.8))
 
 func _position_intro_camera(force: bool) -> void:
     var target = Vector3(6.5, 12.6, 22.0)
@@ -519,6 +679,8 @@ func change_steer(value: float) -> void:
     steer = clampf(value, -1.0, 1.0)
 
 func change_boost(value: bool) -> void:
+    if value and not boosting and boost_energy > 0.08:
+        audio.boost()
     boosting = value and boost_energy > 0.03
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -544,4 +706,6 @@ func _end_race() -> void:
     race_state = "RESULTS"
     boosting = false
     steer = 0.0
+    audio.tone("finish")
+    audio.menu_music()
     ui.show_results(player_rank(), race_time, get_rankings())

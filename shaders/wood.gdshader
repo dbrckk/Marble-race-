@@ -1,21 +1,21 @@
 shader_type spatial;
 render_mode diffuse_burley, specular_schlick_ggx;
-
-uniform vec4 timber_color : source_color = vec4(0.63, 0.43, 0.29, 1.0);
-varying vec3 local_p;
+uniform vec4 timber_color : source_color = vec4(0.75,0.53,0.33,1);
+uniform sampler2D oak_albedo : source_color, repeat_enable, filter_linear_mipmap;
+uniform sampler2D oak_normal : hint_normal, repeat_enable, filter_linear_mipmap;
+uniform float grain_offset = 0.0;
+varying vec3 local_pos;
 
 void vertex() {
-    local_p = VERTEX;
+    local_pos = VERTEX;
 }
 void fragment() {
-    vec2 uv = local_p.xz;
-    float elongated = sin(uv.x * 28.0 + sin(uv.y * 1.7) * 0.3 + sin(uv.y * 7.4) * 0.13);
-    float small = sin(uv.x * 95.0 + sin(uv.y * 4.4) * 1.6) * 0.32;
-    float grain = elongated * 0.11 + small * 0.048;
-    float pores = sin(uv.y * 91.0 + uv.x * 13.0) * 0.018;
-    float knots = sin(length(vec2(uv.x * 2.9, uv.y * 0.25)) * 17.0) * 0.036;
-    float tone = 1.0 + grain + pores + knots;
-    ALBEDO = timber_color.rgb * tone;
-    ROUGHNESS = 0.83;
-    SPECULAR = 0.20;
+    // Continuous planks: 2 longitudinal repeats per section, tinted by timber species.
+    vec2 uv = vec2(local_pos.x*0.27+grain_offset, local_pos.z*0.16+grain_offset*0.4);
+    vec3 fibers = texture(oak_albedo,uv).rgb;
+    ALBEDO = timber_color.rgb * mix(vec3(0.80),fibers*1.54,0.73);
+    NORMAL_MAP = texture(oak_normal,uv).rgb;
+    NORMAL_MAP_DEPTH = 0.21;
+    ROUGHNESS = 0.79 + texture(oak_albedo,uv).r * 0.12;
+    SPECULAR = 0.18;
 }
