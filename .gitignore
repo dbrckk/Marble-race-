@@ -1,0 +1,9 @@
+.godot/
+.android/
+build/
+dist/
+*.apk
+*.aab
+*.pck
+*.log
+.DS_Store
