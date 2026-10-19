@@ -67,6 +67,11 @@ var contact_shadows: Node3D
 var workshop_lamps: Array[OmniLight3D] = []
 var lamp_refresh := 0.0
 var kinetic_time := 0.0
+var race_number := 0
+var best_finish_time := 0.0
+var total_wins := 0
+var total_races := 0
+var personal_best_rank := 40
 var obstacle_finish: Node3D
 var track_surface: Node3D
 var track_physics_material: PhysicsMaterial
@@ -85,6 +90,10 @@ func _ready() -> void:
     if prefs.load("user://marble_settings.cfg") == OK:
         graphics_quality = clampi(int(prefs.get_value("video","quality",1)),0,2)
         show_fps = bool(prefs.get_value("video","fps",false))
+        best_finish_time = float(prefs.get_value("career","best_time",0.0))
+        total_wins = int(prefs.get_value("career","wins",0))
+        total_races = int(prefs.get_value("career","races",0))
+        personal_best_rank = clampi(int(prefs.get_value("career","best_rank",40)),1,40)
     _make_environment()
     _make_course()
     contact_shadows = ContactShadows.new()
@@ -345,6 +354,10 @@ func _make_course() -> void:
                 _gate_with_posts(section_node, center_z, section)
             else:
                 _slalom(section_node, center_z, section)
+            # Anti-cheese: every obstacle section closes alternating edge
+            # shortcuts. One side is never a safe full-course route.
+            if section == 12:
+                _edge_chicanes(section_node,center_z,section)
 
     obstacle_finish.rebuild()
     var woods: Array = []
@@ -365,6 +378,20 @@ func _make_course() -> void:
     var dressing := CourseDressing.new()
     dressing.name = "ModularBrassAndSilkDressing"
     board.add_child(dressing)
+
+func _edge_chicanes(parent: Node3D, center_z: float, n: int) -> void:
+    # Physically solid side-lane gates. Alternating full-width sweeps force
+    # every racer to cross the track; edge hugging no longer bypasses hazards.
+    # Two separate gates per section keep a traversable central lane.
+    for i in range(1):
+        var side := -1.0 if n%2 == 0 else 1.0
+        var z := center_z + (2.8 if i == 0 else -3.0)
+        var width := 3.6
+        var x := side*4.75
+        var tint: Color = BARRIER_COLORS[(n*2+i)%BARRIER_COLORS.size()]
+        var block := _box(parent,Vector3(x,height_at(z)+0.76,z),
+            Vector3(width,1.48,0.82),_lacquer(tint),true,true)
+        obstacle_finish.register_block(block.transform,Vector3(width,1.48,0.82),tint)
 
 func _pegs(parent: Node3D, center_z: float, n: int) -> void:
     # Checkerboard of rounded vertical posts, with traversable gaps.
@@ -659,6 +686,7 @@ func _camera_bump(_body: Node) -> void:
 
 func start_race(perk_name: String) -> void:
     selected_perk = perk_name
+    race_number += 1
     race_state = "COUNTDOWN"
     race_time = 0.0
     countdown = 3.3
@@ -919,6 +947,22 @@ func _end_race() -> void:
     race_state = "RESULTS"
     boosting = false
     steer = 0.0
+    steer_target = 0.0
+    total_races += 1
+    var final_rank := player_rank()
+    personal_best_rank = mini(personal_best_rank,final_rank)
+    if final_rank == 1:
+        total_wins += 1
+    if is_instance_valid(player) and player.finished:
+        if best_finish_time <= 0.0 or race_time < best_finish_time:
+            best_finish_time = race_time
+    var prefs := ConfigFile.new()
+    prefs.load("user://marble_settings.cfg")
+    prefs.set_value("career","best_time",best_finish_time)
+    prefs.set_value("career","wins",total_wins)
+    prefs.set_value("career","races",total_races)
+    prefs.set_value("career","best_rank",personal_best_rank)
+    prefs.save("user://marble_settings.cfg")
     audio.tone("finish")
     if is_instance_valid(player) and player.finished:
         audio.finish_fanfare()

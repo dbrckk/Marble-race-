@@ -151,7 +151,10 @@ func _build_menu() -> void:
     col.add_child(solo)
     col.add_child(_text("40 RACERS   •   1 WINNER   •   PHYSICS FIRST", 14, DIM))
     col.add_child(_text("Drag left thumb to steer • Hold right thumb to boost", 14, DIM))
-    col.add_child(_text("BUILD v0.11  •  ANALOG TOUCH CONTROLS", 13, Color("#9fabb1")))
+    col.add_child(_text("FULL COURSE  •  CAREER STATS SAVED", 13, Color("#9fabb1")))
+    var career = _text("RACES %d   |   WINS %d   |   BEST RANK #%d" % [game.total_races,game.total_wins,game.personal_best_rank],14,DIM)
+    career.name = "CareerStats"
+    col.add_child(career)
     var sound = _action("SOUND: " + ("ON" if game.audio.enabled else "OFF"), Color("#292e39"))
     sound.custom_minimum_size.y = 37
     sound.pressed.connect(func():
@@ -296,8 +299,8 @@ func _build_race_hud() -> void:
     place_label = _small_panel_text("40th", 22, Rect2(0.016,0.115,0.155,0.082))
     speed_label = _small_panel_text("00  SPEED", 17, Rect2(0.016,0.21,0.155,0.066))
     remaining_label = _small_panel_text("0 / 40 FINISHED", 19, Rect2(0.355,0.02,0.290,0.080), HORIZONTAL_ALIGNMENT_CENTER)
-    leaderboard = _small_panel_text("LEADERBOARD", 16, Rect2(0.79,0.025,0.195,0.39))
-    fps_label = _small_panel_text("FPS --",16,Rect2(0.865,0.43,0.119,0.060))
+    leaderboard = _small_panel_text("LEADERBOARD", 16, Rect2(0.835,0.025,0.150,0.33))
+    fps_label = _small_panel_text("FPS --",16,Rect2(0.865,0.39,0.119,0.060))
     fps_label.get_parent().visible = game.show_fps
     course_progress = _progress_bar(Color("#e9ac5d"))
     course_progress.name = "CourseProgress"
@@ -337,7 +340,7 @@ func _build_race_hud() -> void:
     touch_controls.configure(game)
     touch_controls.direction_changed.connect(func(v: float): game.change_steer(v))
     touch_controls.boost_changed.connect(func(v: bool): game.change_boost(v))
-    boost_label = _text("BOOST 100%", 18, ORANGE)
+    boost_label = _text("BOOST 100%", 16, ORANGE)
     boost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     boost_label.anchor_left = 0.665
     boost_label.anchor_right = 0.915
@@ -451,6 +454,9 @@ func show_menu() -> void:
         get_tree().paused = false
     _hide_all()
     menu_layer.visible = true
+    var stats := menu_layer.find_child("CareerStats",true,false) as Label
+    if stats:
+        stats.text = "RACES %d   |   WINS %d   |   BEST RANK #%d" % [game.total_races,game.total_wins,game.personal_best_rank]
 
 func show_perks() -> void:
     _hide_all()
@@ -500,7 +506,7 @@ func update_hud() -> void:
     for i in range(min(7,ranking.size())):
         var r = ranking[i]
         table += "%02d  %s%s\n" % [i+1, r.display_name, "  ★" if r.is_player else ""]
-    if place > 7:
+    if place > 5:
         table += "…\n%02d  YOU  ★" % place
     leaderboard.text = table
 
@@ -516,7 +522,10 @@ func show_results(place: int, time: float, ranking: Array) -> void:
     _hide_all()
     results_layer.visible = true
     var summary = results_layer.find_child("Summary", true, false) as Label
-    var leaders = ""
+    var leaders = "CAREER  %d RACES  /  %d WINS
+BEST FINISH  %s
+
+" % [game.total_races,game.total_wins,("%.2fs" % game.best_finish_time if game.best_finish_time > 0.0 else "--")]
     for i in range(min(5, ranking.size())):
         leaders += "%s  %s\n" % [str(i+1).pad_zeros(2), ranking[i].display_name]
     if summary:
