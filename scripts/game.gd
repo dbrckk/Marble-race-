@@ -49,6 +49,7 @@ var result_delay := 0.0
 var boost_energy := 1.0
 var boosting := false
 var steer := 0.0
+var steer_target := 0.0
 var selected_perk := ""
 var cam_mode := 0
 var world_time := 0.0
@@ -629,6 +630,7 @@ func start_race(perk_name: String) -> void:
     last_checkpoint = -1
     course_flash = 0.0
     steer = 0.0
+    steer_target = 0.0
     boosting = false
     cam_mode = 0
     _spawn_racers()
@@ -726,6 +728,7 @@ func _process(delta: float) -> void:
         ui.update_hud()
 
 func _physics_process(delta: float) -> void:
+    steer = move_toward(steer,steer_target,delta*8.5)
     kinetic_time += delta
     for obj in moving_obstacles:
         if not is_instance_valid(obj):
@@ -818,7 +821,7 @@ func cycle_camera() -> void:
     cam_mode = (cam_mode + 1) % 3
 
 func change_steer(value: float) -> void:
-    steer = clampf(value, -1.0, 1.0)
+    steer_target = clampf(value, -1.0, 1.0)
 
 func change_boost(value: bool) -> void:
     if value and not boosting and boost_energy > 0.08:
@@ -828,11 +831,9 @@ func change_boost(value: bool) -> void:
 func _unhandled_input(event: InputEvent) -> void:
     if race_state != "RACING":
         return
-    if event is InputEventScreenDrag:
-        change_steer(clampf(event.relative.x/38.0, -1.0, 1.0))
-    if event is InputEventScreenTouch and not event.pressed:
-        change_steer(0.0)
     if event is InputEventKey:
+        if event.echo:
+            return
         if event.keycode == KEY_LEFT or event.keycode == KEY_A:
             change_steer(-1.0 if event.pressed else 0.0)
         elif event.keycode == KEY_RIGHT or event.keycode == KEY_D:

@@ -137,7 +137,7 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
         drive_force += 8.0
     var side_force := 0.0
     if is_player:
-        side_force = steering * 10.5
+        side_force = steering * 16.5
     else:
         # Small seed-deterministic AI corrections. Physics and collisions remain authoritative.
         var drift = sin(elapsed * (0.63 + racer_id * 0.013) + seed_value) * 0.65

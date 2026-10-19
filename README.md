@@ -122,3 +122,16 @@ These captures were generated from the actual Godot Compatibility renderer, not 
 ![v0.8 Android-style main menu](docs/screenshots/v0.8-menu.jpg)
 ![v0.8 marble race in progress](docs/screenshots/v0.8-race.jpg)
 
+
+
+## v0.9 — Rebuilt Android touch controls
+
+- Left **floating analog joystick** with a dead zone and progressive steering force; smooth force application during fixed physics ticks.
+- Independent right **press-and-hold boost zone** supporting two fingers concurrently. Lift boost without cancelling steering, and vice versa.
+- A safe bottom-right camera/pause region that does not accidentally trigger boost.
+- Menu options **SOFT / NORMAL / SHARP steering sensitivity** and **RIGHT-HAND / LEFT-HAND layout**, saved in the same config file as existing graphics and sound settings.
+- On-screen joystick/boost feedback is drawn in Godot, without external textures or dependencies.
+- Existing keyboard A/D, arrows, Space and C controls remain available.
+- New deterministic `tests/touch_controls.gd` simulates two fingers, joystick motion, independent release, boost/camera conflict protection, saved settings, layout swap and cleanup on menu return.
+
+Manual Android touch latency and ergonomic checks are still required on real hardware.

@@ -66,6 +66,12 @@ jobs:
           # Force a bounded run and require the actual completion marker.
           timeout 75s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 240 --path . --script res://tests/smoke.gd 2>&1 | tee smoke.log
           grep -Fq "SMOKE_PASS:" smoke.log
+      - name: Multi-touch controls regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 75s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 240 --path . --script res://tests/touch_controls.gd 2>&1 | tee touch-controls.log
+          grep -Fq "TOUCH_CONTROLS_PASS:" touch-controls.log
       - name: 110-second simulated race regression
         shell: bash
         run: |

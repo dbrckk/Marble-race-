@@ -1,6 +1,7 @@
 extends CanvasLayer
 ## Native Godot touch UI. Full game remains playable offline and by keyboard.
 
+const TOUCH_CONTROLS = preload("res://scripts/touch_controls.gd")
 const FONT_HEAVY = preload("res://assets/fonts/Rajdhani-Bold.ttf")
 const FONT_REGULAR = preload("res://assets/fonts/Rajdhani-Medium.ttf")
 const TEXT := Color("#fff1dc")
@@ -42,8 +43,12 @@ var select_buttons: Array[Button] = []
 var selected_description: Label
 var start_button: Button
 var label_timer := 0.0
-var left_pressed := false
-var right_pressed := false
+var touch_controls: Control
+var sensitivity_button: Button
+var hand_button: Button
+var sensitivity_index := 1
+var left_handed := false
+const SENSITIVITIES := [0.70,1.0,1.35]
 
 func attach_game(owner_game: Node3D) -> void:
     game = owner_game
@@ -57,6 +62,7 @@ func attach_game(owner_game: Node3D) -> void:
     _build_perks()
     _build_race_hud()
     _build_results()
+    _load_controls_config()
 
 func _surface(bg: Color, border: Color = Color(1,1,1,0.09), radius: int = 12) -> StyleBoxFlat:
     var style = StyleBoxFlat.new()
@@ -144,6 +150,7 @@ func _build_menu() -> void:
     solo.pressed.connect(show_perks)
     col.add_child(solo)
     col.add_child(_text("40 RACERS   •   1 WINNER   •   PHYSICS FIRST", 14, DIM))
+    col.add_child(_text("Drag left thumb to steer • Hold right thumb to boost", 14, DIM))
     col.add_child(_text("Android / offline / no account", 13, Color("#9fabb1")))
     var sound = _action("SOUND: " + ("ON" if game.audio.enabled else "OFF"), Color("#292e39"))
     sound.custom_minimum_size.y = 37
@@ -174,6 +181,22 @@ func _build_menu() -> void:
         fps_button.text = "FPS DISPLAY: " + ("ON" if game.toggle_fps_overlay() else "OFF")
     )
     menu_layer.add_child(fps_button)
+    sensitivity_button = _action("STEERING: NORMAL",Color(0.13,0.18,0.22,0.86))
+    sensitivity_button.add_theme_font_size_override("font_size",16)
+    sensitivity_button.anchor_left = 0.76
+    sensitivity_button.anchor_right = 0.975
+    sensitivity_button.anchor_top = 0.555
+    sensitivity_button.anchor_bottom = 0.630
+    sensitivity_button.pressed.connect(_sensitivity_pressed)
+    menu_layer.add_child(sensitivity_button)
+    hand_button = _action("LAYOUT: RIGHT-HAND",Color(0.13,0.18,0.22,0.86))
+    hand_button.add_theme_font_size_override("font_size",16)
+    hand_button.anchor_left = 0.76
+    hand_button.anchor_right = 0.975
+    hand_button.anchor_top = 0.655
+    hand_button.anchor_bottom = 0.730
+    hand_button.pressed.connect(_hand_pressed)
+    menu_layer.add_child(hand_button)
 
 func _build_perks() -> void:
     perks_layer = Control.new()
@@ -285,10 +308,10 @@ func _build_race_hud() -> void:
     hud_layer.add_child(course_progress)
     boost_progress = _progress_bar(Color("#91e6e6"))
     boost_progress.name = "BoostCharge"
-    boost_progress.anchor_left = 0.428
-    boost_progress.anchor_right = 0.555
-    boost_progress.anchor_top = 0.872
-    boost_progress.anchor_bottom = 0.892
+    boost_progress.anchor_left = 0.626
+    boost_progress.anchor_right = 0.796
+    boost_progress.anchor_top = 0.700
+    boost_progress.anchor_bottom = 0.724
     hud_layer.add_child(boost_progress)
     countdown_label = _text("3", 86, ORANGE)
     countdown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -306,47 +329,20 @@ func _build_race_hud() -> void:
     checkpoint_label.visible = false
     hud_layer.add_child(checkpoint_label)
 
-    # Overlay controls support press-and-hold and keyboard in parallel.
-    var ctrl_row = HBoxContainer.new()
-    ctrl_row.anchor_left = 0.02
-    ctrl_row.anchor_right = 0.53
-    ctrl_row.anchor_top = 0.862
-    ctrl_row.anchor_bottom = 0.985
-    ctrl_row.add_theme_constant_override("separation", 14)
-    hud_layer.add_child(ctrl_row)
-    var left = _action("◀ LEFT", Color(0.17,0.20,0.25,0.81))
-    left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    left.button_down.connect(func():
-        left_pressed = true
-        _steer_buttons()
-    )
-    left.button_up.connect(func():
-        left_pressed = false
-        _steer_buttons()
-    )
-    ctrl_row.add_child(left)
-    var right = _action("RIGHT ▶", Color(0.17,0.20,0.25,0.81))
-    right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    right.button_down.connect(func():
-        right_pressed = true
-        _steer_buttons()
-    )
-    right.button_up.connect(func():
-        right_pressed = false
-        _steer_buttons()
-    )
-    ctrl_row.add_child(right)
-    var boost = _action("BOOST  ⚡", ORANGE, Color("#292015"))
-    boost.custom_minimum_size.x = 130
-    boost.button_down.connect(func(): game.change_boost(true))
-    boost.button_up.connect(func(): game.change_boost(false))
-    ctrl_row.add_child(boost)
-
-    boost_label = _text("BOOST 100%", 14, ORANGE)
-    boost_label.anchor_left = 0.428
-    boost_label.anchor_right = 0.555
-    boost_label.anchor_top = 0.815
-    boost_label.anchor_bottom = 0.870
+    # Floating left joystick + independent right-side boost. Full screen touch
+    # pointer IDs protect against releases of unrelated fingers.
+    touch_controls = TOUCH_CONTROLS.new()
+    touch_controls.name = "MultitouchJoystickAndBoost"
+    hud_layer.add_child(touch_controls)
+    touch_controls.configure(game)
+    touch_controls.direction_changed.connect(func(v: float): game.change_steer(v))
+    touch_controls.boost_changed.connect(func(v: bool): game.change_boost(v))
+    boost_label = _text("BOOST 100%", 18, ORANGE)
+    boost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    boost_label.anchor_left = 0.626
+    boost_label.anchor_right = 0.796
+    boost_label.anchor_top = 0.650
+    boost_label.anchor_bottom = 0.700
     hud_layer.add_child(boost_label)
     var cam_button = _action("CAMERA", Color("#353944"))
     cam_button.anchor_left = 0.73
@@ -363,15 +359,42 @@ func _build_race_hud() -> void:
     pause_button.pressed.connect(_toggle_pause)
     hud_layer.add_child(pause_button)
 
-func _steer_buttons() -> void:
-    if game:
-        game.change_steer(float(int(right_pressed) - int(left_pressed)))
+func _load_controls_config() -> void:
+    var settings := ConfigFile.new()
+    if settings.load("user://marble_settings.cfg") == OK:
+        sensitivity_index = clampi(int(settings.get_value("controls","sensitivity",1)),0,2)
+        left_handed = bool(settings.get_value("controls","left_handed",false))
+    touch_controls.sensitivity = SENSITIVITIES[sensitivity_index]
+    touch_controls.left_handed = left_handed
+    sensitivity_button.text = "STEERING: " + ["SOFT","NORMAL","SHARP"][sensitivity_index]
+    hand_button.text = "LAYOUT: LEFT-HAND" if left_handed else "LAYOUT: RIGHT-HAND"
+
+func _save_controls_config() -> void:
+    var settings := ConfigFile.new()
+    settings.load("user://marble_settings.cfg")
+    settings.set_value("controls","sensitivity",sensitivity_index)
+    settings.set_value("controls","left_handed",left_handed)
+    settings.save("user://marble_settings.cfg")
+
+func _sensitivity_pressed() -> void:
+    sensitivity_index = (sensitivity_index+1)%3
+    touch_controls.sensitivity = SENSITIVITIES[sensitivity_index]
+    sensitivity_button.text = "STEERING: " + ["SOFT","NORMAL","SHARP"][sensitivity_index]
+    _save_controls_config()
+
+func _hand_pressed() -> void:
+    left_handed = not left_handed
+    touch_controls.release_all()
+    touch_controls.left_handed = left_handed
+    hand_button.text = "LAYOUT: LEFT-HAND" if left_handed else "LAYOUT: RIGHT-HAND"
+    _save_controls_config()
 
 func _toggle_pause() -> void:
     if game.race_state != "RACING":
         return
     get_tree().paused = not get_tree().paused
     if get_tree().paused:
+        touch_controls.release_all()
         countdown_label.text = "PAUSED"
         countdown_label.visible = true
     else:
@@ -409,6 +432,8 @@ func _build_results() -> void:
     col.add_child(menu)
 
 func _hide_all() -> void:
+    if is_instance_valid(touch_controls):
+        touch_controls.release_all()
     menu_layer.visible = false
     perks_layer.visible = false
     hud_layer.visible = false
