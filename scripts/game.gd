@@ -844,7 +844,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _burst(where: Vector3, finale: bool) -> void:
     # Short-lived particles carry no collision meshes and remain inexpensive on mobile.
-    var n := CPUParticles3D.new()
+    var n := CPUParticles3D.new()
     n.name = "FinishConfetti" if finale else "CheckpointGlitter"
     n.amount = 100 if finale else 45
     n.lifetime = 1.9 if finale else 0.9
