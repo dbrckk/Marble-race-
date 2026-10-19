@@ -543,7 +543,8 @@ func _start_arch() -> void:
     _floating_sign("START · 40 MARBLES", Vector3(0, height_at(z)+3.64, z))
 
 func _finish_arch() -> void:
-    var z = FINISH_Z - 1.6
+    # Visual finish stripe and physical finish detector coincide.
+    var z = FINISH_Z
     for x in [-6.0, 6.0]:
         _box(board, Vector3(x, height_at(z)+1.35, z),
             Vector3(0.48, 2.8, 0.45), _mat(Color("#eee1bd")), false)
@@ -872,6 +873,10 @@ func _physics_process(delta: float) -> void:
             m.finished = true
             m.finish_time = race_time
             m.freeze = true
+            # A finished frozen sphere must not become a permanent obstacle
+            # at the timing stripe. Keep it for ranking, disable its contacts.
+            m.set_deferred("collision_layer",0)
+            m.set_deferred("collision_mask",0)
             racer_finish_order.append(m.display_name)
     if selected_perk == "Sticky Magnet" and is_instance_valid(player) and not player.finished:
         for m in racers:

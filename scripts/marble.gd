@@ -222,6 +222,8 @@ func teleport_to_start(new_position: Vector3) -> void:
     angular_velocity = Vector3.ZERO
     finished = false
     eliminated = false
+    collision_layer = 1
+    collision_mask = 1
     finish_time = 0.0
     stuck_seconds = 0.0
     recovery_count = 0

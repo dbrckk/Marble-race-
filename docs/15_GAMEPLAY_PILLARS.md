@@ -7,7 +7,7 @@ These are engineering acceptance criteria, not a claim that subjective quality o
 | # | Concept | Production implementation and location | Verification |
 |---|---|---|---|
 | 1 | **Fair physical collisions** | 40 real RigidBody3D marbles, fixed-tick forces, continuous collision detection (`scripts/marble.gd`) | Smoke + long-race physics |
-| 2 | **Recoverable obstacle jams** | New forward-progress watchdog, increasing centerward/upward impulse with bounded strength; no teleport (`scripts/marble.gd`) | Long-race: player reached finish after ~57.5 s |
+| 2 | **Recoverable obstacle jams** | New forward-progress watchdog, increasing centerward/upward impulse with bounded strength; no teleport (`scripts/marble.gd`) | Long-race: player reached finish after ~56.5 s; classified marbles disable their collision masks |
 | 3 | **Meaningful skill-based steering** | New speed-sensitive lateral force; analog smooth input retained (`marble.gd`, `game.gd`, `touch_controls.gd`) | Multitouch + physics |
 | 4 | **Believable opponent behavior** | New deterministic bounded AI lane goals and velocity damping instead of constant near-zero drifting (`marble.gd`) | 40 competitors advance under collisions |
 | 5 | **Predictive follow camera** | New damped camera look-ahead based on linear velocity, with bounded collision shake (`game.gd`) | Godot render and smoke |
@@ -36,3 +36,15 @@ These are engineering acceptance criteria, not a claim that subjective quality o
 Godot parser/import, smoke, touch controls, course feasibility, three-course progression,
 full physical race, rendering capture and Android debug APK signature must pass.
 The debug APK is a release-candidate test artifact, not a Play Store-signed production AAB.
+
+
+### Regression found by GitHub Actions and fixed
+
+The first v1.1 pipeline exposed an OS-dependent stall a few centimeters before the
+finish threshold. Root cause: **finished marbles were frozen but still retained
+collision layers and masks**. They accumulated into a physical barricade on the
+finish stripe. Fix: finished racers remain ranked and visible, while their collision
+layer and collision mask are deferred to 0; resets restore the original layer/mask.
+The physical finish position is unchanged. The 110-second long-run now asserts
+the player's **actual finished** state, so this regression can no longer pass
+merely because the marble advanced past 100 meters.
