@@ -17,21 +17,29 @@ const MechanismArt = preload("res://scripts/mechanism_art.gd")
 const CourseDressing = preload("res://scripts/course_dressing.gd")
 const ObstacleFinish = preload("res://scripts/obstacle_finish.gd")
 const TrackSurface = preload("res://scripts/track_surface.gd")
+const Career = preload("res://scripts/career.gd")
 
 const MARBLE_COUNT := 40
 const SLOPE := 0.085
 const SEGMENT_LENGTH := 12.0
 const SEGMENTS := 18
-const FINISH_Z := -193.5
-const RACE_TIMEOUT := 110.0
+const FINISH_Z := -185.0
+const RACE_TIMEOUT := 155.0
+const TRACK_NAMES := ["WOODWORKS","SWITCHBACK","GAUNTLET"]
+const TRACK_SUBTITLES := [
+    "Precision & flowing chicanes",
+    "Moving gates & tighter openings",
+    "Unforgiving hazards & fast paddles"
+]
+const TRACK_COLORS := [Color("#e6b972"),Color("#86bfbd"),Color("#dc8c82")]
 const BARRIER_COLORS := [
-    Color("#fa746b"), Color("#f1c757"), Color("#64c5a1"),
-    Color("#6da5d8"), Color("#b67cd2"), Color("#fcad60")
+    Color("#ce6958"), Color("#dbb66d"), Color("#62a89f"),
+    Color("#799eb7"), Color("#9c88b4"), Color("#ca9670")
 ]
 const WOOD_COLORS := [
-    Color("#956043"), Color("#ab7553"), Color("#9e6b49"),
-    Color("#ad7957"), Color("#976849"), Color("#b2845d"),
-    Color("#a16d4c"), Color("#ac7754")
+    Color("#855b42"), Color("#8f664a"), Color("#946b4c"),
+    Color("#a37958"), Color("#8f6246"), Color("#a17a57"),
+    Color("#966b4d"), Color("#967454")
 ]
 
 var rng := RandomNumberGenerator.new()
@@ -67,11 +75,6 @@ var contact_shadows: Node3D
 var workshop_lamps: Array[OmniLight3D] = []
 var lamp_refresh := 0.0
 var kinetic_time := 0.0
-var race_number := 0
-var best_finish_time := 0.0
-var total_wins := 0
-var total_races := 0
-var personal_best_rank := 40
 var obstacle_finish: Node3D
 var track_surface: Node3D
 var track_physics_material: PhysicsMaterial
@@ -79,10 +82,17 @@ var primary_light: DirectionalLight3D
 var world_environment: Environment
 var graphics_quality := 1
 var show_fps := false
+var career: RefCounted
+var selected_track := 0
+var race_variation := 0
+var result_saved := false
+var last_result: Dictionary = {}
 const QUALITY_NAMES := ["ECONOMY","BALANCED","ULTRA"]
 
 func _ready() -> void:
     rng.seed = 424242
+    career = Career.new()
+    career.load_save()
     track_physics_material = PhysicsMaterial.new()
     track_physics_material.friction = 0.85
     track_physics_material.bounce = 0.09
@@ -90,10 +100,6 @@ func _ready() -> void:
     if prefs.load("user://marble_settings.cfg") == OK:
         graphics_quality = clampi(int(prefs.get_value("video","quality",1)),0,2)
         show_fps = bool(prefs.get_value("video","fps",false))
-        best_finish_time = float(prefs.get_value("career","best_time",0.0))
-        total_wins = int(prefs.get_value("career","wins",0))
-        total_races = int(prefs.get_value("career","races",0))
-        personal_best_rank = clampi(int(prefs.get_value("career","best_rank",40)),1,40)
     _make_environment()
     _make_course()
     contact_shadows = ContactShadows.new()
@@ -208,6 +214,26 @@ func _apply_graphics_quality() -> void:
         if is_instance_valid(marble):
             marble.set_render_quality(graphics_quality)
 
+func set_track(index: int) -> bool:
+    if index < 0 or index >= TRACK_NAMES.size() or not career.is_unlocked(index):
+        return false
+    if race_state != "MENU" and race_state != "RESULTS":
+        return false
+    if index == selected_track:
+        return true
+    selected_track = index
+    race_variation = 0
+    _make_course()
+    audio.bind_mechanisms(moving_obstacles)
+    _apply_graphics_quality()
+    return true
+
+func current_timeout() -> float:
+    return RACE_TIMEOUT + selected_track * 24.0
+
+func track_title() -> String:
+    return TRACK_NAMES[selected_track]
+
 func height_at(z: float) -> float:
     return z * SLOPE
 
@@ -293,7 +319,9 @@ func _cylinder(parent: Node3D, location: Vector3, radius: float, tall: float, co
     mesh.height = tall
     mesh.radial_segments = 24
     art.mesh = mesh
-    art.material_override = _mat(color, 0.35)
+    # Neutral molded bodies; color is reserved for safety rings and cap.
+    # Avoids dozens of equally saturated rainbow poles competing for attention.
+    art.material_override = _mat(Color("#85756a").lerp(color,0.16),0.43,0.08)
     body.add_child(art)
     var cap = MeshInstance3D.new()
     var cap_mesh = SphereMesh.new()
@@ -312,6 +340,7 @@ func _make_course() -> void:
         board.queue_free()
     board = Node3D.new()
     board.name = "HandcraftedWoodenCourse"
+    board.set_meta("track_index",selected_track)
     add_child(board)
     moving_obstacles.clear()
     obstacle_finish = ObstacleFinish.new()
@@ -347,17 +376,17 @@ func _make_course() -> void:
                 _box(section_node,pos,Vector3(0.57,1.26,4.04),
                     _lacquer(BARRIER_COLORS[color_idx]),true,true,false)
                 track_surface.register_rail(pos,color_idx)
-        if section > 0 and section < SEGMENTS - 1:
-            if section % 3 == 1:
+        if section > 0 and section < SEGMENTS - 3:
+            # Edge-specific baffles eliminate the dominant strategy of riding
+            # permanently against either rail. Passages remain physically open.
+            _edge_baffles(section_node,center_z,section)
+            var layout := (section + selected_track + race_variation) % 3
+            if layout == 1:
                 _pegs(section_node, center_z, section)
-            elif section % 3 == 2:
+            elif layout == 2:
                 _gate_with_posts(section_node, center_z, section)
             else:
                 _slalom(section_node, center_z, section)
-            # Anti-cheese: every obstacle section closes alternating edge
-            # shortcuts. One side is never a safe full-course route.
-            if section == 12:
-                _edge_chicanes(section_node,center_z,section)
 
     obstacle_finish.rebuild()
     var woods: Array = []
@@ -379,32 +408,43 @@ func _make_course() -> void:
     dressing.name = "ModularBrassAndSilkDressing"
     board.add_child(dressing)
 
-func _edge_chicanes(parent: Node3D, center_z: float, n: int) -> void:
-    # Physically solid side-lane gates. Alternating full-width sweeps force
-    # every racer to cross the track; edge hugging no longer bypasses hazards.
-    # Two separate gates per section keep a traversable central lane.
-    for i in range(1):
-        var side := -1.0 if n%2 == 0 else 1.0
-        var z := center_z + (2.8 if i == 0 else -3.0)
-        var width := 3.6
-        var x := side*4.75
-        var tint: Color = BARRIER_COLORS[(n*2+i)%BARRIER_COLORS.size()]
-        var block := _box(parent,Vector3(x,height_at(z)+0.76,z),
-            Vector3(width,1.48,0.82),_lacquer(tint),true,true)
-        obstacle_finish.register_block(block.transform,Vector3(width,1.48,0.82),tint)
+func _edge_baffles(parent: Node3D, center_z: float, section: int) -> void:
+    # Two solid edge shutters per module, plus a staggered inboard obstacle
+    # for advanced circuits. These are real collisions, not cosmetic warnings.
+    for side in [-1.0, 1.0]:
+        var z: float = center_z + (3.75 if side < 0.0 else -3.75)
+        var material_color: Color = TRACK_COLORS[selected_track].darkened(0.13)
+        var size := Vector3(2.72,1.05,1.32)
+        var node := _box(parent,Vector3(side * 5.17,height_at(z)+0.49,z),
+            size,_lacquer(material_color),true,true)
+        node.name = "AntiEdgeBaffle_%02d_%s" % [section, "L" if side < 0.0 else "R"]
+        obstacle_finish.register_block(node.transform,size,material_color)
+    if selected_track >= 1 and section % 3 == 0:
+        # This diagonal gate reaches further into the lane but leaves a
+        # broad side opening. Alternates its side across modules.
+        var side := -1.0 if (section/2 + race_variation)%2==0 else 1.0
+        var z: float = center_z
+        var wide := Vector3(3.45 if selected_track == 1 else 3.95,0.82,1.25)
+        var x := side * (4.45 if selected_track == 1 else 4.30)
+        var tint: Color = TRACK_COLORS[selected_track].lightened(0.05)
+        var gate := _box(parent,Vector3(x,height_at(z)+0.37,z),
+            wide,_lacquer(tint),true,true)
+        gate.name = "Chicane_%02d" % section
+        obstacle_finish.register_block(gate.transform,wide,tint)
 
 func _pegs(parent: Node3D, center_z: float, n: int) -> void:
     # Checkerboard of rounded vertical posts, with traversable gaps.
     for row in range(3):
         var z = center_z + 3.0 - row * 3.2
         for c in range(5):
-            var x = (c - 2) * 2.20 + (0.56 if row % 2 == 1 else 0.0)
+            var shift := sin(float(n*9+row*3+race_variation*7))*0.23
+            var x = (c - 2) * 2.20 + (0.56 if row % 2 == 1 else 0.0) + shift
             var tint = BARRIER_COLORS[(n + c + row) % BARRIER_COLORS.size()]
             _cylinder(parent, Vector3(x, height_at(z)+0.8, z), 0.31, 1.6, tint)
 
 func _gate_with_posts(parent: Node3D, center_z: float, n: int) -> void:
-    for row in range(2):
-        var z = center_z + 3.2 - row * 6.0
+    for row in range(3 if selected_track == 2 else 2):
+        var z = center_z + 3.2 - row * (4.2 if selected_track == 2 else 6.0)
         for i in range(3):
             var x = -4.6 + i * 4.7 + (0.65 if row == 1 else 0.0)
             var gate_color: Color = BARRIER_COLORS[(n+row+i)%6]
@@ -435,13 +475,13 @@ func _swing_hammer(parent: Node3D, z: float, n: int) -> void:
     hinge.add_child(art)
     MechanismArt.decorate_hammer(hinge, parent, _mat(Color("#d6ad67"),0.27,0.72), _mat(Color("#262b33"),0.52,0.12))
     hinge.set_meta("motion_kind","hammer")
-    hinge.set_meta("speed",1.3+float(n%3)*0.22)
+    hinge.set_meta("speed",(1.3+float(n%3)*0.22)*(1.0+0.18*selected_track))
     hinge.set_meta("phase",float(n)*1.8)
     moving_obstacles.append(hinge)
 
 func _slalom(parent: Node3D, center_z: float, n: int) -> void:
-    for i in range(4):
-        var z = center_z + 4.4 - float(i) * 2.8
+    for i in range(5 if selected_track == 2 else 4):
+        var z = center_z + 4.4 - float(i) * (2.2 if selected_track == 2 else 2.8)
         var x = (-3.5 if i % 2 == 0 else 3.5)
         var slalom_color: Color = BARRIER_COLORS[(n+i)%6]
         var size := Vector3(3.4,0.75,1.05)
@@ -487,7 +527,7 @@ func _add_spinner(parent: Node3D, z: float, n: int) -> void:
     pivot.add_child(axle)
     MechanismArt.decorate_spinner(pivot, parent, _mat(Color("#d6ad67"),0.27,0.72), _mat(Color("#292d35"),0.36,0.22))
     pivot.set_meta("motion_kind","spinner")
-    pivot.set_meta("spin_speed", (1.0 if n%2==0 else -1.0) * (0.72 + n*0.022))
+    pivot.set_meta("spin_speed", (1.0 if n%2==0 else -1.0) * (0.72 + n*0.022) * (1.0 + 0.19*selected_track))
     moving_obstacles.append(pivot)
 
 func _start_arch() -> void:
@@ -536,7 +576,7 @@ func _floating_sign(message: String, location: Vector3) -> void:
 
 func _decorations() -> void:
     # Oversized toy building blocks and wooden track supports outside the racing lanes.
-    for j in range(34):
+    for j in range(18):
         var z = 9.0 - j * 6.0
         for side in [-1, 1]:
             if j % 3 == 0:
@@ -568,13 +608,13 @@ func _showroom() -> void:
                     Vector3(0.2,0.28,SEGMENT_LENGTH-0.6),
                     _mat(Color("#957052"),0.64),false)
     # Exposed beams, side shelves and colored toy cartons.
-    for i in range(11):
-        var z = 7.5-i*18.0
+    for i in range(8):
+        var z = 7.5-i*25.0
         for side in [-1.0,1.0]:
             var x=side*15.5
             _box(board,Vector3(x,height_at(z)+3.9,z),Vector3(2.5,0.28,8.5),
                 _wood_mat(Color("#91715a")),false)
-            for k in range(3):
+            for k in range(2):
                 var box_color=BARRIER_COLORS[(i+k+(0 if side>0 else 3))%6]
                 _box(board,Vector3(x-side*0.25,height_at(z)+4.6,z+(k-1)*2.7),
                     Vector3(1.0,1.1,1.6),_mat(box_color.darkened(0.28),0.63),false)
@@ -583,7 +623,7 @@ func _showroom() -> void:
         lamp.position=Vector3(0,height_at(z)+10.5,z)
         lamp.light_color=Color("#ffe3b4")
         lamp.light_energy=0.22
-        lamp.omni_range=22
+        lamp.omni_range=19
         lamp.shadow_enabled=false
         board.add_child(lamp)
         workshop_lamps.append(lamp)
@@ -686,7 +726,16 @@ func _camera_bump(_body: Node) -> void:
 
 func start_race(perk_name: String) -> void:
     selected_perk = perk_name
-    race_number += 1
+    career.begin()
+    result_saved = false
+    last_result = {}
+    # Alternating geometry order on repeat attempts avoids an identical course
+    # without changing the course identity or difficulty.
+    if race_variation > 0:
+        _make_course()
+        audio.bind_mechanisms(moving_obstacles)
+        _apply_graphics_quality()
+    race_variation = (race_variation+1)%3
     race_state = "COUNTDOWN"
     race_time = 0.0
     countdown = 3.3
@@ -785,7 +834,7 @@ func _process(delta: float) -> void:
             if result_delay > 1.5 and not finish_announced:
                 finish_announced = true
                 _end_race()
-        elif race_time >= RACE_TIMEOUT:
+        elif race_time >= current_timeout():
             _end_race()
     course_flash = maxf(0.0, course_flash - delta)
     _update_camera(delta)
@@ -948,21 +997,11 @@ func _end_race() -> void:
     boosting = false
     steer = 0.0
     steer_target = 0.0
-    total_races += 1
-    var final_rank := player_rank()
-    personal_best_rank = mini(personal_best_rank,final_rank)
-    if final_rank == 1:
-        total_wins += 1
-    if is_instance_valid(player) and player.finished:
-        if best_finish_time <= 0.0 or race_time < best_finish_time:
-            best_finish_time = race_time
-    var prefs := ConfigFile.new()
-    prefs.load("user://marble_settings.cfg")
-    prefs.set_value("career","best_time",best_finish_time)
-    prefs.set_value("career","wins",total_wins)
-    prefs.set_value("career","races",total_races)
-    prefs.set_value("career","best_rank",personal_best_rank)
-    prefs.save("user://marble_settings.cfg")
+    if not result_saved:
+        result_saved = true
+        last_result = career.complete(selected_track,player_rank(),
+            player.finish_time if is_instance_valid(player) and player.finished else race_time,
+            is_instance_valid(player) and player.finished)
     audio.tone("finish")
     if is_instance_valid(player) and player.finished:
         audio.finish_fanfare()

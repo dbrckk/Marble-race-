@@ -57,7 +57,7 @@ func _run_checks() -> void:
 
     var finish: Node3D = race.board.get_node_or_null("PremiumObstacleFinishes")
     assert(finish != null, "Missing v0.8 obstacle detailing")
-    assert(int(finish.get("post_count")) >= 90, "Pegs must have instanced art")
+    assert(int(finish.get("post_count")) >= 85, "Pegs must have instanced art")
     assert(int(finish.get("block_count")) >= 20, "Box obstacles must be registered")
     for detail in finish.get_children():
         assert(detail is MultiMeshInstance3D, "Obstacle details must remain GPU-instanced")

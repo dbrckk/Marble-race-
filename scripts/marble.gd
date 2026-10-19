@@ -169,15 +169,15 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
         side_force = drift + (-position.x * 0.065)
     # Real physics recovery: give a marble a small nudge if trapped against a
     # rail/post for >2 sec. No teleportation, no fake position interpolation.
-    var wall_proximity := clampf((absf(position.x)-5.2)/0.95,0.0,1.0)
-    side_force += -signf(position.x) * 26.0 * wall_proximity
-    if linear_velocity.length() < 0.35:
+    var wall_proximity := clampf((absf(position.x)-4.70)/1.05,0.0,1.0)
+    side_force += -signf(position.x) * 31.0 * wall_proximity
+    if linear_velocity.length() < 0.65 or (absf(linear_velocity.z) < 0.30 and absf(position.x) > 3.5):
         stuck_seconds += delta
     else:
         stuck_seconds = maxf(0.0,stuck_seconds - delta*3.0)
-    if stuck_seconds > 2.0:
-        var push_side := -signf(position.x) * 1.7 if absf(position.x)>2.1 else (1.0 if recovery_count%2==0 else -1.0)*1.2
-        apply_central_impulse(Vector3(push_side,0.24,-4.4) * mass)
+    if stuck_seconds > 1.65:
+        var push_side := -signf(position.x) * 2.5 if absf(position.x)>2.1 else (1.0 if recovery_count%2==0 else -1.0)*1.25
+        apply_central_impulse(Vector3(push_side,0.25,-5.2) * mass)
         stuck_seconds = 0.0
         recovery_count += 1
     apply_central_force(Vector3(side_force, 0.0, -drive_force) * mass)

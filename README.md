@@ -156,3 +156,39 @@ See [measured render benchmark](docs/PERFORMANCE.md) and [current OpenGL screens
 ## v0.11 — Android control layout fix
 
 Larger analog joystick and boost zone, camera and pause above the touch zone, boost activation confined to the bottom 31% to prevent false taps. Clearly visible BUILD v0.11 on both menu and race HUD. Version code incremented to 11. Rectangular LEFT/RIGHT buttons indicate an outdated installed APK.
+
+
+## v0.12 — Championship edition
+
+The former single-course prototype now has a small **offline three-track championship**, explicitly designed to feel complete and replayable:
+
+- **WOODWORKS** — first course, alternating chicanes and post slalom. Finish **top 10** to unlock SWITCHBACK.
+- **SWITCHBACK** — tighter alternating obstacles and faster kinetic mechanisms. Finish **top 8** to unlock GAUNTLET.
+- **GAUNTLET** — advanced layout, faster hazards and tighter openings. Race for top-three gold.
+- Per-attempt course variants prevent every race from repeating exactly the same section order; 40 physical contestants retain their normal physics.
+- All obstacle modules have **genuine anti-edge shutters**. Riding permanently along the wall is no longer a valid global shortcut. Their inboard gaps remain traversable, and the final runout is intentionally free of hazards to make reaching the finish fair.
+- **Career persistence:** total starts, finishes, wins, podiums, best position, best time and up to three medal stars per course saved offline to `user://marble_career.cfg`. Saving happens once at results. Existing sound, graphics and controls settings remain in `user://marble_settings.cfg`.
+- **New track selection menu** with lock indicators, personal bests and progress; **updated results** show completion, personal bests and newly unlocked tracks, plus a direct continuation to the next unlocked circuit.
+- Simplified race overlay: top three plus player instead of a seven-line leaderboard, course name and number of finishers, smaller pool of workshop props and a more coordinated muted color palette.
+- Added automated career persistence, locked-track user-interface and three-course complete race tests. No test writes to the user's actual career save location.
+
+### Android validation
+
+`tests/smoke.gd`, `tests/touch_controls.gd`, `tests/career.gd`, `tests/ui_regression.gd`, `tests/courses.gd` and `tests/end_to_end.gd` all run under GitHub Actions. Success is a prerequisite for generating the Android APK.
+
+This is a *complete small-game candidate*, not yet a verified production release. Physical Android QA, tuning the three difficulty curves on a touchscreen, compatibility coverage and a release-signed Play Store AAB remain necessary before public distribution.
+
+
+### Final gameplay balancing notes
+
+A two-course automated gameplay run using legitimate steering and rechargeable boost (without position modification) achieved fourth place on WOODWORKS and third place on SWITCHBACK. It confirms the TOP 10 / TOP 8 unlock thresholds are achievable with engaged steering; simply drifting passively near the walls is not a viable strategy.
+
+**Current package:** Android 1.0.0-rc.1, versionCode 13. Release candidate / offline single-player championship. No Play Store release signing is performed by CI.
+
+### Championship edition captures
+
+Screenshots below were rendered by Godot 4.5.1's GL Compatibility renderer, not concept art.
+
+![Marble Race championship track selection](docs/screenshots/championship-marble-menu.jpg)
+![Marble Race with redesigned obstacle modules](docs/screenshots/championship-marble-race.jpg)
+

@@ -46,6 +46,10 @@ var label_timer := 0.0
 var touch_controls: Control
 var sensitivity_button: Button
 var hand_button: Button
+var track_buttons: Array[Button] = []
+var career_label: Label
+var next_course_button: Button
+var result_header: Label
 var sensitivity_index := 1
 var left_handed := false
 const SENSITIVITIES := [0.70,1.0,1.35]
@@ -127,34 +131,27 @@ func _build_menu() -> void:
     dark.mouse_filter = Control.MOUSE_FILTER_IGNORE
     menu_layer.add_child(dark)
     var panel = _panel()
-    panel.anchor_left = 0.042
-    panel.anchor_top = 0.14
-    panel.anchor_right = 0.425
-    panel.anchor_bottom = 0.87
+    panel.anchor_left = 0.032
+    panel.anchor_top = 0.115
+    panel.anchor_right = 0.45
+    panel.anchor_bottom = 0.89
     menu_layer.add_child(panel)
     var col = _column(13)
     panel.add_child(col)
     col.add_child(_text("THE TABLETOP ROYALE", 15, ORANGE))
-    var title = _text("LOST\nMARBLES", 69, Color.WHITE)
+    var title = _text("MARBLE\nRACE", 63, Color.WHITE)
     title.add_theme_color_override("font_shadow_color", Color(0,0,0,0.65))
     col.add_child(title)
-    col.add_child(_text("Forty glass marbles. One impossible wooden course. Every race is different.", 19, DIM))
+    col.add_child(_text("40 glass racers. 3 distinct circuits.\nEarn medals, unlock tracks, improve your records.", 18, DIM))
     var space = Control.new()
     space.custom_minimum_size = Vector2(0,23)
     col.add_child(space)
-    var quick = _action("QUICK PLAY  →", ORANGE, Color("#2a1b13"))
+    var quick = _action("RACE SELECTED COURSE  →", ORANGE, Color("#2a1b13"))
     quick.custom_minimum_size.y = 66
     quick.pressed.connect(show_perks)
     col.add_child(quick)
-    var solo = _action("SOLO SHOW  /  PRACTICE", Color("#404650"))
-    solo.pressed.connect(show_perks)
-    col.add_child(solo)
-    col.add_child(_text("40 RACERS   •   1 WINNER   •   PHYSICS FIRST", 14, DIM))
-    col.add_child(_text("Drag left thumb to steer • Hold right thumb to boost", 14, DIM))
-    col.add_child(_text("FULL COURSE  •  CAREER STATS SAVED", 13, Color("#9fabb1")))
-    var career = _text("RACES %d   |   WINS %d   |   BEST RANK #%d" % [game.total_races,game.total_wins,game.personal_best_rank],14,DIM)
-    career.name = "CareerStats"
-    col.add_child(career)
+    col.add_child(_text("ANALOG STEERING  •  40 RACERS  •  OFFLINE", 14, DIM))
+    col.add_child(_text("Left thumb: steer   /   Right thumb: boost", 14, DIM))
     var sound = _action("SOUND: " + ("ON" if game.audio.enabled else "OFF"), Color("#292e39"))
     sound.custom_minimum_size.y = 37
     sound.pressed.connect(func():
@@ -200,6 +197,56 @@ func _build_menu() -> void:
     hand_button.anchor_bottom = 0.730
     hand_button.pressed.connect(_hand_pressed)
     menu_layer.add_child(hand_button)
+    _build_track_picker()
+
+func _build_track_picker() -> void:
+    var panel := _panel()
+    panel.anchor_left = 0.475
+    panel.anchor_right = 0.972
+    panel.anchor_top = 0.13
+    panel.anchor_bottom = 0.535
+    menu_layer.add_child(panel)
+    var col := _column(5)
+    panel.add_child(col)
+    col.add_child(_text("CHOOSE YOUR CIRCUIT",23,ORANGE))
+    for i in range(game.TRACK_NAMES.size()):
+        var button := _action("",Color("#343c44"))
+        button.add_theme_font_size_override("font_size",18)
+        button.custom_minimum_size.y = 49
+        button.pressed.connect(_select_track.bind(i))
+        col.add_child(button)
+        track_buttons.append(button)
+    career_label = _text("",14,DIM)
+    col.add_child(career_label)
+    _refresh_career_menu()
+
+func _select_track(index: int) -> void:
+    if game.set_track(index):
+        _refresh_career_menu()
+
+func _refresh_career_menu() -> void:
+    if not is_instance_valid(career_label):
+        return
+    for i in range(track_buttons.size()):
+        var available: bool = game.career.is_unlocked(i)
+        var best: int = game.career.track_best[i]
+        var stars: int = game.career.stars[i]
+        var info: String = ("%02d  %s  |  " % [i+1,game.TRACK_NAMES[i]])
+        if not available:
+            info += "LOCKED"
+        elif best == 0:
+            info += "NEW"
+        else:
+            info += "BEST #%d  %.1fs  %s" % [best,game.career.track_time[i],"★".repeat(stars)]
+        track_buttons[i].text = info
+        track_buttons[i].disabled = not available
+        track_buttons[i].add_theme_stylebox_override("normal",
+            _surface(Color("#655039") if i == game.selected_track else Color("#29323b"),
+            ORANGE if i == game.selected_track else Color(1,1,1,0.09),8))
+    career_label.text = "RACES %d   WINS %d   FINISHES %d" % [
+        game.career.starts,game.career.victories,game.career.finishes]
+    if game.career.unlocked < 3:
+        career_label.text += "\n" + game.career.next_locked_requirement()
 
 func _build_perks() -> void:
     perks_layer = Control.new()
@@ -298,14 +345,14 @@ func _build_race_hud() -> void:
     clock_label = _small_panel_text("00:00.00", 23, Rect2(0.016,0.025,0.155,0.081))
     place_label = _small_panel_text("40th", 22, Rect2(0.016,0.115,0.155,0.082))
     speed_label = _small_panel_text("00  SPEED", 17, Rect2(0.016,0.21,0.155,0.066))
-    remaining_label = _small_panel_text("0 / 40 FINISHED", 19, Rect2(0.355,0.02,0.290,0.080), HORIZONTAL_ALIGNMENT_CENTER)
-    leaderboard = _small_panel_text("LEADERBOARD", 16, Rect2(0.835,0.025,0.150,0.33))
-    fps_label = _small_panel_text("FPS --",16,Rect2(0.865,0.39,0.119,0.060))
+    remaining_label = _small_panel_text("WOODWORKS • 0 / 40", 19, Rect2(0.335,0.02,0.330,0.080), HORIZONTAL_ALIGNMENT_CENTER)
+    leaderboard = _small_panel_text("LEADERBOARD", 16, Rect2(0.79,0.025,0.195,0.28))
+    fps_label = _small_panel_text("FPS --",16,Rect2(0.865,0.43,0.119,0.060))
     fps_label.get_parent().visible = game.show_fps
     course_progress = _progress_bar(Color("#e9ac5d"))
     course_progress.name = "CourseProgress"
-    course_progress.anchor_left = 0.355
-    course_progress.anchor_right = 0.645
+    course_progress.anchor_left = 0.335
+    course_progress.anchor_right = 0.665
     course_progress.anchor_top = 0.109
     course_progress.anchor_bottom = 0.134
     hud_layer.add_child(course_progress)
@@ -340,14 +387,14 @@ func _build_race_hud() -> void:
     touch_controls.configure(game)
     touch_controls.direction_changed.connect(func(v: float): game.change_steer(v))
     touch_controls.boost_changed.connect(func(v: bool): game.change_boost(v))
-    boost_label = _text("BOOST 100%", 16, ORANGE)
+    boost_label = _text("BOOST 100%", 18, ORANGE)
     boost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     boost_label.anchor_left = 0.665
     boost_label.anchor_right = 0.915
     boost_label.anchor_top = 0.603
     boost_label.anchor_bottom = 0.636
     hud_layer.add_child(boost_label)
-    var build_label := _text("CONTROLS v0.11  /  ANALOG",13,Color("#c7d4db"))
+    var build_label := _text("STEER  ◀  DRAG  ▶     •     HOLD BOOST",13,Color("#c7d4db"))
     build_label.anchor_left = 0.31
     build_label.anchor_right = 0.65
     build_label.anchor_top = 0.931
@@ -423,9 +470,10 @@ func _build_results() -> void:
     results_layer.add_child(panel)
     var col = _column(17)
     panel.add_child(col)
-    var title = _text("RACE COMPLETE", 40, ORANGE)
+    var title = _text("RACE RESULTS", 40, ORANGE)
     title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     col.add_child(title)
+    result_header = title
     var summary = _text("", 22)
     summary.name = "Summary"
     summary.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -434,12 +482,18 @@ func _build_results() -> void:
     var replay = _action("RACE AGAIN", ORANGE, Color("#251b0d"))
     replay.pressed.connect(func(): game.restart_race())
     col.add_child(replay)
-    var change = _action("CHANGE PERK", Color("#343b47"))
-    change.pressed.connect(show_perks)
-    col.add_child(change)
+    next_course_button = _action("NEXT CIRCUIT  →",Color("#4c6b67"))
+    next_course_button.pressed.connect(_continue_championship)
+    col.add_child(next_course_button)
     var menu = _action("MAIN MENU", Color("#343b47"))
     menu.pressed.connect(func(): game.return_to_menu())
     col.add_child(menu)
+
+func _continue_championship() -> void:
+    var next_index: int = game.selected_track + 1
+    game.return_to_menu()
+    game.set_track(next_index)
+    show_perks()
 
 func _hide_all() -> void:
     if is_instance_valid(touch_controls):
@@ -453,10 +507,8 @@ func show_menu() -> void:
     if get_tree().paused:
         get_tree().paused = false
     _hide_all()
+    _refresh_career_menu()
     menu_layer.visible = true
-    var stats := menu_layer.find_child("CareerStats",true,false) as Label
-    if stats:
-        stats.text = "RACES %d   |   WINS %d   |   BEST RANK #%d" % [game.total_races,game.total_wins,game.personal_best_rank]
 
 func show_perks() -> void:
     _hide_all()
@@ -491,7 +543,7 @@ func update_hud() -> void:
     clock_label.text = "%02d:%02d.%02d" % [seconds / 60, seconds % 60, centi]
     var place = game.player_rank()
     place_label.text = "#%d / 40" % place
-    remaining_label.text = "%d / 40 FINISHED" % game.racer_finish_order.size()
+    remaining_label.text = "%s  •  %d FINISHED" % [game.track_title(),game.racer_finish_order.size()]
     boost_label.text = "BOOST %d%%" % int(game.boost_energy * 100.0)
     speed_label.text = "%02d  SPEED" % int(game.player.linear_velocity.length() * 3.6)
     if game.show_fps:
@@ -502,12 +554,12 @@ func update_hud() -> void:
     course_progress.value = clampf((-game.player.global_position.z/absf(game.FINISH_Z))*100.0,0.0,100.0)
     boost_progress.value = game.boost_energy*100.0
     var ranking = game.get_rankings()
-    var table = "POSITION\n"
-    for i in range(min(7,ranking.size())):
+    var table = "TOP RACERS\n"
+    for i in range(min(3,ranking.size())):
         var r = ranking[i]
-        table += "%02d  %s%s\n" % [i+1, r.display_name, "  ★" if r.is_player else ""]
-    if place > 5:
-        table += "…\n%02d  YOU  ★" % place
+        table += "%02d  %s%s\n" % [i+1, r.display_name, " ★" if r.is_player else ""]
+    if place > 3:
+        table += "%02d  YOU ★" % place
     leaderboard.text = table
 
 func show_checkpoint(number: int) -> void:
@@ -522,11 +574,21 @@ func show_results(place: int, time: float, ranking: Array) -> void:
     _hide_all()
     results_layer.visible = true
     var summary = results_layer.find_child("Summary", true, false) as Label
-    var leaders = "CAREER  %d RACES  /  %d WINS
-BEST FINISH  %s
-
-" % [game.total_races,game.total_wins,("%.2fs" % game.best_finish_time if game.best_finish_time > 0.0 else "--")]
+    var leaders = ""
     for i in range(min(5, ranking.size())):
         leaders += "%s  %s\n" % [str(i+1).pad_zeros(2), ranking[i].display_name]
+    var status: Dictionary = game.last_result
+    var finished: bool = bool(status.get("finished",false))
+    var award := "DNF"
+    if finished:
+        award = "GOLD" if place <= 3 else ("SILVER" if place <= 10 else "BRONZE")
+    if is_instance_valid(result_header):
+        result_header.text = "%s  •  %s" % [game.track_title(),award]
+    var record_text := "NEW PERSONAL BEST!" if bool(status.get("record",false)) else ""
+    var unlock_text := "NEXT CIRCUIT UNLOCKED!" if bool(status.get("unlocked",false)) else ""
     if summary:
-        summary.text = "YOUR POSITION\n#%d / 40\n\nTIME  %.2fs\n\nTOP MARBLES\n%s" % [place, time, leaders]
+        summary.text = "POSITION  #%d / 40   •   %s\nTIME  %.1fs\n%s\n%s\nBEST  #%s\n\nTOP 3\n%s" % [
+            place,"FINISHED" if finished else "TIME OUT",time,record_text,unlock_text,
+            str(game.career.track_best[game.selected_track]) if game.career.track_best[game.selected_track] > 0 else "—",
+            leaders]
+    next_course_button.visible = game.selected_track < 2 and game.career.is_unlocked(game.selected_track+1)

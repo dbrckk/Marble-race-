@@ -78,6 +78,30 @@ jobs:
           set -euo pipefail
           timeout 150s ./Godot_v4.5.1-stable_linux.x86_64 --headless --fixed-fps 60 --quit-after 7200 --path . --script res://tests/race_diagnostic.gd 2>&1 | tee race-diagnostic.log
           grep -Fq "RACE_DIAGNOSTIC_PASS" race-diagnostic.log
+      - name: Offline championship persistence
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 75s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 300 --path . --script res://tests/career.gd 2>&1 | tee career.log
+          grep -Fq "CAREER_PASS:" career.log
+      - name: Career UI and locked tracks regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 75s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 300 --path . --script res://tests/ui_regression.gd 2>&1 | tee career-ui.log
+          grep -Fq "UI_PASS:" career-ui.log
+      - name: Three-course obstacle and finish regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 180s ./Godot_v4.5.1-stable_linux.x86_64 --headless --fixed-fps 60 --quit-after 46000 --path . --script res://tests/courses.gd 2>&1 | tee course-tests.log
+          grep -Fq "COURSE_PASS:" course-tests.log
+      - name: Full championship end-to-end simulation
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 180s ./Godot_v4.5.1-stable_linux.x86_64 --headless --fixed-fps 60 --quit-after 46000 --path . --script res://tests/end_to_end.gd 2>&1 | tee career-end-to-end.log
+          grep -Fq "END_TO_END_PASS:" career-end-to-end.log
       - name: Generate Android debug APK
         run: ./Godot_v4.5.1-stable_linux.x86_64 --headless --path . --export-debug Android build/marble-race-debug.apk
       - name: Verify Android debug APK signature

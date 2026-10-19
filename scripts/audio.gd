@@ -250,7 +250,7 @@ func _on_marble_collision(_body: Node) -> void:
         return
     collision_delay = 0.09 if speed > 7 else 0.17
     var is_motor := _body.name.begins_with("KineticPaddle") or _body.name.begins_with("SwingHammer")
-    var is_peg := _body.name.begins_with("ToyPeg")
+    var is_peg := _body.name.begins_with("ToyPeg") or _body.name.begins_with("AntiEdgeBaffle") or _body.name.begins_with("Chicane_")
     var kind = METAL_HITS if is_motor else (BUMPER_HITS if is_peg else (GLASS_HITS if _body is RigidBody3D else WOOD_HITS))
     if speed >= 8.5 and haptic_cooldown <= 0.0 and OS.has_feature("mobile"):
         Input.vibrate_handheld(22)
