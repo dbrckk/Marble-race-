@@ -3,6 +3,9 @@ extends Node3D
 ## Eight pooled voice channels prevent hard-cutting a sound every time a marble collides.
 const SCORE = preload("res://assets/audio/music/marble_workshop.ogg")
 const ROLL = preload("res://assets/audio/sfx/wood_roll.ogg")
+const AIR = preload("res://assets/audio/sfx/airrush.ogg")
+const PERCUSSION = preload("res://assets/audio/music/pace_percussion.ogg")
+const FANFARE = preload("res://assets/audio/sfx/fanfare.ogg")
 const UI_CLICK = preload("res://assets/audio/sfx/ui_click.ogg")
 const UI_SELECT = preload("res://assets/audio/sfx/ui_select.ogg")
 const WOOD_HITS = [
@@ -24,6 +27,12 @@ const TONES = {
 }
 var music: AudioStreamPlayer
 var rolling: AudioStreamPlayer3D
+var air: AudioStreamPlayer
+var percussion: AudioStreamPlayer
+var race_active := false
+var finish_progress := 0.0
+var loudness_offset := 0.0
+var haptic_cooldown := 0.0
 var channels: Array[AudioStreamPlayer] = []
 var target_marble: RigidBody3D
 var enabled := true
@@ -35,14 +44,33 @@ var rng := RandomNumberGenerator.new()
 
 func _ready() -> void:
     rng.seed = 5721
+    var cfg=ConfigFile.new()
+    if cfg.load("user://marble_settings.cfg") == OK:
+        enabled = bool(cfg.get_value("audio","enabled",true))
     music = AudioStreamPlayer.new()
     music.name = "OriginalSoundtrack"
     music.stream = SCORE
     if music.stream is AudioStreamOggVorbis:
         (music.stream as AudioStreamOggVorbis).loop = true
-    music.volume_db = -24
+    music.volume_db = -24.0 if enabled else -80.0
     add_child(music)
     music.play()
+    percussion = AudioStreamPlayer.new()
+    percussion.name = "AdaptiveRacePercussion"
+    percussion.stream = PERCUSSION
+    if percussion.stream is AudioStreamOggVorbis:
+        (percussion.stream as AudioStreamOggVorbis).loop = true
+    percussion.volume_db = -75.0
+    add_child(percussion)
+    percussion.play()
+    air = AudioStreamPlayer.new()
+    air.name = "WindAtHighSpeed"
+    air.stream = AIR
+    if air.stream is AudioStreamOggVorbis:
+        (air.stream as AudioStreamOggVorbis).loop = true
+    air.volume_db = -75.0
+    add_child(air)
+    air.play()
     rolling = AudioStreamPlayer3D.new()
     rolling.name = "WoodenMarbleRolling"
     rolling.stream = ROLL
@@ -70,7 +98,21 @@ func bind_marble(marble: RigidBody3D) -> void:
 func _process(delta: float) -> void:
     collision_delay = maxf(0.0,collision_delay-delta)
     boost_delay = maxf(0.0,boost_delay-delta)
-    music.volume_db = move_toward(music.volume_db,music_target_db,delta*7.0)
+    haptic_cooldown = maxf(0.0,haptic_cooldown-delta)
+    music.volume_db = move_toward(music.volume_db,music_target_db + loudness_offset,delta*7.0)
+    var pace_target := -72.0
+    var air_target := -72.0
+    if enabled and race_active and is_instance_valid(target_marble):
+        var speed_now = target_marble.linear_velocity.length()
+        var energy = clampf((speed_now-3.0)/11.0,0.0,1.0)
+        pace_target = -36.0 + energy*14.0 + finish_progress*5.0
+        air_target = -52.0 + energy*25.0
+        air.pitch_scale = lerpf(0.85,1.5,energy)
+    if not enabled:
+        pace_target = -80.0
+        air_target = -80.0
+    percussion.volume_db = move_toward(percussion.volume_db,pace_target,delta*11.0)
+    air.volume_db = move_toward(air.volume_db,air_target,delta*13.0)
     if not is_instance_valid(target_marble) or target_marble.freeze:
         rolling.volume_db = move_toward(rolling.volume_db,-60.0,delta*45.0)
         return
@@ -103,12 +145,22 @@ func tone(key: String) -> void:
         _voice(TONES[key],-13.0,1.0)
 
 func begin_race() -> void:
-    music_target_db = -17.5 if enabled else -80.0
+    music_target_db = -20.0 if enabled else -80.0
+    race_active = true
+    finish_progress = 0.0
     tone("start")
 
 func menu_music() -> void:
-    music_target_db = -22.0 if enabled else -80.0
+    music_target_db = -23.0 if enabled else -80.0
+    race_active = false
+    finish_progress = 0.0
     target_marble = null
+
+func update_progress(ratio: float) -> void:
+    finish_progress = clampf(ratio,0.0,1.0)
+
+func finish_fanfare() -> void:
+    _voice(FANFARE,-12.0,1.0)
 
 func boost() -> void:
     if boost_delay <= 0.0:
@@ -122,13 +174,21 @@ func _on_marble_collision(_body: Node) -> void:
     if speed < 1.5:
         return
     collision_delay = 0.09 if speed > 7 else 0.17
-    var kind = GLASS_HITS if rng.randf()<0.35 else WOOD_HITS
+    var kind = GLASS_HITS if _body is RigidBody3D else WOOD_HITS
+    if speed >= 8.5 and haptic_cooldown <= 0.0 and OS.has_feature("mobile"):
+        Input.vibrate_handheld(22)
+        haptic_cooldown = 0.52
     var idx = rng.randi_range(0,kind.size()-1)
     _voice(kind[idx],clampf(-25.0+speed*0.8,-25.0,-12.0),rng.randf_range(0.91,1.15))
 
 func toggle_sound() -> bool:
     enabled = not enabled
+    var cfg = ConfigFile.new()
+    cfg.set_value("audio","enabled",enabled)
+    cfg.save("user://marble_settings.cfg")
     music_target_db = -80 if not enabled else -19
     music.volume_db = music_target_db
+    percussion.volume_db = -80.0 if not enabled else -45.0
+    air.volume_db = -80.0 if not enabled else -50.0
     rolling.volume_db = -80 if not enabled else -36
     return enabled

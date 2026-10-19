@@ -33,6 +33,9 @@ var seed_value := 0.0
 var target_sway := 0.0
 var stuck_seconds := 0.0
 var recovery_count := 0
+var boost_ring: MeshInstance3D
+var glass_material: ShaderMaterial
+var boost_glow := 0.0
 
 func setup(index: int, player: bool, base_position: Vector3, chosen_perk: String = "") -> void:
     racer_id = index
@@ -82,8 +85,31 @@ func setup(index: int, player: bool, base_position: Vector3, chosen_perk: String
     material.set_shader_parameter("vein_color", Color(0.98, 0.94, 0.82) if index % 3 == 0 else Color(0.75, 0.92, 0.93))
     material.set_shader_parameter("pattern_seed", seed_value)
     material.set_shader_parameter("stripe_scale", 0.3 + float(index % 7) * 0.29)
+    glass_material = material
     mesh.material_override = material
     add_child(mesh)
+
+    if is_player:
+        boost_ring = MeshInstance3D.new()
+        boost_ring.name = "TurboHalo"
+        var halo = TorusMesh.new()
+        halo.inner_radius = 0.44
+        halo.outer_radius = 0.48
+        halo.rings = 28
+        halo.ring_segments = 7
+        boost_ring.mesh = halo
+        boost_ring.rotation.x = 0.15
+        var ring_material = StandardMaterial3D.new()
+        ring_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+        ring_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+        ring_material.albedo_color = Color(0.49,0.93,1.0,0.65)
+        ring_material.emission_enabled = true
+        ring_material.emission = Color("#6ff1f9")
+        ring_material.emission_energy_multiplier = 1.9
+        boost_ring.material_override = ring_material
+        boost_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+        boost_ring.visible = false
+        add_child(boost_ring)
 
     collision = CollisionShape3D.new()
     collision.name = "SphereCollision"
@@ -95,6 +121,14 @@ func setup(index: int, player: bool, base_position: Vector3, chosen_perk: String
 func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> void:
     if finished or eliminated or sleeping:
         return
+    if is_player:
+        boost_glow = move_toward(boost_glow,1.0 if boosting else 0.0,delta*4.4)
+        if is_instance_valid(glass_material):
+            glass_material.set_shader_parameter("boost_strength",boost_glow)
+        if is_instance_valid(boost_ring):
+            boost_ring.visible = boost_glow > 0.02
+            boost_ring.rotation.y += delta*7.0*maxf(0.2,boost_glow)
+            boost_ring.scale = Vector3.ONE*(0.92+0.11*sin(elapsed*12.0))
     # Downhill assistance counteracts stalls without prescribing a trajectory.
     var drive_force := 12.5
     if perk == "Aerodynamic":

@@ -9,6 +9,7 @@ const OAK = preload("res://assets/textures/oak_albedo.png")
 const OAK_NORMAL = preload("res://assets/textures/oak_normal.png")
 const Audio = preload("res://scripts/audio.gd")
 const Visuals = preload("res://scripts/visuals.gd")
+const TrackFX = preload("res://scripts/track_fx.gd")
 
 const MARBLE_COUNT := 40
 const SLOPE := 0.085
@@ -240,6 +241,9 @@ func _make_course() -> void:
     _checkpoint_arches()
     _decorations()
     _showroom()
+    var cosmetic = TrackFX.new()
+    cosmetic.name = "PolishedToyDetails"
+    board.add_child(cosmetic)
 
 func _pegs(parent: Node3D, center_z: float, n: int) -> void:
     # Checkerboard of rounded vertical posts, with traversable gaps.
@@ -571,6 +575,7 @@ func _process(delta: float) -> void:
         if race_time > 1.0:
             ui.hide_countdown()
         if is_instance_valid(trail) and is_instance_valid(player):
+            audio.update_progress(clampf(-player.position.z/absf(FINISH_Z),0.0,1.0))
             trail.emitting = player.linear_velocity.length() > 4.0
             trail.initial_velocity_max = 2.6 if boosting else 0.75
             trail.color = Color("#91f5fd") if boosting else Color("#eeb65e")
@@ -657,8 +662,9 @@ func _update_camera(delta: float, force := false) -> void:
         focus = target + Vector3(0, 0.3, -5.5)
     camera_shake = move_toward(camera_shake,0.0,delta*0.42)
     var jitter := Vector3(sin(world_time*49.0), cos(world_time*43.0),0.0)*camera_shake
-    camera.global_position = desired if force else camera.global_position.lerp(desired,min(delta*3.5,1.0))
+    camera.global_position = desired if force else (camera.global_position - camera.get_meta("previous_jitter",Vector3.ZERO)).lerp(desired,min(delta*3.5,1.0))
     camera.global_position += jitter
+    camera.set_meta("previous_jitter",jitter)
     camera.look_at(focus, Vector3.UP)
     camera.fov = lerpf(camera.fov,clampf(62.0+player.linear_velocity.length()*0.48,64.0,76.0),minf(1,delta*2.8))
 
@@ -760,5 +766,7 @@ func _end_race() -> void:
     boosting = false
     steer = 0.0
     audio.tone("finish")
+    if is_instance_valid(player) and player.finished:
+        audio.finish_fanfare()
     audio.menu_music()
     ui.show_results(player_rank(), race_time, get_rankings())
