@@ -34,6 +34,11 @@ var finish_progress := 0.0
 var loudness_offset := 0.0
 var haptic_cooldown := 0.0
 var channels: Array[AudioStreamPlayer] = []
+var spatial_channels: Array[AudioStreamPlayer3D] = []
+var mechanism: AudioStreamPlayer3D
+var moving_props: Array[Node3D] = []
+var mechanism_timer := 0.0
+var collision_duck := 0.0
 var target_marble: RigidBody3D
 var enabled := true
 var collision_delay := 0.0
@@ -80,12 +85,33 @@ func _ready() -> void:
     rolling.max_distance = 24.0
     rolling.unit_size = 3.0
     add_child(rolling)
+    mechanism = AudioStreamPlayer3D.new()
+    mechanism.name = "KineticToyMotor"
+    mechanism.stream = preload("res://assets/audio/sfx/mechanism_loop.ogg")
+    if mechanism.stream is AudioStreamOggVorbis:
+        (mechanism.stream as AudioStreamOggVorbis).loop = true
+    mechanism.volume_db = -80.0
+    mechanism.max_distance = 28.0
+    mechanism.unit_size = 4.0
+    add_child(mechanism)
+    mechanism.play()
+    for n in range(7):
+        var spatial := AudioStreamPlayer3D.new()
+        spatial.name = "ImpactSpatial_%02d" % n
+        spatial.max_distance = 34.0
+        spatial.unit_size = 4.0
+        spatial.volume_db = -25.0
+        add_child(spatial)
+        spatial_channels.append(spatial)
     for n in range(10):
         var ch = AudioStreamPlayer.new()
         ch.name = "SFX_%02d" % n
         ch.volume_db = -16
         add_child(ch)
         channels.append(ch)
+
+func bind_mechanisms(props: Array[Node3D]) -> void:
+    moving_props = props.duplicate()
 
 func bind_marble(marble: RigidBody3D) -> void:
     target_marble = marble
@@ -99,7 +125,12 @@ func _process(delta: float) -> void:
     collision_delay = maxf(0.0,collision_delay-delta)
     boost_delay = maxf(0.0,boost_delay-delta)
     haptic_cooldown = maxf(0.0,haptic_cooldown-delta)
-    music.volume_db = move_toward(music.volume_db,music_target_db + loudness_offset,delta*7.0)
+    collision_duck = move_toward(collision_duck,0.0,delta*9.0)
+    music.volume_db = move_toward(music.volume_db,music_target_db + loudness_offset - collision_duck,delta*7.0)
+    mechanism_timer -= delta
+    if mechanism_timer <= 0.0:
+        mechanism_timer = 0.20
+        _update_mechanism_sound()
     var pace_target := -72.0
     var air_target := -72.0
     if enabled and race_active and is_instance_valid(target_marble):
@@ -123,6 +154,42 @@ func _process(delta: float) -> void:
     var speed = target_marble.linear_velocity.length()
     rolling.volume_db = move_toward(rolling.volume_db,clampf(-37.0+speed*1.45,-46.0,-13.0),delta*26)
     rolling.pitch_scale = clampf(0.63+speed*0.06,0.73,1.65)
+
+func _update_mechanism_sound() -> void:
+    if not enabled or not race_active or not is_instance_valid(target_marble):
+        mechanism.volume_db = -80.0
+        return
+    var best_dist := 30.0
+    var nearest: Node3D = null
+    for prop in moving_props:
+        if not is_instance_valid(prop):
+            continue
+        var dist := prop.global_position.distance_to(target_marble.global_position)
+        if dist < best_dist:
+            best_dist = dist
+            nearest = prop
+    if nearest:
+        mechanism.global_position = nearest.global_position
+        mechanism.volume_db = -24.0 + clampf(best_dist* -0.34,-16.0,0.0)
+        mechanism.pitch_scale = clampf(float(nearest.get_meta("spin_speed",1.1)),0.82,1.3)
+    else:
+        mechanism.volume_db = -80.0
+
+func _spatial_voice(stream: AudioStream, at: Vector3, loudness: float, pitch: float) -> void:
+    if not enabled:
+        return
+    var channel: AudioStreamPlayer3D = null
+    for speaker in spatial_channels:
+        if not speaker.playing:
+            channel = speaker
+            break
+    if channel == null:
+        channel = spatial_channels[rng.randi_range(0,spatial_channels.size()-1)]
+    channel.global_position = at
+    channel.stream = stream
+    channel.volume_db = loudness
+    channel.pitch_scale = pitch
+    channel.play()
 
 func _voice(stream: AudioStream, loudness := -10.0, pitch := 1.0) -> void:
     if not enabled:
@@ -179,7 +246,9 @@ func _on_marble_collision(_body: Node) -> void:
         Input.vibrate_handheld(22)
         haptic_cooldown = 0.52
     var idx = rng.randi_range(0,kind.size()-1)
-    _voice(kind[idx],clampf(-25.0+speed*0.8,-25.0,-12.0),rng.randf_range(0.91,1.15))
+    collision_duck = maxf(collision_duck,clampf(speed*0.35,0.0,3.5))
+    _spatial_voice(kind[idx],target_marble.global_position,
+        clampf(-17.0+speed*0.57,-18.0,-7.0),rng.randf_range(0.90,1.12))
 
 func toggle_sound() -> bool:
     enabled = not enabled
@@ -191,4 +260,8 @@ func toggle_sound() -> bool:
     percussion.volume_db = -80.0 if not enabled else -45.0
     air.volume_db = -80.0 if not enabled else -50.0
     rolling.volume_db = -80 if not enabled else -36
+    mechanism.volume_db = -80 if not enabled else -30
+    if not enabled:
+        for speaker in spatial_channels:
+            speaker.stop()
     return enabled

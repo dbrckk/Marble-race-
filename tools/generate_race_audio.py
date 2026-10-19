@@ -58,3 +58,17 @@ for k in range(12*8):
     arr[i:i+m]+=pulse
 save(fade_loop(arr),out/"music/pace_percussion.ogg")
 print("Original adaptive audio created",[(p.name,p.stat().st_size) for p in [out/"sfx/airrush.ogg",out/"sfx/fanfare.ogg",out/"music/pace_percussion.ogg"]])
+
+# Clockwork toy spinner: brushed gear whirr and soft regularly spaced pawl clicks.
+t = np.arange(int(sr*2.0),dtype=np.float32)/sr
+gear = (np.sin(2*np.pi*77*t)*.038 +
+        np.sin(2*np.pi*154*t + np.sin(2*np.pi*7*t)*.2)*.024 +
+        np.sin(2*np.pi*310*t)*.008)
+gear *= 0.65 + 0.25 * np.sin(2*np.pi*4*t)**2
+for k in range(8):
+    at=int(sr*k*0.25)
+    n=min(int(sr*.045), len(gear)-at)
+    at_t=np.arange(n)/sr
+    click=rng.normal(0,1,n)*np.exp(-at_t*97)*.017
+    gear[at:at+n] += click
+save(fade_loop(gear),out/"sfx/mechanism_loop.ogg")

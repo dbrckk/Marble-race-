@@ -10,6 +10,8 @@ const OAK_NORMAL = preload("res://assets/textures/oak_normal.png")
 const Audio = preload("res://scripts/audio.gd")
 const Visuals = preload("res://scripts/visuals.gd")
 const TrackFX = preload("res://scripts/track_fx.gd")
+const ContactShadows = preload("res://scripts/contact_shadows.gd")
+const LACQUER_SHADER = preload("res://shaders/lacquer.gdshader")
 
 const MARBLE_COUNT := 40
 const SLOPE := 0.085
@@ -54,11 +56,18 @@ var last_checkpoint := -1
 var course_flash := 0.0
 var trail: CPUParticles3D
 var starting_camera_target := Vector3(0, 0, 0)
+var player_marker: Label3D
+var contact_shadows: Node3D
+var workshop_lamps: Array[OmniLight3D] = []
+var lamp_refresh := 0.0
 
 func _ready() -> void:
     rng.seed = 424242
     _make_environment()
     _make_course()
+    contact_shadows = ContactShadows.new()
+    contact_shadows.name = "DynamicContactShadows"
+    add_child(contact_shadows)
     camera = Camera3D.new()
     camera.name = "RaceCamera"
     camera.current = true
@@ -69,6 +78,7 @@ func _ready() -> void:
     audio = Audio.new()
     audio.name = "RaceAudio"
     add_child(audio)
+    audio.bind_mechanisms(moving_obstacles)
     ui = HUD.new()
     add_child(ui)
     ui.attach_game(self)
@@ -126,6 +136,17 @@ func _mat(color: Color, roughness := 0.74, metalness := 0.0) -> StandardMaterial
         m.metallic_specular = 0.8
     render_materials[key] = m
     return m
+
+func _lacquer(color: Color) -> ShaderMaterial:
+    var key := "lacquer_" + color.to_html()
+    if render_materials.has(key):
+        return render_materials[key]
+    var finish := ShaderMaterial.new()
+    finish.shader = LACQUER_SHADER
+    finish.set_shader_parameter("pigment",color)
+    finish.set_shader_parameter("polish",0.68)
+    render_materials[key] = finish
+    return finish
 
 func _wood_mat(color: Color) -> ShaderMaterial:
     var key = "wood_" + color.to_html()
@@ -229,7 +250,7 @@ func _make_course() -> void:
                 var z = center_z + (rail_piece - 1) * 4.02
                 var color_idx = (section + rail_piece + (0 if side == 1 else 3)) % BARRIER_COLORS.size()
                 _box(section_node, Vector3(side * 6.84, height_at(z)+0.58, z),
-                    Vector3(0.57, 1.26, 4.04), _mat(BARRIER_COLORS[color_idx], 0.49), true, true)
+                    Vector3(0.57, 1.26, 4.04), _lacquer(BARRIER_COLORS[color_idx]), true, true)
         if section > 0 and section < SEGMENTS - 1:
             if section % 3 == 1:
                 _pegs(section_node, center_z, section)
@@ -262,7 +283,7 @@ func _gate_with_posts(parent: Node3D, center_z: float, n: int) -> void:
         for i in range(3):
             var x = -4.6 + i * 4.7 + (0.65 if row == 1 else 0.0)
             _box(parent, Vector3(x, height_at(z)+0.67, z),
-                Vector3(0.91, 1.37, 1.25), _mat(BARRIER_COLORS[(n+row+i)%6], 0.45), true, true)
+                Vector3(0.91, 1.37, 1.25), _lacquer(BARRIER_COLORS[(n+row+i)%6]), true, true)
     _add_spinner(parent, center_z, n)
     _swing_hammer(parent, center_z - 1.6, n)
 
@@ -282,7 +303,7 @@ func _swing_hammer(parent: Node3D, z: float, n: int) -> void:
     var art = MeshInstance3D.new()
     art.mesh = Visuals.rounded_box(size, 0.15)
     art.position = hit.position
-    art.material_override = _mat(BARRIER_COLORS[(n+3)%6],0.23,0.07)
+    art.material_override = _lacquer(BARRIER_COLORS[(n+3)%6])
     hinge.add_child(art)
     hinge.set_meta("motion_kind","hammer")
     hinge.set_meta("speed",1.3+float(n%3)*0.22)
@@ -294,7 +315,7 @@ func _slalom(parent: Node3D, center_z: float, n: int) -> void:
         var z = center_z + 4.4 - float(i) * 2.8
         var x = (-3.5 if i % 2 == 0 else 3.5)
         _box(parent, Vector3(x, height_at(z)+0.36, z),
-            Vector3(3.4, 0.75, 1.05), _mat(BARRIER_COLORS[(n+i)%6], 0.53), true, true)
+            Vector3(3.4, 0.75, 1.05), _lacquer(BARRIER_COLORS[(n+i)%6]), true, true)
     for i in range(3):
         var z = center_z + 2.3 - i * 3.5
         _cylinder(parent, Vector3(0, height_at(z)+0.65, z), 0.34, 1.3, BARRIER_COLORS[(n+2*i)%6])
@@ -315,7 +336,7 @@ func _add_spinner(parent: Node3D, z: float, n: int) -> void:
         var box = BoxMesh.new()
         box.size = Vector3(7.1 if i==0 else 4.8, 0.56, 0.34)
         mesh.mesh = box
-        mesh.material_override = _mat(color if i==0 else BARRIER_COLORS[(n+3)%6], 0.44)
+        mesh.material_override = _lacquer(color if i==0 else BARRIER_COLORS[(n+3)%6])
         spoke.add_child(mesh)
         # Collider needs rotation on CollisionShape rather than relying on untransformed parent body.
         var hit = CollisionShape3D.new()
@@ -432,6 +453,7 @@ func _showroom() -> void:
         lamp.omni_range=22
         lamp.shadow_enabled=false
         board.add_child(lamp)
+        workshop_lamps.append(lamp)
         var glass=MeshInstance3D.new()
         var globe=SphereMesh.new()
         globe.radius=0.45
@@ -478,6 +500,8 @@ func _spawn_racers() -> void:
         player.position.z -= 3.2
         player.position.y = height_at(player.position.z)+0.68
     boost_energy = 1.0
+    if is_instance_valid(contact_shadows):
+        contact_shadows.bind_racers(racers)
 
 func _add_player_marker(m: RigidBody3D) -> void:
     var tag = Label3D.new()
@@ -491,6 +515,8 @@ func _add_player_marker(m: RigidBody3D) -> void:
     tag.no_depth_test = true
     tag.position = Vector3(0, 1.23, 0)
     m.add_child(tag)
+    tag.top_level = true
+    player_marker = tag
 
 func _add_player_trail(m: RigidBody3D) -> void:
     trail = CPUParticles3D.new()
@@ -551,12 +577,23 @@ func return_to_menu() -> void:
             m.queue_free()
     racers.clear()
     player = null
+    if is_instance_valid(contact_shadows):
+        contact_shadows.clear_racers()
     race_state = "MENU"
     audio.menu_music()
     ui.show_menu()
 
 func _process(delta: float) -> void:
     world_time += delta
+    lamp_refresh -= delta
+    if lamp_refresh <= 0.0:
+        lamp_refresh = 0.25
+        var view_z := player.global_position.z if is_instance_valid(player) and race_state != "MENU" else -3.0
+        for lamp in workshop_lamps:
+            if is_instance_valid(lamp):
+                lamp.visible = absf(lamp.global_position.z - view_z) < 29.0
+    if is_instance_valid(player_marker) and is_instance_valid(player):
+        player_marker.global_position = player.global_position + Vector3(0.0,1.22 + sin(world_time*3.6)*0.075,0.0)
     if race_state == "COUNTDOWN":
         countdown -= delta
         if countdown > 0.0:

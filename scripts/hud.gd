@@ -29,6 +29,8 @@ var remaining_label: Label
 var leaderboard: Label
 var boost_label: Label
 var speed_label: Label
+var course_progress: ProgressBar
+var boost_progress: ProgressBar
 var checkpoint_label: Label
 var toast_remaining := 0.0
 var countdown_label: Label
@@ -220,6 +222,23 @@ func _small_panel_text(initial: String, size: int, anchor: Rect2, align: Horizon
     panel.add_child(label)
     return label
 
+func _progress_bar(fill_color: Color) -> ProgressBar:
+    var bar := ProgressBar.new()
+    bar.min_value = 0.0
+    bar.max_value = 100.0
+    bar.value = 0.0
+    bar.show_percentage = false
+    var bg := StyleBoxFlat.new()
+    bg.bg_color = Color("#19212b")
+    bg.set_corner_radius_all(6)
+    var fill := StyleBoxFlat.new()
+    fill.bg_color = fill_color
+    fill.set_corner_radius_all(6)
+    bar.add_theme_stylebox_override("background",bg)
+    bar.add_theme_stylebox_override("fill",fill)
+    bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    return bar
+
 func _build_race_hud() -> void:
     hud_layer = Control.new()
     hud_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -230,6 +249,20 @@ func _build_race_hud() -> void:
     speed_label = _small_panel_text("00  SPEED", 17, Rect2(0.016,0.21,0.155,0.066))
     remaining_label = _small_panel_text("0 / 40 FINISHED", 19, Rect2(0.355,0.02,0.290,0.080), HORIZONTAL_ALIGNMENT_CENTER)
     leaderboard = _small_panel_text("LEADERBOARD", 16, Rect2(0.79,0.025,0.195,0.39))
+    course_progress = _progress_bar(Color("#e9ac5d"))
+    course_progress.name = "CourseProgress"
+    course_progress.anchor_left = 0.355
+    course_progress.anchor_right = 0.645
+    course_progress.anchor_top = 0.109
+    course_progress.anchor_bottom = 0.134
+    hud_layer.add_child(course_progress)
+    boost_progress = _progress_bar(Color("#91e6e6"))
+    boost_progress.name = "BoostCharge"
+    boost_progress.anchor_left = 0.428
+    boost_progress.anchor_right = 0.555
+    boost_progress.anchor_top = 0.872
+    boost_progress.anchor_bottom = 0.892
+    hud_layer.add_child(boost_progress)
     countdown_label = _text("3", 86, ORANGE)
     countdown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     countdown_label.anchor_left = 0.35
@@ -396,6 +429,8 @@ func update_hud() -> void:
     remaining_label.text = "%d / 40 FINISHED" % game.racer_finish_order.size()
     boost_label.text = "BOOST %d%%" % int(game.boost_energy * 100.0)
     speed_label.text = "%02d  SPEED" % int(game.player.linear_velocity.length() * 3.6)
+    course_progress.value = clampf((-game.player.global_position.z/absf(game.FINISH_Z))*100.0,0.0,100.0)
+    boost_progress.value = game.boost_energy*100.0
     var ranking = game.get_rankings()
     var table = "POSITION\n"
     for i in range(min(7,ranking.size())):

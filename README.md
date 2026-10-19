@@ -4,7 +4,7 @@ Original **3D Android marble-racing game** inspired by the look and mechanics sh
 
 Independent implementation in **Godot 4.5.1**, focused on real mobile playability, physics, and stylized toy-table graphics. No proprietary material from the reference game is redistributed.
 
-## Current state: Android QA build (v0.4)
+## Current state: Android QA build (v0.5)
 
 - 40 independently simulated rigid-body glass marbles with seeded visual variations and position-aware AI
 - 18 segments of inclined wooden planks, rounded colorful safety rails, toy blocks, posts, slalom, rotating paddles, *new swinging hammers*, start/finish arches, checkpoint gates
@@ -68,3 +68,16 @@ The smoke test asserts scene, track, 40 physical racers, six-perk-compatible sta
 ## v0.4 render pass
 
 Refined procedural oak grain normal-map response and better warm key/ambient balance; additional metallic specular response for brass hardware. Preserves the mobile GL Compatibility renderer and existing physics.
+
+
+## v0.5 — visibility, surfaces and tactile sound
+
+- Lightweight **batched soft contact shadows** under every physical marble. A single MultiMesh uses a small transparent radial shader rather than 40 dynamic shadow-casting lights.
+- **Lacquered barrier shader** with molded-plastic sheen, edge highlights and tiny pigment flecks; reused by race obstacles and spinning paddles.
+- **Distance-culling workshop lights** (updates 4 times/second), reducing active local lights in long courses.
+- New **positional collision Foley** with seven pooled AudioStreamPlayer3D voices; rolling audio continues to track the player's marble, with a small impact-based music duck.
+- Original generated mechanical gear loop that follows the nearest moving paddle/hammer. Rebuild with `python tools/generate_race_audio.py` (requires the packages listed above).
+- Player's **YOU marker stays upright** instead of spinning with the physical ball. Added minimalist live progress and boost-charge bars.
+- Automated smoke coverage for spatial sounds, shadow pooling, HUD widgets and release of visuals when leaving a race.
+
+All new art and sound assets are independently generated. The engine remains the Godot 4.5.1 GL Compatibility renderer; Android arm64 performance still needs a physical-phone check.
