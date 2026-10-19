@@ -59,9 +59,19 @@ jobs:
       - name: Import project assets
         run: ./Godot_v4.5.1-stable_linux.x86_64 --headless --editor --path . --quit
       - name: Smoke tests
-        run: ./Godot_v4.5.1-stable_linux.x86_64 --headless --path . --script res://tests/smoke.gd
+        shell: bash
+        run: |
+          set -euo pipefail
+          # A GDScript assert can halt the test coroutine without exiting SceneTree.
+          # Force a bounded run and require the actual completion marker.
+          timeout 75s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 240 --path . --script res://tests/smoke.gd 2>&1 | tee smoke.log
+          grep -Fq "SMOKE_PASS:" smoke.log
       - name: 110-second simulated race regression
-        run: ./Godot_v4.5.1-stable_linux.x86_64 --headless --fixed-fps 60 --path . --script res://tests/race_diagnostic.gd
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 150s ./Godot_v4.5.1-stable_linux.x86_64 --headless --fixed-fps 60 --quit-after 7200 --path . --script res://tests/race_diagnostic.gd 2>&1 | tee race-diagnostic.log
+          grep -Fq "RACE_DIAGNOSTIC_PASS" race-diagnostic.log
       - name: Generate Android debug APK
         run: ./Godot_v4.5.1-stable_linux.x86_64 --headless --path . --export-debug Android build/marble-race-debug.apk
       - name: Verify Android debug APK signature
