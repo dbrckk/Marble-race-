@@ -94,3 +94,12 @@ All new art and sound assets are independently generated. The engine remains the
 - Smoke test now asserts all five spinners, five pendulums, hinge meshes, checkpoint flashes, impact sound resources and time-based kinetic animations. Android APK exported for ARM64.
 - Rendered image of a real gameplay frame: [v0.6 GL Compatibility preview](docs/screenshots/v0.6-race.jpg). This preview is a software Mesa rendering, not a phone FPS benchmark.
 
+
+## v0.7 — cinematic tabletop art pass
+
+- Refined glass with two inexpensive studio-softbox reflections directly in the mobile-compatible shader.
+- An entirely decorative **new scene layer** adds instanced brass rail top edges, walnut cross bracing, fastener/section markers, checkpoint flagpoles and actively waving silk flags.
+- Course dressing has no collision shapes, so race physics and AI remain unchanged; geometry shares shader/material resources and is primarily positioned off the rolling surface.
+- The existing 40-racer simulation, mobile GLES Compatibility renderer, six perks, obstacle art, positional audio and dynamic sound stems are retained.
+
+Before release, run the full headless race simulation, capture the graphical regression screenshot and generate a signed Android debug APK. Physical handset benchmarking remains separate from CI validation.

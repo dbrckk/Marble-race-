@@ -28,6 +28,19 @@ func _run_checks() -> void:
     course_fx.pulse_checkpoint(0)
     assert(course_fx.checkpoint_flashes[0] > 1.0, "Checkpoint flash not triggered")
     assert(ResourceLoader.exists("res://assets/audio/sfx/metal_hit_1.ogg"), "Metal impact sound missing")
+    var props: Node = race.board.get_node_or_null("ModularBrassAndSilkDressing")
+    assert(props != null, "Missing v0.7 scenery")
+    assert(props.get_node_or_null("GoldRailTopTrim_36Segments") != null, "Missing batched brass rail details")
+    var flag_count := 0
+    var side_labels := 0
+    for child in props.get_children():
+        if child.name.begins_with("AnimatedSilkPennant"):
+            flag_count += 1
+        if child.name.begins_with("SectionMarker"):
+            side_labels += 1
+        assert(not child is CollisionObject3D, "Decorative art cannot change collisions")
+    assert(flag_count == 6 and side_labels == 6, "Expected six flags and six section indicators")
+    assert(ResourceLoader.exists("res://shaders/race_flag.gdshader"), "Missing animated-flag shader")
     assert(race.race_state == "MENU", "Should start on title screen")
     assert(race.workshop_lamps.size() >= 8, "Workshop lights missing")
     assert(race.audio.spatial_channels.size() == 7, "Impact audio channels missing")
@@ -72,7 +85,7 @@ func _run_checks() -> void:
     race.return_to_menu()
     assert(race.race_state == "MENU", "Menu return failed")
     assert(race.contact_shadows.pool.visible_instance_count == 0, "Menu should release race shadows")
-    print("SMOKE_PASS: 40 racers, rounded kinetic mechanisms, checkpoint flashes, audio, physics, HUD")
+    print("SMOKE_PASS: 40 racers, v0.7 scenery, animated flags, cinematic glass, mechanisms, audio, physics")
     race.queue_free()
     for i in range(4):
         await process_frame

@@ -42,7 +42,14 @@ void fragment() {
     float facing = clamp(dot(normalize(NORMAL),normalize(VIEW)),0.0,1.0);
     float fresnel = pow(1.0-facing,3.1);
     vec3 rim_color = mix(vec3(0.65,0.86,1.0),vein_color.rgb,0.40);
-    ALBEDO = mix(clamp(glass,vec3(0.0),vec3(1.0)),rim_color,fresnel*0.58);
+    // Two broad photographic softbox reflections as a cheap fake studio environment.
+    // Reflection moves naturally as the glass marble rolls (no screen-space reflections).
+    vec3 reflected = reflect(-normalize(VIEW),normalize(NORMAL));
+    float softbox_a = pow(max(dot(reflected,normalize(vec3(0.42,0.8,0.36))),0.0),18.0);
+    float softbox_b = pow(max(dot(reflected,normalize(vec3(-0.68,0.23,0.62))),0.0),42.0);
+    vec3 chrome_luster = vec3(0.98,0.94,0.84)*softbox_a*0.33
+                         + vec3(0.78,0.91,1.0)*softbox_b*0.21;
+    ALBEDO = clamp(mix(glass,rim_color,fresnel*0.58)+chrome_luster,vec3(0.0),vec3(1.0));
     ROUGHNESS = mix(0.12,0.056,boost_strength) + layer*0.028;
     METALLIC = 0.03;
     SPECULAR = 0.96;

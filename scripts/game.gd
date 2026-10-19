@@ -13,6 +13,7 @@ const TrackFX = preload("res://scripts/track_fx.gd")
 const ContactShadows = preload("res://scripts/contact_shadows.gd")
 const LACQUER_SHADER = preload("res://shaders/lacquer.gdshader")
 const MechanismArt = preload("res://scripts/mechanism_art.gd")
+const CourseDressing = preload("res://scripts/course_dressing.gd")
 
 const MARBLE_COUNT := 40
 const SLOPE := 0.085
@@ -269,6 +270,9 @@ func _make_course() -> void:
     var cosmetic = TrackFX.new()
     cosmetic.name = "PolishedToyDetails"
     board.add_child(cosmetic)
+    var dressing := CourseDressing.new()
+    dressing.name = "ModularBrassAndSilkDressing"
+    board.add_child(dressing)
 
 func _pegs(parent: Node3D, center_z: float, n: int) -> void:
     # Checkerboard of rounded vertical posts, with traversable gaps.

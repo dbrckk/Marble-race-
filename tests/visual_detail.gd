@@ -20,6 +20,17 @@ func _capture() -> void:
     var picture = root.get_viewport().get_texture().get_image()
     picture.save_png("user://detail-kinetic.png")
     print("DETAIL_CAPTURE_OK",picture.get_size())
+    game.camera.global_position = Vector3(9.0,game.height_at(-44.0)+8.5,-28.0)
+    game.camera.fov = 62.0
+    game.camera.look_at(Vector3(0.0,game.height_at(-46.0)+2.4,-47.0),Vector3.UP)
+    for light in game.workshop_lamps:
+        light.visible = absf(light.global_position.z + 45.0) < 29.0
+    for i in range(8):
+        await process_frame
+    await RenderingServer.frame_post_draw
+    var flags = root.get_viewport().get_texture().get_image()
+    flags.save_png("user://detail-checkpoint-v07.png")
+    print("CHECKPOINT_CAPTURE_OK",flags.get_size())
     game.queue_free()
     await process_frame
     quit(0)
