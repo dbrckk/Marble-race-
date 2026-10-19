@@ -49,6 +49,8 @@ var world_time := 0.0
 var finish_announced := false
 var camera_shake := 0.0
 var last_count := -1
+var last_checkpoint := -1
+var course_flash := 0.0
 var trail: CPUParticles3D
 var starting_camera_target := Vector3(0, 0, 0)
 
@@ -520,6 +522,8 @@ func start_race(perk_name: String) -> void:
     countdown = 3.3
     result_delay = 0.0
     finish_announced = false
+    last_checkpoint = -1
+    course_flash = 0.0
     steer = 0.0
     boosting = false
     cam_mode = 0
@@ -568,6 +572,21 @@ func _process(delta: float) -> void:
             ui.hide_countdown()
         if is_instance_valid(trail) and is_instance_valid(player):
             trail.emitting = player.linear_velocity.length() > 4.0
+            trail.initial_velocity_max = 2.6 if boosting else 0.75
+            trail.color = Color("#91f5fd") if boosting else Color("#eeb65e")
+            var cp := -1
+            if player.position.z < -46.0:
+                cp = 0
+            if player.position.z < -106.0:
+                cp = 1
+            if player.position.z < -166.0:
+                cp = 2
+            if cp > last_checkpoint:
+                last_checkpoint = cp
+                if cp >= 0:
+                    audio.tone("checkpoint")
+                    ui.show_checkpoint(cp+1)
+                    _burst(player.global_position, false)
         if boosting:
             boost_energy = max(0.0, boost_energy - delta * 0.26)
             if boost_energy <= 0.0:
@@ -581,6 +600,7 @@ func _process(delta: float) -> void:
                 _end_race()
         elif race_time >= RACE_TIMEOUT:
             _end_race()
+    course_flash = maxf(0.0, course_flash - delta)
     _update_camera(delta)
     if race_state == "RACING" or race_state == "COUNTDOWN":
         ui.update_hud()
@@ -700,9 +720,42 @@ func _unhandled_input(event: InputEvent) -> void:
         elif event.keycode == KEY_C and event.pressed:
             cycle_camera()
 
+func _burst(where: Vector3, finale: bool) -> void:
+    # Short-lived particles carry no collision meshes and remain inexpensive on mobile.
+    var n := CPUParticles3D.new()
+    n.name = "FinishConfetti" if finale else "CheckpointGlitter"
+    n.amount = 100 if finale else 45
+    n.lifetime = 1.9 if finale else 0.9
+    n.one_shot = true
+    n.explosiveness = 0.96
+    n.randomness = 0.48
+    n.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+    n.emission_sphere_radius = 0.7 if finale else 0.28
+    n.direction = Vector3(0.0,1.0,0.0)
+    n.spread = 140.0
+    n.gravity = Vector3(0.0,-8.0,0.0)
+    n.initial_velocity_min = 2.0
+    n.initial_velocity_max = 7.5 if finale else 3.5
+    var candy = Gradient.new()
+    candy.set_color(0, Color("#fff5ac"))
+    candy.set_color(1, Color("#ff687a") if finale else Color("#9df2ee"))
+    n.color_ramp = candy
+    var art = SphereMesh.new()
+    art.radius = 0.07 if finale else 0.04
+    art.height = 0.10 if finale else 0.07
+    art.radial_segments = 5
+    art.rings = 3
+    n.mesh = art
+    n.position = where + Vector3.UP * 0.5
+    add_child(n)
+    n.finished.connect(n.queue_free)
+    n.emitting = true
+
 func _end_race() -> void:
     if race_state == "RESULTS":
         return
+    if is_instance_valid(player) and player.finished:
+        _burst(player.global_position, true)
     race_state = "RESULTS"
     boosting = false
     steer = 0.0

@@ -29,6 +29,8 @@ var remaining_label: Label
 var leaderboard: Label
 var boost_label: Label
 var speed_label: Label
+var checkpoint_label: Label
+var toast_remaining := 0.0
 var countdown_label: Label
 var selected_name := ""
 var select_buttons: Array[Button] = []
@@ -235,6 +237,14 @@ func _build_race_hud() -> void:
     countdown_label.anchor_top = 0.27
     countdown_label.anchor_bottom = 0.59
     hud_layer.add_child(countdown_label)
+    checkpoint_label = _text("", 42, ORANGE)
+    checkpoint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    checkpoint_label.anchor_left = 0.25
+    checkpoint_label.anchor_right = 0.75
+    checkpoint_label.anchor_top = 0.30
+    checkpoint_label.anchor_bottom = 0.42
+    checkpoint_label.visible = false
+    hud_layer.add_child(checkpoint_label)
 
     # Overlay controls support press-and-hold and keyboard in parallel.
     var ctrl_row = HBoxContainer.new()
@@ -368,6 +378,10 @@ func hide_countdown() -> void:
     countdown_label.visible = false
 
 func update_hud() -> void:
+    if toast_remaining > 0.0:
+        toast_remaining -= get_process_delta_time()
+        checkpoint_label.visible = toast_remaining > 0.0
+        checkpoint_label.modulate.a = minf(1.0, toast_remaining * 1.7)
     label_timer += get_process_delta_time()
     if label_timer < 0.11:
         return
@@ -390,6 +404,12 @@ func update_hud() -> void:
     if place > 7:
         table += "…\n%02d  YOU  ★" % place
     leaderboard.text = table
+
+func show_checkpoint(number: int) -> void:
+    checkpoint_label.text = "CHECKPOINT %d / 3" % number
+    checkpoint_label.modulate.a = 1.0
+    checkpoint_label.visible = true
+    toast_remaining = 1.55
 
 func show_results(place: int, time: float, ranking: Array) -> void:
     if get_tree().paused:

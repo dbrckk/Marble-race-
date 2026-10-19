@@ -12,6 +12,7 @@ Independent implementation in **Godot 4.5.1**, focused on real mobile playabilit
 - Warm miniature-workshop environment: walnut workbench, shelves, colored toys, suspended lights, distance fog
 - Six perks: Lead Core, Grip Tape, Bounce Back, Aerodynamic, Sticky Magnet and Head Start
 - Physically driven recovery impulse for marbles wedged against obstacles — no teleporting or forced scripted paths
+- Celebration bursts and audio checkpoints as the player crosses three progress arches
 - Responsive orbit-style third-person camera with velocity-dependent field of view and impact camera shake; touch steering, rechargeable boost, three views
 - Animated player spark trail, responsive 2D menu and racing HUD with Rajdhani UI fonts
 - **Audio**: quiet original synthesized looping soundtrack, original countdown/start/finish/boost tones, speed-following wooden rolling loop, CC0 wood/glass impacts and UI click samples with a channel pool; in-game mute toggle
