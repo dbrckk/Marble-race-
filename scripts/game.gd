@@ -12,9 +12,11 @@ const Visuals = preload("res://scripts/visuals.gd")
 const TrackFX = preload("res://scripts/track_fx.gd")
 const ContactShadows = preload("res://scripts/contact_shadows.gd")
 const LACQUER_SHADER = preload("res://shaders/lacquer.gdshader")
+const LACQUER_MICRO = preload("res://assets/textures/lacquer_micro.png")
 const MechanismArt = preload("res://scripts/mechanism_art.gd")
 const CourseDressing = preload("res://scripts/course_dressing.gd")
 const ObstacleFinish = preload("res://scripts/obstacle_finish.gd")
+const TrackSurface = preload("res://scripts/track_surface.gd")
 
 const MARBLE_COUNT := 40
 const SLOPE := 0.085
@@ -66,6 +68,8 @@ var workshop_lamps: Array[OmniLight3D] = []
 var lamp_refresh := 0.0
 var kinetic_time := 0.0
 var obstacle_finish: Node3D
+var track_surface: Node3D
+var track_physics_material: PhysicsMaterial
 var primary_light: DirectionalLight3D
 var world_environment: Environment
 var graphics_quality := 1
@@ -74,6 +78,9 @@ const QUALITY_NAMES := ["ECONOMY","BALANCED","ULTRA"]
 
 func _ready() -> void:
     rng.seed = 424242
+    track_physics_material = PhysicsMaterial.new()
+    track_physics_material.friction = 0.85
+    track_physics_material.bounce = 0.09
     var prefs := ConfigFile.new()
     if prefs.load("user://marble_settings.cfg") == OK:
         graphics_quality = clampi(int(prefs.get_value("video","quality",1)),0,2)
@@ -87,8 +94,9 @@ func _ready() -> void:
     camera.name = "RaceCamera"
     camera.current = true
     camera.fov = 64.0
-    camera.near = 0.05
-    camera.far = 300.0
+    # Avoid the 6000:1 depth range that caused distant plank z-fighting.
+    camera.near = 0.16
+    camera.far = 140.0
     add_child(camera)
     audio = Audio.new()
     audio.name = "RaceAudio"
@@ -161,20 +169,35 @@ func toggle_fps_overlay() -> bool:
 func _apply_graphics_quality() -> void:
     if is_instance_valid(primary_light):
         primary_light.shadow_enabled = graphics_quality > 0
-        primary_light.directional_shadow_max_distance = 90.0 if graphics_quality == 2 else 65.0
+        primary_light.directional_shadow_max_distance = 72.0 if graphics_quality == 2 else 47.0
+    if is_instance_valid(camera):
+        camera.far = [85.0,115.0,155.0][graphics_quality]
     if world_environment != null:
         world_environment.glow_enabled = graphics_quality > 0
         world_environment.fog_enabled = graphics_quality > 0
     if is_instance_valid(contact_shadows):
         contact_shadows.visible = graphics_quality > 0
+        contact_shadows.set_update_rate(60 if graphics_quality == 2 else 30)
     if is_instance_valid(obstacle_finish):
         obstacle_finish.visible = graphics_quality > 0
+    if is_instance_valid(track_surface):
+        track_surface.set_detail_quality(graphics_quality)
     if is_instance_valid(board):
         var dressing := board.get_node_or_null("ModularBrassAndSilkDressing")
         if is_instance_valid(dressing):
             dressing.visible = graphics_quality > 0
-    if is_instance_valid(trail) and graphics_quality == 0:
-        trail.emitting = false
+    # Compatibility renderer: avoid costly multisample AA outside ULTRA.
+    var viewport := get_viewport()
+    viewport.msaa_3d = Viewport.MSAA_2X if graphics_quality == 2 else Viewport.MSAA_DISABLED
+    if OS.has_feature("mobile"):
+        Engine.max_fps = 30 if graphics_quality == 0 else 60
+    if is_instance_valid(trail):
+        trail.amount = [12,22,36][graphics_quality]
+        if graphics_quality == 0:
+            trail.emitting = false
+    for marble in racers:
+        if is_instance_valid(marble):
+            marble.set_render_quality(graphics_quality)
 
 func height_at(z: float) -> float:
     return z * SLOPE
@@ -200,6 +223,7 @@ func _lacquer(color: Color) -> ShaderMaterial:
     finish.shader = LACQUER_SHADER
     finish.set_shader_parameter("pigment",color)
     finish.set_shader_parameter("polish",0.68)
+    finish.set_shader_parameter("micro_texture",LACQUER_MICRO)
     render_materials[key] = finish
     return finish
 
@@ -216,7 +240,7 @@ func _wood_mat(color: Color) -> ShaderMaterial:
     render_materials[key] = m
     return m
 
-func _box(parent: Node3D, location: Vector3, dimensions: Vector3, material: Material, solid := true, tilt := false) -> Node3D:
+func _box(parent: Node3D, location: Vector3, dimensions: Vector3, material: Material, solid := true, tilt := false, show_art := true) -> Node3D:
     var holder: Node3D
     if solid:
         holder = StaticBody3D.new()
@@ -225,20 +249,18 @@ func _box(parent: Node3D, location: Vector3, dimensions: Vector3, material: Mate
         shape.size = dimensions
         collision.shape = shape
         holder.add_child(collision)
-        var physic = PhysicsMaterial.new()
-        physic.friction = 0.85
-        physic.bounce = 0.09
-        (holder as StaticBody3D).physics_material_override = physic
+        (holder as StaticBody3D).physics_material_override = track_physics_material
     else:
         holder = Node3D.new()
     holder.position = location
     if tilt:
         holder.rotation.x = -atan(SLOPE)
-    var art = MeshInstance3D.new()
-    var bevel := minf(0.11, minf(dimensions.x, minf(dimensions.y, dimensions.z)) * 0.12)
-    art.mesh = Visuals.rounded_box(dimensions, bevel)
-    art.material_override = material
-    holder.add_child(art)
+    if show_art:
+        var art := MeshInstance3D.new()
+        var bevel := minf(0.11, minf(dimensions.x, minf(dimensions.y, dimensions.z)) * 0.12)
+        art.mesh = Visuals.rounded_box(dimensions, bevel)
+        art.material_override = material
+        holder.add_child(art)
     parent.add_child(holder)
     return holder
 
@@ -286,6 +308,9 @@ func _make_course() -> void:
     obstacle_finish = ObstacleFinish.new()
     obstacle_finish.name = "PremiumObstacleFinishes"
     board.add_child(obstacle_finish)
+    track_surface = TrackSurface.new()
+    track_surface.name = "InstancedTrackSurface"
+    board.add_child(track_surface)
     var incline = -atan(SLOPE)
     for section in range(SEGMENTS):
         var center_z = 8.0 - float(section) * SEGMENT_LENGTH
@@ -293,25 +318,26 @@ func _make_course() -> void:
         section_node.name = "Course_%02d" % section
         board.add_child(section_node)
         for lane in range(10):
-            var x = (float(lane) - 4.5) * 1.34
-            var shade = WOOD_COLORS[(lane + section * 3) % WOOD_COLORS.size()]
-            _box(section_node, Vector3(x, height_at(center_z)-0.34, center_z),
-                Vector3(1.315, 0.65, SEGMENT_LENGTH + 0.08), _wood_mat(shade), true, true)
-            # Short engraved joints and subtle board grain accents.
+            var x := (float(lane) - 4.5) * 1.34
+            var material_index := (lane + section * 3) % WOOD_COLORS.size()
+            var shade: Color = WOOD_COLORS[material_index]
+            var plank_at := Vector3(x,height_at(center_z)-0.34,center_z)
+            # Render-only planks share GPU draw calls by material. Each keeps
+            # the exact original independent tilted BoxShape3D collider.
+            _box(section_node,plank_at,
+                Vector3(1.315,0.65,SEGMENT_LENGTH+0.08),_wood_mat(shade),true,true,false)
+            track_surface.register_plank(plank_at,material_index)
             for j in range(2):
-                var grain = Color("#553b2c")
-                grain.a = 0.45
-                var z = center_z + (float(j) - 0.5) * 4.4
-                _box(section_node, Vector3(x - 0.34 + (j%2)*0.31, height_at(z)+0.005, z),
-                    Vector3(0.018, 0.012, 5.0), _mat(Color("#82563d")), false, true)
-
-        # Tall segmented painted rails match the tabletop toy-set appearance.
-        for side in [-1, 1]:
+                var z: float = center_z+(float(j)-0.5)*4.4
+                track_surface.register_groove(Vector3(x-0.34+(j%2)*0.31,height_at(z)+0.005,z))
+        for side in [-1,1]:
             for rail_piece in range(3):
-                var z = center_z + (rail_piece - 1) * 4.02
-                var color_idx = (section + rail_piece + (0 if side == 1 else 3)) % BARRIER_COLORS.size()
-                _box(section_node, Vector3(side * 6.84, height_at(z)+0.58, z),
-                    Vector3(0.57, 1.26, 4.04), _lacquer(BARRIER_COLORS[color_idx]), true, true)
+                var z: float = center_z+(rail_piece-1)*4.02
+                var color_idx := (section+rail_piece+(0 if side==1 else 3))%BARRIER_COLORS.size()
+                var pos := Vector3(side*6.84,height_at(z)+0.58,z)
+                _box(section_node,pos,Vector3(0.57,1.26,4.04),
+                    _lacquer(BARRIER_COLORS[color_idx]),true,true,false)
+                track_surface.register_rail(pos,color_idx)
         if section > 0 and section < SEGMENTS - 1:
             if section % 3 == 1:
                 _pegs(section_node, center_z, section)
@@ -321,6 +347,13 @@ func _make_course() -> void:
                 _slalom(section_node, center_z, section)
 
     obstacle_finish.rebuild()
+    var woods: Array = []
+    for color in WOOD_COLORS:
+        woods.append(_wood_mat(color))
+    var barriers: Array = []
+    for color in BARRIER_COLORS:
+        barriers.append(_lacquer(color))
+    track_surface.finish(woods,barriers,_mat(Color("#82563d")))
     _start_arch()
     _finish_arch()
     _checkpoint_arches()
@@ -573,6 +606,10 @@ func _spawn_racers() -> void:
         player.position.z -= 3.2
         player.position.y = height_at(player.position.z)+0.68
     boost_energy = 1.0
+    for marble in racers:
+        marble.set_render_quality(graphics_quality)
+    if is_instance_valid(trail):
+        trail.amount = [12,22,36][graphics_quality]
     if is_instance_valid(contact_shadows):
         contact_shadows.bind_racers(racers)
 

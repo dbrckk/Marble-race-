@@ -4,6 +4,31 @@ signal crossed_finish(racer)
 signal fell_off(racer)
 
 const SHADER = preload("res://shaders/marble.gdshader")
+static var mesh_cache: Dictionary = {}
+static var default_physics: PhysicsMaterial
+
+static func get_sphere(high_detail: bool, quality: int) -> SphereMesh:
+    var key := "%d-%d" % [int(high_detail),quality]
+    if mesh_cache.has(key):
+        return mesh_cache[key]
+    var sphere := SphereMesh.new()
+    sphere.radius = RADIUS
+    sphere.height = RADIUS * 2.0
+    if quality == 0:
+        sphere.radial_segments = 22 if high_detail else 14
+        sphere.rings = 10 if high_detail else 7
+    elif quality == 2:
+        sphere.radial_segments = 40 if high_detail else 28
+        sphere.rings = 20 if high_detail else 14
+    else:
+        sphere.radial_segments = 32 if high_detail else 24
+        sphere.rings = 16 if high_detail else 12
+    mesh_cache[key] = sphere
+    return sphere
+
+func set_render_quality(quality: int) -> void:
+    if is_instance_valid(mesh):
+        mesh.mesh = get_sphere(is_player,quality)
 const RADIUS := 0.39
 const PALETTE := [
     Color("#e98739"), Color("#46adb4"), Color("#e45d88"), Color("#a75ad0"),
@@ -52,9 +77,11 @@ func setup(index: int, player: bool, base_position: Vector3, chosen_perk: String
     continuous_cd = true
     can_sleep = false
     contact_monitor = false
-    physics_material_override = PhysicsMaterial.new()
-    physics_material_override.friction = 0.72
-    physics_material_override.bounce = 0.19
+    if default_physics == null:
+        default_physics = PhysicsMaterial.new()
+        default_physics.friction = 0.72
+        default_physics.bounce = 0.19
+    physics_material_override = default_physics.duplicate() if is_player else default_physics
 
     if perk == "Lead Core":
         mass = 1.65
@@ -67,12 +94,7 @@ func setup(index: int, player: bool, base_position: Vector3, chosen_perk: String
 
     mesh = MeshInstance3D.new()
     mesh.name = "ArtGlass"
-    var sphere = SphereMesh.new()
-    sphere.radius = RADIUS
-    sphere.height = RADIUS * 2.0
-    sphere.radial_segments = 32 if is_player else 24
-    sphere.rings = 16 if is_player else 12
-    mesh.mesh = sphere
+    mesh.mesh = get_sphere(is_player,1)
     var material = ShaderMaterial.new()
     material.shader = SHADER
     var base: Color = PALETTE[index % PALETTE.size()]
@@ -87,6 +109,9 @@ func setup(index: int, player: bool, base_position: Vector3, chosen_perk: String
     material.set_shader_parameter("stripe_scale", 0.3 + float(index % 7) * 0.29)
     glass_material = material
     mesh.material_override = material
+    # One cheap blended contact-shadow batch already grounds all marbles.
+    # Rendering individual moving shadow maps here costs a second geometry pass.
+    mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     add_child(mesh)
 
     if is_player:

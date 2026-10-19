@@ -7,10 +7,12 @@ var beacons: Array[Node3D] = []
 var pulsing_materials: Array[StandardMaterial3D] = []
 var clock := 0.0
 var checkpoint_flashes := [0.0,0.0,0.0]
+var line_details: Array[Dictionary] = []
 
 func _ready() -> void:
     _rivet_instancing()
     _road_markings()
+    _build_line_batches()
     _waypoint_lanterns()
 
 func _rivet_instancing() -> void:
@@ -50,22 +52,47 @@ func _rivet_instancing() -> void:
     add_child(node)
 
 func _thin_line(location: Vector3, size: Vector3, color: Color, emission := 0.0, angle := 0.0) -> void:
-    var node=MeshInstance3D.new()
-    var geo=BoxMesh.new()
-    geo.size=size
-    node.mesh=geo
-    node.position=location
-    node.rotation.y=angle
-    var mat=StandardMaterial3D.new()
-    mat.albedo_color=color
-    mat.roughness=0.45
-    if emission>0:
-        mat.emission_enabled=true
-        mat.emission=color
-        mat.emission_energy_multiplier=emission
-    node.material_override=mat
-    node.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-    add_child(node)
+    line_details.append({
+        "position":location, "size":size, "color":color, "emission":emission, "angle":angle
+    })
+
+func _build_line_batches() -> void:
+    # All lane symbols share a unit BoxMesh and are scaled with transforms.
+    # Color comes from per-instance vertex color, so a few hundred decorations
+    # cost only two GPU draw calls instead of one call per colored marking.
+    for emission in [0.05,0.20]:
+        var details: Array[Dictionary] = []
+        for item in line_details:
+            if is_equal_approx(float(item["emission"]),emission):
+                details.append(item)
+        if details.is_empty():
+            continue
+        var art := BoxMesh.new()
+        art.size = Vector3.ONE
+        var mat := StandardMaterial3D.new()
+        mat.albedo_color = Color.WHITE
+        mat.vertex_color_use_as_albedo = true
+        mat.roughness = 0.45
+        mat.emission_enabled = true
+        mat.emission = Color("#e5c893")
+        mat.emission_energy_multiplier = emission
+        art.material = mat
+        var mm := MultiMesh.new()
+        mm.transform_format = MultiMesh.TRANSFORM_3D
+        mm.use_colors = true
+        mm.mesh = art
+        mm.instance_count = details.size()
+        for i in range(details.size()):
+            var item: Dictionary = details[i]
+            var basis := Basis(Vector3.UP,float(item["angle"]))
+            basis = basis.scaled(item["size"])
+            mm.set_instance_transform(i,Transform3D(basis,item["position"]))
+            mm.set_instance_color(i,item["color"])
+        var instance := MultiMeshInstance3D.new()
+        instance.name = "LanePaintInstanced_%d" % int(emission*100)
+        instance.multimesh = mm
+        instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+        add_child(instance)
 
 func _road_markings() -> void:
     # Real-world toy car/slot-race markings: directional speed chevrons and lane markers.

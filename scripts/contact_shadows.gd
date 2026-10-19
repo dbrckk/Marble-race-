@@ -7,8 +7,12 @@ const RACE_CAPACITY := 40
 var racers: Array[RigidBody3D] = []
 var pool: MultiMesh
 var shadows: MultiMeshInstance3D
-var pulse_time := 0.0
-var quality_high := true
+var shadow_interval := 1.0 / 30.0
+var shadow_elapsed := 0.0
+
+func set_update_rate(hertz: int) -> void:
+    shadow_interval = 1.0 / float(maxi(1,hertz))
+    shadow_elapsed = shadow_interval
 
 func _ready() -> void:
     var quad := QuadMesh.new()
@@ -30,6 +34,7 @@ func _ready() -> void:
 func bind_racers(current: Array[RigidBody3D]) -> void:
     racers = current.duplicate()
     pool.visible_instance_count = mini(RACE_CAPACITY, racers.size())
+    shadow_elapsed = 0.0
     update_shadows()
 
 func clear_racers() -> void:
@@ -53,5 +58,9 @@ func update_shadows() -> void:
         pool.set_instance_transform(i,Transform3D(basis,location))
 
 func _process(delta: float) -> void:
-    pulse_time += delta
-    update_shadows()
+    if not visible or racers.is_empty() or racers[0].freeze:
+        return
+    shadow_elapsed += delta
+    if shadow_elapsed >= shadow_interval:
+        shadow_elapsed = fmod(shadow_elapsed,shadow_interval)
+        update_shadows()

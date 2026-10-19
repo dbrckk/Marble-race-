@@ -41,6 +41,20 @@ func _run_checks() -> void:
         assert(not child is CollisionObject3D, "Decorative art cannot change collisions")
     assert(flag_count == 6 and side_labels == 6, "Expected six flags and six section indicators")
     assert(ResourceLoader.exists("res://shaders/race_flag.gdshader"), "Missing animated-flag shader")
+    var track_surface: Node3D = race.board.get_node_or_null("InstancedTrackSurface")
+    assert(is_instance_valid(track_surface), "Missing v0.10 instanced track")
+    assert(track_surface.original_mesh_count == 648, "180 planks + 108 rails + 360 inlays must be rendered")
+    assert(track_surface.get_batch_count() <= 15, "Repeated track meshes must be batched by material")
+    for batch in track_surface.get_children():
+        assert(batch is MultiMeshInstance3D, "Track decoration must be drawn with GPU instancing")
+        assert(not batch is CollisionObject3D, "Track rendering must not introduce new colliders")
+    var fx_lines := 0
+    for decoration in course_fx.get_children():
+        if decoration.name.begins_with("LanePaintInstanced_"):
+            fx_lines += 1
+    assert(fx_lines == 2, "Road markings should use two GPU batches")
+    assert(ResourceLoader.exists("res://assets/textures/lacquer_micro.png"), "Missing baked microtexture")
+
     var finish: Node3D = race.board.get_node_or_null("PremiumObstacleFinishes")
     assert(finish != null, "Missing v0.8 obstacle detailing")
     assert(int(finish.get("post_count")) >= 90, "Pegs must have instanced art")
@@ -54,9 +68,14 @@ func _run_checks() -> void:
     assert(race.ui.fps_label != null and race.ui.quality_button != null, "Graphics controls absent")
     race.set_graphics_quality(0)
     assert(not race.primary_light.shadow_enabled, "Economy should disable primary shadows")
+    assert(not track_surface.get_node("GrooveInlays").visible, "Economy must disable tiny engraving details")
+    assert(race.camera.far <= 90.0, "Economy should cull remote geometry")
     assert(not finish.visible, "Economy should hide decorative batches")
     race.set_graphics_quality(2)
     assert(race.primary_light.shadow_enabled and finish.visible, "Ultra graphics preset did not apply")
+    assert(race.get_viewport().msaa_3d == Viewport.MSAA_2X, "Ultra MSAA visual smoothing must be active")
+    assert(track_surface.get_node("GrooveInlays").visible, "Ultra should keep detail")
+    assert(race.camera.far > 140.0, "Ultra should provide a deep sight line")
     race.set_graphics_quality(1)
     var sound_on_start: bool = race.audio.enabled
     race.audio.toggle_sound()
@@ -78,6 +97,10 @@ func _run_checks() -> void:
     race.start_race("Lead Core")
     await process_frame
     assert(race.racers.size() == 40, "40 racers must spawn")
+    assert(race.racers[0].mesh.mesh == race.racers[1].mesh.mesh,
+        "NPC marbles should share cached geometry instead of allocating 40 identical meshes")
+    assert(race.racers[0].physics_material_override == race.racers[1].physics_material_override,
+        "Regular racers should share the same immutable physics material")
     assert(is_instance_valid(race.player), "Missing controlled racer")
     assert(race.player.is_player, "Wrong player identity")
     assert(race.contact_shadows.pool.visible_instance_count == 40, "40 ground shadows required")
@@ -114,7 +137,7 @@ func _run_checks() -> void:
     race.return_to_menu()
     assert(race.race_state == "MENU", "Menu return failed")
     assert(race.contact_shadows.pool.visible_instance_count == 0, "Menu should release race shadows")
-    print("SMOKE_PASS: 40 racers, instanced bumpers, graphics presets, FPS controls, physical course, audio")
+    print("SMOKE_PASS: 40 racers, 648 GPU-instanced track parts, AA/LOD profiles, cached geometry, audio, controls")
     race.queue_free()
     for i in range(4):
         await process_frame

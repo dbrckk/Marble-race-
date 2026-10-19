@@ -16,3 +16,7 @@ Music and tonal cues were algorithmically authored for this game by `tools/gener
 ### Original v0.8 rubber bumper sounds
 
 `assets/audio/sfx/bumper_soft.ogg` and `assets/audio/sfx/bumper_hard.ogg` are original algorithmically synthesized sounds, reproducible using `tools/generate_bump_sounds.py`. They are not redistributions of third-party audio.
+
+### Original v0.10 satin lacquer map
+
+`assets/textures/lacquer_micro.png` is an original deterministic procedural texture. Recreate it with `tools/generate_lacquer_micro.py`; no third-party sample/image assets are included.

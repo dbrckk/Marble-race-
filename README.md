@@ -135,3 +135,20 @@ These captures were generated from the actual Godot Compatibility renderer, not 
 - New deterministic `tests/touch_controls.gd` simulates two fingers, joystick motion, independent release, boost/camera conflict protection, saved settings, layout swap and cleanup on menu return.
 
 Manual Android touch latency and ergonomic checks are still required on real hardware.
+
+
+## v0.10 — final art and Android performance pass
+
+- **Track batching:** 180 individual oak plank render meshes, 108 lacquer rail render meshes and 360 engraved inlays now use **up to 12 MultiMesh batches**. Their original static colliders remain intact, preserving physics.
+- **Two material-colored lane-marking GPU batches** replace hundreds of one-off decorative draw instances.
+- Original procedurally generated 256px pigment microtexture gives lacquered obstacles subtler roughness variation and satin edge highlights, using a texture fetch rather than multiple per-pixel trigonometric functions. Rebuild with `tools/generate_lacquer_micro.py`.
+- **Balanced/Ultra marble LOD:** shared sphere geometry avoids spawning 40 duplicated sphere meshes; Ultra uses extra glass facets, Economy reduces mesh resolution. Original marble-glass shading retained.
+- **Mobile frame pacing:** Economy caps rendering to 30 FPS, Balanced/Ultra to 60 FPS; physics stays at 60 Hz. Ultra adds 2x MSAA (supported in the Compatibility renderer); other modes avoid unsupported FXAA.
+- **Camera clipping optimization:** sight distance depends on selected graphics quality (85/115/155 m); near plane now 0.16 m for improved depth precision.
+- **Contact-shadow updates:** no work while hidden or racers frozen; 30Hz in Balanced, 60Hz in Ultra. Moving marble shadow maps are disabled in favor of the existing batched contact shadows.
+- **Shared physics material** for regular AI marbles and track planks reduces replay-time allocations without changing their mass, friction, bounce or forces.
+- All prior touch controls, music and SFX, six perks, race logic and decorative obstacle art are preserved.
+
+See [measured render benchmark](docs/PERFORMANCE.md) and [current OpenGL screenshots](docs/screenshots/v0.10-race.jpg).
+
+**Status:** verified in Godot 4.5.1 with complete race simulation, two-finger input regression, OpenGL captures and locally signed debug APK. Actual Android GPU FPS/battery/thermal behavior must be confirmed on the player's device; Play Store release still requires the publisher's release signing key.
