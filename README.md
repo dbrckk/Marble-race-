@@ -152,3 +152,7 @@ Manual Android touch latency and ergonomic checks are still required on real har
 See [measured render benchmark](docs/PERFORMANCE.md) and [current OpenGL screenshots](docs/screenshots/v0.10-race.jpg).
 
 **Status:** verified in Godot 4.5.1 with complete race simulation, two-finger input regression, OpenGL captures and locally signed debug APK. Actual Android GPU FPS/battery/thermal behavior must be confirmed on the player's device; Play Store release still requires the publisher's release signing key.
+
+## v0.11 — Android control layout fix
+
+Larger analog joystick and boost zone, camera and pause above the touch zone, boost activation confined to the bottom 31% to prevent false taps. Clearly visible BUILD v0.11 on both menu and race HUD. Version code incremented to 11. Rectangular LEFT/RIGHT buttons indicate an outdated installed APK.

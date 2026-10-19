@@ -3,9 +3,9 @@ extends Control
 ## INPUT handled in _input rather than _gui_input so other UI controls remain usable.
 signal direction_changed(value: float)
 signal boost_changed(pressed: bool)
-const LEFT_REGION := 0.55
-const BOOST_REGION_START := 0.59
-const BOOST_REGION_END := 0.87
+const LEFT_REGION := 0.48
+const BOOST_REGION_START := 0.54
+const BOOST_REGION_END := 0.94
 var joystick_finger := -1
 var boost_finger := -1
 var joystick_origin := Vector2.ZERO
@@ -62,21 +62,21 @@ func _finger_event(id: int, at: Vector2, pressed: bool) -> void:
         queue_redraw()
         return
     var v := at / get_viewport_rect().size
-    if v.y < 0.48:
+    if v.y < 0.55:
         return
     if _joystick_side(v.x) and joystick_finger == -1:
         joystick_finger = id
         joystick_origin = at
         joystick_tip = at
         _set_steer(0.0)
-    elif _boost_side(v.x) and v.y < 0.89 and boost_finger == -1:
+    elif _boost_side(v.x) and v.y >= 0.69 and boost_finger == -1:
         boost_finger = id
         _set_boost(true)
     queue_redraw()
 
 func _move_finger(id: int, at: Vector2) -> void:
     if id == joystick_finger:
-        radius = clampf(get_viewport_rect().size.y*0.115,55.0,104.0)
+        radius = clampf(get_viewport_rect().size.y*0.14,66.0,120.0)
         joystick_tip = joystick_origin + Vector2(clampf(at.x-joystick_origin.x,-radius,radius),0)
         var normalized := (joystick_tip.x-joystick_origin.x)/radius
         var deadzone := 0.10
@@ -106,17 +106,23 @@ func _draw() -> void:
         return
     var w := size.x
     var h := size.y
-    var cx := w* (0.81 if left_handed else 0.19)
-    var center := Vector2(cx,h*0.80)
+    var cx := w* (0.79 if left_handed else 0.19)
+    var center := Vector2(cx,h*0.81)
     var scale := maxf(0.7,minf(w/1280.0,h/720.0))
-    var r := 80.0*scale
+    var r := clampf(h*0.14,70.0,112.0)*scale
     var base := joystick_origin if joystick_finger >= 0 else center
-    draw_circle(base,r,Color(0.07,0.12,0.17,0.32))
-    draw_arc(base,r,0,TAU,64,Color(0.90,0.93,0.95,0.55),3.0*scale)
+    draw_circle(base,r,Color(0.06,0.10,0.15,0.63))
+    draw_arc(base,r,0,TAU,64,Color(0.73,0.86,0.96,0.76),3.0*scale)
+    draw_line(base+Vector2(-r*0.67,0),base+Vector2(r*0.67,0),Color(0.75,0.88,0.95,0.31),2.0*scale)
     var knob := joystick_tip if joystick_finger >= 0 else base
     draw_circle(knob,33.0*scale,Color(0.82,0.94,0.99,0.65 if joystick_finger>=0 else 0.34))
     draw_arc(knob,33.0*scale,0,TAU,40,Color.WHITE,2.5*scale)
-    var bx := w*(0.19 if left_handed else 0.71)
-    var bcenter := Vector2(bx,h*0.80)
-    draw_circle(bcenter,65.0*scale,Color(1.0,0.63,0.20,0.82 if boost_pressed else 0.36))
-    draw_arc(bcenter,65.0*scale,0,TAU,48,Color(1.0,0.83,0.47,0.92),4.0*scale)
+    var bx := w*(0.20 if left_handed else 0.79)
+    var bcenter := Vector2(bx,h*0.81)
+    var br := clampf(h*0.11,56.0,89.0)*scale
+    draw_circle(bcenter,br+5*scale,Color(0.07,0.1,0.16,0.53))
+    draw_circle(bcenter,br,Color(1.0,0.62,0.13,0.94 if boost_pressed else 0.60))
+    draw_arc(bcenter,br,0,TAU,48,Color(1.0,0.88,0.60,0.96),4.0*scale)
+    draw_string(ThemeDB.fallback_font,bcenter-Vector2(br*0.45,-7*scale),
+        "BOOST",HORIZONTAL_ALIGNMENT_LEFT,-1,int(22*scale),
+        Color(0.12,0.10,0.09,1.0))

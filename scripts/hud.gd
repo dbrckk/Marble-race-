@@ -151,7 +151,7 @@ func _build_menu() -> void:
     col.add_child(solo)
     col.add_child(_text("40 RACERS   •   1 WINNER   •   PHYSICS FIRST", 14, DIM))
     col.add_child(_text("Drag left thumb to steer • Hold right thumb to boost", 14, DIM))
-    col.add_child(_text("Android / offline / no account", 13, Color("#9fabb1")))
+    col.add_child(_text("BUILD v0.11  •  ANALOG TOUCH CONTROLS", 13, Color("#9fabb1")))
     var sound = _action("SOUND: " + ("ON" if game.audio.enabled else "OFF"), Color("#292e39"))
     sound.custom_minimum_size.y = 37
     sound.pressed.connect(func():
@@ -308,10 +308,10 @@ func _build_race_hud() -> void:
     hud_layer.add_child(course_progress)
     boost_progress = _progress_bar(Color("#91e6e6"))
     boost_progress.name = "BoostCharge"
-    boost_progress.anchor_left = 0.626
-    boost_progress.anchor_right = 0.796
-    boost_progress.anchor_top = 0.700
-    boost_progress.anchor_bottom = 0.724
+    boost_progress.anchor_left = 0.665
+    boost_progress.anchor_right = 0.915
+    boost_progress.anchor_top = 0.637
+    boost_progress.anchor_bottom = 0.660
     hud_layer.add_child(boost_progress)
     countdown_label = _text("3", 86, ORANGE)
     countdown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -339,23 +339,30 @@ func _build_race_hud() -> void:
     touch_controls.boost_changed.connect(func(v: bool): game.change_boost(v))
     boost_label = _text("BOOST 100%", 18, ORANGE)
     boost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    boost_label.anchor_left = 0.626
-    boost_label.anchor_right = 0.796
-    boost_label.anchor_top = 0.650
-    boost_label.anchor_bottom = 0.700
+    boost_label.anchor_left = 0.665
+    boost_label.anchor_right = 0.915
+    boost_label.anchor_top = 0.603
+    boost_label.anchor_bottom = 0.636
     hud_layer.add_child(boost_label)
+    var build_label := _text("CONTROLS v0.11  /  ANALOG",13,Color("#c7d4db"))
+    build_label.anchor_left = 0.31
+    build_label.anchor_right = 0.65
+    build_label.anchor_top = 0.931
+    build_label.anchor_bottom = 0.972
+    build_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    hud_layer.add_child(build_label)
     var cam_button = _action("CAMERA", Color("#353944"))
-    cam_button.anchor_left = 0.73
-    cam_button.anchor_right = 0.85
-    cam_button.anchor_top = 0.895
-    cam_button.anchor_bottom = 0.975
+    cam_button.anchor_left = 0.790
+    cam_button.anchor_right = 0.900
+    cam_button.anchor_top = 0.525
+    cam_button.anchor_bottom = 0.600
     cam_button.pressed.connect(func(): game.cycle_camera())
     hud_layer.add_child(cam_button)
     var pause_button = _action("Ⅱ", Color("#353944"))
-    pause_button.anchor_left = 0.89
-    pause_button.anchor_right = 0.975
-    pause_button.anchor_top = 0.895
-    pause_button.anchor_bottom = 0.975
+    pause_button.anchor_left = 0.920
+    pause_button.anchor_right = 0.982
+    pause_button.anchor_top = 0.525
+    pause_button.anchor_bottom = 0.600
     pause_button.pressed.connect(_toggle_pause)
     hud_layer.add_child(pause_button)
 
