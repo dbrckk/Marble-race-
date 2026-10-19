@@ -12,7 +12,22 @@ func _run_checks() -> void:
     await process_frame
     assert(is_instance_valid(race.camera), "Missing camera")
     assert(is_instance_valid(race.board), "Missing 3D track")
-    assert(race.moving_obstacles.size() >= 4, "Expected working kinetic paddles")
+    assert(race.moving_obstacles.size() >= 10, "Expected animated paddles and hammers")
+    var spinning := 0
+    var swinging := 0
+    for motor in race.moving_obstacles:
+        if motor.get_meta("motion_kind","") == "spinner":
+            spinning += 1
+            assert(is_instance_valid(motor.get_node_or_null("PolishedCenterCap")), "Missing premium center cap")
+        elif motor.get_meta("motion_kind","") == "hammer":
+            swinging += 1
+            assert(is_instance_valid(motor.get_node_or_null("OscillatorCenterCap")), "Missing hammer hinge")
+    assert(spinning >= 5 and swinging >= 5, "Five matching paddles and hammers needed")
+    var course_fx = race.board.get_node_or_null("PolishedToyDetails")
+    assert(course_fx != null, "Missing checkpoint effects")
+    course_fx.pulse_checkpoint(0)
+    assert(course_fx.checkpoint_flashes[0] > 1.0, "Checkpoint flash not triggered")
+    assert(ResourceLoader.exists("res://assets/audio/sfx/metal_hit_1.ogg"), "Metal impact sound missing")
     assert(race.race_state == "MENU", "Should start on title screen")
     assert(race.workshop_lamps.size() >= 8, "Workshop lights missing")
     assert(race.audio.spatial_channels.size() == 7, "Impact audio channels missing")
@@ -44,6 +59,7 @@ func _run_checks() -> void:
         if marble.linear_velocity.length() > 0.01:
             active += 1
     assert(active > 0, "Rigidbodies did not start moving")
+    assert(race.kinetic_time > 0.0, "Moving obstacle animation not advanced")
     var previous_mode = race.cam_mode
     race.cycle_camera()
     assert(race.cam_mode != previous_mode, "Camera change not registered")
@@ -56,7 +72,7 @@ func _run_checks() -> void:
     race.return_to_menu()
     assert(race.race_state == "MENU", "Menu return failed")
     assert(race.contact_shadows.pool.visible_instance_count == 0, "Menu should release race shadows")
-    print("SMOKE_PASS: physics, 40 racers, pooled shadows, spatial sound, material, HUD, menu")
+    print("SMOKE_PASS: 40 racers, rounded kinetic mechanisms, checkpoint flashes, audio, physics, HUD")
     race.queue_free()
     for i in range(4):
         await process_frame

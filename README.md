@@ -4,7 +4,7 @@ Original **3D Android marble-racing game** inspired by the look and mechanics sh
 
 Independent implementation in **Godot 4.5.1**, focused on real mobile playability, physics, and stylized toy-table graphics. No proprietary material from the reference game is redistributed.
 
-## Current state: Android QA build (v0.5)
+## Current state: Android QA build (v0.6)
 
 - 40 independently simulated rigid-body glass marbles with seeded visual variations and position-aware AI
 - 18 segments of inclined wooden planks, rounded colorful safety rails, toy blocks, posts, slalom, rotating paddles, *new swinging hammers*, start/finish arches, checkpoint gates
@@ -81,3 +81,16 @@ Refined procedural oak grain normal-map response and better warm key/ambient bal
 - Automated smoke coverage for spatial sounds, shadow pooling, HUD widgets and release of visuals when leaving a race.
 
 All new art and sound assets are independently generated. The engine remains the Godot 4.5.1 GL Compatibility renderer; Android arm64 performance still needs a physical-phone check.
+
+
+## v0.6 — kinetic obstacle art and physical audio
+
+- Rounded spinner arms with embedded hazard markings and 3D metallic endcaps, center bearings, black steel drive shaft and static base supports; visual meshes follow existing `AnimatableBody3D` collision axes.
+- Pendulum hammer assemblies with steel floor mounts, brass joints, visible connecting rods and dark end bumpers; only the visual art changes, so collisions and race logic remain compatible with v0.5.
+- Kinetic swinging motion is sampled from **physics simulation time**, rather than frame-render timestamps, for reproducible motion and contacts at 60 fixed physics ticks.
+- Progress checkpoint beacons now brighten and pulse when the player crosses them; player marble's sphere mesh is slightly more detailed in close-ups.
+- Two original generated metallic impact sounds are spatialized when the player's marble contacts a spinning paddle or swinging hammer (wood and glass impacts remain unchanged).
+- `tools/generate_metal_impacts.py` reproducibly generates the new OGG sounds using NumPy and FFmpeg; no commercial audio dependencies.
+- Smoke test now asserts all five spinners, five pendulums, hinge meshes, checkpoint flashes, impact sound resources and time-based kinetic animations. Android APK exported for ARM64.
+- Rendered image of a real gameplay frame: [v0.6 GL Compatibility preview](docs/screenshots/v0.6-race.jpg). This preview is a software Mesa rendering, not a phone FPS benchmark.
+

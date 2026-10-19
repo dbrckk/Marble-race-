@@ -12,6 +12,7 @@ const Visuals = preload("res://scripts/visuals.gd")
 const TrackFX = preload("res://scripts/track_fx.gd")
 const ContactShadows = preload("res://scripts/contact_shadows.gd")
 const LACQUER_SHADER = preload("res://shaders/lacquer.gdshader")
+const MechanismArt = preload("res://scripts/mechanism_art.gd")
 
 const MARBLE_COUNT := 40
 const SLOPE := 0.085
@@ -60,6 +61,7 @@ var player_marker: Label3D
 var contact_shadows: Node3D
 var workshop_lamps: Array[OmniLight3D] = []
 var lamp_refresh := 0.0
+var kinetic_time := 0.0
 
 func _ready() -> void:
     rng.seed = 424242
@@ -305,6 +307,7 @@ func _swing_hammer(parent: Node3D, z: float, n: int) -> void:
     art.position = hit.position
     art.material_override = _lacquer(BARRIER_COLORS[(n+3)%6])
     hinge.add_child(art)
+    MechanismArt.decorate_hammer(hinge, parent, _mat(Color("#d6ad67"),0.27,0.72), _mat(Color("#262b33"),0.52,0.12))
     hinge.set_meta("motion_kind","hammer")
     hinge.set_meta("speed",1.3+float(n%3)*0.22)
     hinge.set_meta("phase",float(n)*1.8)
@@ -333,18 +336,18 @@ func _add_spinner(parent: Node3D, z: float, n: int) -> void:
         spoke.rotation.y = PI * 0.5 * i
         pivot.add_child(spoke)
         var mesh = MeshInstance3D.new()
-        var box = BoxMesh.new()
-        box.size = Vector3(7.1 if i==0 else 4.8, 0.56, 0.34)
-        mesh.mesh = box
+        var arm_size = Vector3(7.1 if i==0 else 4.8, 0.56, 0.34)
+        mesh.mesh = Visuals.rounded_box(arm_size,0.12)
         mesh.material_override = _lacquer(color if i==0 else BARRIER_COLORS[(n+3)%6])
         spoke.add_child(mesh)
         # Collider needs rotation on CollisionShape rather than relying on untransformed parent body.
         var hit = CollisionShape3D.new()
         var shape = BoxShape3D.new()
-        shape.size = box.size
+        shape.size = arm_size
         hit.shape = shape
         hit.rotation.y = spoke.rotation.y
         pivot.add_child(hit)
+        MechanismArt.stripe_arm(spoke,arm_size, _mat(Color("#242936"),0.37,0.24))
     var axle = MeshInstance3D.new()
     var cyl = CylinderMesh.new()
     cyl.height = 1.3
@@ -353,6 +356,7 @@ func _add_spinner(parent: Node3D, z: float, n: int) -> void:
     axle.mesh = cyl
     axle.material_override = _mat(Color("#f0c361"), 0.25, 0.16)
     pivot.add_child(axle)
+    MechanismArt.decorate_spinner(pivot, parent, _mat(Color("#d6ad67"),0.27,0.72), _mat(Color("#292d35"),0.36,0.22))
     pivot.set_meta("motion_kind","spinner")
     pivot.set_meta("spin_speed", (1.0 if n%2==0 else -1.0) * (0.72 + n*0.022))
     moving_obstacles.append(pivot)
@@ -629,6 +633,9 @@ func _process(delta: float) -> void:
                 last_checkpoint = cp
                 if cp >= 0:
                     audio.tone("checkpoint")
+                    var cosmetics := board.get_node_or_null("PolishedToyDetails")
+                    if is_instance_valid(cosmetics):
+                        cosmetics.pulse_checkpoint(cp)
                     ui.show_checkpoint(cp+1)
                     _burst(player.global_position, false)
         if boosting:
@@ -650,13 +657,14 @@ func _process(delta: float) -> void:
         ui.update_hud()
 
 func _physics_process(delta: float) -> void:
+    kinetic_time += delta
     for obj in moving_obstacles:
         if not is_instance_valid(obj):
             continue
         if obj.get_meta("motion_kind", "") == "spinner":
             obj.rotation.y += delta * float(obj.get_meta("spin_speed"))
         else:
-            obj.rotation.z = sin(world_time*float(obj.get_meta("speed"))+float(obj.get_meta("phase")))*0.65
+            obj.rotation.z = sin(kinetic_time*float(obj.get_meta("speed"))+float(obj.get_meta("phase")))*0.65
     if race_state != "RACING":
         return
     for m in racers:

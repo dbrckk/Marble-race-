@@ -70,8 +70,8 @@ func setup(index: int, player: bool, base_position: Vector3, chosen_perk: String
     var sphere = SphereMesh.new()
     sphere.radius = RADIUS
     sphere.height = RADIUS * 2.0
-    sphere.radial_segments = 24
-    sphere.rings = 12
+    sphere.radial_segments = 32 if is_player else 24
+    sphere.rings = 16 if is_player else 12
     mesh.mesh = sphere
     var material = ShaderMaterial.new()
     material.shader = SHADER

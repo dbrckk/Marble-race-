@@ -6,6 +6,7 @@ const TRACK_LENGTH := 18
 var beacons: Array[Node3D] = []
 var pulsing_materials: Array[StandardMaterial3D] = []
 var clock := 0.0
+var checkpoint_flashes := [0.0,0.0,0.0]
 
 func _ready() -> void:
     _rivet_instancing()
@@ -119,9 +120,16 @@ func _waypoint_lanterns() -> void:
             beacons.append(bulb)
             pulsing_materials.append(m)
 
+func pulse_checkpoint(index: int) -> void:
+    if index >= 0 and index < checkpoint_flashes.size():
+        checkpoint_flashes[index] = 1.4
+
 func _process(delta: float) -> void:
     clock+=delta
+    for i in range(checkpoint_flashes.size()):
+        checkpoint_flashes[i] = maxf(0.0,checkpoint_flashes[i]-delta)
     for idx in range(pulsing_materials.size()):
         var wave=0.45+0.45*sin(clock*3.2+idx*0.95)
-        pulsing_materials[idx].emission_energy_multiplier=0.6+wave*1.0
-        beacons[idx].scale=Vector3.ONE*(0.88+wave*0.15)
+        var celebration := clampf(checkpoint_flashes[idx / 2],0.0,1.0)
+        pulsing_materials[idx].emission_energy_multiplier=0.6+wave*1.0+celebration*2.3
+        beacons[idx].scale=Vector3.ONE*(0.88+wave*0.15+celebration*0.17)

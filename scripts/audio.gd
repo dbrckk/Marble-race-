@@ -13,6 +13,10 @@ const WOOD_HITS = [
     preload("res://assets/audio/sfx/wood_2.ogg"),
     preload("res://assets/audio/sfx/wood_3.ogg")
 ]
+const METAL_HITS = [
+    preload("res://assets/audio/sfx/metal_hit_1.ogg"),
+    preload("res://assets/audio/sfx/metal_hit_2.ogg")
+]
 const GLASS_HITS = [
     preload("res://assets/audio/sfx/glass_1.ogg"),
     preload("res://assets/audio/sfx/glass_2.ogg"),
@@ -241,7 +245,8 @@ func _on_marble_collision(_body: Node) -> void:
     if speed < 1.5:
         return
     collision_delay = 0.09 if speed > 7 else 0.17
-    var kind = GLASS_HITS if _body is RigidBody3D else WOOD_HITS
+    var is_motor := _body.name.begins_with("KineticPaddle") or _body.name.begins_with("SwingHammer")
+    var kind = METAL_HITS if is_motor else (GLASS_HITS if _body is RigidBody3D else WOOD_HITS)
     if speed >= 8.5 and haptic_cooldown <= 0.0 and OS.has_feature("mobile"):
         Input.vibrate_handheld(22)
         haptic_cooldown = 0.52
