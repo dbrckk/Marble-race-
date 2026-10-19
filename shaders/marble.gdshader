@@ -9,6 +9,7 @@ uniform vec4 vein_color : source_color = vec4(1.0, 0.94, 0.72, 1.0);
 uniform float pattern_seed = 0.0;
 uniform float stripe_scale = 1.0;
 uniform float boost_strength : hint_range(0.0,1.0) = 0.0;
+uniform float visual_quality : hint_range(0.0,2.0) = 1.0;
 varying vec3 marble_local;
 
 float hash_13(vec3 p) {
@@ -36,7 +37,7 @@ void fragment() {
     glass = mix(glass,vein_color.rgb,milk*0.71);
     float inner_glow = 0.84+0.13*sin(swirl*0.37 + theta*2.0);
     glass *= inner_glow;
-    float sparkle = step(0.994,hash_13(floor(p*94.0+pattern_seed*7.0)));
+    float sparkle = step(0.994,hash_13(floor(p*(68.0+visual_quality*14.0)+pattern_seed*7.0)));
     glass += sparkle*vein_color.rgb*0.22;
     // Fake optical Fresnel: helps spheres read as glass without expensive transparency.
     float facing = clamp(dot(normalize(NORMAL),normalize(VIEW)),0.0,1.0);
@@ -46,7 +47,7 @@ void fragment() {
     // Reflection moves naturally as the glass marble rolls (no screen-space reflections).
     vec3 reflected = reflect(-normalize(VIEW),normalize(NORMAL));
     float softbox_a = pow(max(dot(reflected,normalize(vec3(0.42,0.8,0.36))),0.0),18.0);
-    float softbox_b = pow(max(dot(reflected,normalize(vec3(-0.68,0.23,0.62))),0.0),42.0);
+    float softbox_b = pow(max(dot(reflected,normalize(vec3(-0.68,0.23,0.62))),0.0),42.0) * step(0.5,visual_quality);
     vec3 chrome_luster = vec3(0.98,0.94,0.84)*softbox_a*0.33
                          + vec3(0.78,0.91,1.0)*softbox_b*0.21;
     ALBEDO = clamp(mix(glass,rim_color,fresnel*0.58)+chrome_luster,vec3(0.0),vec3(1.0));

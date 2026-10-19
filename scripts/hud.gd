@@ -545,13 +545,19 @@ func update_hud() -> void:
     place_label.text = "#%d / 40" % place
     remaining_label.text = "%s  •  %d FINISHED" % [game.track_title(),game.racer_finish_order.size()]
     boost_label.text = "BOOST %d%%" % int(game.boost_energy * 100.0)
-    speed_label.text = "%02d  SPEED" % int(game.player.linear_velocity.length() * 3.6)
+    boost_label.add_theme_color_override("font_color",
+        Color("#ffcf82") if game.boost_energy >= 0.25 else Color("#e9746b"))
+    speed_label.text = "%02d KM/H" % int(game.player.linear_velocity.length() * 3.6)
     if game.show_fps:
         var measured := Engine.get_frames_per_second()
         fps_label.text = "FPS %d" % measured
         fps_label.add_theme_color_override("font_color",
             Color("#ffb7a5") if measured < 30 else Color("#d4f8e3"))
     course_progress.value = clampf((-game.player.global_position.z/absf(game.FINISH_Z))*100.0,0.0,100.0)
+    if game.obstacle_notice > 0.0:
+        place_label.add_theme_color_override("font_color",Color("#ffb089"))
+    else:
+        place_label.add_theme_color_override("font_color",TEXT)
     boost_progress.value = game.boost_energy*100.0
     var ranking = game.get_rankings()
     var table = "TOP RACERS\n"

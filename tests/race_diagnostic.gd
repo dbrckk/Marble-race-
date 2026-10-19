@@ -24,8 +24,8 @@ func _run() -> void:
                 "active",active,"avg_speed",speed/40.0,"avg_z",forward/40.0,
                 "player",stage.player.global_position,"player_speed",stage.player.linear_velocity.length())
     assert(stage.racer_finish_order.size() >= 8, "Course should have finishers after 110 seconds")
-    assert(stage.player.finished or stage.player.global_position.z < -100.0,
-        "Player failed to progress; physics or course blocked")
+    assert(stage.player.finished,
+        "Unsteered player must finish: a wedged marble breaks the race loop")
     stage.queue_free()
     for n in range(4):
         await process_frame

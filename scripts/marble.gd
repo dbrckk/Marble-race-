@@ -29,6 +29,8 @@ static func get_sphere(high_detail: bool, quality: int) -> SphereMesh:
 func set_render_quality(quality: int) -> void:
     if is_instance_valid(mesh):
         mesh.mesh = get_sphere(is_player,quality)
+        if is_instance_valid(glass_material):
+            glass_material.set_shader_parameter("visual_quality",float(clampi(quality,0,2)))
 const RADIUS := 0.39
 const PALETTE := [
     Color("#e98739"), Color("#46adb4"), Color("#e45d88"), Color("#a75ad0"),
@@ -58,9 +60,14 @@ var seed_value := 0.0
 var target_sway := 0.0
 var stuck_seconds := 0.0
 var recovery_count := 0
+var progress_anchor_z := 0.0
+var progress_stall_seconds := 0.0
 var boost_ring: MeshInstance3D
 var glass_material: ShaderMaterial
 var boost_glow := 0.0
+var ai_lane_goal := 0.0
+var ai_lane_timer := 0.0
+var last_boosting := false
 
 func setup(index: int, player: bool, base_position: Vector3, chosen_perk: String = "") -> void:
     racer_id = index
@@ -70,6 +77,7 @@ func setup(index: int, player: bool, base_position: Vector3, chosen_perk: String
     seed_value = float(index) * 2.317
     name = "Marble_%02d" % index
     position = base_position
+    progress_anchor_z = base_position.z
     mass = 0.73
     gravity_scale = 1.0
     linear_damp = 0.20
@@ -108,6 +116,7 @@ func setup(index: int, player: bool, base_position: Vector3, chosen_perk: String
     material.set_shader_parameter("pattern_seed", seed_value)
     material.set_shader_parameter("stripe_scale", 0.3 + float(index % 7) * 0.29)
     glass_material = material
+    material.set_shader_parameter("visual_quality",1.0)
     mesh.material_override = material
     # One cheap blended contact-shadow batch already grounds all marbles.
     # Rendering individual moving shadow maps here costs a second geometry pass.
@@ -162,11 +171,29 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
         drive_force += 8.0
     var side_force := 0.0
     if is_player:
-        side_force = steering * 16.5
+        # Steering retains authority at high speed, without making tiny inputs twitchy.
+        var forward_speed: float = absf(linear_velocity.z)
+        side_force = steering * lerpf(18.5,26.0,clampf(forward_speed/18.0,0.0,1.0))
     else:
-        # Small seed-deterministic AI corrections. Physics and collisions remain authoritative.
-        var drift = sin(elapsed * (0.63 + racer_id * 0.013) + seed_value) * 0.65
-        side_force = drift + (-position.x * 0.065)
+        # Predictable seeded weave prevents the AI from blindly hugging one rail.
+        # Other marbles still interact solely through physical collisions.
+        ai_lane_timer -= delta
+        if ai_lane_timer <= 0.0:
+            ai_lane_timer = 1.5 + float(racer_id % 5) * 0.37
+            var phase: float = elapsed * 0.37 + seed_value * 2.1
+            ai_lane_goal = sin(phase) * (2.0 + float(racer_id % 4) * 0.5)
+        var lane_error: float = ai_lane_goal - position.x
+        side_force = clampf(lane_error*1.0 - linear_velocity.x*0.18,-4.5,4.5)
+    # Progress watchdog: collisions sometimes wedge a sphere with nonzero angular
+    # velocity, fooling speed-based stall detection. Measure net forward progress.
+    progress_stall_seconds += delta
+    if progress_stall_seconds >= 2.0:
+        if position.z > progress_anchor_z - 0.7:
+            stuck_seconds += 1.35
+        else:
+            recovery_count = maxi(0,recovery_count-1)
+        progress_anchor_z = position.z
+        progress_stall_seconds = 0.0
     # Real physics recovery: give a marble a small nudge if trapped against a
     # rail/post for >2 sec. No teleportation, no fake position interpolation.
     var wall_proximity := clampf((absf(position.x)-4.70)/1.05,0.0,1.0)
@@ -176,8 +203,9 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
     else:
         stuck_seconds = maxf(0.0,stuck_seconds - delta*3.0)
     if stuck_seconds > 1.65:
-        var push_side := -signf(position.x) * 2.5 if absf(position.x)>2.1 else (1.0 if recovery_count%2==0 else -1.0)*1.25
-        apply_central_impulse(Vector3(push_side,0.25,-5.2) * mass)
+        var side_direction := -signf(position.x) if absf(position.x)>1.0 else (1.0 if recovery_count%2==0 else -1.0)
+        var effort := minf(2.8,1.0+float(recovery_count)*0.35)
+        apply_central_impulse(Vector3(side_direction*3.6*effort,1.4*effort,-6.5*effort)*mass)
         stuck_seconds = 0.0
         recovery_count += 1
     apply_central_force(Vector3(side_force, 0.0, -drive_force) * mass)
@@ -197,4 +225,8 @@ func teleport_to_start(new_position: Vector3) -> void:
     finish_time = 0.0
     stuck_seconds = 0.0
     recovery_count = 0
+    progress_anchor_z = new_position.z
+    progress_stall_seconds = 0.0
+    ai_lane_timer = 0.0
+    ai_lane_goal = 0.0
     freeze = false

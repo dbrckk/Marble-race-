@@ -192,3 +192,7 @@ Screenshots below were rendered by Godot 4.5.1's GL Compatibility renderer, not 
 ![Marble Race championship track selection](docs/screenshots/championship-marble-menu.jpg)
 ![Marble Race with redesigned obstacle modules](docs/screenshots/championship-marble-race.jpg)
 
+
+## v1.1 RC — 15 production pillars & game-feel pass
+
+The project now includes a checked [15-concept engineering matrix](docs/15_GAMEPLAY_PILLARS.md) with source files and verification criteria. The new pass adds velocity-aware analog steering, opponent lane targets, predictive chase camera, graduated feedback, adaptive glossy material quality, more readable boost/speed HUD and stronger fully physical anti-stall recovery. No position teleportation has been introduced. The long-course automated regression now requires that the player's marble actually crosses the finish line rather than merely moving 100 meters.

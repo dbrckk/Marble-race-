@@ -65,6 +65,9 @@ var cam_mode := 0
 var world_time := 0.0
 var finish_announced := false
 var camera_shake := 0.0
+var camera_lookahead := Vector3.ZERO
+var feedback_cooldown := 0.0
+var obstacle_notice := 0.0
 var last_count := -1
 var last_checkpoint := -1
 var course_flash := 0.0
@@ -721,8 +724,14 @@ func _add_player_trail(m: RigidBody3D) -> void:
     m.add_child(trail)
 
 func _camera_bump(_body: Node) -> void:
-    if is_instance_valid(player):
-        camera_shake = minf(0.19,camera_shake+player.linear_velocity.length()*0.009)
+    if not is_instance_valid(player) or race_state != "RACING":
+        return
+    var impact_speed: float = player.linear_velocity.length()
+    if impact_speed < 2.2 or feedback_cooldown > 0.0:
+        return
+    camera_shake = minf(0.14,camera_shake+impact_speed*0.005)
+    obstacle_notice = 0.46 if impact_speed > 7.0 else 0.20
+    feedback_cooldown = 0.16
 
 func start_race(perk_name: String) -> void:
     selected_perk = perk_name
@@ -773,6 +782,8 @@ func return_to_menu() -> void:
 
 func _process(delta: float) -> void:
     world_time += delta
+    feedback_cooldown = maxf(0.0,feedback_cooldown-delta)
+    obstacle_notice = maxf(0.0,obstacle_notice-delta)
     lamp_refresh -= delta
     if lamp_refresh <= 0.0:
         lamp_refresh = 0.25
@@ -893,7 +904,11 @@ func _update_camera(delta: float, force := false) -> void:
     else:
         desired = target + Vector3(0, 6.5, 11.5)
         focus = target + Vector3(0, 0.3, -5.5)
-    camera_shake = move_toward(camera_shake,0.0,delta*0.42)
+    camera_shake = move_toward(camera_shake,0.0,delta*0.55)
+    camera_lookahead = camera_lookahead.lerp(
+        Vector3(clampf(player.linear_velocity.x*0.20,-1.8,1.8),0.0,
+        clampf(player.linear_velocity.z*0.27,-5.0,0.0)),minf(1.0,delta*3.0))
+    focus += camera_lookahead
     var jitter := Vector3(sin(world_time*49.0), cos(world_time*43.0),0.0)*camera_shake
     camera.global_position = desired if force else (camera.global_position - camera.get_meta("previous_jitter",Vector3.ZERO)).lerp(desired,min(delta*3.5,1.0))
     camera.global_position += jitter

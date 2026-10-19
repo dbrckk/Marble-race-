@@ -252,11 +252,12 @@ func _on_marble_collision(_body: Node) -> void:
     var is_motor := _body.name.begins_with("KineticPaddle") or _body.name.begins_with("SwingHammer")
     var is_peg := _body.name.begins_with("ToyPeg") or _body.name.begins_with("AntiEdgeBaffle") or _body.name.begins_with("Chicane_")
     var kind = METAL_HITS if is_motor else (BUMPER_HITS if is_peg else (GLASS_HITS if _body is RigidBody3D else WOOD_HITS))
-    if speed >= 8.5 and haptic_cooldown <= 0.0 and OS.has_feature("mobile"):
-        Input.vibrate_handheld(22)
-        haptic_cooldown = 0.52
+    if speed >= 6.0 and haptic_cooldown <= 0.0 and OS.has_feature("mobile"):
+        # Mild and strong tactile events instead of vibrating equally for every tap.
+        Input.vibrate_handheld(15 if speed < 10.0 else 30)
+        haptic_cooldown = 0.45
     var idx = rng.randi_range(0,kind.size()-1)
-    collision_duck = maxf(collision_duck,clampf(speed*0.35,0.0,3.5))
+    collision_duck = maxf(collision_duck,clampf(speed*0.24,0.0,2.7))
     _spatial_voice(kind[idx],target_marble.global_position,
         clampf(-17.0+speed*0.57,-18.0,-7.0),rng.randf_range(0.90,1.12))
 
