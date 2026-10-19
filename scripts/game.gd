@@ -14,6 +14,7 @@ const ContactShadows = preload("res://scripts/contact_shadows.gd")
 const LACQUER_SHADER = preload("res://shaders/lacquer.gdshader")
 const MechanismArt = preload("res://scripts/mechanism_art.gd")
 const CourseDressing = preload("res://scripts/course_dressing.gd")
+const ObstacleFinish = preload("res://scripts/obstacle_finish.gd")
 
 const MARBLE_COUNT := 40
 const SLOPE := 0.085
@@ -63,9 +64,19 @@ var contact_shadows: Node3D
 var workshop_lamps: Array[OmniLight3D] = []
 var lamp_refresh := 0.0
 var kinetic_time := 0.0
+var obstacle_finish: Node3D
+var primary_light: DirectionalLight3D
+var world_environment: Environment
+var graphics_quality := 1
+var show_fps := false
+const QUALITY_NAMES := ["ECONOMY","BALANCED","ULTRA"]
 
 func _ready() -> void:
     rng.seed = 424242
+    var prefs := ConfigFile.new()
+    if prefs.load("user://marble_settings.cfg") == OK:
+        graphics_quality = clampi(int(prefs.get_value("video","quality",1)),0,2)
+        show_fps = bool(prefs.get_value("video","fps",false))
     _make_environment()
     _make_course()
     contact_shadows = ContactShadows.new()
@@ -87,6 +98,7 @@ func _ready() -> void:
     ui.attach_game(self)
     _position_intro_camera(true)
     _spawn_racers() # Frozen showroom preview gives the menu moving-world context.
+    _apply_graphics_quality()
     ui.show_menu()
 
 func _make_environment() -> void:
@@ -105,6 +117,7 @@ func _make_environment() -> void:
     env.glow_enabled = true
     env.glow_intensity = 0.24
     env_node.environment = env
+    world_environment = env
     add_child(env_node)
 
     var sun = DirectionalLight3D.new()
@@ -114,6 +127,7 @@ func _make_environment() -> void:
     sun.light_energy = 1.08
     sun.light_angular_distance = 0.55
     sun.shadow_enabled = true
+    primary_light = sun
     sun.directional_shadow_max_distance = 75.0
     add_child(sun)
 
@@ -123,6 +137,43 @@ func _make_environment() -> void:
     fill.light_color = Color("#cae4f4")
     fill.light_energy = 0.31
     add_child(fill)
+
+func _save_visual_preferences() -> void:
+    var cfg := ConfigFile.new()
+    cfg.load("user://marble_settings.cfg")
+    cfg.set_value("video","quality",graphics_quality)
+    cfg.set_value("video","fps",show_fps)
+    cfg.save("user://marble_settings.cfg")
+
+func set_graphics_quality(next_quality: int) -> void:
+    graphics_quality = clampi(next_quality,0,2)
+    _apply_graphics_quality()
+    _save_visual_preferences()
+
+func toggle_fps_overlay() -> bool:
+    show_fps = not show_fps
+    if is_instance_valid(ui) and is_instance_valid(ui.fps_label):
+        ui.fps_label.get_parent().visible = show_fps
+    _save_visual_preferences()
+    return show_fps
+
+func _apply_graphics_quality() -> void:
+    if is_instance_valid(primary_light):
+        primary_light.shadow_enabled = graphics_quality > 0
+        primary_light.directional_shadow_max_distance = 90.0 if graphics_quality == 2 else 65.0
+    if world_environment != null:
+        world_environment.glow_enabled = graphics_quality > 0
+        world_environment.fog_enabled = graphics_quality > 0
+    if is_instance_valid(contact_shadows):
+        contact_shadows.visible = graphics_quality > 0
+    if is_instance_valid(obstacle_finish):
+        obstacle_finish.visible = graphics_quality > 0
+    if is_instance_valid(board):
+        var dressing := board.get_node_or_null("ModularBrassAndSilkDressing")
+        if is_instance_valid(dressing):
+            dressing.visible = graphics_quality > 0
+    if is_instance_valid(trail) and graphics_quality == 0:
+        trail.emitting = false
 
 func height_at(z: float) -> float:
     return z * SLOPE
@@ -192,8 +243,11 @@ func _box(parent: Node3D, location: Vector3, dimensions: Vector3, material: Mate
 
 func _cylinder(parent: Node3D, location: Vector3, radius: float, tall: float, color: Color) -> StaticBody3D:
     var body = StaticBody3D.new()
+    body.name = "ToyPeg"
     body.position = location
     parent.add_child(body)
+    if is_instance_valid(obstacle_finish):
+        obstacle_finish.register_post(location,radius,tall,color)
     var hitbox = CollisionShape3D.new()
     var cylinder = CylinderShape3D.new()
     cylinder.radius = radius
@@ -228,6 +282,9 @@ func _make_course() -> void:
     board.name = "HandcraftedWoodenCourse"
     add_child(board)
     moving_obstacles.clear()
+    obstacle_finish = ObstacleFinish.new()
+    obstacle_finish.name = "PremiumObstacleFinishes"
+    board.add_child(obstacle_finish)
     var incline = -atan(SLOPE)
     for section in range(SEGMENTS):
         var center_z = 8.0 - float(section) * SEGMENT_LENGTH
@@ -262,6 +319,7 @@ func _make_course() -> void:
             else:
                 _slalom(section_node, center_z, section)
 
+    obstacle_finish.rebuild()
     _start_arch()
     _finish_arch()
     _checkpoint_arches()
@@ -288,8 +346,11 @@ func _gate_with_posts(parent: Node3D, center_z: float, n: int) -> void:
         var z = center_z + 3.2 - row * 6.0
         for i in range(3):
             var x = -4.6 + i * 4.7 + (0.65 if row == 1 else 0.0)
-            _box(parent, Vector3(x, height_at(z)+0.67, z),
-                Vector3(0.91, 1.37, 1.25), _lacquer(BARRIER_COLORS[(n+row+i)%6]), true, true)
+            var gate_color: Color = BARRIER_COLORS[(n+row+i)%6]
+            var size := Vector3(0.91,1.37,1.25)
+            var block := _box(parent, Vector3(x,height_at(z)+0.67,z),
+                size,_lacquer(gate_color),true,true)
+            obstacle_finish.register_block(block.transform,size,gate_color)
     _add_spinner(parent, center_z, n)
     _swing_hammer(parent, center_z - 1.6, n)
 
@@ -321,8 +382,11 @@ func _slalom(parent: Node3D, center_z: float, n: int) -> void:
     for i in range(4):
         var z = center_z + 4.4 - float(i) * 2.8
         var x = (-3.5 if i % 2 == 0 else 3.5)
-        _box(parent, Vector3(x, height_at(z)+0.36, z),
-            Vector3(3.4, 0.75, 1.05), _lacquer(BARRIER_COLORS[(n+i)%6]), true, true)
+        var slalom_color: Color = BARRIER_COLORS[(n+i)%6]
+        var size := Vector3(3.4,0.75,1.05)
+        var block := _box(parent, Vector3(x,height_at(z)+0.36,z),
+            size,_lacquer(slalom_color),true,true)
+        obstacle_finish.register_block(block.transform,size,slalom_color)
     for i in range(3):
         var z = center_z + 2.3 - i * 3.5
         _cylinder(parent, Vector3(0, height_at(z)+0.65, z), 0.34, 1.3, BARRIER_COLORS[(n+2*i)%6])
@@ -599,7 +663,8 @@ func _process(delta: float) -> void:
         var view_z := player.global_position.z if is_instance_valid(player) and race_state != "MENU" else -3.0
         for lamp in workshop_lamps:
             if is_instance_valid(lamp):
-                lamp.visible = absf(lamp.global_position.z - view_z) < 29.0
+                var illumination_range := 0.0 if graphics_quality == 0 else (42.0 if graphics_quality == 2 else 29.0)
+                lamp.visible = absf(lamp.global_position.z - view_z) < illumination_range
     if is_instance_valid(player_marker) and is_instance_valid(player):
         player_marker.global_position = player.global_position + Vector3(0.0,1.22 + sin(world_time*3.6)*0.075,0.0)
     if race_state == "COUNTDOWN":
@@ -623,7 +688,7 @@ func _process(delta: float) -> void:
             ui.hide_countdown()
         if is_instance_valid(trail) and is_instance_valid(player):
             audio.update_progress(clampf(-player.position.z/absf(FINISH_Z),0.0,1.0))
-            trail.emitting = player.linear_velocity.length() > 4.0
+            trail.emitting = graphics_quality > 0 and player.linear_velocity.length() > 4.0
             trail.initial_velocity_max = 2.6 if boosting else 0.75
             trail.color = Color("#91f5fd") if boosting else Color("#eeb65e")
             var cp := -1
@@ -779,7 +844,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _burst(where: Vector3, finale: bool) -> void:
     # Short-lived particles carry no collision meshes and remain inexpensive on mobile.
-    var n := CPUParticles3D.new()
+    var n := CPUParticles3D.new()
     n.name = "FinishConfetti" if finale else "CheckpointGlitter"
     n.amount = 100 if finale else 45
     n.lifetime = 1.9 if finale else 0.9

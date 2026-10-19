@@ -11,3 +11,8 @@ Only the following third-party files ship with the game. All other game code, 3D
 Kenney CC0 does not require attribution but we credit the maker. The font has an attribution/license preservation requirement. If replacing a source sample, verify its license before publishing.
 
 Music and tonal cues were algorithmically authored for this game by `tools/generate_assets.py` (no copyrighted commercial tracks or soundalikes).
+
+
+### Original v0.8 rubber bumper sounds
+
+`assets/audio/sfx/bumper_soft.ogg` and `assets/audio/sfx/bumper_hard.ogg` are original algorithmically synthesized sounds, reproducible using `tools/generate_bump_sounds.py`. They are not redistributions of third-party audio.

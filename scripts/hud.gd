@@ -29,6 +29,9 @@ var remaining_label: Label
 var leaderboard: Label
 var boost_label: Label
 var speed_label: Label
+var fps_label: Label
+var quality_button: Button
+var fps_button: Button
 var course_progress: ProgressBar
 var boost_progress: ProgressBar
 var checkpoint_label: Label
@@ -142,13 +145,35 @@ func _build_menu() -> void:
     col.add_child(solo)
     col.add_child(_text("40 RACERS   •   1 WINNER   •   PHYSICS FIRST", 14, DIM))
     col.add_child(_text("Android / offline / no account", 13, Color("#9fabb1")))
-    var sound = _action("SOUND  ON  /  OFF", Color("#292e39"))
+    var sound = _action("SOUND: " + ("ON" if game.audio.enabled else "OFF"), Color("#292e39"))
     sound.custom_minimum_size.y = 37
     sound.pressed.connect(func():
         var active = game.audio.toggle_sound()
-        sound.text = "SOUND ON" if active else "SOUND OFF"
+        sound.text = "SOUND: ON" if active else "SOUND: OFF"
     )
     col.add_child(sound)
+    # Visual options stay outside the menu card to leave the launch actions readable.
+    quality_button = _action("GRAPHICS: " + game.QUALITY_NAMES[game.graphics_quality],Color(0.13,0.18,0.22,0.86))
+    quality_button.add_theme_font_size_override("font_size",17)
+    quality_button.anchor_left = 0.76
+    quality_button.anchor_right = 0.975
+    quality_button.anchor_top = 0.755
+    quality_button.anchor_bottom = 0.830
+    quality_button.pressed.connect(func():
+        game.set_graphics_quality((game.graphics_quality+1)%3)
+        quality_button.text = "GRAPHICS: " + game.QUALITY_NAMES[game.graphics_quality]
+    )
+    menu_layer.add_child(quality_button)
+    fps_button = _action("FPS DISPLAY: " + ("ON" if game.show_fps else "OFF"),Color(0.13,0.18,0.22,0.86))
+    fps_button.add_theme_font_size_override("font_size",17)
+    fps_button.anchor_left = 0.76
+    fps_button.anchor_right = 0.975
+    fps_button.anchor_top = 0.855
+    fps_button.anchor_bottom = 0.925
+    fps_button.pressed.connect(func():
+        fps_button.text = "FPS DISPLAY: " + ("ON" if game.toggle_fps_overlay() else "OFF")
+    )
+    menu_layer.add_child(fps_button)
 
 func _build_perks() -> void:
     perks_layer = Control.new()
@@ -249,6 +274,8 @@ func _build_race_hud() -> void:
     speed_label = _small_panel_text("00  SPEED", 17, Rect2(0.016,0.21,0.155,0.066))
     remaining_label = _small_panel_text("0 / 40 FINISHED", 19, Rect2(0.355,0.02,0.290,0.080), HORIZONTAL_ALIGNMENT_CENTER)
     leaderboard = _small_panel_text("LEADERBOARD", 16, Rect2(0.79,0.025,0.195,0.39))
+    fps_label = _small_panel_text("FPS --",16,Rect2(0.865,0.43,0.119,0.060))
+    fps_label.get_parent().visible = game.show_fps
     course_progress = _progress_bar(Color("#e9ac5d"))
     course_progress.name = "CourseProgress"
     course_progress.anchor_left = 0.355
@@ -429,6 +456,11 @@ func update_hud() -> void:
     remaining_label.text = "%d / 40 FINISHED" % game.racer_finish_order.size()
     boost_label.text = "BOOST %d%%" % int(game.boost_energy * 100.0)
     speed_label.text = "%02d  SPEED" % int(game.player.linear_velocity.length() * 3.6)
+    if game.show_fps:
+        var measured := Engine.get_frames_per_second()
+        fps_label.text = "FPS %d" % measured
+        fps_label.add_theme_color_override("font_color",
+            Color("#ffb7a5") if measured < 30 else Color("#d4f8e3"))
     course_progress.value = clampf((-game.player.global_position.z/absf(game.FINISH_Z))*100.0,0.0,100.0)
     boost_progress.value = game.boost_energy*100.0
     var ranking = game.get_rankings()

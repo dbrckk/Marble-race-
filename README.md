@@ -103,3 +103,22 @@ All new art and sound assets are independently generated. The engine remains the
 - The existing 40-racer simulation, mobile GLES Compatibility renderer, six perks, obstacle art, positional audio and dynamic sound stems are retained.
 
 Before release, run the full headless race simulation, capture the graphical regression screenshot and generate a signed Android debug APK. Physical handset benchmarking remains separate from CI validation.
+
+
+## v0.8 — Toy track polish and Android profiling
+
+- **New obstacle construction details:** chromed protective rings, molded bumper feet, colored peg inlays, contrasted slalom and gate plate finishes. The original colliders are unchanged; the finish uses only **four MultiMesh batches**.
+- **Audio:** two synthesized original soft and hard rubber collision recordings, played positionally for pegs; generated reproducibly with `tools/generate_bump_sounds.py`.
+- **Mobile render settings:** switch among **ECONOMY / BALANCED / ULTRA** in the title screen. Economy disables expensive lighting effects and decorative batches; Ultra extends local light visibility. The gameplay physics are identical in every mode.
+- **FPS display:** optional live counter in the race HUD to profile a real Android handset; switch from the menu. Video settings are saved offline in `user://marble_settings.cfg` and **do not overwrite** the user's saved sound setting.
+- Import, physics and Android export smoke checks cover the additional sound and visual assets. The graphics presets trade visual quality against battery/heat; actual device FPS remains to be measured.
+
+
+
+### v0.8 OpenGL captures
+
+These captures were generated from the actual Godot Compatibility renderer, not AI concept art.
+
+![v0.8 Android-style main menu](docs/screenshots/v0.8-menu.jpg)
+![v0.8 marble race in progress](docs/screenshots/v0.8-race.jpg)
+

@@ -13,6 +13,10 @@ const WOOD_HITS = [
     preload("res://assets/audio/sfx/wood_2.ogg"),
     preload("res://assets/audio/sfx/wood_3.ogg")
 ]
+const BUMPER_HITS = [
+    preload("res://assets/audio/sfx/bumper_soft.ogg"),
+    preload("res://assets/audio/sfx/bumper_hard.ogg")
+]
 const METAL_HITS = [
     preload("res://assets/audio/sfx/metal_hit_1.ogg"),
     preload("res://assets/audio/sfx/metal_hit_2.ogg")
@@ -246,7 +250,8 @@ func _on_marble_collision(_body: Node) -> void:
         return
     collision_delay = 0.09 if speed > 7 else 0.17
     var is_motor := _body.name.begins_with("KineticPaddle") or _body.name.begins_with("SwingHammer")
-    var kind = METAL_HITS if is_motor else (GLASS_HITS if _body is RigidBody3D else WOOD_HITS)
+    var is_peg := _body.name.begins_with("ToyPeg")
+    var kind = METAL_HITS if is_motor else (BUMPER_HITS if is_peg else (GLASS_HITS if _body is RigidBody3D else WOOD_HITS))
     if speed >= 8.5 and haptic_cooldown <= 0.0 and OS.has_feature("mobile"):
         Input.vibrate_handheld(22)
         haptic_cooldown = 0.52
@@ -258,6 +263,7 @@ func _on_marble_collision(_body: Node) -> void:
 func toggle_sound() -> bool:
     enabled = not enabled
     var cfg = ConfigFile.new()
+    cfg.load("user://marble_settings.cfg")
     cfg.set_value("audio","enabled",enabled)
     cfg.save("user://marble_settings.cfg")
     music_target_db = -80 if not enabled else -19

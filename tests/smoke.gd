@@ -41,6 +41,35 @@ func _run_checks() -> void:
         assert(not child is CollisionObject3D, "Decorative art cannot change collisions")
     assert(flag_count == 6 and side_labels == 6, "Expected six flags and six section indicators")
     assert(ResourceLoader.exists("res://shaders/race_flag.gdshader"), "Missing animated-flag shader")
+    var finish: Node3D = race.board.get_node_or_null("PremiumObstacleFinishes")
+    assert(finish != null, "Missing v0.8 obstacle detailing")
+    assert(int(finish.get("post_count")) >= 90, "Pegs must have instanced art")
+    assert(int(finish.get("block_count")) >= 20, "Box obstacles must be registered")
+    for detail in finish.get_children():
+        assert(detail is MultiMeshInstance3D, "Obstacle details must remain GPU-instanced")
+        assert(not detail is CollisionObject3D, "Obstacle art must not affect collisions")
+    assert(finish.get_child_count() == 4, "Exactly four artwork batches expected")
+    assert(ResourceLoader.exists("res://assets/audio/sfx/bumper_soft.ogg"), "Missing original bump audio")
+    assert(ResourceLoader.exists("res://assets/audio/sfx/bumper_hard.ogg"), "Missing stronger bump audio")
+    assert(race.ui.fps_label != null and race.ui.quality_button != null, "Graphics controls absent")
+    race.set_graphics_quality(0)
+    assert(not race.primary_light.shadow_enabled, "Economy should disable primary shadows")
+    assert(not finish.visible, "Economy should hide decorative batches")
+    race.set_graphics_quality(2)
+    assert(race.primary_light.shadow_enabled and finish.visible, "Ultra graphics preset did not apply")
+    race.set_graphics_quality(1)
+    var sound_on_start: bool = race.audio.enabled
+    race.audio.toggle_sound()
+    var settings := ConfigFile.new()
+    assert(settings.load("user://marble_settings.cfg") == OK, "Missing persisted user preferences")
+    assert(int(settings.get_value("video","quality",-1)) == 1, "Audio toggle must retain graphics settings")
+    assert(bool(settings.get_value("audio","enabled",sound_on_start)) != sound_on_start,
+        "Sound setting not stored")
+    race.audio.toggle_sound()
+    var previously_visible: bool = race.show_fps
+    assert(race.toggle_fps_overlay() != previously_visible, "FPS monitor toggle failed")
+    race.toggle_fps_overlay()
+
     assert(race.race_state == "MENU", "Should start on title screen")
     assert(race.workshop_lamps.size() >= 8, "Workshop lights missing")
     assert(race.audio.spatial_channels.size() == 7, "Impact audio channels missing")
@@ -85,7 +114,7 @@ func _run_checks() -> void:
     race.return_to_menu()
     assert(race.race_state == "MENU", "Menu return failed")
     assert(race.contact_shadows.pool.visible_instance_count == 0, "Menu should release race shadows")
-    print("SMOKE_PASS: 40 racers, v0.7 scenery, animated flags, cinematic glass, mechanisms, audio, physics")
+    print("SMOKE_PASS: 40 racers, instanced bumpers, graphics presets, FPS controls, physical course, audio")
     race.queue_free()
     for i in range(4):
         await process_frame
