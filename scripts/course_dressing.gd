@@ -110,7 +110,7 @@ func _flags_and_plates() -> void:
             pin.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
             add_child(pin)
             var cloth := MeshInstance3D.new()
-            cloth.name = "AnimatedSilkPennant_%d" % i
+            cloth.name = "AnimatedSilkPennant_%d_%s" % [i, "L" if side < 0.0 else "R"]
             var cloth_plane := PlaneMesh.new()
             cloth_plane.size = Vector2(1.16,0.68)
             cloth_plane.subdivide_width = 12
