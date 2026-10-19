@@ -1,0 +1,32 @@
+; Engine configuration file.
+; Lost Marbles-inspired original marble racing game.
+config_version=5
+
+[application]
+config/name="Marble Race: Lost Tracks"
+run/main_scene="res://scenes/main.tscn"
+config/features=PackedStringArray("4.5", "GL Compatibility")
+config/description="Physics-driven 40-marble toy-table racing game."
+config/icon="res://assets/textures/icon.png"
+
+[display]
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+window/handheld/orientation=0
+
+[rendering]
+textures/vram_compression/import_etc2_astc=true
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/default_filters/use_nearest_mipmap_filter=false
+environment/defaults/default_clear_color=Color(0.11, 0.105, 0.104, 1)
+
+[physics]
+3d/default_gravity=24.0
+common/physics_ticks_per_second=60
+
+[input_devices]
+pointing/emulate_mouse_from_touch=true
+
+[application]

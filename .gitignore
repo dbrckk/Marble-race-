@@ -1,0 +1,14 @@
+.godot/
+.android/
+build/
+dist/
+*.apk
+*.aab
+*.pck
+*.log
+.DS_Store
+
+*.import
+__pycache__/
+.pytest_cache/
+*.tmp
