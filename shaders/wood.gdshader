@@ -15,7 +15,9 @@ void fragment() {
     vec3 fibers = texture(oak_albedo,uv).rgb;
     ALBEDO = timber_color.rgb * mix(vec3(0.80),fibers*1.54,0.73);
     NORMAL_MAP = texture(oak_normal,uv).rgb;
-    NORMAL_MAP_DEPTH = 0.21;
-    ROUGHNESS = 0.79 + texture(oak_albedo,uv).r * 0.12;
+    NORMAL_MAP_DEPTH = 0.27;
+    // Thin growth-ring fibres and grazing-light polish without extra textures.
+    float filaments = sin(uv.x * 115.0 + sin(uv.y * 9.0) * 1.3);
+    ROUGHNESS = clamp(0.68 + filaments * 0.045 + (1.0 - fibers.r) * 0.12, 0.53, 0.91);
     SPECULAR = 0.18;
 }

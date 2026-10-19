@@ -4,7 +4,7 @@ Original **3D Android marble-racing game** inspired by the look and mechanics sh
 
 Independent implementation in **Godot 4.5.1**, focused on real mobile playability, physics, and stylized toy-table graphics. No proprietary material from the reference game is redistributed.
 
-## Current state: Android QA build (v0.3)
+## Current state: Android QA build (v0.4)
 
 - 40 independently simulated rigid-body glass marbles with seeded visual variations and position-aware AI
 - 18 segments of inclined wooden planks, rounded colorful safety rails, toy blocks, posts, slalom, rotating paddles, *new swinging hammers*, start/finish arches, checkpoint gates
@@ -15,7 +15,7 @@ Independent implementation in **Godot 4.5.1**, focused on real mobile playabilit
 - Celebration bursts and audio checkpoints as the player crosses three progress arches
 - Responsive orbit-style third-person camera with velocity-dependent field of view and impact camera shake; touch steering, rechargeable boost, three views
 - Animated player spark trail, responsive 2D menu and racing HUD with Rajdhani UI fonts
-- **v0.3:** physically rolling boost halo, layered swirling-glass optics, instanced brass track rivets, animated checkpoint lanterns and painted chevrons. Adaptive wind and a dynamic percussion stem respond to marble velocity; original finish fanfare and mute preference stored locally.
+- **v0.4:** physically rolling boost halo, layered swirling-glass optics, instanced brass track rivets, animated checkpoint lanterns and painted chevrons. Adaptive wind and a dynamic percussion stem respond to marble velocity; original finish fanfare and mute preference stored locally.
 - **Audio**: quiet original synthesized looping soundtrack, original countdown/start/finish/boost tones, speed-following wooden rolling loop, CC0 wood/glass impacts and UI click samples with a channel pool; in-game mute toggle
 - All gameplay content works without internet access; no tracking, no ads and no account.
 
@@ -64,3 +64,7 @@ The smoke test asserts scene, track, 40 physical racers, six-perk-compatible sta
 `scripts/game.gd` owns the modular environment and race state; `scripts/marble.gd` owns physics and AI; `scripts/audio.gd` owns soundtrack and pooled Foley; `scripts/hud.gd` handles touch UI; `scripts/visuals.gd` generates reusable rounded geometry. Shader materials reside in `shaders/` and assets in `assets/`.
 
 **Roadmap:** real Android handset profiling, collision tuning with real touch, audio mix QA, richer workshop props/track variations, saveable settings and release signing.
+
+## v0.4 render pass
+
+Refined procedural oak grain normal-map response and better warm key/ambient balance; additional metallic specular response for brass hardware. Preserves the mobile GL Compatibility renderer and existing physics.

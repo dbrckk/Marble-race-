@@ -84,7 +84,7 @@ func _make_environment() -> void:
     env.background_color = Color("#211b1d")
     env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
     env.ambient_light_color = Color("#e5d2bb")
-    env.ambient_light_energy = 0.53
+    env.ambient_light_energy = 0.62
     env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
     env.fog_enabled = true
     env.fog_light_color = Color("#40332f")
@@ -98,7 +98,7 @@ func _make_environment() -> void:
     sun.name = "LargeSoftbox"
     sun.rotation_degrees = Vector3(-48, -28, -8)
     sun.light_color = Color("#ffecd5")
-    sun.light_energy = 0.96
+    sun.light_energy = 1.08
     sun.light_angular_distance = 0.55
     sun.shadow_enabled = true
     sun.directional_shadow_max_distance = 75.0
@@ -122,6 +122,8 @@ func _mat(color: Color, roughness := 0.74, metalness := 0.0) -> StandardMaterial
     m.albedo_color = color
     m.roughness = roughness
     m.metallic = metalness
+    if metalness > 0.08:
+        m.metallic_specular = 0.8
     render_materials[key] = m
     return m
 
