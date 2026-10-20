@@ -53,6 +53,7 @@ var collision_delay := 0.0
 var boost_delay := 0.0
 var current_channel := 0
 var music_target_db := -22.0
+var track_theme := 0
 var rng := RandomNumberGenerator.new()
 
 func _ready() -> void:
@@ -144,9 +145,9 @@ func _process(delta: float) -> void:
     if enabled and race_active and is_instance_valid(target_marble):
         var speed_now = target_marble.linear_velocity.length()
         var energy = clampf((speed_now-3.0)/11.0,0.0,1.0)
-        pace_target = -36.0 + energy*14.0 + finish_progress*5.0
+        pace_target = -36.0 + energy*14.0 + finish_progress*5.0 + [-1.0,-3.0,2.0][track_theme]
         air_target = -52.0 + energy*25.0
-        air.pitch_scale = lerpf(0.85,1.5,energy)
+        air.pitch_scale = lerpf(0.85,1.5,energy) * [1.0,0.94,1.08][track_theme]
     if not enabled:
         pace_target = -80.0
         air_target = -80.0
@@ -219,8 +220,19 @@ func tone(key: String) -> void:
     if TONES.has(key):
         _voice(TONES[key],-13.0,1.0)
 
+func set_track_theme(track: int) -> void:
+    track_theme = clampi(track,0,2)
+    # Distinct playback treatment per biome without introducing copyrighted audio.
+    # Keep tempo variance subtle enough to preserve the score's pitch character.
+    if is_instance_valid(music):
+        music.pitch_scale = [1.0,0.94,1.07][track_theme]
+    if is_instance_valid(percussion):
+        percussion.pitch_scale = [1.0,0.89,1.13][track_theme]
+    if is_instance_valid(air):
+        air.pitch_scale = [1.0,0.93,1.10][track_theme]
+
 func begin_race() -> void:
-    music_target_db = -20.0 if enabled else -80.0
+    music_target_db = ([-20.0,-22.5,-18.5][track_theme]) if enabled else -80.0
     race_active = true
     finish_progress = 0.0
     tone("start")
