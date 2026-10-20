@@ -84,6 +84,12 @@ jobs:
           set -euo pipefail
           timeout 80s ./Godot_v4.5.1-stable_linux.x86_64 --headless --path . --script res://tests/visual_polish.gd 2>&1 | tee visual-polish.log
           grep -Fq "POLISH_PASS:" visual-polish.log
+      - name: Android pause and app-background regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 320 --path . --script res://tests/pause_lifecycle.gd 2>&1 | tee pause-lifecycle.log
+          grep -Fq "PAUSE_LIFECYCLE_PASS:" pause-lifecycle.log
       - name: 110-second simulated race regression
         shell: bash
         run: |

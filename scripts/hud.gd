@@ -24,6 +24,11 @@ var menu_layer: Control
 var perks_layer: Control
 var hud_layer: Control
 var results_layer: Control
+var pause_layer: Control
+var pause_details: Label
+var pause_resume_button: Button
+var pause_progress: ProgressBar
+var pause_obstacle_hint: Label
 var clock_label: Label
 var place_label: Label
 var remaining_label: Label
@@ -70,6 +75,7 @@ func attach_game(owner_game: Node3D) -> void:
     _build_perks()
     _build_race_hud()
     _build_results()
+    _build_pause_menu()
     _load_controls_config()
 
 func _surface(bg: Color, border: Color = Color(1,1,1,0.09), radius: int = 12) -> StyleBoxFlat:
@@ -468,16 +474,123 @@ func _hand_pressed() -> void:
     hand_button.text = "LAYOUT: LEFT-HAND" if left_handed else "LAYOUT: RIGHT-HAND"
     _save_controls_config()
 
-func _toggle_pause() -> void:
-    if game.race_state != "RACING":
+func _build_pause_menu() -> void:
+    pause_layer = Control.new()
+    pause_layer.name = "RacePauseMenu"
+    pause_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    pause_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+    root.add_child(pause_layer)
+    pause_layer.add_child(_shade())
+
+    var panel := _panel()
+    panel.anchor_left = 0.285
+    panel.anchor_right = 0.715
+    panel.anchor_top = 0.195
+    panel.anchor_bottom = 0.830
+    pause_layer.add_child(panel)
+
+    var col := _column(12)
+    panel.add_child(col)
+    var header := _text("RACE PAUSED", 37, ORANGE)
+    header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    col.add_child(header)
+
+    pause_details = _text("", 18, TEXT)
+    pause_details.name = "PauseDetails"
+    pause_details.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    col.add_child(pause_details)
+    var progress_heading := _text("TRACK PROGRESS", 14, DIM)
+    progress_heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    col.add_child(progress_heading)
+    pause_progress = _progress_bar(Color("#f3b45d"))
+    pause_progress.name = "PausedRaceProgress"
+    pause_progress.custom_minimum_size.y = 12
+    col.add_child(pause_progress)
+
+    pause_obstacle_hint = _text("", 16, Color("#edcb9e"))
+    pause_obstacle_hint.name = "PausedHazardHint"
+    pause_obstacle_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    pause_obstacle_hint.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    col.add_child(pause_obstacle_hint)
+
+    var hint := _text("Drag to steer  ·  Hold BOOST  ·  Change CAMERA", 15, DIM)
+    hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    col.add_child(hint)
+
+    pause_resume_button = _action("RESUME RACE", ORANGE, Color("#261b10"))
+    pause_resume_button.name = "Resume"
+    pause_resume_button.pressed.connect(resume_race)
+    col.add_child(pause_resume_button)
+
+    var restart := _action("RESTART CURRENT RACE", Color("#4a565c"))
+    restart.name = "Restart"
+    restart.pressed.connect(_restart_from_pause)
+    col.add_child(restart)
+
+    var exit := _action("MAIN MENU", Color("#323943"))
+    exit.name = "Exit"
+    exit.pressed.connect(_leave_from_pause)
+    col.add_child(exit)
+    pause_layer.visible = false
+
+func pause_race() -> void:
+    if not is_instance_valid(game):
         return
-    get_tree().paused = not get_tree().paused
-    if get_tree().paused:
-        touch_controls.release_all()
-        countdown_label.text = "PAUSED"
-        countdown_label.visible = true
+    if game.race_state not in ["RACING","COUNTDOWN"] or get_tree().paused:
+        return
+    # Release individual pointers before stopping physics, so boost cannot latch.
+    touch_controls.release_all()
+    game.change_boost(false)
+    game.change_steer(0.0)
+    var seconds := int(game.race_time)
+    var percentage := int(clampf(-game.player.global_position.z/absf(game.FINISH_Z)*100.0,0.0,100.0)) if is_instance_valid(game.player) else 0
+    pause_details.text = "%s   ·   POSITION #%d / 40
+TIME %02d:%02d   ·   TRACK %d%%
+PERK: %s   ·   BOOST %d%%" % [
+        game.track_title(),game.player_rank(),seconds/60,seconds%60,percentage,
+        game.selected_perk.to_upper(),int(game.boost_energy*100.0)]
+    pause_progress.value = percentage
+    var upcoming: Dictionary = game.upcoming_hazard(game.player.global_position.z) if is_instance_valid(game.player) else {}
+    pause_obstacle_hint.text = (
+        "NEXT: %s EDGE CLOSES IN %d m" % [upcoming["side"],upcoming["distance"]]
+        if not upcoming.is_empty() else "READ THE COURSE  ·  CHOOSE YOUR LINE"
+    )
+    pause_layer.visible = true
+    get_tree().paused = true
+
+func resume_race() -> void:
+    if not is_instance_valid(pause_layer):
+        return
+    pause_layer.visible = false
+    get_tree().paused = false
+    touch_controls.release_all()
+
+func _restart_from_pause() -> void:
+    resume_race()
+    game.restart_race()
+
+func _leave_from_pause() -> void:
+    resume_race()
+    game.return_to_menu()
+
+func _toggle_pause() -> void:
+    if get_tree().paused and pause_layer.visible:
+        resume_race()
     else:
-        countdown_label.visible = false
+        pause_race()
+
+func _unhandled_input(event: InputEvent) -> void:
+    if (event.is_action_pressed("ui_cancel") or (
+        event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_P
+    )) and (game.race_state in ["RACING","COUNTDOWN"]):
+        _toggle_pause()
+        get_viewport().set_input_as_handled()
+
+func _notification(what: int) -> void:
+    if what == MainLoop.NOTIFICATION_APPLICATION_PAUSED:
+        # Android HOME/app switching: do not auto-resume on foreground return.
+        if is_instance_valid(game) and is_instance_valid(pause_layer):
+            pause_race()
 
 func _build_results() -> void:
     results_layer = Control.new()
@@ -524,6 +637,8 @@ func _hide_all() -> void:
     perks_layer.visible = false
     hud_layer.visible = false
     results_layer.visible = false
+    if is_instance_valid(pause_layer):
+        pause_layer.visible = false
 
 func show_menu() -> void:
     if get_tree().paused:

@@ -227,3 +227,15 @@ Each of the three circuits now has **four measured sectors** (start → CP1, CP1
 Records are saved offline alongside existing career progress, independently for every track, and are updated only after a completed race. DNF, malformed timestamps, out-of-bounds crossings and skipped checkpoints cannot fabricate personal bests. The final sector uses the physical finish-line crossing time, not the later results-screen time.
 
 **QA:** `tests/sector_timing.gd` verifies persistence, isolation between tracks, input validation, four genuine splits, finish timing, missing checkpoints, DNF handling and results UI. GitHub Actions runs it automatically before producing the Android ARM64 APK.
+
+## v1.5 RC — Android-safe race pause screen
+
+- Replaces the previous single PAUSED caption with a dedicated pause overlay containing **Resume**, **Restart current race**, and **Main menu** controls sized for landscape Android screens.
+- Shows live race position, elapsed time, equipped perk, boost charge, actual track progress, and the next blocked rail if one is nearby.
+- Explicitly releases both touchscreen fingers and clears steering/boost so a held input cannot become stuck when resuming.
+- Pauses simulation when Android backgrounds the app; never automatically resumes in the background or on return.
+- **Escape / Android Back** and keyboard **P** toggle pause; the existing HUD pause button still works.
+- The new pause_lifecycle regression test checks frozen race clock, control-release safety, resume, restart, app-background handling, and exit.
+- The screenshot in docs/screenshots/v1.5-pause.jpg was captured directly from the Godot renderer.
+
+This remains a debug-signed Android release candidate requiring physical-device UX, battery and audio QA before Play Store signing.
