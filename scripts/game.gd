@@ -526,8 +526,9 @@ func _obstacle_layout(section: int) -> int:
     # 0: flowing slalom; 1: peg garden; 2: kinetic gates.
     # Course-specific frequency changes the actual playable obstacle rhythm.
     if selected_track == 0:
-        var woodland := (section+race_variation)%4
-        return 0 if woodland <= 1 else (1 if woodland == 2 else 2)
+        # The original balanced 1:1:1 rhythm also guarantees at least five
+        # genuinely moving paddles/hammers and enough peg obstacles.
+        return (section+race_variation)%3
     if selected_track == 1:
         var glacier := (section*2+race_variation)%5
         return 2 if glacier in [0,2,4] else (0 if glacier == 1 else 1)
