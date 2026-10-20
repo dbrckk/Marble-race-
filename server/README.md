@@ -3,7 +3,25 @@
 
 This is a headless, server-authoritative physics process. Android clients do NOT host games. The same WebSocket server receives clients globally once deployed on a public HTTPS endpoint.
 
-## Deploy on Railway
+## Live production endpoint (Render, free)
+
+A working free Render service has been deployed in the Frankfurt region:
+- Service: `marble-race-global`
+- Public secure address: `wss://marble-race-global.onrender.com`
+- GitHub source: `dbrckk/Marble-race-` (branch `main`)
+- Container: `server/Dockerfile`, port 8080
+- Two independent Godot client processes have successfully exchanged commands and authoritative snapshots through the **public TLS endpoint**; these tests were run from the same external developer host and are not a cross-country handset certification.
+
+Free Render web services may spin down after inactivity, causing cold starts and occasional matchmaking delays. They have limited CPU/RAM and must not be advertised as a 24/7 worldwide scalable service. One room per process supports 2–4 human players. Running many rooms or ensuring low-latency across continents requires an appropriately sized dedicated deployment, regional matchmaking, and load testing.
+
+To validate the public service from a workstation, run:
+
+```bash
+GODOT_BIN=/path/to/Godot_v4.5.1-stable_linux.x86_64 \
+GAME_DIR=. bash server/public_integration.sh
+```
+
+## Alternative deployment on Railway
 
 1. Deploy GitHub repository dbrckk/Marble-race-, branch main.
 2. Use the root railway.json, which builds server/Dockerfile.

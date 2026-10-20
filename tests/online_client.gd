@@ -31,7 +31,7 @@ func _verify() -> void:
         quit(3)
         return
     var started: int = Time.get_ticks_msec()
-    while Time.get_ticks_msec() - started < 40000:
+    while Time.get_ticks_msec() - started < 125000:
         await process_frame
         if game.net.room_code != "" and not invite_printed:
             invite_printed = true

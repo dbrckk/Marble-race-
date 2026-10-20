@@ -261,3 +261,7 @@ This release introduces a **real remote-server design**, replacing the Wi-Fi-onl
 - An unreachable Internet endpoint now times out after 12 seconds, closes its transport, and restores the offline menu state instead of leaving the user stuck on Connecting.
 - The tests/internet_timeout.gd regression is included in GitHub CI.
 - A dedicated public server is **not included** in the APK. Deploy the container and configure its wss:// endpoint before describing worldwide matchmaking as live.
+
+### Public worldwide endpoint (Render free)
+
+The default Android matchmaking endpoint is now `wss://marble-race-global.onrender.com`, hosted by the user's connected Render workspace as `marble-race-global` on the free plan, region Frankfurt. A cold server may take up to 90 seconds to respond; the timeout prevents an endless spinner. Sessions remain **one room per instance** (2–4 people) until multi-room allocation is implemented. Free services may suspend after inactivity and are subject to compute limits. The endpoint must still pass a public connection test; a configured URL is not proof of availability.

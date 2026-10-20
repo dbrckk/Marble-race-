@@ -13,7 +13,7 @@ const FLOATS_PER_RACER := 9
 const ROOM_CODE_LENGTH := 6
 const WAIT_FOR_PLAYERS := 6.0
 const RESULTS_DURATION := 15.0
-const CONNECT_TIMEOUT := 12.0
+const CONNECT_TIMEOUT := 90.0
 
 var game: Node3D
 var role := "offline" # offline | client | server
@@ -107,7 +107,7 @@ func connect_server(raw_url: String, mode: String = "public", invite_code: Strin
     targets_received = false
     _register_signals()
     multiplayer.multiplayer_peer = socket
-    lobby_changed.emit("CONNECTING TO INTERNET SERVER...")
+    lobby_changed.emit("CONNECTING TO SERVER... FREE HOSTS MAY TAKE UP TO 90s TO WAKE")
     return ""
 
 func _local_ws_allowed(address: String) -> bool:
