@@ -22,6 +22,7 @@ const BestGhost = preload("res://scripts/best_ghost.gd")
 const InternetSession = preload("res://scripts/internet_session.gd")
 const StudioPolish = preload("res://scripts/studio_polish.gd")
 const RaceItems = preload("res://scripts/race_items.gd")
+const TrackUniverses = preload("res://scripts/track_universes.gd")
 
 const MARBLE_COUNT := 40
 const SLOPE := 0.085
@@ -31,9 +32,9 @@ const FINISH_Z := -185.0
 const RACE_TIMEOUT := 155.0
 const TRACK_NAMES := ["WOODWORKS","SWITCHBACK","GAUNTLET"]
 const TRACK_SUBTITLES := [
-    "Precision & flowing chicanes",
-    "Moving gates & tighter openings",
-    "Unforgiving hazards & fast paddles"
+    "Woodland workshop & flowing chicanes",
+    "Glacier pass & moving gates",
+    "Ember forge & fast paddles"
 ]
 const TRACK_COLORS := [Color("#e6b972"),Color("#86bfbd"),Color("#dc8c82")]
 const BARRIER_COLORS := [
@@ -136,6 +137,7 @@ func _ready() -> void:
     audio.name = "RaceAudio"
     add_child(audio)
     audio.bind_mechanisms(moving_obstacles)
+    audio.set_track_theme(selected_track)
     net = InternetSession.new()
     net.configure(self)
     add_child(net)
@@ -302,6 +304,7 @@ func set_track(index: int) -> bool:
     race_variation = 0
     _make_course()
     audio.bind_mechanisms(moving_obstacles)
+    audio.set_track_theme(selected_track)
     _apply_graphics_quality()
     return true
 
@@ -435,6 +438,7 @@ func _make_course() -> void:
     built_variation = race_variation
     add_child(board)
     moving_obstacles.clear()
+    TrackUniverses.apply_atmosphere(world_environment,primary_light,selected_track)
     obstacle_finish = ObstacleFinish.new()
     obstacle_finish.name = "PremiumObstacleFinishes"
     board.add_child(obstacle_finish)
@@ -450,7 +454,7 @@ func _make_course() -> void:
         for lane in range(10):
             var x := (float(lane) - 4.5) * 1.34
             var material_index := (lane + section * 3) % WOOD_COLORS.size()
-            var shade: Color = WOOD_COLORS[material_index]
+            var shade: Color = _themed_wood(WOOD_COLORS[material_index])
             var plank_at := Vector3(x,height_at(center_z)-0.34,center_z)
             # Render-only planks share GPU draw calls by material. Each keeps
             # the exact original independent tilted BoxShape3D collider.
@@ -468,6 +472,8 @@ func _make_course() -> void:
                 _box(section_node,pos,Vector3(0.57,1.26,4.04),
                     _lacquer(BARRIER_COLORS[color_idx]),true,true,false)
                 track_surface.register_rail(pos,color_idx)
+        if section in [3, 9, 14]:
+            _terrain_ramp(section_node,center_z,section)
         if section > 0 and section < SEGMENTS - 3:
             # Edge-specific baffles eliminate the dominant strategy of riding
             # permanently against either rail. Passages remain physically open.
@@ -483,7 +489,7 @@ func _make_course() -> void:
     obstacle_finish.rebuild()
     var woods: Array = []
     for color in WOOD_COLORS:
-        woods.append(_wood_mat(color))
+        woods.append(_wood_mat(_themed_wood(color)))
     var barriers: Array = []
     for color in BARRIER_COLORS:
         barriers.append(_lacquer(color))
@@ -493,6 +499,9 @@ func _make_course() -> void:
     _checkpoint_arches()
     _decorations()
     _showroom()
+    var universe := TrackUniverses.new()
+    universe.setup(selected_track)
+    board.add_child(universe)
     race_items = RaceItems.new()
     race_items.name = "RareArcadePickups"
     board.add_child(race_items)
@@ -506,6 +515,25 @@ func _make_course() -> void:
     var polish := StudioPolish.new()
     polish.name = "StudioTrackGuides"
     board.add_child(polish)
+
+func _themed_wood(base: Color) -> Color:
+    if selected_track == 1:
+        return base.lerp(Color("#83b6c8"),0.34)
+    if selected_track == 2:
+        return base.lerp(Color("#aa6353"),0.29)
+    return base
+
+func _terrain_ramp(parent: Node3D, center_z: float, section: int) -> void:
+    # Short, low physical crests alter suspension/rolling lines without
+    # closing the entire lane or trapping the 40-marble pack.
+    if selected_track == 0 and section != 9:
+        return
+    var lane := -2.2 if (section+selected_track)%2 == 0 else 2.2
+    var z := center_z+1.5
+    var ramp := _box(parent,Vector3(lane,height_at(z)+0.12,z),
+        Vector3(3.55,0.22,2.35),_lacquer(TRACK_COLORS[selected_track].lightened(0.20)),true,true)
+    ramp.name = "RideableCrest_%02d" % section
+    ramp.rotation.x += -0.09 if selected_track == 1 else -0.16
 
 func _edge_baffles(parent: Node3D, center_z: float, section: int) -> void:
     # Two solid edge shutters per module, plus a staggered inboard obstacle
@@ -838,6 +866,7 @@ func start_race(perk_name: String) -> void:
     if not is_instance_valid(board) or race_variation != built_variation or int(board.get_meta("track_index",-1)) != selected_track:
         _make_course()
         audio.bind_mechanisms(moving_obstacles)
+        audio.set_track_theme(selected_track)
         _apply_graphics_quality()
     race_variation = (race_variation+1)%3
     race_state = "COUNTDOWN"
