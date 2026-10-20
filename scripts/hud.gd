@@ -36,6 +36,7 @@ var fps_button: Button
 var course_progress: ProgressBar
 var boost_progress: ProgressBar
 var checkpoint_label: Label
+var hazard_label: Label
 var toast_remaining := 0.0
 var countdown_label: Label
 var selected_name := ""
@@ -356,6 +357,15 @@ func _build_race_hud() -> void:
     course_progress.anchor_top = 0.109
     course_progress.anchor_bottom = 0.134
     hud_layer.add_child(course_progress)
+    hazard_label = _text("",17,Color("#ffd39c"))
+    hazard_label.name = "UpcomingHazard"
+    hazard_label.anchor_left = 0.32
+    hazard_label.anchor_right = 0.68
+    hazard_label.anchor_top = 0.150
+    hazard_label.anchor_bottom = 0.203
+    hazard_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    hazard_label.visible = false
+    hud_layer.add_child(hazard_label)
     boost_progress = _progress_bar(Color("#91e6e6"))
     boost_progress.name = "BoostCharge"
     boost_progress.anchor_left = 0.665
@@ -559,6 +569,11 @@ func update_hud() -> void:
     else:
         place_label.add_theme_color_override("font_color",TEXT)
     boost_progress.value = game.boost_energy*100.0
+    var hazard: Dictionary = game.upcoming_hazard(game.player.global_position.z)
+    hazard_label.visible = not hazard.is_empty()
+    if not hazard.is_empty():
+        hazard_label.text = "%s EDGE CLOSED   •   %dm" % [
+            str(hazard["side"]),int(hazard["distance"])]
     var ranking = game.get_rankings()
     var table = "TOP RACERS\n"
     for i in range(min(3,ranking.size())):

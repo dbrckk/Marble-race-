@@ -200,3 +200,12 @@ The project now includes a checked [15-concept engineering matrix](docs/15_GAMEP
 **v1.1 finish-line safety fix:** Ranked/frozen competitors no longer physically
 block the finish. This regression was detected by cross-platform CI and is now
 covered by a long-race test requiring the player to cross the actual line.
+
+## v1.2 RC — Replay reliability and hazard anticipation
+
+- Repaired obstacle-variation rotation: every attempt now cycles layouts **0, 1, 2, 0** correctly, including the fourth attempt, without rebuilding a matching existing course.
+- Old courses and racer bodies are detached immediately before their queued deletion, preventing temporarily overlapping physics bodies during quick restarts.
+- Removed stale light and player-marker references after course replacement.
+- New unobtrusive HUD shows which physical outer lane is about to be blocked and the approximate distance, based on a cached list of **28 genuine gate colliders**. No additional geometry or per-frame raycasts.
+- Added deterministic `tests/replay_variation.gd` regression exercising 4 consecutive starts, verified gate previews and ensuring only one active board.
+- Current version 1.2 RC is an Android QA build; handset UX and FPS still require physical tests.

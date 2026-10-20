@@ -88,6 +88,8 @@ var show_fps := false
 var career: RefCounted
 var selected_track := 0
 var race_variation := 0
+var built_variation := -1
+var hazard_beacons: Array[Dictionary] = []
 var result_saved := false
 var last_result: Dictionary = {}
 const QUALITY_NAMES := ["ECONOMY","BALANCED","ULTRA"]
@@ -231,6 +233,17 @@ func set_track(index: int) -> bool:
     _apply_graphics_quality()
     return true
 
+func upcoming_hazard(at_z: float) -> Dictionary:
+    # Cached tiny index; UI polls at 9 Hz. Only genuine physical rail gates.
+    var nearest := 25.0
+    var notice: Dictionary = {}
+    for hazard in hazard_beacons:
+        var distance: float = at_z - float(hazard["z"])
+        if distance >= -1.0 and distance < nearest:
+            nearest = distance
+            notice = {"side":hazard["side"],"distance":maxi(0,int(round(distance)))}
+    return notice
+
 func current_timeout() -> float:
     return RACE_TIMEOUT + selected_track * 24.0
 
@@ -340,10 +353,14 @@ func _cylinder(parent: Node3D, location: Vector3, radius: float, tall: float, co
 
 func _make_course() -> void:
     if is_instance_valid(board):
+        remove_child(board)
         board.queue_free()
+    hazard_beacons.clear()
+    workshop_lamps.clear()
     board = Node3D.new()
     board.name = "HandcraftedWoodenCourse"
     board.set_meta("track_index",selected_track)
+    built_variation = race_variation
     add_child(board)
     moving_obstacles.clear()
     obstacle_finish = ObstacleFinish.new()
@@ -421,6 +438,7 @@ func _edge_baffles(parent: Node3D, center_z: float, section: int) -> void:
         var node := _box(parent,Vector3(side * 5.17,height_at(z)+0.49,z),
             size,_lacquer(material_color),true,true)
         node.name = "AntiEdgeBaffle_%02d_%s" % [section, "L" if side < 0.0 else "R"]
+        hazard_beacons.append({"z":z,"side":"LEFT" if side < 0.0 else "RIGHT"})
         obstacle_finish.register_block(node.transform,size,material_color)
     if selected_track >= 1 and section % 3 == 0:
         # This diagonal gate reaches further into the lane but leaves a
@@ -650,9 +668,11 @@ func _showroom() -> void:
 func _spawn_racers() -> void:
     for m in racers:
         if is_instance_valid(m):
+            remove_child(m)
             m.queue_free()
     racers.clear()
     racer_finish_order.clear()
+    player_marker = null
     player = null
     for i in range(MARBLE_COUNT):
         var row = i / 8
@@ -741,7 +761,7 @@ func start_race(perk_name: String) -> void:
     last_result = {}
     # Alternating geometry order on repeat attempts avoids an identical course
     # without changing the course identity or difficulty.
-    if race_variation > 0:
+    if race_variation != built_variation:
         _make_course()
         audio.bind_mechanisms(moving_obstacles)
         _apply_graphics_quality()
@@ -772,8 +792,10 @@ func restart_race() -> void:
 func return_to_menu() -> void:
     for m in racers:
         if is_instance_valid(m):
+            remove_child(m)
             m.queue_free()
     racers.clear()
+    player_marker = null
     player = null
     if is_instance_valid(contact_shadows):
         contact_shadows.clear_racers()
@@ -790,7 +812,7 @@ func _process(delta: float) -> void:
         lamp_refresh = 0.25
         var view_z := player.global_position.z if is_instance_valid(player) and race_state != "MENU" else -3.0
         for lamp in workshop_lamps:
-            if is_instance_valid(lamp):
+            if is_instance_valid(lamp) and lamp.is_inside_tree():
                 var illumination_range := 0.0 if graphics_quality == 0 else (42.0 if graphics_quality == 2 else 29.0)
                 lamp.visible = absf(lamp.global_position.z - view_z) < illumination_range
     if is_instance_valid(player_marker) and is_instance_valid(player):
