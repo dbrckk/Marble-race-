@@ -218,3 +218,12 @@ covered by a long-race test requiring the player to cross the actual line.
 - Added `tests/visual_polish.gd` to cover result semantics, persistent medal display, scene UI and particle quality budgets; wired into GitHub Actions. Existing physics, course, controls, persistence and Android CI tests remain mandatory.
 
 This is a tested Android debug build, not yet the store-signed public release.
+
+
+## v1.4 RC — Four live sectors & permanent personal bests
+
+Each of the three circuits now has **four measured sectors** (start → CP1, CP1 → CP2, CP2 → CP3, CP3 → finish). A small on-course toast shows the elapsed time for each segment and the difference from its previously saved personal best, using color to distinguish faster/slower sectors. The results screen shows all four split times, with ★ on new sector records.
+
+Records are saved offline alongside existing career progress, independently for every track, and are updated only after a completed race. DNF, malformed timestamps, out-of-bounds crossings and skipped checkpoints cannot fabricate personal bests. The final sector uses the physical finish-line crossing time, not the later results-screen time.
+
+**QA:** `tests/sector_timing.gd` verifies persistence, isolation between tracks, input validation, four genuine splits, finish timing, missing checkpoints, DNF handling and results UI. GitHub Actions runs it automatically before producing the Android ARM64 APK.

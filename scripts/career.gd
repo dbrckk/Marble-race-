@@ -12,6 +12,10 @@ var track_best: Array[int] = [0, 0, 0]
 var track_time: Array[float] = [0.0, 0.0, 0.0]
 var unlocked := 1
 var stars: Array[int] = [0,0,0]
+## Four split records per circuit: 3 checkpoints plus the finish line.
+## Flat typed array avoids nested Godot array serialization pitfalls.
+const SECTORS_PER_TRACK := 4
+var sector_best: Array[float] = [0.0,0.0,0.0,0.0, 0.0,0.0,0.0,0.0, 0.0,0.0,0.0,0.0]
 
 func load_save() -> void:
     var file := ConfigFile.new()
@@ -25,6 +29,9 @@ func load_save() -> void:
         track_best[index] = clampi(int(file.get_value("career","best_%d" % index,0)),0,40)
         track_time[index] = maxf(0.0,float(file.get_value("career","time_%d" % index,0.0)))
         stars[index] = clampi(int(file.get_value("career","stars_%d" % index,0)),0,3)
+        for sector in range(SECTORS_PER_TRACK):
+            var saved := float(file.get_value("sectors","best_%d_%d" % [index,sector],0.0))
+            sector_best[index*SECTORS_PER_TRACK+sector] = saved if is_finite(saved) and saved > 0.0 and saved < 600.0 else 0.0
     # Derive unlocks from completed results: saved data cannot lock a won track.
     unlocked = 1
     if track_best[0] > 0 and track_best[0] <= TARGETS[0]:
@@ -42,6 +49,8 @@ func save() -> int:
         file.set_value("career","best_%d" % index,track_best[index])
         file.set_value("career","time_%d" % index,track_time[index])
         file.set_value("career","stars_%d" % index,stars[index])
+        for sector in range(SECTORS_PER_TRACK):
+            file.set_value("sectors","best_%d_%d" % [index,sector],sector_best[index*SECTORS_PER_TRACK+sector])
     return file.save(save_path)
 
 func begin() -> void:
@@ -73,6 +82,30 @@ func complete(index: int, place: int, time_seconds: float, finished: bool) -> Di
     save()
     return {"record":record,"unlocked":newly_unlocked,"stars":stars[index],
         "best":track_best[index],"place":place,"finished":finished}
+
+func best_sector(index: int, sector: int) -> float:
+    if index < 0 or index >= TRACKS.size() or sector < 0 or sector >= SECTORS_PER_TRACK:
+        return 0.0
+    return sector_best[index*SECTORS_PER_TRACK+sector]
+
+func record_sectors(index: int, splits: Array[float]) -> Array[bool]:
+    # Only completed races call this function. Reject invalid/missing sector data;
+    # a malformed input must never poison the player's permanent records.
+    var improved: Array[bool] = [false,false,false,false]
+    if index < 0 or index >= TRACKS.size() or splits.size() != SECTORS_PER_TRACK:
+        return improved
+    for split in splits:
+        if not is_finite(split) or split <= 0.0 or split >= 600.0:
+            return improved
+    for sector in range(SECTORS_PER_TRACK):
+        var position := index*SECTORS_PER_TRACK + sector
+        var prev := sector_best[position]
+        if prev == 0.0 or splits[sector] < prev:
+            sector_best[position] = splits[sector]
+            improved[sector] = true
+    if improved.has(true):
+        save()
+    return improved
 
 func is_unlocked(index: int) -> bool:
     return index >= 0 and index < unlocked

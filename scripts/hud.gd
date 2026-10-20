@@ -392,7 +392,7 @@ func _build_race_hud() -> void:
     countdown_label.anchor_top = 0.27
     countdown_label.anchor_bottom = 0.59
     hud_layer.add_child(countdown_label)
-    checkpoint_label = _text("", 42, ORANGE)
+    checkpoint_label = _text("", 30, ORANGE)
     checkpoint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     checkpoint_label.anchor_left = 0.25
     checkpoint_label.anchor_right = 0.75
@@ -496,7 +496,7 @@ func _build_results() -> void:
     title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     col.add_child(title)
     result_header = title
-    var summary = _text("", 22)
+    var summary = _text("", 20)
     summary.name = "Summary"
     summary.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     summary.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -612,11 +612,20 @@ func update_hud() -> void:
         table += "%02d  YOU ★" % place
     leaderboard.text = table
 
-func show_checkpoint(number: int) -> void:
-    checkpoint_label.text = "CHECKPOINT %d / 3" % number
+func show_checkpoint(number: int, sector_time: float = 0.0, best_before: float = 0.0) -> void:
+    var timing := "  •  %.2fs" % sector_time if sector_time > 0.0 else ""
+    var comparison := ""
+    if best_before > 0.0 and sector_time > 0.0:
+        var delta := sector_time-best_before
+        comparison = "  %+.2fs" % delta
+        checkpoint_label.add_theme_color_override("font_color",
+            Color("#a7f4d3") if delta <= 0.0 else Color("#ffc18d"))
+    else:
+        checkpoint_label.add_theme_color_override("font_color",ORANGE)
+    checkpoint_label.text = "SECTOR %d / 3%s%s" % [number,timing,comparison]
     checkpoint_label.modulate.a = 1.0
     checkpoint_label.visible = true
-    toast_remaining = 1.55
+    toast_remaining = 2.15
 
 func show_results(place: int, time: float, ranking: Array) -> void:
     if get_tree().paused:
@@ -638,9 +647,19 @@ func show_results(place: int, time: float, ranking: Array) -> void:
     var unlock_text := "NEXT CIRCUIT UNLOCKED!" if bool(status.get("unlocked",false)) else ""
     var earned_stars: int = int(status.get("stars",0))
     var stars_text := "CAREER STARS: %d / 3" % earned_stars
+    var sector_text := ""
+    var sector_times: Array = status.get("sector_times",[])
+    var sector_records: Array = status.get("sector_records",[])
+    if sector_times.size() == 4:
+        sector_text = "SECTORS 1—4"
+        for sector in range(4):
+            sector_text += "  %.1fs%s" % [
+                float(sector_times[sector]),
+                " ★" if sector_records.size() == 4 and bool(sector_records[sector]) else ""]
     if summary:
-        summary.text = "POSITION  #%d / 40   •   %s\nTIME  %.1fs\n%s\n%s\n%s\nBEST  #%s\n\nTOP 5\n%s" % [
-            place,"FINISHED" if finished else "TIME OUT",time,stars_text,record_text,unlock_text,
+        summary.text = "POSITION  #%d / 40   •   %s\nTIME  %.1fs\n%s\n%s\n%s\n%s\nBEST  #%s\n\nTOP 5\n%s" % [
+            place,"FINISHED" if finished else "TIME OUT",time,stars_text,sector_text,
+            record_text,unlock_text,
             str(game.career.track_best[game.selected_track]) if game.career.track_best[game.selected_track] > 0 else "—",
             leaders]
     next_course_button.visible = game.selected_track < 2 and game.career.is_unlocked(game.selected_track+1)

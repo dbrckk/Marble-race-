@@ -70,6 +70,7 @@ var feedback_cooldown := 0.0
 var obstacle_notice := 0.0
 var last_count := -1
 var last_checkpoint := -1
+var checkpoint_splits: Array[float] = []
 var course_flash := 0.0
 var trail: CPUParticles3D
 var starting_camera_target := Vector3(0, 0, 0)
@@ -772,6 +773,7 @@ func start_race(perk_name: String) -> void:
     result_delay = 0.0
     finish_announced = false
     last_checkpoint = -1
+    checkpoint_splits.clear()
     course_flash = 0.0
     steer = 0.0
     steer_target = 0.0
@@ -848,15 +850,31 @@ func _process(delta: float) -> void:
                 cp = 1
             if player.position.z < -166.0:
                 cp = 2
-            if cp > last_checkpoint:
-                last_checkpoint = cp
-                if cp >= 0:
+            # Award split times only when the marble actually passes a sector
+            # within the rolling surface; falling out of bounds is not progress.
+            if cp > last_checkpoint and absf(player.global_position.x) < 6.75 and (
+                player.global_position.y > height_at(player.global_position.z)-0.3
+                and player.global_position.y < height_at(player.global_position.z)+9.0):
+                # A missing checkpoint invalidates split records: never invent a
+                # zero-second sector when a marble skips a marker.
+                if cp != last_checkpoint+1:
+                    checkpoint_splits.clear()
+                    last_checkpoint = cp
+                else:
+                    var sector := cp
+                    var previous: float = 0.0 if checkpoint_splits.is_empty() else (
+                        checkpoint_splits[checkpoint_splits.size()-1])
+                    # Capture cumulative times; calculate each true sector duration.
+                    var duration: float = maxf(0.01,race_time-previous)
+                    checkpoint_splits.append(race_time)
+                    var prior_best: float = career.best_sector(selected_track,sector)
+                    ui.show_checkpoint(sector+1,duration,prior_best)
                     audio.tone("checkpoint")
                     var cosmetics := board.get_node_or_null("PolishedToyDetails")
                     if is_instance_valid(cosmetics):
-                        cosmetics.pulse_checkpoint(cp)
-                    ui.show_checkpoint(cp+1)
+                        cosmetics.pulse_checkpoint(sector)
                     _burst(player.global_position, false)
+                    last_checkpoint = cp
         if boosting:
             boost_energy = max(0.0, boost_energy - delta * 0.26)
             if boost_energy <= 0.0:
@@ -1041,9 +1059,22 @@ func _end_race() -> void:
     steer_target = 0.0
     if not result_saved:
         result_saved = true
+        var completed: bool = is_instance_valid(player) and player.finished
         last_result = career.complete(selected_track,player_rank(),
-            player.finish_time if is_instance_valid(player) and player.finished else race_time,
-            is_instance_valid(player) and player.finished)
+            player.finish_time if completed else race_time,completed)
+        var durations: Array[float] = []
+        var previous_split := 0.0
+        for elapsed in checkpoint_splits:
+            durations.append(maxf(0.01,elapsed-previous_split))
+            previous_split = elapsed
+        # Fourth and final sector is measured at the actual finish crossing,
+        # not at the later presentation of the results screen.
+        if completed and checkpoint_splits.size() == 3:
+            var finish_at: float = player.finish_time
+            if is_finite(finish_at) and finish_at > previous_split:
+                durations.append(finish_at-previous_split)
+        last_result["sector_times"] = durations
+        last_result["sector_records"] = career.record_sectors(selected_track,durations) if completed else [false,false,false,false]
     audio.tone("finish")
     if is_instance_valid(player) and player.finished:
         audio.finish_fanfare()
