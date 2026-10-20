@@ -54,6 +54,18 @@ func _run() -> void:
         assert(game.race_items.used.size() == 1,"Dedicated server must apply human pickup")
         assert(game.race_items.items[1].visible,
             "Online items remain claimable independently by other human peers")
+        # A server-authored notification hides only the client's own pickup
+        # and surfaces audio/HUD confirmation without running client physics.
+        game.net.role = "client"
+        game.net.match_running = true
+        game.race_state = "RACING"
+        game.race_items.reset_round()
+        game.net._rare_item_notice(1,"spring")
+        assert(not game.race_items.items[1].visible,
+            "Online recipient must see its already-claimed pickup disappear")
+        assert(game.ui.toast_remaining > 0.0,
+            "Online recipient must see instant item feedback")
+        game.net.match_running = false
         game.net.role = "offline"
         game.net.joined_slots.clear()
         game.return_to_menu()
