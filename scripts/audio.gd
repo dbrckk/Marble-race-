@@ -237,6 +237,18 @@ func update_progress(ratio: float) -> void:
 func finish_fanfare() -> void:
     _voice(FANFARE,-12.0,1.0)
 
+func item_pickup(kind: String) -> void:
+    # Distinct pitch and voice combination of existing bundled audio.
+    match kind:
+        "turbo":
+            _voice(TONES["boost"],-7.0,1.28)
+        "spring":
+            _voice(TONES["checkpoint"],-10.0,1.48)
+        "pulse":
+            _voice(BUMPER_HITS[1],-8.0,0.85)
+        _:
+            _voice(UI_SELECT,-9.0,1.12)
+
 func boost() -> void:
     if boost_delay <= 0.0:
         tone("boost")
