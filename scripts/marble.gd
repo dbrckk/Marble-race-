@@ -49,6 +49,7 @@ const NAMES := [
 var racer_id := 0
 var display_name := ""
 var is_player := false
+var network_controlled := false
 var finished := false
 var eliminated := false
 var finish_time := 0.0
@@ -167,10 +168,10 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
     var drive_force := 12.5
     if perk == "Aerodynamic":
         drive_force *= 1.22
-    if is_player and boosting:
+    if (is_player or network_controlled) and boosting:
         drive_force += 8.0
     var side_force := 0.0
-    if is_player:
+    if is_player or network_controlled:
         # Steering retains authority at high speed, without making tiny inputs twitchy.
         var forward_speed: float = absf(linear_velocity.z)
         side_force = steering * lerpf(18.5,26.0,clampf(forward_speed/18.0,0.0,1.0))
@@ -231,4 +232,5 @@ func teleport_to_start(new_position: Vector3) -> void:
     progress_stall_seconds = 0.0
     ai_lane_timer = 0.0
     ai_lane_goal = 0.0
+    network_controlled = false
     freeze = false

@@ -239,3 +239,18 @@ Records are saved offline alongside existing career progress, independently for 
 - The screenshot in docs/screenshots/v1.5-pause.jpg was captured directly from the Godot renderer.
 
 This remains a debug-signed Android release candidate requiring physical-device UX, battery and audio QA before Play Store signing.
+
+## v1.7 RC — Dedicated Internet multiplayer (2–4 real players)
+
+This release introduces a **real remote-server design**, replacing the Wi-Fi-only prototype:
+- A dedicated Godot 4.5.1 headless Linux server simulates all 40 physical marbles.
+- Android clients connect using encrypted WSS to a public server. Neither port-forwarding nor shared Wi-Fi is needed.
+- **Quick Match** waits for public players; **Create Private Room** generates a six-character invite code that another player can use to join the same room.
+- Games start automatically once 2–4 players are connected. AI fills the other marble slots.
+- Server snapshots synchronize 40 marbles at 10 Hz; clients interpolate, and send only bounded input controls.
+- The server owns boost energy, physics collisions and race timing. On disconnect the AI takes over.
+- Online races do not change offline progress, personal best times or championship records.
+- The CI launches three independent Godot processes to validate the protocol.
+- Deploy instructions: see server/README.md.
+
+**Known limitation:** one active public OR private room per server instance (up to four humans), not a global high-capacity matchmaking network. Worldwide play requires a public WSS domain and a running server. A local integration run does not establish that global access is already live.

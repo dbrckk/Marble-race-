@@ -1,0 +1,9 @@
+.git
+.godot
+build
+*.apk
+*.aab
+docs/screenshots
+tests
+__pycache__
+*.log

@@ -90,6 +90,18 @@ jobs:
           set -euo pipefail
           timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 320 --path . --script res://tests/pause_lifecycle.gd 2>&1 | tee pause-lifecycle.log
           grep -Fq "PAUSE_LIFECYCLE_PASS:" pause-lifecycle.log
+      - name: Secure Internet protocol validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 35s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 200 --path . --script res://tests/internet_validation.gd 2>&1 | tee internet-validation.log
+          grep -Fq "INTERNET_VALIDATION_PASS:" internet-validation.log
+      - name: Dedicated server and two clients real WebSocket integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          GODOT_BIN="$PWD/Godot_v4.5.1-stable_linux.x86_64" GAME_DIR="$PWD" NETWORK_LOG_DIR="$RUNNER_TEMP/world-race" timeout 80s bash server/online_integration.sh 2>&1 | tee worldwide-e2e.log
+          grep -Fq "WORLDWIDE_PROTOCOL_E2E_PASS:" worldwide-e2e.log
       - name: 110-second simulated race regression
         shell: bash
         run: |

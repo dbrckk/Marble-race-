@@ -18,6 +18,8 @@ const CourseDressing = preload("res://scripts/course_dressing.gd")
 const ObstacleFinish = preload("res://scripts/obstacle_finish.gd")
 const TrackSurface = preload("res://scripts/track_surface.gd")
 const Career = preload("res://scripts/career.gd")
+const InternetSession = preload("res://scripts/internet_session.gd")
+const StudioPolish = preload("res://scripts/studio_polish.gd")
 
 const MARBLE_COUNT := 40
 const SLOPE := 0.085
@@ -87,6 +89,7 @@ var world_environment: Environment
 var graphics_quality := 1
 var show_fps := false
 var career: RefCounted
+var net: Node
 var selected_track := 0
 var race_variation := 0
 var built_variation := -1
@@ -123,6 +126,9 @@ func _ready() -> void:
     audio.name = "RaceAudio"
     add_child(audio)
     audio.bind_mechanisms(moving_obstacles)
+    net = InternetSession.new()
+    net.configure(self)
+    add_child(net)
     ui = HUD.new()
     add_child(ui)
     ui.attach_game(self)
@@ -136,14 +142,14 @@ func _make_environment() -> void:
     env_node.name = "StudioEnvironment"
     var env = Environment.new()
     env.background_mode = Environment.BG_COLOR
-    env.background_color = Color("#211b1d")
+    env.background_color = Color("#16191e")
     env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-    env.ambient_light_color = Color("#e5d2bb")
-    env.ambient_light_energy = 0.62
+    env.ambient_light_color = Color("#d9e4e6")
+    env.ambient_light_energy = 0.46
     env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
     env.fog_enabled = true
-    env.fog_light_color = Color("#40332f")
-    env.fog_density = 0.007
+    env.fog_light_color = Color("#22272d")
+    env.fog_density = 0.005
     env.glow_enabled = true
     env.glow_intensity = 0.24
     env_node.environment = env
@@ -154,7 +160,7 @@ func _make_environment() -> void:
     sun.name = "LargeSoftbox"
     sun.rotation_degrees = Vector3(-48, -28, -8)
     sun.light_color = Color("#ffecd5")
-    sun.light_energy = 1.08
+    sun.light_energy = 1.13
     sun.light_angular_distance = 0.55
     sun.shadow_enabled = true
     primary_light = sun
@@ -165,7 +171,7 @@ func _make_environment() -> void:
     fill.name = "CoolFill"
     fill.rotation_degrees = Vector3(-30, 150, 0)
     fill.light_color = Color("#cae4f4")
-    fill.light_energy = 0.31
+    fill.light_energy = 0.38
     add_child(fill)
 
 func _save_visual_preferences() -> void:
@@ -207,6 +213,9 @@ func _apply_graphics_quality() -> void:
         var dressing := board.get_node_or_null("ModularBrassAndSilkDressing")
         if is_instance_valid(dressing):
             dressing.visible = graphics_quality > 0
+        var floor_details := board.get_node_or_null("StudioTrackGuides")
+        if is_instance_valid(floor_details):
+            floor_details.set_quality(graphics_quality)
     # Compatibility renderer: avoid costly multisample AA outside ULTRA.
     var viewport := get_viewport()
     viewport.msaa_3d = Viewport.MSAA_2X if graphics_quality == 2 else Viewport.MSAA_DISABLED
@@ -428,6 +437,9 @@ func _make_course() -> void:
     var dressing := CourseDressing.new()
     dressing.name = "ModularBrassAndSilkDressing"
     board.add_child(dressing)
+    var polish := StudioPolish.new()
+    polish.name = "StudioTrackGuides"
+    board.add_child(polish)
 
 func _edge_baffles(parent: Node3D, center_z: float, section: int) -> void:
     # Two solid edge shutters per module, plus a staggered inboard obstacle
@@ -598,16 +610,8 @@ func _floating_sign(message: String, location: Vector3) -> void:
     board.add_child(label)
 
 func _decorations() -> void:
-    # Oversized toy building blocks and wooden track supports outside the racing lanes.
-    for j in range(18):
-        var z = 9.0 - j * 6.0
-        for side in [-1, 1]:
-            if j % 3 == 0:
-                var x = side * (8.1 + (j%4)*0.48)
-                var c = BARRIER_COLORS[(j + (0 if side==1 else 2)) % 6]
-                var y = height_at(z) + 0.20 + (j%3)*0.16
-                _box(board, Vector3(x,y,z), Vector3(1.18,1.25+(j%4)*0.35,1.45),
-                    _mat(c,0.59), false)
+    # Cleaner studio: keep real structural supports, omit the bright unrelated
+    # carton towers that previously obscured obstacles in the distance.
     for k in range(12):
         var z = 5.0 - k * 17.0
         for side in [-1,1]:
@@ -625,7 +629,7 @@ func _showroom() -> void:
         for side in [-1.0,1.0]:
             var base_x = side * 17.0
             _box(board,Vector3(base_x,height_at(z)+4.5,z),
-                Vector3(1.3,19.0,SEGMENT_LENGTH+0.05),_mat(Color("#4c3933")),false)
+                Vector3(1.3,19.0,SEGMENT_LENGTH+0.05),_mat(Color("#37353a")),false)
             if i%2==0:
                 _box(board,Vector3(base_x-side*0.73,height_at(z)+0.5,z),
                     Vector3(0.2,0.28,SEGMENT_LENGTH-0.6),
@@ -637,10 +641,11 @@ func _showroom() -> void:
             var x=side*15.5
             _box(board,Vector3(x,height_at(z)+3.9,z),Vector3(2.5,0.28,8.5),
                 _wood_mat(Color("#91715a")),false)
-            for k in range(2):
-                var box_color=BARRIER_COLORS[(i+k+(0 if side>0 else 3))%6]
-                _box(board,Vector3(x-side*0.25,height_at(z)+4.6,z+(k-1)*2.7),
-                    Vector3(1.0,1.1,1.6),_mat(box_color.darkened(0.28),0.63),false)
+            # One restrained branded trophy block per shelf (rather than
+            # two random bright boxes) reduces clutter and draw calls.
+            var trophy_color: Color = TRACK_COLORS[selected_track].darkened(0.34)
+            _box(board,Vector3(x-side*0.25,height_at(z)+4.5,z),
+                Vector3(0.80,0.85,1.15),_mat(trophy_color,0.37,0.22),false)
         var lamp=OmniLight3D.new()
         lamp.name="PendantLight_%02d" % i
         lamp.position=Vector3(0,height_at(z)+10.5,z)
@@ -663,8 +668,8 @@ func _showroom() -> void:
         glass.material_override=mat
         glass.position=lamp.position
         board.add_child(glass)
-    # Big workshop awning visible above the distant track.
-    _box(board,Vector3(0,14,-80),Vector3(38,0.8,192),_mat(Color("#49342d")),false)
+    # Deep charcoal overhead beam frames the miniature track without glare.
+    _box(board,Vector3(0,14,-80),Vector3(38,0.8,192),_mat(Color("#343339")),false)
 
 func _spawn_racers() -> void:
     for m in racers:
@@ -675,6 +680,7 @@ func _spawn_racers() -> void:
     racer_finish_order.clear()
     player_marker = null
     player = null
+    var player_slot: int = net.local_slot if net.match_running else MARBLE_COUNT-1
     for i in range(MARBLE_COUNT):
         var row = i / 8
         var col = (i * 5 + 3) % 8
@@ -682,7 +688,7 @@ func _spawn_racers() -> void:
         var x = (col - 3.5) * 1.36
         var p = Vector3(x, height_at(z) + 0.68, z)
         var m = Racer.new()
-        var is_you = i == MARBLE_COUNT - 1
+        var is_you = i == player_slot
         m.setup(i, is_you, p, selected_perk)
         add_child(m)
         m.freeze = true
@@ -757,7 +763,8 @@ func _camera_bump(_body: Node) -> void:
 
 func start_race(perk_name: String) -> void:
     selected_perk = perk_name
-    career.begin()
+    if not net.is_active():
+        career.begin()
     result_saved = false
     last_result = {}
     # Alternating geometry order on repeat attempts avoids an identical course
@@ -829,9 +836,10 @@ func _process(delta: float) -> void:
                 last_count = count
         else:
             race_state = "RACING"
-            for m in racers:
-                m.freeze = false
-                m.sleeping = false
+            if not net.is_client():
+                for m in racers:
+                    m.freeze = false
+                    m.sleeping = false
             ui.show_countdown("GO!")
             audio.tone("start")
     elif race_state == "RACING":
@@ -875,19 +883,23 @@ func _process(delta: float) -> void:
                         cosmetics.pulse_checkpoint(sector)
                     _burst(player.global_position, false)
                     last_checkpoint = cp
-        if boosting:
-            boost_energy = max(0.0, boost_energy - delta * 0.26)
-            if boost_energy <= 0.0:
-                boosting = false
-        else:
-            boost_energy = min(1.0, boost_energy + delta * 0.08)
-        if is_instance_valid(player) and (player.finished or player.eliminated):
-            result_delay += delta
-            if result_delay > 1.5 and not finish_announced:
-                finish_announced = true
+        if not net.is_client():
+            if boosting:
+                boost_energy = max(0.0, boost_energy - delta * 0.26)
+                if boost_energy <= 0.0:
+                    boosting = false
+            else:
+                boost_energy = min(1.0, boost_energy + delta * 0.08)
+        if not net.is_client():
+            var ended: bool = net.all_participants_finished() if net.is_host() else (
+                is_instance_valid(player) and (player.finished or player.eliminated))
+            if ended:
+                result_delay += delta
+                if result_delay > 1.5 and not finish_announced:
+                    finish_announced = true
+                    _end_race()
+            elif race_time >= current_timeout():
                 _end_race()
-        elif race_time >= current_timeout():
-            _end_race()
     course_flash = maxf(0.0, course_flash - delta)
     _update_camera(delta)
     if race_state == "RACING" or race_state == "COUNTDOWN":
@@ -903,12 +915,16 @@ func _physics_process(delta: float) -> void:
             obj.rotation.y += delta * float(obj.get_meta("spin_speed"))
         else:
             obj.rotation.z = sin(kinetic_time*float(obj.get_meta("speed"))+float(obj.get_meta("phase")))*0.65
-    if race_state != "RACING":
+    if race_state != "RACING" or net.is_client():
         return
     for m in racers:
         if not is_instance_valid(m):
             continue
-        m.drive(delta, race_time, steer if m.is_player else 0.0, boosting and boost_energy>0.0 and m.is_player)
+        var remote_input: Vector2 = net.input_for_slot(m.racer_id) if net.is_host() and m.network_controlled else Vector2.ZERO
+        # Online participants always use server-validated commands, including slot 39.
+        var axis: float = remote_input.x if m.network_controlled else (steer if m.is_player and not net.is_host() else 0.0)
+        var turbo: bool = remote_input.y>0.5 if m.network_controlled else (boosting and boost_energy>0.0 and m.is_player and not net.is_host())
+        m.drive(delta,race_time,axis,turbo)
         if not m.finished and not m.eliminated and m.position.z < FINISH_Z:
             m.finished = true
             m.finish_time = race_time
@@ -1060,8 +1076,12 @@ func _end_race() -> void:
     if not result_saved:
         result_saved = true
         var completed: bool = is_instance_valid(player) and player.finished
-        last_result = career.complete(selected_track,player_rank(),
-            player.finish_time if completed else race_time,completed)
+        if net.is_active():
+            # Network races have physical results but never rewrite solo career.
+            last_result = {"finished":completed,"stars":0,"record":false,"unlocked":false}
+        else:
+            last_result = career.complete(selected_track,player_rank(),
+                player.finish_time if completed else race_time,completed)
         var durations: Array[float] = []
         var previous_split := 0.0
         for elapsed in checkpoint_splits:
@@ -1074,7 +1094,9 @@ func _end_race() -> void:
             if is_finite(finish_at) and finish_at > previous_split:
                 durations.append(finish_at-previous_split)
         last_result["sector_times"] = durations
-        last_result["sector_records"] = career.record_sectors(selected_track,durations) if completed else [false,false,false,false]
+        last_result["sector_records"] = career.record_sectors(selected_track,durations) if completed and not net.is_active() else [false,false,false,false]
+    if net.is_host():
+        net.on_host_finish()
     audio.tone("finish")
     if is_instance_valid(player) and player.finished:
         audio.finish_fanfare()

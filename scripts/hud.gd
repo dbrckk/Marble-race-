@@ -29,6 +29,14 @@ var pause_details: Label
 var pause_resume_button: Button
 var pause_progress: ProgressBar
 var pause_obstacle_hint: Label
+var lan_layer: Control
+var lan_address: LineEdit
+var lan_invite: LineEdit
+var lan_status: Label
+var lan_start_button: Button
+var lan_leave_button: Button
+var pause_button_ref: Button
+var replay_button_ref: Button
 var clock_label: Label
 var place_label: Label
 var remaining_label: Label
@@ -76,6 +84,9 @@ func attach_game(owner_game: Node3D) -> void:
     _build_race_hud()
     _build_results()
     _build_pause_menu()
+    _build_online_lobby()
+    game.net.lobby_changed.connect(_lan_status_update)
+    game.net.session_closed.connect(_lan_status_update)
     _load_controls_config()
 
 func _surface(bg: Color, border: Color = Color(1,1,1,0.09), radius: int = 12) -> StyleBoxFlat:
@@ -160,7 +171,13 @@ func _build_menu() -> void:
     quick.custom_minimum_size.y = 66
     quick.pressed.connect(show_perks)
     col.add_child(quick)
-    col.add_child(_text("ANALOG STEERING  •  40 RACERS  •  OFFLINE", 14, DIM))
+    var wifi := _action("INTERNET MULTIPLAYER  →",Color("#375d63"))
+    wifi.name = "WifiMultiplayer"
+    wifi.custom_minimum_size.y = 47
+    wifi.add_theme_font_size_override("font_size",20)
+    wifi.pressed.connect(show_online_lobby)
+    col.add_child(wifi)
+    col.add_child(_text("ANALOG STEERING  •  40 MARBLES  •  SOLO / INTERNET", 14, DIM))
     col.add_child(_text("Left thumb: steer   /   Right thumb: boost", 14, DIM))
     var sound = _action("SOUND: " + ("ON" if game.audio.enabled else "OFF"), Color("#292e39"))
     sound.custom_minimum_size.y = 37
@@ -257,6 +274,106 @@ func _refresh_career_menu() -> void:
         game.career.starts,game.career.victories,game.career.finishes]
     if game.career.unlocked < 3:
         career_label.text += "\n" + game.career.next_locked_requirement()
+
+func _build_online_lobby() -> void:
+    lan_layer = Control.new()
+    lan_layer.name = "WorldOnlineLobby"
+    lan_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    root.add_child(lan_layer)
+    lan_layer.add_child(_shade())
+
+    var panel := _panel()
+    panel.anchor_left = 0.235
+    panel.anchor_right = 0.765
+    panel.anchor_top = 0.055
+    panel.anchor_bottom = 0.945
+    lan_layer.add_child(panel)
+    var col := _column(7)
+    panel.add_child(col)
+
+    var title := _text("MARBLE RACE ONLINE",34,ORANGE)
+    title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    col.add_child(title)
+    var desc := _text("Worldwide matches · Dedicated authoritative server · 2–4 players",16,DIM)
+    desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    col.add_child(desc)
+
+    lan_status = _text("Choose matchmaking or join with an invitation code.",17,TEXT)
+    lan_status.name = "OnlineConnectionStatus"
+    lan_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    lan_status.custom_minimum_size.y = 64
+    lan_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    col.add_child(lan_status)
+
+    lan_address = LineEdit.new()
+    lan_address.name = "ServerUrl"
+    lan_address.placeholder_text = "Server URL: wss://your-game-server.example"
+    lan_address.text = game.net.online_url()
+    lan_address.custom_minimum_size.y = 45
+    lan_address.add_theme_font_override("font",FONT_REGULAR)
+    lan_address.add_theme_font_size_override("font_size",18)
+    col.add_child(lan_address)
+
+    var quick := _action("QUICK MATCH — FIND PLAYERS",ORANGE,Color("#281b12"))
+    quick.name = "OnlineQuickMatch"
+    quick.custom_minimum_size.y = 49
+    quick.pressed.connect(func(): _start_online_connection("public"))
+    col.add_child(quick)
+
+    var private_create := _action("CREATE PRIVATE ROOM",Color("#41656b"))
+    private_create.name = "OnlineCreatePrivate"
+    private_create.custom_minimum_size.y = 47
+    private_create.pressed.connect(func(): _start_online_connection("private_create"))
+    col.add_child(private_create)
+
+    lan_invite = LineEdit.new()
+    lan_invite.name = "InviteCode"
+    lan_invite.placeholder_text = "6-character invitation code"
+    lan_invite.max_length = 6
+    lan_invite.custom_minimum_size.y = 44
+    lan_invite.add_theme_font_override("font",FONT_REGULAR)
+    lan_invite.add_theme_font_size_override("font_size",18)
+    col.add_child(lan_invite)
+
+    var join_private := _action("JOIN PRIVATE ROOM",Color("#42636a"))
+    join_private.name = "OnlineJoinPrivate"
+    join_private.custom_minimum_size.y = 47
+    join_private.pressed.connect(func(): _start_online_connection("private_join"))
+    col.add_child(join_private)
+
+    var disconnect := _action("DISCONNECT / BACK TO SOLO",Color("#343c46"))
+    disconnect.name = "DisconnectOnline"
+    disconnect.custom_minimum_size.y = 47
+    disconnect.pressed.connect(func():
+        if game.net.is_active():
+            game.net.leave_room()
+        show_menu()
+    )
+    col.add_child(disconnect)
+    lan_layer.visible = false
+
+func _start_online_connection(mode: String) -> void:
+    var endpoint := lan_address.text.strip_edges()
+    var failure: String = game.net.connect_server(endpoint,mode,lan_invite.text)
+    if failure != "":
+        _lan_status_update(failure)
+    else:
+        game.net.set_online_url(endpoint)
+
+func _lan_status_update(message: String) -> void:
+    if is_instance_valid(lan_status):
+        lan_status.text = message if message != "" else "Disconnected. Choose a new match."
+
+func show_online_lobby() -> void:
+    _hide_all()
+    lan_layer.visible = true
+    if not game.net.is_active():
+        _lan_status_update("Public Quick Match or private invite code. Internet required.")
+
+func _leave_multiplayer() -> void:
+    if game.net.is_active():
+        game.net.leave_room()
+    game.return_to_menu()
 
 func _build_perks() -> void:
     perks_layer = Control.new()
@@ -443,6 +560,7 @@ func _build_race_hud() -> void:
     pause_button.anchor_bottom = 0.600
     pause_button.pressed.connect(_toggle_pause)
     hud_layer.add_child(pause_button)
+    pause_button_ref = pause_button
 
 func _load_controls_config() -> void:
     var settings := ConfigFile.new()
@@ -536,6 +654,8 @@ func _build_pause_menu() -> void:
 func pause_race() -> void:
     if not is_instance_valid(game):
         return
+    if game.net.is_active():
+        return # Multiplayer sessions cannot freeze the authoritative server.
     if game.race_state not in ["RACING","COUNTDOWN"] or get_tree().paused:
         return
     # Release individual pointers before stopping physics, so boost cannot latch.
@@ -574,6 +694,9 @@ func _leave_from_pause() -> void:
     game.return_to_menu()
 
 func _toggle_pause() -> void:
+    if game.net.is_active():
+        _leave_multiplayer()
+        return
     if get_tree().paused and pause_layer.visible:
         resume_race()
     else:
@@ -588,9 +711,11 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _notification(what: int) -> void:
     if what == MainLoop.NOTIFICATION_APPLICATION_PAUSED:
-        # Android HOME/app switching: do not auto-resume on foreground return.
         if is_instance_valid(game) and is_instance_valid(pause_layer):
-            pause_race()
+            if game.net.is_active():
+                game.net.leave_room("Disconnected on backgrounding")
+            else:
+                pause_race()
 
 func _build_results() -> void:
     results_layer = Control.new()
@@ -615,13 +740,20 @@ func _build_results() -> void:
     summary.size_flags_vertical = Control.SIZE_EXPAND_FILL
     col.add_child(summary)
     var replay = _action("RACE AGAIN", ORANGE, Color("#251b0d"))
-    replay.pressed.connect(func(): game.restart_race())
+    replay.name = "Replay"
+    replay.pressed.connect(func():
+        if game.net.is_active():
+            show_online_lobby()
+        else:
+            game.restart_race()
+    )
     col.add_child(replay)
+    replay_button_ref = replay
     next_course_button = _action("NEXT CIRCUIT  →",Color("#4c6b67"))
     next_course_button.pressed.connect(_continue_championship)
     col.add_child(next_course_button)
     var menu = _action("MAIN MENU", Color("#343b47"))
-    menu.pressed.connect(func(): game.return_to_menu())
+    menu.pressed.connect(_leave_multiplayer)
     col.add_child(menu)
 
 func _continue_championship() -> void:
@@ -637,6 +769,8 @@ func _hide_all() -> void:
     perks_layer.visible = false
     hud_layer.visible = false
     results_layer.visible = false
+    if is_instance_valid(lan_layer):
+        lan_layer.visible = false
     if is_instance_valid(pause_layer):
         pause_layer.visible = false
 
@@ -660,6 +794,8 @@ func show_race_ui() -> void:
         get_tree().paused = false
     _hide_all()
     hud_layer.visible = true
+    if is_instance_valid(pause_button_ref):
+        pause_button_ref.text = "LEAVE" if game.net.is_active() else "Ⅱ"
 
 func show_countdown(value: String) -> void:
     countdown_label.text = value
@@ -757,7 +893,7 @@ func show_results(place: int, time: float, ranking: Array) -> void:
     if finished:
         award = "3 STARS" if place <= 3 else ("2 STARS" if place <= 10 else "1 STAR")
     if is_instance_valid(result_header):
-        result_header.text = "%s  •  %s" % [game.track_title(),award]
+        result_header.text = "%s  •  %s" % [game.track_title(),("ONLINE RACE" if game.net.is_active() else award)]
     var record_text := "NEW PERSONAL BEST!" if bool(status.get("record",false)) else ""
     var unlock_text := "NEXT CIRCUIT UNLOCKED!" if bool(status.get("unlocked",false)) else ""
     var earned_stars: int = int(status.get("stars",0))
@@ -777,4 +913,12 @@ func show_results(place: int, time: float, ranking: Array) -> void:
             record_text,unlock_text,
             str(game.career.track_best[game.selected_track]) if game.career.track_best[game.selected_track] > 0 else "—",
             leaders]
-    next_course_button.visible = game.selected_track < 2 and game.career.is_unlocked(game.selected_track+1)
+    if game.net.is_active():
+        summary.text = "WORLDWIDE ONLINE RACE   •   40 MARBLES\nPOSITION #%d / 40   •   %s\nTIME %.1fs\n\nTOP FINISHERS\n%s" % [
+            place,"FINISHED" if finished else "DNF",time,leaders]
+        replay_button_ref.text = "ONLINE LOBBY — AUTO REMATCH"
+        replay_button_ref.disabled = false
+    else:
+        replay_button_ref.text = "RACE AGAIN"
+        replay_button_ref.disabled = false
+    next_course_button.visible = not game.net.is_active() and game.selected_track < 2 and game.career.is_unlocked(game.selected_track+1)
