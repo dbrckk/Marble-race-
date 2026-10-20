@@ -84,6 +84,8 @@ func tick(delta: float, racers: Array[RigidBody3D], net: Node) -> void:
             used[key] = true
             var kind: String = ITEM_KINDS[(i + game.selected_track) % ITEM_KINDS.size()]
             _activate(kind,marble,racers)
+            if net.role == "server":
+                net.notify_item_collected(marble.racer_id,i,kind)
             if net.role == "offline":
                 pickup.visible = false
                 game.audio.item_pickup(kind)
@@ -91,6 +93,11 @@ func tick(delta: float, racers: Array[RigidBody3D], net: Node) -> void:
             # Shared pickups remain visible in multiplayer: each human can
             # independently claim each one exactly once on the authority.
             break
+
+func mark_local_pickup(index: int) -> void:
+    # Client display only: the dedicated server already applied the effect.
+    if index >= 0 and index < items.size() and is_instance_valid(items[index]):
+        items[index].visible = false
 
 func _activate(kind: String, racer: RigidBody3D, racers: Array[RigidBody3D]) -> void:
     if kind == "turbo":
