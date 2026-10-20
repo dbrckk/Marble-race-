@@ -265,3 +265,25 @@ This release introduces a **real remote-server design**, replacing the Wi-Fi-onl
 ### Public worldwide endpoint (Render free)
 
 The default Android matchmaking endpoint is now `wss://marble-race-global.onrender.com`, hosted by the user's connected Render workspace as `marble-race-global` on the free plan, region Frankfurt. A cold server may take up to 90 seconds to respond; the timeout prevents an endless spinner. Sessions remain **one room per instance** (2–4 people) until multi-room allocation is implemented. Free services may suspend after inactivity and are subject to compute limits. The endpoint must still pass a public connection test; a configured URL is not proof of availability.
+
+## v1.9 RC — Network reliability and production hosting
+
+- **Online race ping indicator**: RTT measured using small Godot RPC probes
+  (one every 2.5 s), smoothing, and FAIR/SLOW/STALLED states.
+- **Disconnect recovery**: 18 s admission timeout after connecting and 12 s
+  missed-snapshot timeout during matches. Controls/sessions are cleaned up and
+  players can return to offline races; failed connections no longer hang forever.
+- **Render /health endpoint**: dedicated server has a standard-library Python
+  WebSocket pass-through gateway on the public port, forwarding only WebSocket
+  upgrades to the internal Godot server. Normal HTTP health probes return JSON
+  rather than flooding Godot's failed-handshake logs.
+- **Safe shutdown**: SIGTERM/SIGINT terminates the Godot backend and releases
+  both ports, including during Render deployment replacement.
+- **Testing**: `tests/network_qos.gd`, `server/test_edge_gateway.sh`,
+  `server/online_integration.sh`, existing solo races and Android export.
+- **Star-list audit**: see [review of Godot-specific resources](docs/STAR_LIST_GAME_REVIEW.md);
+  references vetted but no unlicensed or resource-heavy addons bundled.
+
+**Remaining limits:** this is still one concurrent 2–4-human-player online
+room per free Render instance. Public cross-country mobile performance has
+not been measured. Debug-signed APK only; not yet a Play Store production AAB.

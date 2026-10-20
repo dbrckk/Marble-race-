@@ -52,9 +52,9 @@ func _verify() -> void:
             steering_sent = true
         if began and game.net.targets_received and game.net.last_frame_time > 0.0:
             snapped = true
-        if snapped and steering_sent and game.race_time > 1.0:
-            print("ONLINE_CLIENT_PASS slot=%d 40_racers=true snapshots=true controls=true server_time=%.2f" % [
-                game.net.local_slot,game.race_time])
+        if snapped and steering_sent and game.net.ping_ms >= 0.0 and game.race_time > 1.0:
+            print("ONLINE_CLIENT_PASS slot=%d 40_racers=true snapshots=true controls=true ping_ms=%d server_time=%.2f" % [
+                game.net.local_slot,int(game.net.ping_ms),game.race_time])
             game.net.leave_room()
             game.queue_free()
             quit(0)

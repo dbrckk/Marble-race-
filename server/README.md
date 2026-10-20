@@ -57,3 +57,29 @@ Public mobile connections must use encrypted wss:// URLs; unencrypted ws:// is a
 ## Planned post-beta changes
 
 Multiple concurrent rooms, server selection by region, elastic scaling, better mobile jitter compensation, reconnect tokens, account identity and network telemetry are not implemented yet.
+
+### v1.9: HTTP health and WebSocket gateway
+
+The production Docker image now starts `python3 -u server/edge_gateway.py`
+instead of launching Godot directly on the public port. The gateway:
+
+- Listens on `$PORT` (Render, default 8080) for HTTPS-terminated proxy traffic.
+- Starts the headless Godot authority on `$GODOT_INTERNAL_PORT` (default 8081).
+- Returns `200 {"status":"ok",...}` for `GET /health` when Godot is
+  accepting TCP connections, and 503 during backend initialization.
+- Passes through validated WebSocket upgrade headers and payload streams,
+  without decoding player controls or authoring game state.
+- Bounds header size/read time and terminates the Godot child on shutdown.
+
+Use `GET https://marble-race-global.onrender.com/health` to check readiness.
+`server/test_edge_gateway.sh` verifies HTTP 200/404, two real WebSocket
+clients playing via the gateway, and absence of HTTP-handshake errors.
+
+To run locally:
+
+```bash
+PORT=8080 GODOT_INTERNAL_PORT=8081 GODOT_BIN=/path/to/godot \
+  GAME_DIR=. python3 -u server/edge_gateway.py
+```
+
+Runtime needs Python 3 standard library only; no database required.

@@ -14,6 +14,10 @@ const ROOM_CODE_LENGTH := 6
 const WAIT_FOR_PLAYERS := 6.0
 const RESULTS_DURATION := 15.0
 const CONNECT_TIMEOUT := 90.0
+const JOIN_TIMEOUT := 18.0
+const SNAPSHOT_TIMEOUT := 12.0
+const PING_INTERVAL := 2.5
+const MIN_PING_INTERVAL_MS := 800
 
 var game: Node3D
 var role := "offline" # offline | client | server
@@ -41,6 +45,14 @@ var _endpoint := ""
 var _connect_elapsed := 0.0
 var targets: Array[Transform3D] = []
 var targets_received := false
+var ping_ms := -1.0
+var snapshot_age_seconds := 0.0
+var _join_elapsed := 0.0
+var _ping_elapsed := 0.0
+var _ping_sequence := 0
+var _pending_ping := -1
+var _sent_ping_ms := 0
+var _last_ping_by_peer: Dictionary = {}
 
 func configure(owner: Node3D) -> void:
     game = owner
@@ -100,6 +112,11 @@ func connect_server(raw_url: String, mode: String = "public", invite_code: Strin
     desired_code = room
     _endpoint = address
     _connect_elapsed = 0.0
+    _join_elapsed = 0.0
+    _ping_elapsed = 0.0
+    _pending_ping = -1
+    ping_ms = -1.0
+    snapshot_age_seconds = 0.0
     role = "client"
     connected = false
     local_slot = -1
@@ -153,6 +170,7 @@ func _register_signals() -> void:
 func _server_connected() -> void:
     if role == "client":
         connected = true
+        _join_elapsed = 0.0
         _request_join.rpc_id(1,desired_mode,desired_code)
         lobby_changed.emit("SERVER CONNECTED. REQUESTING ROOM...")
 
@@ -176,6 +194,7 @@ func _peer_disconnected(id: int) -> void:
     boost_by_slot.erase(slot)
     energy_by_slot.erase(slot)
     last_command_ms.erase(id)
+    _last_ping_by_peer.erase(id)
     if match_running and slot < game.racers.size():
         game.racers[slot].network_controlled = false
         game.racers[slot].is_player = false # AI resumes even for server's camera slot 39.
@@ -239,6 +258,8 @@ func _accepted(slot: int, visibility: String, code: String, track: int) -> void:
     if role != "client":
         return
     local_slot = clampi(slot,SLOT_FIRST-MAX_PLAYERS+1,SLOT_FIRST)
+    _join_elapsed = 0.0
+    _ping_elapsed = PING_INTERVAL # probe immediately after room acceptance
     room_mode = visibility
     room_code = code
     game.selected_track = clampi(track,0,2)
@@ -276,6 +297,46 @@ func _lobby_state(message: String, _count: int) -> void:
     if role == "client":
         lobby_changed.emit(message)
 
+# Reply only to accepted players. Bound probing to avoid amplification by spam.
+@rpc("any_peer","call_remote","unreliable",2)
+func _probe_latency(sequence: int) -> void:
+    if role != "server":
+        return
+    var sender: int = multiplayer.get_remote_sender_id()
+    if not joined_slots.has(sender):
+        return
+    var now: int = Time.get_ticks_msec()
+    if now - int(_last_ping_by_peer.get(sender,-MIN_PING_INTERVAL_MS)) < MIN_PING_INTERVAL_MS:
+        return
+    _last_ping_by_peer[sender] = now
+    if _can_send(sender):
+        _latency_reply.rpc_id(sender,sequence)
+
+@rpc("authority","call_remote","unreliable",2)
+func _latency_reply(sequence: int) -> void:
+    if role != "client" or sequence != _pending_ping or _sent_ping_ms <= 0:
+        return
+    var measured: int = Time.get_ticks_msec() - _sent_ping_ms
+    if measured < 0 or measured > 120000:
+        return
+    ping_ms = float(measured) if ping_ms < 0.0 else lerpf(ping_ms,float(measured),0.35)
+    _pending_ping = -1
+
+func quality_text() -> String:
+    if role != "client" or not connected:
+        return ""
+    if local_slot < SLOT_FIRST-MAX_PLAYERS+1:
+        return "CONNECTING"
+    if match_running and snapshot_age_seconds >= 4.0:
+        return "NETWORK STALLED"
+    if ping_ms < 0.0:
+        return "CHECKING PING"
+    if ping_ms >= 280.0:
+        return "%d ms · SLOW" % int(ping_ms)
+    if ping_ms >= 130.0:
+        return "%d ms · FAIR" % int(ping_ms)
+    return "%d ms · GOOD" % int(ping_ms)
+
 func _process(delta: float) -> void:
     if role == "server":
         if match_running:
@@ -297,21 +358,38 @@ func _process(delta: float) -> void:
                 _launch_match()
         else:
             queue_seconds = 0.0
-    elif role == "client" and not connected:
-        _connect_elapsed += delta
-        if _connect_elapsed >= CONNECT_TIMEOUT:
-            leave_room("Connection timed out. Check the server address and Internet access.")
-    elif role == "client" and match_running:
-        input_clock += delta
-        if input_clock >= INPUT_PERIOD and connected and game.race_state == "RACING":
-            input_clock = 0.0
-            _send_controls.rpc_id(1,game.steer_target,game.boosting)
-        if targets_received and game.racers.size() == targets.size():
-            var amount := clampf(delta*12.0,0.0,1.0)
-            for i in range(targets.size()):
-                var racer: RigidBody3D = game.racers[i]
-                racer.global_position = racer.global_position.lerp(targets[i].origin,amount)
-                racer.quaternion = racer.quaternion.slerp(targets[i].basis.get_rotation_quaternion(),amount)
+    elif role == "client":
+        if not connected:
+            _connect_elapsed += delta
+            if _connect_elapsed >= CONNECT_TIMEOUT:
+                leave_room("Connection timed out. Check the server address and Internet access.")
+        elif local_slot < SLOT_FIRST-MAX_PLAYERS+1:
+            _join_elapsed += delta
+            if _join_elapsed >= JOIN_TIMEOUT:
+                leave_room("The server did not admit you to a room. Retry matchmaking.")
+        else:
+            _ping_elapsed += delta
+            if _ping_elapsed >= PING_INTERVAL:
+                _ping_elapsed = 0.0
+                _ping_sequence += 1
+                _pending_ping = _ping_sequence
+                _sent_ping_ms = Time.get_ticks_msec()
+                _probe_latency.rpc_id(1,_ping_sequence)
+            if match_running:
+                snapshot_age_seconds += delta
+                if snapshot_age_seconds >= SNAPSHOT_TIMEOUT:
+                    leave_room("Connection to the race was lost. Try another match.")
+                    return
+                input_clock += delta
+                if input_clock >= INPUT_PERIOD and game.race_state == "RACING":
+                    input_clock = 0.0
+                    _send_controls.rpc_id(1,game.steer_target,game.boosting)
+                if targets_received and game.racers.size() == targets.size():
+                    var amount := clampf(delta*12.0,0.0,1.0)
+                    for i in range(targets.size()):
+                        var racer: RigidBody3D = game.racers[i]
+                        racer.global_position = racer.global_position.lerp(targets[i].origin,amount)
+                        racer.quaternion = racer.quaternion.slerp(targets[i].basis.get_rotation_quaternion(),amount)
 
 func _launch_match() -> void:
     if role != "server" or joined_slots.size() < 2 or match_running:
@@ -341,6 +419,7 @@ func _begin_round(track: int, variant: int, slots: PackedInt32Array) -> void:
     game.selected_track = clampi(track,0,2)
     game.race_variation = clampi(variant,0,2)
     last_frame_time = -1.0
+    snapshot_age_seconds = 0.0
     targets.clear()
     targets_received = false
     game.start_race("Grip Tape")
@@ -427,6 +506,7 @@ func _receive_snapshot(floats: PackedFloat32Array, timestamp: float, energies: P
     if floats.size() != 40*FLOATS_PER_RACER or not is_finite(timestamp) or timestamp <= last_frame_time:
         return
     last_frame_time = timestamp
+    snapshot_age_seconds = 0.0
     game.race_time = timestamp
     if targets.size() != 40:
         targets.resize(40)
@@ -495,6 +575,13 @@ func leave_room(message: String = "") -> void:
     match_running = false
     connected = false
     _connect_elapsed = 0.0
+    _join_elapsed = 0.0
+    _ping_elapsed = 0.0
+    _pending_ping = -1
+    _sent_ping_ms = 0
+    ping_ms = -1.0
+    snapshot_age_seconds = 0.0
+    _last_ping_by_peer.clear()
     targets.clear()
     targets_received = false
     if multiplayer.multiplayer_peer != null:

@@ -44,6 +44,7 @@ var leaderboard: Label
 var boost_label: Label
 var speed_label: Label
 var fps_label: Label
+var network_quality_label: Label
 var quality_button: Button
 var fps_button: Button
 var course_progress: ProgressBar
@@ -474,6 +475,8 @@ func _build_race_hud() -> void:
     speed_label = _small_panel_text("00  SPEED", 17, Rect2(0.016,0.21,0.155,0.066))
     remaining_label = _small_panel_text("WOODWORKS • 0 / 40", 19, Rect2(0.335,0.02,0.330,0.080), HORIZONTAL_ALIGNMENT_CENTER)
     leaderboard = _small_panel_text("LEADERBOARD", 16, Rect2(0.79,0.025,0.195,0.28))
+    network_quality_label = _small_panel_text("NET: CONNECTING",14,Rect2(0.79,0.32,0.195,0.060))
+    network_quality_label.get_parent().visible = false
     fps_label = _small_panel_text("FPS --",16,Rect2(0.865,0.43,0.119,0.060))
     fps_label.get_parent().visible = game.show_fps
     course_progress = _progress_bar(Color("#e9ac5d"))
@@ -794,6 +797,7 @@ func show_race_ui() -> void:
         get_tree().paused = false
     _hide_all()
     hud_layer.visible = true
+    network_quality_label.get_parent().visible = game.net.role == "client"
     if is_instance_valid(pause_button_ref):
         pause_button_ref.text = "LEAVE" if game.net.is_active() else "Ⅱ"
 
@@ -838,6 +842,13 @@ func update_hud() -> void:
     boost_label.add_theme_color_override("font_color",
         Color("#ffcf82") if game.boost_energy >= 0.25 else Color("#e9746b"))
     speed_label.text = "%02d KM/H" % int(game.player.linear_velocity.length() * 3.6)
+    if game.net.role == "client":
+        network_quality_label.get_parent().visible = true
+        var quality: String = game.net.quality_text()
+        network_quality_label.text = "NET  " + quality
+        network_quality_label.add_theme_color_override("font_color",
+            Color("#ffac9b") if quality.contains("SLOW") or quality.contains("STALLED") else (
+                Color("#ffe1a3") if quality.contains("FAIR") else Color("#b7f5d9")))
     if game.show_fps:
         var measured := Engine.get_frames_per_second()
         fps_label.text = "FPS %d" % measured
