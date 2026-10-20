@@ -41,7 +41,7 @@ func _run() -> void:
                 "Speed lines apply to both human and AI racers")
             assert(game.ui.toast_remaining > 0.0,
                 "The local player must receive a speed-line notification")
-            var previous := mechanic.collected.size()
+            var previous: int = int(mechanic.collected.size())
             mechanic.tick(0.016,game.racers,game.net)
             assert(mechanic.collected.size() == previous,
                 "A speed line may not be farmed by standing on it")
