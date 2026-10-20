@@ -532,8 +532,8 @@ func _obstacle_layout(section: int) -> int:
     if selected_track == 1:
         var glacier := (section*2+race_variation)%5
         return 2 if glacier in [0,2,4] else (0 if glacier == 1 else 1)
-    var forge := (section+race_variation)%5
-    return 2 if forge in [0,2,4] else (1 if forge == 1 else 0)
+    var forge := (section+race_variation)%4
+    return 2 if forge in [0,1] else (1 if forge == 2 else 0)
 
 func _themed_wood(base: Color) -> Color:
     if selected_track == 1:
