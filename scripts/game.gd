@@ -21,6 +21,7 @@ const Career = preload("res://scripts/career.gd")
 const BestGhost = preload("res://scripts/best_ghost.gd")
 const InternetSession = preload("res://scripts/internet_session.gd")
 const StudioPolish = preload("res://scripts/studio_polish.gd")
+const RaceItems = preload("res://scripts/race_items.gd")
 
 const MARBLE_COUNT := 40
 const SLOPE := 0.085
@@ -83,6 +84,7 @@ var workshop_lamps: Array[OmniLight3D] = []
 var lamp_refresh := 0.0
 var kinetic_time := 0.0
 var obstacle_finish: Node3D
+var race_items: Node3D
 var track_surface: Node3D
 var track_physics_material: PhysicsMaterial
 var primary_light: DirectionalLight3D
@@ -491,6 +493,10 @@ func _make_course() -> void:
     _checkpoint_arches()
     _decorations()
     _showroom()
+    race_items = RaceItems.new()
+    race_items.name = "RareArcadePickups"
+    board.add_child(race_items)
+    race_items.setup(self,selected_track,race_variation)
     var cosmetic = TrackFX.new()
     cosmetic.name = "PolishedToyDetails"
     board.add_child(cosmetic)
@@ -847,6 +853,8 @@ func start_race(perk_name: String) -> void:
     boosting = false
     cam_mode = 0
     _spawn_racers()
+    if is_instance_valid(race_items):
+        race_items.reset_round()
     best_ghost.begin(selected_track,built_variation,selected_perk,not net.is_active())
     audio.bind_marble(player)
     player.body_entered.connect(_camera_bump)
@@ -983,6 +991,8 @@ func _physics_process(delta: float) -> void:
             obj.rotation.z = sin(kinetic_time*float(obj.get_meta("speed"))+float(obj.get_meta("phase")))*0.65
     if race_state != "RACING" or net.is_client():
         return
+    if is_instance_valid(race_items):
+        race_items.tick(delta,racers,net)
     for m in racers:
         if not is_instance_valid(m):
             continue
