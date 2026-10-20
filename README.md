@@ -312,3 +312,10 @@ manual overrides. Real Android frame pacing has not yet been benchmarked.
 - 1,800-position cap, finite-value validation and three-layout/perk isolation limit corruption and memory usage.
 - Test `tests/personal_ghost.gd` covers save/reload, comparison, invalidating a DNF, graphics scaling and online safety.
 - This builds on the existing Godot 4 engine; adding Nakama or another external stack is not required for local time-trial ghosts.
+
+## v1.12 RC — Safer online rematches
+
+- Dedicated authority automatically releases steering and boost when a player stops sending controls for **650 ms**, then restores control on the next valid command; other players are unaffected.
+- Public and private rooms cycle through **WOODWORKS → SWITCHBACK → GAUNTLET**, then repeat, with obstacle geometry rebuilt on each client to match the server's selected course. A newly emptied room restarts on WOODWORKS.
+- New `tests/online_rounds.gd` exercises the dead-man switch, recovery, course switching, 40-racer integrity and room resets in CI.
+- The online server still hosts **one room per process**, not independent simultaneous lobbies. Android-device playtesting remains required.

@@ -829,7 +829,7 @@ func start_race(perk_name: String) -> void:
     last_result = {}
     # Alternating geometry order on repeat attempts avoids an identical course
     # without changing the course identity or difficulty.
-    if race_variation != built_variation:
+    if not is_instance_valid(board) or race_variation != built_variation or int(board.get_meta("track_index",-1)) != selected_track:
         _make_course()
         audio.bind_mechanisms(moving_obstacles)
         _apply_graphics_quality()

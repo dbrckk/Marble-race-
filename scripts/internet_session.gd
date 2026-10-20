@@ -18,6 +18,8 @@ const JOIN_TIMEOUT := 18.0
 const SNAPSHOT_TIMEOUT := 12.0
 const PING_INTERVAL := 2.5
 const MIN_PING_INTERVAL_MS := 800
+const COMMAND_TIMEOUT_MS := 650 # Dead-man switch: stop stale steering/boost after packet loss.
+const TRACK_COUNT := 3
 
 var game: Node3D
 var role := "offline" # offline | client | server
@@ -35,6 +37,7 @@ var room_mode := ""
 var room_code := ""
 var queue_seconds := 0.0
 var results_seconds := 0.0
+var completed_rounds := 0 # Advance the course after each completed online match.
 var frame_clock := 0.0
 var input_clock := 0.0
 var last_frame_time := -1.0
@@ -250,7 +253,7 @@ func _request_join(mode: String, code: String) -> void:
     energy_by_slot[slot] = 1.0
     last_command_ms[peer_id] = 0
     queue_seconds = 0.0 if joined_slots.size() < 2 else queue_seconds
-    _accepted.rpc_id(peer_id,slot,room_mode,room_code,game.selected_track)
+    _accepted.rpc_id(peer_id,slot,room_mode,room_code,completed_rounds % TRACK_COUNT)
     _broadcast_lobby_status()
 
 @rpc("authority","call_remote","reliable")
@@ -394,6 +397,9 @@ func _process(delta: float) -> void:
 func _launch_match() -> void:
     if role != "server" or joined_slots.size() < 2 or match_running:
         return
+    # All clients receive this index in _begin_round before spawning racers.
+    # Do not depend on local career unlocks: public rooms allow all courses.
+    game.selected_track = completed_rounds % TRACK_COUNT
     match_running = true
     queue_seconds = 0.0
     results_seconds = 0.0
@@ -470,6 +476,14 @@ func input_for_slot(slot: int) -> Vector2:
 func _physics_process(delta: float) -> void:
     if role != "server" or not match_running or game.race_state != "RACING":
         return
+    # A dropped/disconnected client must not steer indefinitely on the server.
+    # Watch the last *accepted* command rather than the WebSocket connection state.
+    var now := Time.get_ticks_msec()
+    for peer_id in joined_slots.keys():
+        var joined_slot: int = int(joined_slots[peer_id])
+        if now - int(last_command_ms.get(peer_id, 0)) > COMMAND_TIMEOUT_MS:
+            steer_by_slot[joined_slot] = 0.0
+            boost_by_slot[joined_slot] = false
     for slot in energy_by_slot.keys():
         var e: float = float(energy_by_slot[slot])
         if bool(boost_by_slot.get(slot,false)):
@@ -540,6 +554,7 @@ func on_host_finish() -> void:
         if _can_send(int(peer_id)):
             _show_results.rpc_id(int(peer_id),finish_times,game.race_time)
     match_running = false
+    completed_rounds += 1
     results_seconds = RESULTS_DURATION
 
 @rpc("authority","call_remote","reliable")
@@ -559,6 +574,7 @@ func _reset_room() -> void:
     results_seconds = 0.0
     queue_seconds = 0.0
     joined_slots.clear()
+    completed_rounds = 0
     steer_by_slot.clear()
     boost_by_slot.clear()
     energy_by_slot.clear()

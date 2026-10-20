@@ -114,6 +114,12 @@ jobs:
           set -euo pipefail
           timeout 80s ./Godot_v4.5.1-stable_linux.x86_64 --headless --path . --script res://tests/network_qos.gd 2>&1 | tee network-qos.log
           grep -Fq "NETWORK_QOS_PASS:" network-qos.log
+      - name: Online dead-man controls and three-course rematch regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 600 --path . --script res://tests/online_rounds.gd 2>&1 | tee online-rounds.log
+          grep -Fq "ONLINE_ROUNDS_PASS:" online-rounds.log
       - name: Validate production server Docker image
         shell: bash
         run: |

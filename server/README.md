@@ -90,3 +90,9 @@ Ubuntu's `python3-minimal` omits optional parts of the Python 3 standard
 library, including `asyncio`. The production image now installs the full
 Ubuntu `python3` package, asserts that its gateway imports succeed during
 `docker build`, and is built again in GitHub Actions before APK upload.
+
+### v1.12 RC — Fairer rematches and input fail-safe
+
+- The authoritative server clears a player's steering and turbo after 650 ms without an accepted input packet, avoiding indefinitely stuck commands after a network stall. Valid new packets immediately resume control.
+- Completed rooms with two or more connected players automatically play WOODWORKS, SWITCHBACK, and GAUNTLET in sequence. All connected clients rebuild the correct physical geometry, independent of offline career unlocks.
+- When the final player disconnects, the next room restarts at WOODWORKS. The deployment still supports only one simultaneous room per server process.
