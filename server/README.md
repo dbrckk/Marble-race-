@@ -83,3 +83,10 @@ PORT=8080 GODOT_INTERNAL_PORT=8081 GODOT_BIN=/path/to/godot \
 ```
 
 Runtime needs Python 3 standard library only; no database required.
+
+### Runtime dependency correction (v1.9 RC hotfix)
+
+Ubuntu's `python3-minimal` omits optional parts of the Python 3 standard
+library, including `asyncio`. The production image now installs the full
+Ubuntu `python3` package, asserts that its gateway imports succeed during
+`docker build`, and is built again in GitHub Actions before APK upload.

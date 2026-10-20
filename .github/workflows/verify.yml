@@ -108,6 +108,13 @@ jobs:
           set -euo pipefail
           timeout 80s ./Godot_v4.5.1-stable_linux.x86_64 --headless --path . --script res://tests/network_qos.gd 2>&1 | tee network-qos.log
           grep -Fq "NETWORK_QOS_PASS:" network-qos.log
+      - name: Validate production server Docker image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build --file server/Dockerfile --tag marble-race-server:ci .
+          docker run --rm --entrypoint python3 marble-race-server:ci -c "import asyncio, socket, signal, json; print('EDGE_RUNTIME_STD_LIB_OK')" | tee docker-runtime.log
+          grep -Fq "EDGE_RUNTIME_STD_LIB_OK" docker-runtime.log
       - name: HTTP health and WebSocket gateway integration
         shell: bash
         run: |
