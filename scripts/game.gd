@@ -1003,8 +1003,8 @@ func _burst(where: Vector3, finale: bool) -> void:
     # Short-lived particles carry no collision meshes and remain inexpensive on mobile.
     var n := CPUParticles3D.new()
     n.name = "FinishConfetti" if finale else "CheckpointGlitter"
-    n.amount = 100 if finale else 45
-    n.lifetime = 1.9 if finale else 0.9
+    n.amount = [32,68,100][graphics_quality] if finale else [12,24,45][graphics_quality]
+    n.lifetime = (1.3 if graphics_quality == 0 else 1.9) if finale else 0.9
     n.one_shot = true
     n.explosiveness = 0.96
     n.randomness = 0.48

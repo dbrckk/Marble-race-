@@ -78,6 +78,12 @@ jobs:
           set -euo pipefail
           timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --path . --script res://tests/replay_variation.gd 2>&1 | tee replay-variation.log
           grep -Fq "VARIATION_AND_HAZARD_PASS:" replay-variation.log
+      - name: HUD polish and particle budgets
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 80s ./Godot_v4.5.1-stable_linux.x86_64 --headless --path . --script res://tests/visual_polish.gd 2>&1 | tee visual-polish.log
+          grep -Fq "POLISH_PASS:" visual-polish.log
       - name: 110-second simulated race regression
         shell: bash
         run: |

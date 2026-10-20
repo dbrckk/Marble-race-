@@ -209,3 +209,12 @@ covered by a long-race test requiring the player to cross the actual line.
 - New unobtrusive HUD shows which physical outer lane is about to be blocked and the approximate distance, based on a cached list of **28 genuine gate colliders**. No additional geometry or per-frame raycasts.
 - Added deterministic `tests/replay_variation.gd` regression exercising 4 consecutive starts, verified gate previews and ensuring only one active board.
 - Current version 1.2 RC is an Android QA build; handset UX and FPS still require physical tests.
+
+## v1.3 RC — Race presentation and results polish
+
+- **Position change feedback:** a compact temporary notification distinguishes overtakes from losing places, appearing only when at least two positions change so the HUD avoids excessive flicker.
+- **Career-consistent results:** the finish header uses the same one-, two- and three-star thresholds as the stored career. The results panel displays cumulative circuit stars, clear DNF state, personal best and unlock notices. The leaderboard heading now correctly says TOP 5.
+- **Adaptive celebration particles:** checkpoint bursts scale by quality profile (12/24/45) and victory confetti by 32/68/100, with a shorter emission lifetime on Economy.
+- Added `tests/visual_polish.gd` to cover result semantics, persistent medal display, scene UI and particle quality budgets; wired into GitHub Actions. Existing physics, course, controls, persistence and Android CI tests remain mandatory.
+
+This is a tested Android debug build, not yet the store-signed public release.

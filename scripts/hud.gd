@@ -37,6 +37,9 @@ var course_progress: ProgressBar
 var boost_progress: ProgressBar
 var checkpoint_label: Label
 var hazard_label: Label
+var position_feedback: Label
+var last_seen_rank := -1
+var rank_toast_seconds := 0.0
 var toast_remaining := 0.0
 var countdown_label: Label
 var selected_name := ""
@@ -366,6 +369,15 @@ func _build_race_hud() -> void:
     hazard_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     hazard_label.visible = false
     hud_layer.add_child(hazard_label)
+    position_feedback = _text("",21,Color("#a7f0d8"))
+    position_feedback.name = "RankFeedback"
+    position_feedback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    position_feedback.anchor_left = 0.38
+    position_feedback.anchor_right = 0.62
+    position_feedback.anchor_top = 0.225
+    position_feedback.anchor_bottom = 0.270
+    position_feedback.visible = false
+    hud_layer.add_child(position_feedback)
     boost_progress = _progress_bar(Color("#91e6e6"))
     boost_progress.name = "BoostCharge"
     boost_progress.anchor_left = 0.665
@@ -525,6 +537,10 @@ func show_perks() -> void:
     perks_layer.visible = true
 
 func show_race_ui() -> void:
+    last_seen_rank = -1
+    rank_toast_seconds = 0.0
+    if is_instance_valid(position_feedback):
+        position_feedback.visible = false
     if get_tree().paused:
         get_tree().paused = false
     _hide_all()
@@ -538,6 +554,10 @@ func hide_countdown() -> void:
     countdown_label.visible = false
 
 func update_hud() -> void:
+    if rank_toast_seconds > 0.0:
+        rank_toast_seconds -= get_process_delta_time()
+        position_feedback.visible = rank_toast_seconds > 0.0
+        position_feedback.modulate.a = minf(1.0,rank_toast_seconds * 2.0)
     if toast_remaining > 0.0:
         toast_remaining -= get_process_delta_time()
         checkpoint_label.visible = toast_remaining > 0.0
@@ -551,7 +571,16 @@ func update_hud() -> void:
     var seconds = int(game.race_time)
     var centi = int((game.race_time - float(seconds)) * 100.0)
     clock_label.text = "%02d:%02d.%02d" % [seconds / 60, seconds % 60, centi]
-    var place = game.player_rank()
+    var place: int = game.player_rank()
+    if game.race_state == "RACING" and last_seen_rank > 0 and abs(place-last_seen_rank) >= 2:
+        var gain := last_seen_rank - place
+        position_feedback.text = "+%d PLACES" % gain if gain > 0 else "-%d PLACES" % abs(gain)
+        position_feedback.add_theme_color_override("font_color",
+            Color("#9cf2cb") if gain > 0 else Color("#ffb19c"))
+        rank_toast_seconds = 0.95
+        position_feedback.visible = true
+        position_feedback.modulate.a = 1.0
+    last_seen_rank = place
     place_label.text = "#%d / 40" % place
     remaining_label.text = "%s  •  %d FINISHED" % [game.track_title(),game.racer_finish_order.size()]
     boost_label.text = "BOOST %d%%" % int(game.boost_energy * 100.0)
@@ -602,14 +631,16 @@ func show_results(place: int, time: float, ranking: Array) -> void:
     var finished: bool = bool(status.get("finished",false))
     var award := "DNF"
     if finished:
-        award = "GOLD" if place <= 3 else ("SILVER" if place <= 10 else "BRONZE")
+        award = "3 STARS" if place <= 3 else ("2 STARS" if place <= 10 else "1 STAR")
     if is_instance_valid(result_header):
         result_header.text = "%s  •  %s" % [game.track_title(),award]
     var record_text := "NEW PERSONAL BEST!" if bool(status.get("record",false)) else ""
     var unlock_text := "NEXT CIRCUIT UNLOCKED!" if bool(status.get("unlocked",false)) else ""
+    var earned_stars: int = int(status.get("stars",0))
+    var stars_text := "CAREER STARS: %d / 3" % earned_stars
     if summary:
-        summary.text = "POSITION  #%d / 40   •   %s\nTIME  %.1fs\n%s\n%s\nBEST  #%s\n\nTOP 3\n%s" % [
-            place,"FINISHED" if finished else "TIME OUT",time,record_text,unlock_text,
+        summary.text = "POSITION  #%d / 40   •   %s\nTIME  %.1fs\n%s\n%s\n%s\nBEST  #%s\n\nTOP 5\n%s" % [
+            place,"FINISHED" if finished else "TIME OUT",time,stars_text,record_text,unlock_text,
             str(game.career.track_best[game.selected_track]) if game.career.track_best[game.selected_track] > 0 else "—",
             leaders]
     next_course_button.visible = game.selected_track < 2 and game.career.is_unlocked(game.selected_track+1)
