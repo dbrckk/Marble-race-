@@ -882,6 +882,19 @@ func update_hud() -> void:
         table += "%02d  YOU ★" % place
     leaderboard.text = table
 
+func show_item_pickup(kind: String) -> void:
+    var labels := {
+        "turbo": "RARE ITEM  /  INSTANT TURBO!",
+        "spring": "RARE ITEM  /  SUPER JUMP!",
+        "pulse": "RARE ITEM  /  SHOCKWAVE!",
+        "stabilizer": "RARE ITEM  /  STEADY DASH!"
+    }
+    checkpoint_label.text = str(labels.get(kind,"RARE ITEM!"))
+    checkpoint_label.add_theme_color_override("font_color",Color("#9af5e2"))
+    checkpoint_label.modulate.a = 1.0
+    checkpoint_label.visible = true
+    toast_remaining = 1.8
+
 func show_checkpoint(number: int, sector_time: float = 0.0, best_before: float = 0.0) -> void:
     var timing := "  •  %.2fs" % sector_time if sector_time > 0.0 else ""
     var comparison := ""
