@@ -302,3 +302,13 @@ saved without confusing it with the current temporary quality.
 
 Godot headless tests validate all hysteresis transitions, saved preferences and
 manual overrides. Real Android frame pacing has not yet been benchmarked.
+
+## v1.11 RC — Race your personal best ghost
+
+- Complete a solo course to save a time-sampled **non-colliding ghost** of your finish. On the next matching course variation **and the same equipped perk**, race against that translucent prior run.
+- Ghost plays at 10 Hz with interpolated frames and has no physics colliders or network traffic. It is hidden in Economy graphics mode to conserve mobile GPU capacity.
+- HUD displays whether you are ahead/behind your previous trajectory and the target time. The results screen acknowledges new ghost records.
+- Only valid, faster completed runs overwrite local ghosts; DNFs and online multiplayer never modify them.
+- 1,800-position cap, finite-value validation and three-layout/perk isolation limit corruption and memory usage.
+- Test `tests/personal_ghost.gd` covers save/reload, comparison, invalidating a DNF, graphics scaling and online safety.
+- This builds on the existing Godot 4 engine; adding Nakama or another external stack is not required for local time-trial ghosts.

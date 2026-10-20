@@ -18,6 +18,7 @@ const CourseDressing = preload("res://scripts/course_dressing.gd")
 const ObstacleFinish = preload("res://scripts/obstacle_finish.gd")
 const TrackSurface = preload("res://scripts/track_surface.gd")
 const Career = preload("res://scripts/career.gd")
+const BestGhost = preload("res://scripts/best_ghost.gd")
 const InternetSession = preload("res://scripts/internet_session.gd")
 const StudioPolish = preload("res://scripts/studio_polish.gd")
 
@@ -94,6 +95,7 @@ var auto_slow_seconds := 0.0
 var auto_fast_seconds := 0.0
 var show_fps := false
 var career: RefCounted
+var best_ghost: Node3D
 var net: Node
 var selected_track := 0
 var race_variation := 0
@@ -140,6 +142,9 @@ func _ready() -> void:
     ui.attach_game(self)
     _position_intro_camera(true)
     _spawn_racers() # Frozen showroom preview gives the menu moving-world context.
+    best_ghost = BestGhost.new()
+    best_ghost.name = "BestRunGhost"
+    add_child(best_ghost)
     _apply_graphics_quality()
     ui.show_menu()
 
@@ -842,6 +847,7 @@ func start_race(perk_name: String) -> void:
     boosting = false
     cam_mode = 0
     _spawn_racers()
+    best_ghost.begin(selected_track,built_variation,selected_perk,not net.is_active())
     audio.bind_marble(player)
     player.body_entered.connect(_camera_bump)
     audio.begin_race()
@@ -854,6 +860,8 @@ func restart_race() -> void:
     start_race(selected_perk)
 
 func return_to_menu() -> void:
+    if is_instance_valid(best_ghost):
+        best_ghost.stop()
     for m in racers:
         if is_instance_valid(m):
             remove_child(m)
@@ -900,6 +908,8 @@ func _process(delta: float) -> void:
             audio.tone("start")
     elif race_state == "RACING":
         race_time += delta
+        if is_instance_valid(best_ghost) and is_instance_valid(player):
+            best_ghost.tick(race_time,player.global_position,graphics_quality)
         if race_time > 1.0:
             ui.hide_countdown()
         if is_instance_valid(trail) and is_instance_valid(player):
@@ -1132,6 +1142,10 @@ func _end_race() -> void:
     if not result_saved:
         result_saved = true
         var completed: bool = is_instance_valid(player) and player.finished
+        var ghost_record: bool = false
+        if is_instance_valid(best_ghost):
+            ghost_record = best_ghost.finish(
+                player.finish_time if completed else race_time,completed)
         if net.is_active():
             # Network races have physical results but never rewrite solo career.
             last_result = {"finished":completed,"stars":0,"record":false,"unlocked":false}
@@ -1149,6 +1163,7 @@ func _end_race() -> void:
             var finish_at: float = player.finish_time
             if is_finite(finish_at) and finish_at > previous_split:
                 durations.append(finish_at-previous_split)
+        last_result["ghost_record"] = ghost_record
         last_result["sector_times"] = durations
         last_result["sector_records"] = career.record_sectors(selected_track,durations) if completed and not net.is_active() else [false,false,false,false]
     if net.is_host():

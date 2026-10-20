@@ -45,6 +45,7 @@ var boost_label: Label
 var speed_label: Label
 var fps_label: Label
 var network_quality_label: Label
+var ghost_label: Label
 var quality_button: Button
 var fps_button: Button
 var course_progress: ProgressBar
@@ -477,6 +478,9 @@ func _build_race_hud() -> void:
     leaderboard = _small_panel_text("LEADERBOARD", 16, Rect2(0.79,0.025,0.195,0.28))
     network_quality_label = _small_panel_text("NET: CONNECTING",14,Rect2(0.79,0.32,0.195,0.060))
     network_quality_label.get_parent().visible = false
+    ghost_label = _small_panel_text("",14,Rect2(0.02,0.31,0.265,0.051))
+    ghost_label.name = "PersonalBestGhostPace"
+    ghost_label.get_parent().visible = false
     fps_label = _small_panel_text("FPS --",16,Rect2(0.865,0.43,0.119,0.060))
     fps_label.get_parent().visible = game.show_fps
     course_progress = _progress_bar(Color("#e9ac5d"))
@@ -842,6 +846,10 @@ func update_hud() -> void:
     boost_label.add_theme_color_override("font_color",
         Color("#ffcf82") if game.boost_energy >= 0.25 else Color("#e9746b"))
     speed_label.text = "%02d KM/H" % int(game.player.linear_velocity.length() * 3.6)
+    if is_instance_valid(game.best_ghost):
+        ghost_label.get_parent().visible = game.best_ghost.replay_available and not game.net.is_active()
+        if game.best_ghost.replay_available:
+            ghost_label.text = game.best_ghost.gap_text(game.player.global_position)
     if game.net.role == "client":
         network_quality_label.get_parent().visible = true
         var quality: String = game.net.quality_text()
@@ -905,7 +913,8 @@ func show_results(place: int, time: float, ranking: Array) -> void:
         award = "3 STARS" if place <= 3 else ("2 STARS" if place <= 10 else "1 STAR")
     if is_instance_valid(result_header):
         result_header.text = "%s  •  %s" % [game.track_title(),("ONLINE RACE" if game.net.is_active() else award)]
-    var record_text := "NEW PERSONAL BEST!" if bool(status.get("record",false)) else ""
+    var record_text := "NEW PERSONAL BEST!" if bool(status.get("record",false)) else (
+        "NEW GHOST RECORD!" if bool(status.get("ghost_record",false)) else "")
     var unlock_text := "NEXT CIRCUIT UNLOCKED!" if bool(status.get("unlocked",false)) else ""
     var earned_stars: int = int(status.get("stars",0))
     var stars_text := "CAREER STARS: %d / 3" % earned_stars
