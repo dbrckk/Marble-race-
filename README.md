@@ -287,3 +287,18 @@ The default Android matchmaking endpoint is now `wss://marble-race-global.onrend
 **Remaining limits:** this is still one concurrent 2–4-human-player online
 room per free Render instance. Public cross-country mobile performance has
 not been measured. Debug-signed APK only; not yet a Play Store production AAB.
+
+## v1.10 RC — Mobile adaptive frame pacing
+
+The graphics selector now offers a fourth **AUTO** option alongside Economy,
+Balanced and Ultra. AUTO starts at Balanced and monitors the real device FPS during
+races. If a sustained 12-second period stays under 39 FPS, it switches to Economy.
+If a sustained 28-second period rises above 55 FPS, it restores Balanced.
+The middle band clears the timer and prevents oscillation near the thresholds.
+Automatic mode never enables Ultra because stable Android play matters more than
+unpredictable visual cost. Camera distance, lighting, contact shadows, particle
+budgets, AA and sphere LOD follow the effective quality. The user's AUTO choice is
+saved without confusing it with the current temporary quality.
+
+Godot headless tests validate all hysteresis transitions, saved preferences and
+manual overrides. Real Android frame pacing has not yet been benchmarked.

@@ -87,6 +87,11 @@ var track_physics_material: PhysicsMaterial
 var primary_light: DirectionalLight3D
 var world_environment: Environment
 var graphics_quality := 1
+var graphics_setting := 1 # 0 economy, 1 balanced, 2 ultra, 3 auto
+var auto_fps_seconds := 0.0
+var auto_fps_accum := 0.0
+var auto_slow_seconds := 0.0
+var auto_fast_seconds := 0.0
 var show_fps := false
 var career: RefCounted
 var net: Node
@@ -96,7 +101,7 @@ var built_variation := -1
 var hazard_beacons: Array[Dictionary] = []
 var result_saved := false
 var last_result: Dictionary = {}
-const QUALITY_NAMES := ["ECONOMY","BALANCED","ULTRA"]
+const QUALITY_NAMES := ["ECONOMY","BALANCED","ULTRA","AUTO"]
 
 func _ready() -> void:
     rng.seed = 424242
@@ -107,7 +112,8 @@ func _ready() -> void:
     track_physics_material.bounce = 0.09
     var prefs := ConfigFile.new()
     if prefs.load("user://marble_settings.cfg") == OK:
-        graphics_quality = clampi(int(prefs.get_value("video","quality",1)),0,2)
+        graphics_setting = clampi(int(prefs.get_value("video","quality",1)),0,3)
+        graphics_quality = 1 if graphics_setting == 3 else graphics_setting
         show_fps = bool(prefs.get_value("video","fps",false))
     _make_environment()
     _make_course()
@@ -177,14 +183,63 @@ func _make_environment() -> void:
 func _save_visual_preferences() -> void:
     var cfg := ConfigFile.new()
     cfg.load("user://marble_settings.cfg")
-    cfg.set_value("video","quality",graphics_quality)
+    cfg.set_value("video","quality",graphics_setting)
     cfg.set_value("video","fps",show_fps)
     cfg.save("user://marble_settings.cfg")
 
 func set_graphics_quality(next_quality: int) -> void:
-    graphics_quality = clampi(next_quality,0,2)
+    graphics_setting = clampi(next_quality,0,3)
+    _reset_auto_quality_sampling()
+    graphics_quality = 1 if graphics_setting == 3 else graphics_setting
     _apply_graphics_quality()
     _save_visual_preferences()
+
+func graphics_mode_label() -> String:
+    if graphics_setting == 3:
+        return "AUTO (%s)" % QUALITY_NAMES[graphics_quality]
+    return QUALITY_NAMES[graphics_setting]
+
+func _reset_auto_quality_sampling() -> void:
+    auto_fps_seconds = 0.0
+    auto_fps_accum = 0.0
+    auto_slow_seconds = 0.0
+    auto_fast_seconds = 0.0
+
+func _auto_quality_sample(fps: float, seconds: float) -> void:
+    # Measured FPS is sampled once per second on real Android devices. Hysteresis
+    # prevents flickering between profiles. Rendering is never touched each frame.
+    if graphics_setting != 3 or seconds <= 0.0 or not is_finite(fps):
+        return
+    if fps < 39.0:
+        auto_slow_seconds += seconds
+        auto_fast_seconds = 0.0
+    elif fps > 55.0:
+        auto_fast_seconds += seconds
+        auto_slow_seconds = 0.0
+    else:
+        auto_fast_seconds = 0.0
+        auto_slow_seconds = 0.0
+    if auto_slow_seconds >= 12.0 and graphics_quality > 0:
+        graphics_quality -= 1
+        _reset_auto_quality_sampling()
+        _apply_graphics_quality()
+    elif auto_fast_seconds >= 28.0 and graphics_quality < 1:
+        graphics_quality += 1
+        _reset_auto_quality_sampling()
+        _apply_graphics_quality()
+    # AUTO will not enable Ultra automatically: prioritize stable frame pacing.
+
+func _tick_auto_quality(delta: float) -> void:
+    if graphics_setting != 3 or not OS.has_feature("mobile") or race_state != "RACING":
+        return
+    auto_fps_seconds += delta
+    auto_fps_accum += delta * Engine.get_frames_per_second()
+    if auto_fps_seconds >= 1.0:
+        var measured: float = auto_fps_accum / auto_fps_seconds
+        var window: float = auto_fps_seconds
+        auto_fps_seconds = 0.0
+        auto_fps_accum = 0.0
+        _auto_quality_sample(measured,window)
 
 func toggle_fps_overlay() -> bool:
     show_fps = not show_fps
@@ -813,6 +868,7 @@ func return_to_menu() -> void:
     ui.show_menu()
 
 func _process(delta: float) -> void:
+    _tick_auto_quality(delta)
     world_time += delta
     feedback_cooldown = maxf(0.0,feedback_cooldown-delta)
     obstacle_notice = maxf(0.0,obstacle_notice-delta)

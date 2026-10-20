@@ -188,15 +188,15 @@ func _build_menu() -> void:
     )
     col.add_child(sound)
     # Visual options stay outside the menu card to leave the launch actions readable.
-    quality_button = _action("GRAPHICS: " + game.QUALITY_NAMES[game.graphics_quality],Color(0.13,0.18,0.22,0.86))
+    quality_button = _action("GRAPHICS: " + game.graphics_mode_label(),Color(0.13,0.18,0.22,0.86))
     quality_button.add_theme_font_size_override("font_size",17)
     quality_button.anchor_left = 0.76
     quality_button.anchor_right = 0.975
     quality_button.anchor_top = 0.755
     quality_button.anchor_bottom = 0.830
     quality_button.pressed.connect(func():
-        game.set_graphics_quality((game.graphics_quality+1)%3)
-        quality_button.text = "GRAPHICS: " + game.QUALITY_NAMES[game.graphics_quality]
+        game.set_graphics_quality((game.graphics_setting+1)%4)
+        quality_button.text = "GRAPHICS: " + game.graphics_mode_label()
     )
     menu_layer.add_child(quality_button)
     fps_button = _action("FPS DISPLAY: " + ("ON" if game.show_fps else "OFF"),Color(0.13,0.18,0.22,0.86))
