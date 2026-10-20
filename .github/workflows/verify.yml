@@ -120,6 +120,12 @@ jobs:
           set -euo pipefail
           timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 480 --path . --script res://tests/arcade_items.gd 2>&1 | tee arcade-items.log
           grep -Fq "ARCADE_ITEMS_AND_WORLDS_PASS:" arcade-items.log
+      - name: Physical course identity and biome mechanics regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 540 --path . --script res://tests/course_mechanics.gd 2>&1 | tee course-mechanics.log
+          grep -Fq "COURSE_MECHANICS_PASS:" course-mechanics.log
       - name: Online dead-man controls and three-course rematch regression
         shell: bash
         run: |

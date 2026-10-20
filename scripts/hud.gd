@@ -882,6 +882,19 @@ func update_hud() -> void:
         table += "%02d  YOU ★" % place
     leaderboard.text = table
 
+func show_course_event(kind: String) -> void:
+    var labels := {
+        "speed": "WOODLAND  /  SPEED LINE!",
+        "ice": "GLACIER  /  ICE DRIFT!",
+        "vent": "FORGE  /  HEAT BLAST!"
+    }
+    checkpoint_label.text = str(labels.get(kind,"COURSE HAZARD"))
+    checkpoint_label.add_theme_color_override("font_color",
+        Color("#b6edff") if kind == "ice" else Color("#ffcb8c"))
+    checkpoint_label.modulate.a = 1.0
+    checkpoint_label.visible = true
+    toast_remaining = 1.45
+
 func show_item_pickup(kind: String) -> void:
     var labels := {
         "turbo": "RARE ITEM  /  INSTANT TURBO!",

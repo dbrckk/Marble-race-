@@ -249,6 +249,15 @@ func update_progress(ratio: float) -> void:
 func finish_fanfare() -> void:
     _voice(FANFARE,-12.0,1.0)
 
+func course_event(kind: String) -> void:
+    match kind:
+        "speed":
+            _voice(TONES["boost"],-14.0,0.91)
+        "ice":
+            _voice(GLASS_HITS[0],-17.0,1.20)
+        "vent":
+            _voice(METAL_HITS[1],-10.0,0.77)
+
 func item_pickup(kind: String) -> void:
     # Distinct pitch and voice combination of existing bundled audio.
     match kind:

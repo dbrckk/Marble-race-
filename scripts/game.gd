@@ -22,6 +22,7 @@ const BestGhost = preload("res://scripts/best_ghost.gd")
 const InternetSession = preload("res://scripts/internet_session.gd")
 const StudioPolish = preload("res://scripts/studio_polish.gd")
 const RaceItems = preload("res://scripts/race_items.gd")
+const CourseMechanics = preload("res://scripts/course_mechanics.gd")
 const TrackUniverses = preload("res://scripts/track_universes.gd")
 
 const MARBLE_COUNT := 40
@@ -86,6 +87,7 @@ var lamp_refresh := 0.0
 var kinetic_time := 0.0
 var obstacle_finish: Node3D
 var race_items: Node3D
+var course_mechanics: Node3D
 var track_surface: Node3D
 var track_physics_material: PhysicsMaterial
 var primary_light: DirectionalLight3D
@@ -478,7 +480,7 @@ func _make_course() -> void:
             # Edge-specific baffles eliminate the dominant strategy of riding
             # permanently against either rail. Passages remain physically open.
             _edge_baffles(section_node,center_z,section)
-            var layout := (section + selected_track + race_variation) % 3
+            var layout := _obstacle_layout(section)
             if layout == 1:
                 _pegs(section_node, center_z, section)
             elif layout == 2:
@@ -506,6 +508,10 @@ func _make_course() -> void:
     race_items.name = "RareArcadePickups"
     board.add_child(race_items)
     race_items.setup(self,selected_track,race_variation)
+    course_mechanics = CourseMechanics.new()
+    course_mechanics.name = "CourseSpecificArcadeMechanics"
+    board.add_child(course_mechanics)
+    course_mechanics.setup(self,selected_track)
     var cosmetic = TrackFX.new()
     cosmetic.name = "PolishedToyDetails"
     board.add_child(cosmetic)
@@ -515,6 +521,18 @@ func _make_course() -> void:
     var polish := StudioPolish.new()
     polish.name = "StudioTrackGuides"
     board.add_child(polish)
+
+func _obstacle_layout(section: int) -> int:
+    # 0: flowing slalom; 1: peg garden; 2: kinetic gates.
+    # Course-specific frequency changes the actual playable obstacle rhythm.
+    if selected_track == 0:
+        var woodland := (section+race_variation)%4
+        return 0 if woodland <= 1 else (1 if woodland == 2 else 2)
+    if selected_track == 1:
+        var glacier := (section*2+race_variation)%5
+        return 2 if glacier in [0,2,4] else (0 if glacier == 1 else 1)
+    var forge := (section+race_variation)%5
+    return 2 if forge in [0,2,4] else (1 if forge == 1 else 0)
 
 func _themed_wood(base: Color) -> Color:
     if selected_track == 1:
@@ -884,6 +902,8 @@ func start_race(perk_name: String) -> void:
     _spawn_racers()
     if is_instance_valid(race_items):
         race_items.reset_round()
+    if is_instance_valid(course_mechanics):
+        course_mechanics.reset_round()
     best_ghost.begin(selected_track,built_variation,selected_perk,not net.is_active())
     audio.bind_marble(player)
     player.body_entered.connect(_camera_bump)
@@ -1022,6 +1042,8 @@ func _physics_process(delta: float) -> void:
         return
     if is_instance_valid(race_items):
         race_items.tick(delta,racers,net)
+    if is_instance_valid(course_mechanics):
+        course_mechanics.tick(delta,racers,net)
     for m in racers:
         if not is_instance_valid(m):
             continue

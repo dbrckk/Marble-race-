@@ -330,3 +330,15 @@ manual overrides. Real Android frame pacing has not yet been benchmarked.
 - Track material tint, ambient atmosphere, lighting, music/percussion tempo and 1–3 shallow rideable physical crests vary by course.
 - New `tests/arcade_items.gd` guards AI exclusions, single-use pickups, multiplayer authority and differences between courses.
 - Multiplayer pickup feedback is now replicated directly and reliably to the collecting client (HUD, sound and locally hidden pickup), while physics remains authoritative and synchronized through snapshots. The three sound treatments remix existing music and effects rather than using newly composed biome soundtracks.
+
+## v1.14 RC — Actually different racing-line gameplay
+
+This update adds a **dedicated, authoritative physical game mechanic per track**, not just a cosmetic color change:
+
+- **Woodworks / Woodland Workshop**: five painted **speed lines** near the outside racing lane. Crossing one once gives a small forward impulse, rewarding steering through the alternate racing line. A greater share of obstacle modules use flowing slaloms.
+- **Switchback / Glacier Pass**: five **low-friction physical ice sheets**, plus a bounded lateral drift impulse and force while on the icy line; steering can correct the drift. Moving kinetic gates are more frequent.
+- **Gauntlet / Ember Forge**: five **periodically erupting heat vents**, with a deterministic 4.8-second cycle and clear animated warning; vent gusts push all nearby marbles, with per-racer cooldown. More kinetic gate sequences and shallow ramps.
+- These are **environment mechanics, not items**: they affect AI and human racers equally. The **four rare collectibles remain human-only** and immediately activated.
+- The server alone applies multiplayer physics. HUD/SFX for environmental effects are sent to authenticated participating clients; AI players never request notifications.
+- New `tests/course_mechanics.gd` exercises individual mechanisms, dynamic telegraphing, layout distribution and client notices.
+- All courses continue to use the same common 18-segment straight spine for safe finishability. Full curved spline track topology and exclusive themed soundtracks remain future work. This release adds different racing decisions and physical conditions without breaking existing races.
