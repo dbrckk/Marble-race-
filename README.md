@@ -254,3 +254,10 @@ This release introduces a **real remote-server design**, replacing the Wi-Fi-onl
 - Deploy instructions: see server/README.md.
 
 **Known limitation:** one active public OR private room per server instance (up to four humans), not a global high-capacity matchmaking network. Worldwide play requires a public WSS domain and a running server. A local integration run does not establish that global access is already live.
+
+## v1.7.1 RC — Internet connectivity resilience
+
+- Reject malformed and insecure public WebSocket addresses before attempting connection.
+- An unreachable Internet endpoint now times out after 12 seconds, closes its transport, and restores the offline menu state instead of leaving the user stuck on Connecting.
+- The tests/internet_timeout.gd regression is included in GitHub CI.
+- A dedicated public server is **not included** in the APK. Deploy the container and configure its wss:// endpoint before describing worldwide matchmaking as live.

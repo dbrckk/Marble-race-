@@ -13,6 +13,7 @@ const FLOATS_PER_RACER := 9
 const ROOM_CODE_LENGTH := 6
 const WAIT_FOR_PLAYERS := 6.0
 const RESULTS_DURATION := 15.0
+const CONNECT_TIMEOUT := 12.0
 
 var game: Node3D
 var role := "offline" # offline | client | server
@@ -37,6 +38,7 @@ var match_clock := 0.0
 var _closing := false
 var _rng := RandomNumberGenerator.new()
 var _endpoint := ""
+var _connect_elapsed := 0.0
 var targets: Array[Transform3D] = []
 var targets_received := false
 
@@ -83,6 +85,10 @@ func connect_server(raw_url: String, mode: String = "public", invite_code: Strin
         return "Invalid matchmaking mode"
     if not (address.begins_with("wss://") or _local_ws_allowed(address)):
         return "Use a secure wss:// public server URL"
+    if address.length() > 250 or address.contains(" ") or address.contains("@") or address.contains("#"):
+        return "Invalid server address"
+    if address == "wss://" or address.ends_with("://"):
+        return "Enter the full server hostname"
     var room := invite_code.strip_edges().to_upper()
     if normalized_mode == "private_join" and not _valid_room_code(room):
         return "Enter a six-character invite code"
@@ -93,6 +99,7 @@ func connect_server(raw_url: String, mode: String = "public", invite_code: Strin
     desired_mode = normalized_mode
     desired_code = room
     _endpoint = address
+    _connect_elapsed = 0.0
     role = "client"
     connected = false
     local_slot = -1
@@ -290,6 +297,10 @@ func _process(delta: float) -> void:
                 _launch_match()
         else:
             queue_seconds = 0.0
+    elif role == "client" and not connected:
+        _connect_elapsed += delta
+        if _connect_elapsed >= CONNECT_TIMEOUT:
+            leave_room("Connection timed out. Check the server address and Internet access.")
     elif role == "client" and match_running:
         input_clock += delta
         if input_clock >= INPUT_PERIOD and connected and game.race_state == "RACING":
@@ -483,6 +494,7 @@ func leave_room(message: String = "") -> void:
     var was_server := role == "server"
     match_running = false
     connected = false
+    _connect_elapsed = 0.0
     targets.clear()
     targets_received = false
     if multiplayer.multiplayer_peer != null:

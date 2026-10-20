@@ -102,6 +102,12 @@ jobs:
           set -euo pipefail
           GODOT_BIN="$PWD/Godot_v4.5.1-stable_linux.x86_64" GAME_DIR="$PWD" NETWORK_LOG_DIR="$RUNNER_TEMP/world-race" timeout 80s bash server/online_integration.sh 2>&1 | tee worldwide-e2e.log
           grep -Fq "WORLDWIDE_PROTOCOL_E2E_PASS:" worldwide-e2e.log
+      - name: Internet endpoint and timeout regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --path . --script res://tests/internet_timeout.gd 2>&1 | tee internet-timeout.log
+          grep -Fq "INTERNET_TIMEOUT_PASS:" internet-timeout.log
       - name: 110-second simulated race regression
         shell: bash
         run: |
