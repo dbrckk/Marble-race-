@@ -319,3 +319,14 @@ manual overrides. Real Android frame pacing has not yet been benchmarked.
 - Public and private rooms cycle through **WOODWORKS → SWITCHBACK → GAUNTLET**, then repeat, with obstacle geometry rebuilt on each client to match the server's selected course. A newly emptied room restarts on WOODWORKS.
 - New `tests/online_rounds.gd` exercises the dead-man switch, recovery, course switching, 40-racer integrity and room resets in CI.
 - The online server still hosts **one room per process**, not independent simultaneous lobbies. Android-device playtesting remains required.
+
+## v1.13 RC — Arcade items and themed racing worlds
+
+- Four sparse, instant-use race pickups in each course: **Turbo**, **Spring**, **Pulse** and **Stabilizer**. No manual activation or inventory.
+- **Human racers only**: offline, the local player; online, only authoritative server slots owned by admitted participants. AI racers cannot claim or trigger items.
+- In multiplayer, the Godot dedicated server calculates impulses and applies each item once per participating human and round. Shared online pickups remain visible so each participant may claim an item independently; their physics effect reaches clients through the existing position snapshots.
+- Pickup geometry uses low-poly glowing orbs and rings; solo HUD shows the pickup type and plays distinct cues built from the game's already licensed bundled sounds.
+- Three lightweight, differentiated scenic environments: **Woodland Workshop** (evergreen forms), **Glacier Pass** (ice crystals), **Ember Forge** (basalt spires and warm highlights). All use MultiMesh batches and intentionally have no scenery collision.
+- Track material tint, ambient atmosphere, lighting, music/percussion tempo and 1–3 shallow rideable physical crests vary by course.
+- New `tests/arcade_items.gd` guards AI exclusions, single-use pickups, multiplayer authority and differences between courses.
+- Current limitation: multiplayer pickup disappearance and HUD/audio notification are not yet individually replicated to clients; effects are server-side and relayed by existing physics snapshots. The three sound treatments remix existing music and effects rather than using newly composed biome soundtracks.
