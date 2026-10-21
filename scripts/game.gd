@@ -1304,6 +1304,8 @@ func _end_race() -> void:
             if is_finite(finish_at) and finish_at > previous_split:
                 durations.append(finish_at-previous_split)
         last_result["ghost_record"] = ghost_record
+        last_result["clean_passes"] = race_director.clean_pass_count(player.racer_id) if (
+            is_instance_valid(race_director) and is_instance_valid(player)) else 0
         last_result["sector_times"] = durations
         last_result["sector_records"] = career.record_sectors(selected_track,durations) if completed and not net.is_active() else [false,false,false,false]
     if net.is_host():
