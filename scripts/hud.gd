@@ -81,6 +81,7 @@ var backup_layer: Control
 var backup_status: Label
 var backup_input: TextEdit
 var backup_confirm_button: Button
+var backup_previous_button: Button
 var pending_backup_code := ""
 var result_header: Label
 var sensitivity_index := 1
@@ -281,11 +282,22 @@ func _build_backup_dialog() -> void:
     backup_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     backup_status.custom_minimum_size.y = 45
     col.add_child(backup_status)
-    var copy := _action("1. COPY MY CAREER CODE",Color("#527264"))
+    var tools_row := HBoxContainer.new()
+    tools_row.add_theme_constant_override("separation",10)
+    col.add_child(tools_row)
+    var copy := _action("1. COPY CAREER CODE",Color("#527264"))
     copy.name = "CopyCareerCode"
     copy.custom_minimum_size.y = 53
+    copy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     copy.pressed.connect(_copy_backup_code)
-    col.add_child(copy)
+    tools_row.add_child(copy)
+    backup_previous_button = _action("UNDO PREVIOUS IMPORT",Color("#51596b"))
+    backup_previous_button.name = "PreviewLastCareer"
+    backup_previous_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    backup_previous_button.add_theme_font_size_override("font_size",17)
+    backup_previous_button.custom_minimum_size.y = 53
+    backup_previous_button.pressed.connect(_preview_previous_import)
+    tools_row.add_child(backup_previous_button)
     backup_input = TextEdit.new()
     backup_input.name = "BackupPasteField"
     backup_input.placeholder_text = "Paste the exported MARBLE-CAREER-V1 code here"
@@ -317,6 +329,8 @@ func show_backup_dialog() -> void:
         return
     _hide_all()
     backup_layer.visible = true
+    backup_previous_button.disabled = not FileAccess.file_exists(
+        game.career.save_path+".before_import")
     pending_backup_code = ""
     backup_confirm_button.disabled = true
     backup_input.text = ""
@@ -334,6 +348,16 @@ func _copy_backup_code() -> void:
     DisplayServer.clipboard_set(code)
     backup_status.text = ("COPIED %d CHARACTERS! Paste into Notes or Drive NOW.\n"+
         "Do not uninstall until the code is saved outside the game.") % int(data["length"])
+
+func _preview_previous_import() -> void:
+    var saved: Dictionary = CAREER_TRANSFER.preview_previous_career(game.career)
+    if not bool(saved.get("ok",false)):
+        backup_confirm_button.disabled = true
+        pending_backup_code = ""
+        backup_status.text = str(saved.get("error","Previous save unavailable."))
+        return
+    backup_input.text = str(saved["code"])
+    _check_backup_code()
 
 func _check_backup_code() -> void:
     pending_backup_code = ""
@@ -362,6 +386,7 @@ func _confirm_restore_backup() -> void:
     if not bool(result.get("ok",false)):
         backup_status.text = str(result.get("error","Restore failed."))
         return
+    backup_previous_button.disabled = false
     # The restored career may have fewer circuits unlocked.
     # Rebuild the main menu with a valid course, not a stale locked preview.
     if not game.career.is_unlocked(game.selected_track):
