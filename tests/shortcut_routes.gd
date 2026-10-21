@@ -22,12 +22,25 @@ func _run() -> void:
             "The bypass needs solid deck colliders throughout")
         assert(road.guards.size() >= 20,
             "The exterior half of the shortcut must have solid rail guards")
+        assert(road.launch_ramps.size() == 1,
+            "Every optional branch must have a gentle physical takeoff ramp")
+        assert(road.launch_ramps[0].get_node_or_null("PhysicalShape") is CollisionShape3D,
+            "A jump must be a real physical contact surface")
+        assert(absf(road.launch_ramps[0].rotation.x) > 0.07,
+            "Optional jump surface must have a real sloped collider")
+        assert(road.banked_segments > 0,
+            "Every course bypass needs some actual physical banking")
         assert(road.physical_distance > BypassScript.ENTRY_Z-BypassScript.EXIT_Z,
             "The alternate road must physically diverge, not just paint arrows")
         assert(road.physical_distance < 75.0,
             "The side detour must not be an implausibly long route")
         assert(road.get_node_or_null("BatchedBypassDeck") is MultiMeshInstance3D)
         assert(road.get_node_or_null("BatchedBypassGuards") is MultiMeshInstance3D)
+        assert(road.get_node_or_null("BatchedJumpTakeoff") is MultiMeshInstance3D)
+        assert(road.get_node_or_null("BypassNavigationChevrons") is MultiMeshInstance3D)
+        assert(road.get_node_or_null("ShortcutGatewayBeams") is MultiMeshInstance3D)
+        assert(road.get_node_or_null("ShortcutEntranceArrow") is Label3D)
+        assert(road.get_node_or_null("ShortcutMergeArrow") is Label3D)
         for section in range(18):
             var module: Node3D = game.board.get_node("Course_%02d" % section)
             var portal: int = int(module.get_meta("shortcut_portal",0))
@@ -49,6 +62,20 @@ func _run() -> void:
         assert(absf(exit_point.x-game.track_center_at(exit_point.z)-float(side)*4.9) < 0.01)
         assert(absf(middle.x-game.track_center_at(middle.z)) > 9.0,
             "The bypass must be outside the ordinary 6.8m boundary rail")
+        var fork_hint: Dictionary = road.shortcut_hint(Vector3(
+            game.track_center_at(-32.0),game.height_at(-32.0),-32.0))
+        assert(fork_hint.get("mode","") == "fork" and
+            fork_hint.get("distance",-1) == 16 and
+            fork_hint.get("side","") == ("RIGHT" if side > 0 else "LEFT"),
+            "Fork hint needs reliable direction and distance")
+        var merge_hint: Dictionary = road.shortcut_hint(middle)
+        assert(merge_hint.get("mode","") == "merge" and
+            merge_hint.get("side","") == ("LEFT" if side > 0 else "RIGHT"),
+            "Driving on the detour must warn about the correct merge")
+        assert(road.shortcut_hint(Vector3(0,0,-115.0)).is_empty(),
+            "Route cues disappear after the merge")
+        assert(absf(road.bank_at(-76.0)) <= BypassScript.MAX_BANK+0.001,
+            "Bank angle must stay safe for Android marble physics")
         assert(absf(road.recovery_center_at(middle)-middle.x) < 0.01,
             "Recovery must follow the detached alternate road")
         assert(absf(road.recovery_center_at(Vector3(
@@ -80,25 +107,47 @@ func _run() -> void:
         game.net.role = "offline"
         game.net.match_running = false
         road.tick(0.016,game.racers,game.net)
+        assert(road.triggered.is_empty(),
+            "Teleporting to shortcut midpoint must never produce a reward")
+        # The engine grants bonuses only after physically entering the fork.
+        var entrance: Vector3 = road.point_at(BypassScript.ENTRY_Z-4.0)
+        player.global_position = entrance+Vector3.UP*0.75
+        road.tick(0.016,game.racers,game.net)
+        assert(road.entered.has(39),"Real route entry must register")
+        var jump_spot: Vector3 = road.point_at(BypassScript.JUMP_Z[course])
+        player.global_position = jump_spot+Vector3.UP*0.75
+        road.tick(0.016,game.racers,game.net)
+        assert(road.jumped.has(39),"Taking the optional ramp grants one safe launch")
+        assert(game.ui.toast_remaining > 0.0,
+            "A controlled launch must show immediate airtime feedback")
+        road.tick(0.016,game.racers,game.net)
+        assert(road.jumped.size() == 1,"Holding the launch pad cannot farm impulses")
+        player.global_position = middle+Vector3.UP*0.75
+        road.tick(0.016,game.racers,game.net)
         assert(road.triggered.has(39),
-            "The real human racer should get exactly one route dash")
+            "An admitted entrant gets exactly one finish-line dash")
         assert(game.ui.toast_remaining > 0.0,
             "The bypass must show its immediate racing reward")
         road.tick(0.016,game.racers,game.net)
         assert(road.triggered.size() == 1,"A bypass bonus cannot be farmed")
         road.reset_round()
-        assert(road.triggered.is_empty(),"Fresh races restore shortcut eligibility")
+        assert(road.triggered.is_empty() and road.entered.is_empty() and
+            road.jumped.is_empty(),"Fresh races reset entry, ramp and dash")
         game.net.role = "server"
         game.net.match_running = true
         game.net.joined_slots = {2:39}
         player.network_controlled = true
+        player.global_position = entrance+Vector3.UP*0.75
         road.tick(0.016,game.racers,game.net)
-        assert(road.triggered.has(39),"Authoritative server must award route bonus")
+        player.global_position = middle+Vector3.UP*0.75
+        road.tick(0.016,game.racers,game.net)
+        assert(road.triggered.has(39),"Authoritative server grants validated reward")
         # Remote user feedback is display only; it never applies physics.
         game.net.role = "client"
         game.net._course_event_notice("shortcut")
+        game.net._course_event_notice("jump")
         assert(game.ui.toast_remaining > 0.0,
-            "Online human receives the shortcut notice")
+            "Online human receives both shortcut and launch notices")
         game.net.match_running = false
         game.net.role = "offline"
         game.net.joined_slots.clear()
