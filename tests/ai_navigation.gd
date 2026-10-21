@@ -89,7 +89,14 @@ func _run() -> void:
             " total_finished=",game.racer_finish_order.size())
         assert(candidates >= 3 and candidates <= 9,
             "A minority of AI rivals should take risks in each biome")
-        assert(completed >= 5,"Track physics must allow real bot finishes")
+        assert(completed >= 30,
+            "Every track must let a strong majority of 39 AI physically finish")
+        assert(entries >= 1 and launches >= 1 and bonuses >= 1,
+            "Every biome must have at least one real bot takeoff and shortcut reward")
+        assert(candidate_finished >= 1,
+            "Shortcut-specialist AI must still be capable of finishing its race")
+        assert(unexpected_ai == 0,
+            "Ordinary AI must not be drawn into the shortcut against its strategy")
         assert(bonuses <= launches+entries and launches <= entries,
             "Reward telemetry cannot outrun actual route entries")
         game.return_to_menu()
