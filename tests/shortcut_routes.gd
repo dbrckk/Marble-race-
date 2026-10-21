@@ -94,6 +94,19 @@ func _run() -> void:
         var contact_body: Object = contact.get("collider")
         assert(contact_body is StaticBody3D and str(contact_body.name).begins_with("BypassDeck_"),
             "The exterior bridge must be the first physical surface under a racer")
+        # Check the whole detached stretch, not only one attractive render spot.
+        for sample in range(14):
+            var z: float = lerpf(-62.0,-90.0,float(sample)/13.0)
+            var road_point: Vector3 = road.point_at(z)
+            var probe := PhysicsRayQueryParameters3D.create(
+                road_point+Vector3.UP*2.6,road_point-Vector3.UP*2.6)
+            var landed: Dictionary = game.get_world_3d().direct_space_state.intersect_ray(probe)
+            assert(not landed.is_empty(),"Every bypass segment needs real floor contact")
+            var floor_hit: Object = landed.get("collider")
+            assert(floor_hit is StaticBody3D and (
+                str(floor_hit.name).begins_with("BypassDeck_") or
+                str(floor_hit.name) == "BypassLaunchRamp"),
+                "No gaps or unrelated obstacle colliders along the detour")
         game.start_race("Grip Tape")
         game.race_state = "RACING"
         var player: RigidBody3D = game.player
@@ -109,6 +122,14 @@ func _run() -> void:
         road.tick(0.016,game.racers,game.net)
         assert(road.triggered.is_empty(),
             "Teleporting to shortcut midpoint must never produce a reward")
+        # The in-race touch HUD must make the fork noticeable in advance.
+        player.global_position = Vector3(game.track_center_at(-32.0),
+            game.height_at(-32.0)+0.78,-32.0)
+        game.ui.label_timer = 0.5
+        game.ui.update_hud()
+        assert(game.ui.shortcut_label.visible and
+            game.ui.shortcut_label.text.contains("SHORTCUT"),
+            "Android players should see the upcoming turn-off clearly")
         # The engine grants bonuses only after physically entering the fork.
         var entrance: Vector3 = road.point_at(BypassScript.ENTRY_Z-4.0)
         player.global_position = entrance+Vector3.UP*0.75
