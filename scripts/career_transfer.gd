@@ -113,22 +113,22 @@ static func restore_career(career: RefCounted, raw_code: String) -> Dictionary:
             DirAccess.remove_absolute(ProjectSettings.globalize_path(temporary))
             DirAccess.remove_absolute(ProjectSettings.globalize_path(rollback_temp))
             return {"ok":false,"error":"Previous save backup failed verification."}
-    # Replace the live save only after both files have been checked.
+    # Install the verified rollback copy before replacing the live file.
+    # A failed rename must leave the original save untouched.
+    if preserve_previous:
+        var backup_result: Error = DirAccess.rename_absolute(
+            ProjectSettings.globalize_path(rollback_temp),
+            ProjectSettings.globalize_path(old_copy))
+        if backup_result != OK:
+            DirAccess.remove_absolute(ProjectSettings.globalize_path(temporary))
+            DirAccess.remove_absolute(ProjectSettings.globalize_path(rollback_temp))
+            return {"ok":false,"error":"Could not preserve the previous career."}
     var result: Error = DirAccess.rename_absolute(
         ProjectSettings.globalize_path(temporary),
         ProjectSettings.globalize_path(career.save_path))
     if result != OK:
         DirAccess.remove_absolute(ProjectSettings.globalize_path(temporary))
         return {"ok":false,"error":"Android refused to replace the career save."}
-    if preserve_previous:
-        var backup_result: Error = DirAccess.rename_absolute(
-            ProjectSettings.globalize_path(rollback_temp),
-            ProjectSettings.globalize_path(old_copy))
-        if backup_result != OK:
-            # The new career is already installed. Keep the verified
-            # previous copy at its temporary path for manual recovery.
-            career.load_save()
-            return {"ok":false,"error":"Career imported, but rollback copy needs attention."}
     career.load_save()
     return {"ok":true,"starts":career.starts,"finishes":career.finishes,
         "mastery":career.mastery_count(),"league":career.league_points}
