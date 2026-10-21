@@ -19,6 +19,7 @@ const ObstacleFinish = preload("res://scripts/obstacle_finish.gd")
 const TrackSurface = preload("res://scripts/track_surface.gd")
 const TrackPath = preload("res://scripts/track_path.gd")
 const RaceFeedback = preload("res://scripts/race_feedback.gd")
+const RaceMoments = preload("res://scripts/race_moments.gd")
 const RaceDirector = preload("res://scripts/race_director.gd")
 const ShortcutRoute = preload("res://scripts/shortcut_route.gd")
 const Career = preload("res://scripts/career.gd")
@@ -76,6 +77,7 @@ var cam_mode := 0
 var world_time := 0.0
 var finish_announced := false
 var camera_shake := 0.0
+var race_moments: RefCounted
 var camera_lookahead := Vector3.ZERO
 var feedback_cooldown := 0.0
 var obstacle_notice := 0.0
@@ -153,6 +155,8 @@ func _ready() -> void:
     ui = HUD.new()
     add_child(ui)
     ui.attach_game(self)
+    race_moments = RaceMoments.new()
+    race_moments.configure(self)
     _position_intro_camera(true)
     _spawn_racers() # Frozen showroom preview gives the menu moving-world context.
     best_ghost = BestGhost.new()
@@ -977,6 +981,8 @@ func start_race(perk_name: String) -> void:
     cam_mode = 0
     camera_shake = 0.0
     camera.set_meta("previous_jitter",Vector3.ZERO)
+    if race_moments != null:
+        race_moments.reset_round()
     _spawn_racers()
     if is_instance_valid(race_items):
         race_items.reset_round()
@@ -1110,6 +1116,8 @@ func _process(delta: float) -> void:
     course_flash = maxf(0.0, course_flash - delta)
     _update_camera(delta)
     if race_state == "RACING" or race_state == "COUNTDOWN":
+        if race_moments != null:
+            race_moments.tick(delta)
         ui.update_hud()
 
 func _physics_process(delta: float) -> void:
@@ -1153,6 +1161,8 @@ func _physics_process(delta: float) -> void:
             m.set_deferred("collision_layer",0)
             m.set_deferred("collision_mask",0)
             racer_finish_order.append(m.display_name)
+            if m == player and not net.is_active() and race_moments != null:
+                race_moments.on_finish()
     if selected_perk == "Sticky Magnet" and is_instance_valid(player) and not player.finished:
         for m in racers:
             if m == player or m.finished or m.eliminated:
@@ -1325,6 +1335,10 @@ func _end_race() -> void:
         last_result["ghost_record"] = ghost_record
         last_result["clean_passes"] = race_director.clean_pass_count(player.racer_id) if (
             is_instance_valid(race_director) and is_instance_valid(player)) else 0
+        # Presentation-only: do not feed local pass counters into career
+        # rewards or anything that can be forged by an online client.
+        last_result["overtakes"] = race_moments.unique_overtakes if (
+            not net.is_active() and race_moments != null) else 0
         last_result["sector_times"] = durations
         last_result["sector_records"] = career.record_sectors(selected_track,durations) if completed and not net.is_active() else [false,false,false,false]
         # An offline, genuinely finished race is the only source of mastery.
