@@ -42,11 +42,21 @@ func _run() -> void:
             "The existing HUD lookahead must include dynamic gates")
         director.animate(1.2)
         if course < 2:
+            # Sample precisely opposite quarters of the biome's period
+            # instead of picking arbitrary timestamps whose sine values can
+            # coincide at different course variants.
+            var first_time: float = director.period()*0.25
+            var last_time: float = director.period()*0.75
+            var first_position: Vector3 = director.position_at(0,first_time)
+            var last_position: Vector3 = director.position_at(0,last_time)
+            assert(absf(first_position.x-last_position.x) >= 1.0,
+                "The collision body's planned path must sweep a useful lane width")
+            director.animate(first_time)
             var pos_before: Vector3 = director.obstacles[0].position
-            director.animate(3.7)
+            director.animate(last_time)
             var pos_after: Vector3 = director.obstacles[0].position
-            assert(absf(pos_before.x-pos_after.x) >= 0.5,
-                "Mechanical and icy sweepers must visibly move inside the lane")
+            assert(absf(pos_before.x-pos_after.x) >= 1.0,
+                "The actual collision body must follow its timed lane path")
             assert(absf(pos_before.y-pos_after.y) < 0.01,
                 "Sweeping arms should not tunnel vertically through marbles")
         else:
