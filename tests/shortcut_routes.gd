@@ -73,9 +73,18 @@ func _run() -> void:
             BypassScript.ENTRY_Z+6.0)
         var enter_x: float = AIPath.bypass_target_x(road,
             BypassScript.ENTRY_Z-3.0)
-        assert(float(side)*(near_x-game.track_center_at(
-            BypassScript.ENTRY_Z+6.0)) < 5.40,
-            "Early approach must remain safely inside the solid rail")
+        var approach_offset: float = float(side)*(
+            near_x-game.track_center_at(BypassScript.ENTRY_Z+6.0))
+        assert(approach_offset < 6.05 and approach_offset > 4.60,
+            "Early approach must remain inside the physical rail opening")
+        if course == 1:
+            var ice_target: float = game.shortcut_route.point_at(
+                BypassScript.OUTER_START).x
+            var ice_now: float = game.track_center_at(
+                BypassScript.OUTER_START)+float(side)*4.0
+            assert(absf(AIPath.bypass_steering(ice_target,ice_now,0.0,true)) >
+                absf(AIPath.bypass_steering(ice_target,ice_now,0.0,false)),
+                "Glacier specialists need stronger controlled lateral grip")
         assert(float(side)*(enter_x-game.track_center_at(
             BypassScript.ENTRY_Z-3.0)) > 6.0,
             "A specialist must target outside the gate once it opens")
