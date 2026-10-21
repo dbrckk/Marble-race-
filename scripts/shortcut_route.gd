@@ -108,7 +108,7 @@ func bank_at(z: float) -> float:
     # Curvature from three points. Suppress banking near all merges.
     var curvature: float = point_at(z-3.0).x-2.0*point_at(z).x+point_at(z+3.0).x
     var fade: float = sin(PI*clampf((OUTER_START-z)/(OUTER_START-OUTER_END),0.0,1.0))
-    return clampf(curvature*1.6,-MAX_BANK,MAX_BANK)*fade
+    return clampf(curvature*2.6,-MAX_BANK,MAX_BANK)*fade
 
 func _launch_ramps(material: Material) -> void:
     # Gentle optional air sections; low edges never wall off the narrow deck.
