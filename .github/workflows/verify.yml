@@ -37,8 +37,11 @@ jobs:
           chmod +x Godot_v${VERSION}_linux.x86_64
           curl -fL --retry 3 -o godot.tpz "$ROOT/Godot_v${VERSION}_export_templates.tpz"
           mkdir -p "$HOME/.local/share/godot/export_templates/4.5.1.stable"
-          unzip -q godot.tpz 'templates/android_debug.apk'
-          mv templates/android_debug.apk "$HOME/.local/share/godot/export_templates/4.5.1.stable/"
+          # The optional stable-signed release and its CI test need the
+          # separate release export template; a debug template cannot sign it.
+          unzip -q godot.tpz 'templates/android_debug.apk' 'templates/android_release.apk'
+          mv templates/android_debug.apk templates/android_release.apk \
+            "$HOME/.local/share/godot/export_templates/4.5.1.stable/"
           echo "$PWD" >> "$GITHUB_PATH"
       - name: Import project assets
         run: ./Godot_v4.5.1-stable_linux.x86_64 --headless --editor --path . --quit
@@ -312,6 +315,9 @@ jobs:
           an existing install in place. Do not confuse this with stable builds.
           EOF
           test -s build/debug-build-identity.txt
+      - name: Verify real Android release export and certificate pinning
+        shell: bash
+        run: bash ci/verify_release_signing.sh
       - name: Build stable signed Android APK when pinned signing is configured
         id: stable_apk
         if: github.event_name != 'pull_request'
