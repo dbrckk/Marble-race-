@@ -159,7 +159,7 @@ func mastery_summary(index: int) -> String:
     for goal in range(MASTERY_GOALS.size()):
         parts.append(("%s " % MASTERY_GOALS[goal]) +
             ("✓" if has_mastery(index,goal) else "○"))
-    return "  •  ".join(parts)
+    return "  •  ".join(PackedStringArray(parts))
 
 func complete_mastery(index: int, finished: bool,
     clean_passes: int, shortcut_completed: bool) -> Dictionary:
