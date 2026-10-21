@@ -82,7 +82,8 @@ func _run() -> void:
     root.add_child(game)
     await process_frame
     game.career.save_path = SCENE_SAVE
-    game.career.mastery_flags = [0,0,0]
+    for track in range(3):
+        game.career.mastery_flags[track] = 0
     game.career.selected_style = 0
     game.career.unlocked = 3
     game.set_process(false)
