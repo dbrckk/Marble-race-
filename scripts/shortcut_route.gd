@@ -258,10 +258,11 @@ func shortcut_hint(location: Vector3) -> Dictionary:
     if z <= ENTRY_Z+36.0 and z > ENTRY_Z:
         return {"mode":"fork","side":"LEFT" if side < 0 else "RIGHT",
             "distance":maxi(0,int(round(z-ENTRY_Z)))}
-    if z <= ENTRY_Z and z >= EXIT_Z and (
-        absf(location.x-point_at(z).x) < WIDTH*0.5+1.7):
-        return {"mode":"merge","side":"RIGHT" if side < 0 else "LEFT",
-            "distance":maxi(0,int(round(z-EXIT_Z)))}
+    if z <= ENTRY_Z and z >= EXIT_Z:
+        var relative_x: float = float(side)*(location.x-stage.track_center_at(z))
+        if relative_x > 5.65 and absf(location.x-point_at(z).x) < WIDTH*0.5+1.7:
+            return {"mode":"merge","side":"RIGHT" if side < 0 else "LEFT",
+                "distance":maxi(0,int(round(z-EXIT_Z)))}
     return {}
 
 func reset_round() -> void:
