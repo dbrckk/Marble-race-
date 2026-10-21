@@ -39,7 +39,7 @@ func _run() -> void:
             assert(absf(pos.x-game.track_center_at(pos.z)) > 13.0,
                 "Landmarks may not block the track or its physical side route")
         for pos in art.mote_positions:
-            assert(absf(pos.x-game.track_center_at(pos.z)) > 7.7,
+            assert(absf(pos.x-game.track_center_at(pos.z)) > 13.3,
                 "Atmosphere must not obscure the competitive center lane")
         for level in range(3):
             game.set_graphics_quality(level)
