@@ -145,7 +145,7 @@ func _run() -> void:
             game.ui.shortcut_label.text.contains("SHORTCUT"),
             "Android players should see the upcoming turn-off clearly")
         # The engine grants bonuses only after physically entering the fork.
-        var entrance: Vector3 = road.point_at(BypassScript.ENTRY_Z-4.0)
+        var entrance: Vector3 = road.point_at(BypassScript.ENTRY_Z-8.0)
         player.global_position = entrance+Vector3.UP*0.75
         road.tick(0.016,game.racers,game.net)
         assert(road.entered.has(39),"Real route entry must register")
