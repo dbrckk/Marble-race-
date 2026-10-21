@@ -94,8 +94,6 @@ func apply_player_style(style: int) -> void:
     glass_material.set_shader_parameter("stripe_scale",0.80+float(chosen)*0.19)
     glass_material.set_shader_parameter("pattern_seed",
         seed_value+float(chosen)*2.83)
-    if is_instance_valid(boost_ring):
-        boost_ring.modulate = PLAYER_STYLE_BASE[chosen]
 
 func setup(index: int, player: bool, base_position: Vector3, chosen_perk: String = "") -> void:
     racer_id = index
