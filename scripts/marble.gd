@@ -47,6 +47,7 @@ const NAMES := [
 ]
 
 var racer_id := 0
+var course_owner: Node3D
 var display_name := ""
 var is_player := false
 var network_controlled := false
@@ -183,7 +184,10 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
             ai_lane_timer = 1.5 + float(racer_id % 5) * 0.37
             var phase: float = elapsed * 0.37 + seed_value * 2.1
             ai_lane_goal = sin(phase) * (2.0 + float(racer_id % 4) * 0.5)
-        var lane_error: float = ai_lane_goal - position.x
+        # Look ahead into the next bend: AI follows the physical winding road,
+        # rather than steering towards the old straight-world X=0.
+        var center_ahead: float = course_owner.track_center_at(position.z-5.0) if is_instance_valid(course_owner) else 0.0
+        var lane_error: float = ai_lane_goal + center_ahead - position.x
         side_force = clampf(lane_error*1.0 - linear_velocity.x*0.18,-4.5,4.5)
     # Progress watchdog: collisions sometimes wedge a sphere with nonzero angular
     # velocity, fooling speed-based stall detection. Measure net forward progress.
@@ -197,14 +201,16 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
         progress_stall_seconds = 0.0
     # Real physics recovery: give a marble a small nudge if trapped against a
     # rail/post for >2 sec. No teleportation, no fake position interpolation.
-    var wall_proximity := clampf((absf(position.x)-4.70)/1.05,0.0,1.0)
-    side_force += -signf(position.x) * 31.0 * wall_proximity
-    if linear_velocity.length() < 0.65 or (absf(linear_velocity.z) < 0.30 and absf(position.x) > 3.5):
+    var center_now: float = course_owner.track_center_at(position.z) if is_instance_valid(course_owner) else 0.0
+    var relative_x: float = position.x-center_now
+    var wall_proximity := clampf((absf(relative_x)-4.70)/1.05,0.0,1.0)
+    side_force += -signf(relative_x) * 31.0 * wall_proximity
+    if linear_velocity.length() < 0.65 or (absf(linear_velocity.z) < 0.30 and absf(relative_x) > 3.5):
         stuck_seconds += delta
     else:
         stuck_seconds = maxf(0.0,stuck_seconds - delta*3.0)
     if stuck_seconds > 1.65:
-        var side_direction := -signf(position.x) if absf(position.x)>1.0 else (1.0 if recovery_count%2==0 else -1.0)
+        var side_direction := -signf(relative_x) if absf(relative_x)>1.0 else (1.0 if recovery_count%2==0 else -1.0)
         var effort := minf(2.8,1.0+float(recovery_count)*0.35)
         apply_central_impulse(Vector3(side_direction*3.6*effort,1.4*effort,-6.5*effort)*mass)
         stuck_seconds = 0.0
@@ -212,7 +218,7 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
     apply_central_force(Vector3(side_force, 0.0, -drive_force) * mass)
     if linear_velocity.length() > 24.0:
         linear_velocity = linear_velocity.limit_length(24.0)
-    if position.y < -55.0 or abs(position.x) > 26.0:
+    if position.y < -55.0 or absf(relative_x) > 26.0:
         eliminated = true
         fell_off.emit(self)
 
