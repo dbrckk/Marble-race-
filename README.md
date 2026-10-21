@@ -342,3 +342,13 @@ This update adds a **dedicated, authoritative physical game mechanic per track**
 - The server alone applies multiplayer physics. HUD/SFX for environmental effects are sent to authenticated participating clients; AI players never request notifications.
 - New `tests/course_mechanics.gd` exercises individual mechanisms, dynamic telegraphing, layout distribution and client notices.
 - All courses continue to use the same common 18-segment straight spine for safe finishability. Full curved spline track topology and exclusive themed soundtracks remain future work. This release adds different racing decisions and physical conditions without breaking existing races.
+
+## v1.15 RC — Continuous winding racing corridors
+
+- The three environments now have different **lateral, winding race corridors** defined by a shared deterministic `scripts/track_path.gd` centerline. Woodland bends are gentle, Glacier bends medium, Ember Forge bends stronger; start and finish gracefully flatten to their original positions.
+- The entire playable race floor and physical side guards move with the active centerline, as do obstacle modules, their GPU-instanced lacquer/chrome details, shader-decorated road markings, overhead checkpoint arches and the start/finish structures.
+- Each adjacent floor module has an overlapping, genuinely **solid seam bridge** plus two **angled rigid safety guards** to close otherwise dangerous rail gaps at bends. This retains the established 18-section/180-plank GPU-instanced render budget.
+- Both AI racing lines and physics-based wall recovery now measure lateral position **relative to the local road center**, anticipating curves while keeping player steering fully manual.
+- All 40 starting positions, decorative scenery/flags, rare human-only pickups and environmental effect zones follow the race centerline. Network multiplayer snapshots continue to use ordinary world transforms, with identical deterministic geometry rebuilt on server and clients.
+- A dedicated `tests/winding_tracks.gd` checks every section's bend, its collision seam, guard orientation and AI, pickup and hazard alignment. The existing 110-second race, all three track-finish simulations and the full championship still run in CI.
+- Design limitation: this is a smoothly varying **racing corridor made from offset rigid modules and protected connecting seams**, rather than a continuous rotated spline with loop-the-loops or real branching routes. Distinct branching shortcuts will require a separate topology and camera pass.
