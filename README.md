@@ -481,3 +481,9 @@ Android debug candidate **1.24.0-rc**, version code 38, before any device-specif
 Full phone-only backup instructions, keystore requirements, GitHub secret names and APK compatibility precautions are in **[docs/ANDROID_UPDATES.md](docs/ANDROID_UPDATES.md)**. Existing play installations signed by other keys cannot necessarily be updated from either channel. Google Play production AAB signing is separate and not claimed ready here.
 
 New headless `tests/career_transfer.gd` and a CI safety-policy regression verify career data round trips, corruption rejection, rollback, Android dialog confirmation, missing-key fallback, and rejection of incomplete release credentials. Version `1.25.0-rc` (code 39).
+
+## v1.26 RC — Verify saved progress before replacement
+
+Career restoration now verifies that the incoming temporary file has been written correctly **before** touching the existing save. It refuses to overwrite a current career that is unreadable, oversized, invalid UTF-8 or inconsistent with the career schema, rather than silently destroying it. When a current save exists, a byte-identical rollback copy is written, flushed, checked and moved into place **before** the imported save replaces the original. Any failed preparation leaves the original live file intact. A new headless regression deliberately corrupts an existing save, verifies that the import is refused, and checks that the previous rollback remains usable.
+
+This hardens the existing **SAVE / RESTORE** feature introduced in 1.25. It does not change the Android signing limitation: existing installations with different signing certificates still cannot update in place, and no stable signing key is stored in this repository. Android debug version **1.26.0-rc** (code 40).
