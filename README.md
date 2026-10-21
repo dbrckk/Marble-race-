@@ -379,3 +379,17 @@ v1.17 improves **player decision-making and racing feel** on all three v1.16 phy
 - **Full-bridge regression**: tests/shortcut_routes.gd now validates banking, ramp collider and slope, route entry anti-cheat, navigation labels, once-per-race rewards and physics ray contact at fourteen points along each elevated branch, as well as the existing three-round multiplayer and Android build checks.
 
 **Known limits**: the new jumps are intentionally low and controllable rather than extreme stunt jumps. Real Android playtesting is still needed to confirm sightlines, steering sensitivity, collision smoothness at bridge transitions and frame pacing before Play Store publication.
+
+## v1.18 RC — Physical AI navigation, safe fork commitment and fair telemetry
+
+This release targets repeatable racing decisions rather than simply adding more scenery:
+
+- **AI route planning**: chosen opponents begin preparing for a real shortcut up to 22 metres before its fork. Steering takes lateral momentum into account. Once the entry opening has been missed, an uncommitted racer abandons the inaccessible outside lane instead of grinding against a closed outer barrier. Bots already admitted to the alternate road continue until the merge.
+- **Obstacle lookahead**: on the main course, AI marbles anticipate the real left/right outer shutters and apply a bounded inward correction within nine metres of a hazard. The deterministic calculation uses the existing 12-metre segment geometry without repeated raycasts or mobile allocations.
+- **Fresh rivals on rematches**: which bots attempt the outside route varies reproducibly with both track and course variation. All real players, including remote human-controlled slots, remain strictly outside autonomous steering.
+- **Truthful shortcut detection**: server/offline logic records a physical bypass entry only after a marble travels beyond the outer safety rail, not when it merely approaches on the main-road shoulder. One-time jump and bonus still require that authenticated physical entry. Multiplayer clients cannot self-award physics effects.
+- **Fixed-horizon racing metrics**: new `tests/ai_navigation.gd` runs each biome for 120 seconds of genuine Godot rigidbody simulation **without ending when the human reaches the finish**. It reports eligible AI, actual bypass entries, jumps, bonuses, AI finishers and non-selected entries. It preserves all 40 marbles, real obstacles and collision surfaces. CI runs this at fixed 60Hz physics for efficient, deterministic verification.
+- The regular `tests/courses.gd` additionally reports shortcut activity at the moment of the human finish. **These early results are not directly comparable across courses** because the human completes each course at a different time.
+- The existing online multiplayer, rematches, three-course obstacle tests, long race diagnostics and arm64 Android APK build remain covered by CI.
+
+Limits: lateral steering remains physics-based and cannot guarantee that every bot successfully enters a narrow shortcut. These changes have not been benchmarked on a physical Android device; improved fair-duration bot results should be assessed against repeatable physics logs rather than assuming they are better.
