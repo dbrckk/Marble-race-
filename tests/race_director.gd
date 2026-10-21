@@ -102,6 +102,9 @@ func _run() -> void:
             "Human and AI earn a genuine close pass with identical physics")
         assert(game.ui.toast_remaining > 0,
             "Human clean passing requires immediate feedback")
+        assert(director.clean_pass_count(39) == 1 and
+            director.clean_pass_count(0) == 1,
+            "Each racer must have an independent true skill event count")
         var count: int = director.awarded.size()
         director.tick(game.racers,game.net)
         assert(director.awarded.size() == count,
