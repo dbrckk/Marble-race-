@@ -4,6 +4,7 @@ signal crossed_finish(racer)
 signal fell_off(racer)
 
 const SHADER = preload("res://shaders/marble.gdshader")
+const AIPath = preload("res://scripts/ai_race_strategy.gd")
 static var mesh_cache: Dictionary = {}
 static var default_physics: PhysicsMaterial
 
@@ -159,7 +160,8 @@ func wants_shortcut() -> bool:
     # each biome. Never select a local or remotely controlled human racer.
     if is_player or network_controlled or not is_instance_valid(course_owner):
         return false
-    return (racer_id*7+course_owner.selected_track*11)%13 < 2
+    # Opponents rotate on rematches; track layout and AI stay deterministic.
+    return (racer_id*7+course_owner.selected_track*11+course_owner.built_variation*5)%13 < 2
 
 func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> void:
     if finished or eliminated or sleeping:
@@ -199,14 +201,19 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
         # A small, deterministic field of rivals takes the optional road.
         # AI must physically steer through its fork: no teleports, and the
         # server remains the sole source of racing physics.
+        var following_bypass := false
         if wants_shortcut() and is_instance_valid(course_owner.shortcut_route):
             var road: Node3D = course_owner.shortcut_route
-            if position.z < road.ENTRY_Z+12.0 and position.z > road.EXIT_Z-5.0:
-                var target_z: float = maxf(road.EXIT_Z,
-                    position.z-3.5)
-                var target_x: float = road.point_at(target_z).x
-                var desired: float = target_x-position.x
-                side_force = clampf(desired*4.2-linear_velocity.x*0.90,-19.0,19.0)
+            var entered: bool = road.entered.has(racer_id)
+            if AIPath.pursue_bypass(position.z,entered,
+                road.ENTRY_Z,road.EXIT_Z,road.ENTRY_WINDOW):
+                var aim_x: float = AIPath.bypass_target_x(road,position.z)
+                side_force = AIPath.bypass_steering(aim_x,position.x,
+                    linear_velocity.x)
+                following_bypass = true
+        if not following_bypass and is_instance_valid(course_owner):
+            side_force += AIPath.baffle_dodge(position,
+                course_owner.track_center_at(position.z))
     # Progress watchdog: collisions sometimes wedge a sphere with nonzero angular
     # velocity, fooling speed-based stall detection. Measure net forward progress.
     progress_stall_seconds += delta
