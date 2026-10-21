@@ -26,6 +26,25 @@ static func export_career(career: RefCounted) -> Dictionary:
         "starts":candidate["starts"],"finishes":candidate["finishes"],
         "mastery":candidate["mastery"],"league":candidate["league"]}
 
+static func preview_previous_career(career: RefCounted) -> Dictionary:
+    if not is_instance_valid(career):
+        return {"ok":false,"error":"No career to recover."}
+    var path: String = career.save_path+".before_import"
+    if not FileAccess.file_exists(path):
+        return {"ok":false,"error":"No previous import to undo."}
+    var bytes: PackedByteArray = FileAccess.get_file_as_bytes(path)
+    if bytes.is_empty() or bytes.size() > MAX_CONFIG_BYTES:
+        return {"ok":false,"error":"Previous career copy is invalid."}
+    var content: String = bytes.get_string_from_utf8()
+    if content.to_utf8_buffer() != bytes:
+        return {"ok":false,"error":"Previous career copy has invalid text."}
+    var checked: Dictionary = _validate_config(content)
+    if not bool(checked["ok"]):
+        return checked
+    checked["code"] = "%s.%s.%s" % [
+        PREFIX,content.sha256_text(),Marshalls.raw_to_base64(bytes)]
+    return checked
+
 static func preview_code(raw_code: String) -> Dictionary:
     var code: String = raw_code.strip_edges()
     if code.length() == 0 or code.length() > MAX_CODE_LENGTH:
