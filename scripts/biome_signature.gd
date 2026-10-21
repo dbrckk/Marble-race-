@@ -88,7 +88,7 @@ func setup(stage: Node3D, track: int, variation: int) -> void:
                 # Several outward-leaning icy spurs break up the otherwise
                 # regular crystalline tower silhouette.
                 for spur in range(3):
-                    var lean := (-0.40+float(spur)*0.39)*side
+                    var lean: float = (-0.40+float(spur)*0.39)*side
                     var tilt := Basis(Vector3.FORWARD,lean)
                     detail_at.append(Transform3D(
                         tilt.scaled(Vector3(0.92,1.0+float(spur)*0.13,0.92)),
