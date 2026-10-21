@@ -102,10 +102,20 @@ func period() -> float:
 func phase_at(index: int, elapsed: float) -> float:
     return fposmod(elapsed+float(index)*1.71+float(variation)*1.29,period())/period()
 
-func piston_up(index: int, elapsed: float) -> bool:
+func piston_extension(index: int, elapsed: float) -> float:
     if biome != 2:
-        return true
-    return phase_at(index,elapsed) < VERTICAL_DUTY
+        return 1.0
+    var phase: float = phase_at(index,elapsed)
+    if phase < 0.10:
+        return smoothstep(0.0,0.10,phase)
+    if phase < 0.34:
+        return 1.0
+    if phase < VERTICAL_DUTY:
+        return 1.0-smoothstep(0.34,VERTICAL_DUTY,phase)
+    return 0.0
+
+func piston_up(index: int, elapsed: float) -> bool:
+    return piston_extension(index,elapsed) > 0.43
 
 func position_at(index: int, elapsed: float) -> Vector3:
     var z: float = EVENT_Z[index]
@@ -116,7 +126,7 @@ func position_at(index: int, elapsed: float) -> Vector3:
         # Fully buried below the track when inactive. The circular warning
         # stays visible so competitors understand the timing of the piston.
         return Vector3(center+side*3.26,
-            game.height_at(z)+(0.40 if piston_up(index,elapsed) else -1.08),z)
+            game.height_at(z)-1.08+1.48*piston_extension(index,elapsed),z)
     var radius: float = 0.85 if biome == 0 else 1.12
     return Vector3(center+side*(3.22+radius*sin(phase*TAU)),
         game.height_at(z)+0.42,z)
