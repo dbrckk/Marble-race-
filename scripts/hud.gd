@@ -4,6 +4,7 @@ extends CanvasLayer
 const TOUCH_CONTROLS = preload("res://scripts/touch_controls.gd")
 const CAREER_TRANSFER = preload("res://scripts/career_transfer.gd")
 const RACE_MOMENTS = preload("res://scripts/race_moments.gd")
+const PROGRESS_RADAR = preload("res://scripts/race_progress_radar.gd")
 const FONT_HEAVY = preload("res://assets/fonts/Rajdhani-Bold.ttf")
 const FONT_REGULAR = preload("res://assets/fonts/Rajdhani-Medium.ttf")
 const TEXT := Color("#fff1dc")
@@ -51,6 +52,7 @@ var ghost_label: Label
 var quality_button: Button
 var fps_button: Button
 var course_progress: ProgressBar
+var race_radar: Control
 var boost_progress: ProgressBar
 var checkpoint_label: Label
 var hazard_label: Label
@@ -691,6 +693,14 @@ func _build_race_hud() -> void:
     course_progress.anchor_top = 0.109
     course_progress.anchor_bottom = 0.134
     hud_layer.add_child(course_progress)
+    race_radar = PROGRESS_RADAR.new()
+    race_radar.name = "FortyMarbleRadar"
+    race_radar.anchor_left = 0.335
+    race_radar.anchor_right = 0.665
+    race_radar.anchor_top = 0.136
+    race_radar.anchor_bottom = 0.150
+    race_radar.configure(game)
+    hud_layer.add_child(race_radar)
     hazard_label = _text("",17,Color("#ffd39c"))
     hazard_label.name = "UpcomingHazard"
     hazard_label.anchor_left = 0.32
@@ -1043,6 +1053,8 @@ func show_race_ui() -> void:
     last_seen_rank = -1
     rank_toast_seconds = 0.0
     moment_remaining = 0.0
+    if is_instance_valid(race_radar):
+        race_radar.reset()
     if is_instance_valid(race_moment_label):
         race_moment_label.visible = false
     for streak in speed_stripes:
@@ -1081,6 +1093,8 @@ func show_race_moment(title: String, duration: float = 1.1) -> void:
 
 func update_hud() -> void:
     var elapsed: float = get_process_delta_time()
+    if is_instance_valid(race_radar):
+        race_radar.sample(elapsed)
     if moment_remaining > 0.0:
         moment_remaining = maxf(0.0,moment_remaining-elapsed)
         race_moment_label.visible = moment_remaining > 0.0
