@@ -260,10 +260,55 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging build/marble-race-debug.apk > build/apk-badging.txt
           head -n 16 build/apk-badging.txt
           test -s build/marble-race-debug.apk
+      - name: Record APK identity and update-safety warning
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(sed -n 's|^version/name="\\(.*\\)"|\\1|p' export_presets.cfg | head -n 1)"
+          code="$(sed -n 's|^version/code=\\([0-9]*\\)|\\1|p' export_presets.cfg | head -n 1)"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs --verbose build/marble-race-debug.apk > "$RUNNER_TEMP/debug-apksigner.txt"
+          signer="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/debug-apksigner.txt" | head -n 1)"
+          test -n "$signer"
+          cat > build/debug-build-identity.txt <<EOF
+          Marble Race DEBUG APK
+          Version: $version (code $code)
+          Package: com.dbrckk.marble_race
+          Signing certificate SHA-256: $signer
+          Git revision: $GITHUB_SHA
+          IMPORTANT: This is a TEST build. The debug signing certificate is
+          generated on ephemeral GitHub runners and CAN DIFFER between runs.
+          Do not uninstall the previous app to install this APK if you want
+          to keep its Android private app data. Use the in-game progress
+          export before any uninstall, and import it after reinstalling.
+          Only APKs with the SAME package and signing certificate can update
+          an existing install in place. Do not confuse this with stable builds.
+          EOF
+          test -s build/debug-build-identity.txt
+      - name: Build stable signed Android APK when pinned signing is configured
+        id: stable_apk
+        if: github.event_name != 'pull_request'
+        shell: bash
+        env:
+          MARBLE_KEYSTORE_B64: ${{ secrets.MARBLE_ANDROID_KEYSTORE_BASE64 }}
+          MARBLE_KEY_ALIAS: ${{ secrets.MARBLE_ANDROID_KEY_ALIAS }}
+          MARBLE_KEY_PASSWORD: ${{ secrets.MARBLE_ANDROID_KEY_PASSWORD }}
+          MARBLE_CERT_SHA256: ${{ vars.MARBLE_ANDROID_SIGNING_SHA256 }}
+        run: bash ci/sign_android_release.sh
       - uses: actions/upload-artifact@v4
         if: success()
         with:
           name: marble-race-android-debug
-          path: build/marble-race-debug.apk
+          path: |
+            build/marble-race-debug.apk
+            build/debug-build-identity.txt
+          retention-days: 21
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: steps.stable_apk.outputs.configured == 'true'
+        with:
+          name: marble-race-android-stable-signed
+          path: |
+            build/marble-race-stable.apk
+            build/release-update-info.txt
           retention-days: 21
           if-no-files-found: error
