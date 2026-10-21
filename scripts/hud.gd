@@ -886,11 +886,12 @@ func show_course_event(kind: String) -> void:
     var labels := {
         "speed": "WOODLAND  /  SPEED LINE!",
         "ice": "GLACIER  /  ICE DRIFT!",
-        "vent": "FORGE  /  HEAT BLAST!"
+        "vent": "FORGE  /  HEAT BLAST!",
+        "shortcut": "SHORTCUT  /  PERFECT LINE!"
     }
     checkpoint_label.text = str(labels.get(kind,"COURSE HAZARD"))
     checkpoint_label.add_theme_color_override("font_color",
-        Color("#b6edff") if kind == "ice" else Color("#ffcb8c"))
+        Color("#b6edff") if kind in ["ice","shortcut"] else Color("#ffcb8c"))
     checkpoint_label.modulate.a = 1.0
     checkpoint_label.visible = true
     toast_remaining = 1.45
