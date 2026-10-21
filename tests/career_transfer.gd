@@ -88,6 +88,26 @@ func _run() -> void:
     assert(not bool(Transfer.restore_career(fresh,forged)["ok"]))
     assert(fresh.starts == 14, "Invalid import must leave live career unchanged")
 
+    # Corrupt existing progress must never be silently overwritten.
+    # Even a valid imported code must refuse a dangerous replacement if
+    # the currently installed career cannot be preserved faithfully.
+    var corrupt_save := FileAccess.open(RESTORE_PATH,FileAccess.WRITE)
+    corrupt_save.store_string("not a valid career config")
+    corrupt_save.close()
+    var rejected: Dictionary = Transfer.restore_career(fresh,code)
+    assert(not bool(rejected["ok"]),
+        "An invalid current save must not be silently destroyed")
+    assert(FileAccess.get_file_as_string(RESTORE_PATH) == "not a valid career config",
+        "Failed restore must preserve every byte of the existing save")
+    assert(bool(Transfer.preview_previous_career(fresh)["ok"]),
+        "Rejecting an invalid save must not erase the earlier undo backup")
+    # Restore a valid baseline for the subsequent in-app import regression.
+    fresh.starts = 3
+    fresh.finishes = 2
+    fresh.victories = 0
+    fresh.podiums = 0
+    assert(fresh.save() == OK)
+
     # Full Android-style visual UI: preview -> confirm -> refresh the menu;
     # clipboard actions are intentionally skipped in headless CI.
     var game = load("res://scenes/main.tscn").instantiate()
