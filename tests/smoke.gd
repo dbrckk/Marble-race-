@@ -43,7 +43,7 @@ func _run_checks() -> void:
     assert(ResourceLoader.exists("res://shaders/race_flag.gdshader"), "Missing animated-flag shader")
     var track_surface: Node3D = race.board.get_node_or_null("InstancedTrackSurface")
     assert(is_instance_valid(track_surface), "Missing v0.10 instanced track")
-    assert(track_surface.original_mesh_count == 648, "180 planks + 108 rails + 360 inlays must be rendered")
+    assert(track_surface.original_mesh_count == 646, "180 planks + 106 rails (two shortcut portals) + 360 inlays")
     assert(track_surface.get_batch_count() <= 15, "Repeated track meshes must be batched by material")
     for batch in track_surface.get_children():
         assert(batch is MultiMeshInstance3D, "Track decoration must be drawn with GPU instancing")
