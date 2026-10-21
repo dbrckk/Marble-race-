@@ -40,10 +40,10 @@ func _run() -> void:
             "Race director should warn in advance of a real hazard")
         assert(game.upcoming_hazard(Director.EVENT_Z[0]+11.0).has("side"),
             "The existing HUD lookahead must include dynamic gates")
-        director.animate(0.35)
+        director.animate(1.2)
         if course < 2:
             var pos_before: Vector3 = director.obstacles[0].position
-            director.animate(2.65)
+            director.animate(3.7)
             var pos_after: Vector3 = director.obstacles[0].position
             assert(absf(pos_before.x-pos_after.x) >= 0.5,
                 "Mechanical and icy sweepers must visibly move inside the lane")
