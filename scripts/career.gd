@@ -10,6 +10,11 @@ const MASTERY_GOALS := ["FINISH RACE","CLEAN PASS","SHORTCUT"]
 const STYLE_NAMES := ["COPPER","AZURE","SOLAR","AMETHYST","PRISM"]
 const STYLE_THRESHOLDS := [0,2,4,6,9]
 const ALL_MASTERY_BITS := 7
+## Additional long-term solo career progression that keeps working after
+## every one-off mastery stamp has been earned. Completely stat-neutral.
+const LEAGUE_TIERS := ["ROOKIE","CHALLENGER","CONTENDER","ELITE","LEGEND"]
+const LEAGUE_LIMITS := [0,120,320,700,1300]
+const LEAGUE_SCORE_CAP := 2000000
 
 var starts := 0
 var finishes := 0
@@ -21,6 +26,10 @@ var unlocked := 1
 var stars: Array[int] = [0,0,0]
 var mastery_flags: Array[int] = [0,0,0]
 var selected_style := 0
+var league_points := 0
+var league_runs: Array[int] = [0,0,0]
+var league_clean_passes: Array[int] = [0,0,0]
+var league_shortcuts: Array[int] = [0,0,0]
 ## Four split records per circuit: 3 checkpoints plus the finish line.
 ## Flat typed array avoids nested Godot array serialization pitfalls.
 const SECTORS_PER_TRACK := 4
@@ -44,6 +53,13 @@ func load_save() -> void:
         for sector in range(SECTORS_PER_TRACK):
             var saved := float(file.get_value("sectors","best_%d_%d" % [index,sector],0.0))
             sector_best[index*SECTORS_PER_TRACK+sector] = saved if is_finite(saved) and saved > 0.0 and saved < 600.0 else 0.0
+    league_points = clampi(int(file.get_value("league","score",0)),0,LEAGUE_SCORE_CAP)
+    for index in range(TRACKS.size()):
+        league_runs[index] = clampi(int(file.get_value("league","runs_%d" % index,0)),0,1000000)
+        league_clean_passes[index] = clampi(
+            int(file.get_value("league","passes_%d" % index,0)),0,1000000)
+        league_shortcuts[index] = clampi(
+            int(file.get_value("league","shortcuts_%d" % index,0)),0,1000000)
     selected_style = clampi(int(file.get_value("mastery","style",0)),
         0,STYLE_NAMES.size()-1)
     if not is_style_unlocked(selected_style):
@@ -70,6 +86,11 @@ func save() -> int:
         for sector in range(SECTORS_PER_TRACK):
             file.set_value("sectors","best_%d_%d" % [index,sector],sector_best[index*SECTORS_PER_TRACK+sector])
     file.set_value("mastery","style",selected_style)
+    file.set_value("league","score",league_points)
+    for index in range(TRACKS.size()):
+        file.set_value("league","runs_%d" % index,league_runs[index])
+        file.set_value("league","passes_%d" % index,league_clean_passes[index])
+        file.set_value("league","shortcuts_%d" % index,league_shortcuts[index])
     return file.save(save_path)
 
 func begin() -> void:
@@ -194,6 +215,64 @@ func complete_mastery(index: int, finished: bool,
     result["new_styles"] = new_styles
     result["count"] = new_total
     result["track_count"] = track_mastery_count(index)
+    save()
+    return result
+
+
+func league_tier() -> int:
+    var tier := 0
+    for i in range(LEAGUE_LIMITS.size()):
+        if league_points >= LEAGUE_LIMITS[i]:
+            tier = i
+    return tier
+
+func league_name() -> String:
+    return LEAGUE_TIERS[league_tier()]
+
+func league_next_goal() -> int:
+    var current: int = league_tier()
+    return LEAGUE_LIMITS[current+1] if current+1 < LEAGUE_LIMITS.size() else LEAGUE_LIMITS[current]
+
+func league_progress_label() -> String:
+    if league_tier() == LEAGUE_TIERS.size()-1:
+        return "LEGEND  •  %d REP  •  TOP LICENSE" % league_points
+    return "%s  •  %d / %d REP" % [
+        league_name(),league_points,league_next_goal()]
+
+func league_races() -> int:
+    var sum := 0
+    for amount in league_runs:
+        sum += amount
+    return sum
+
+func award_league(index: int, place: int, finished: bool,
+    clean_passes: int, completed_shortcut: bool) -> Dictionary:
+    # The game calls this exactly once during trusted offline result finalization.
+    # No client-supplied rank, claim IDs or network RPCs can reach this path.
+    var result: Dictionary = {
+        "earned":0,"previous":league_name(),"tier":league_name(),
+        "promoted":false,"score":league_points,"next":league_next_goal()}
+    if not finished or index < 0 or index >= TRACKS.size() or (
+        place < 1 or place > 40):
+        return result
+    var placement: int = 25 if place == 1 else (
+        18 if place <= 3 else (
+        12 if place <= 10 else (7 if place <= 20 else 4)))
+    var clean: int = clampi(clean_passes,0,3)
+    var points: int = 10+placement+clean*5+(8 if completed_shortcut else 0)
+    if clean == 3 and completed_shortcut:
+        points += 5
+    var old_tier: int = league_tier()
+    league_points = mini(LEAGUE_SCORE_CAP,league_points+points)
+    league_runs[index] = mini(1000000,league_runs[index]+1)
+    league_clean_passes[index] = mini(1000000,league_clean_passes[index]+clean)
+    if completed_shortcut:
+        league_shortcuts[index] = mini(1000000,league_shortcuts[index]+1)
+    result["earned"] = points
+    result["tier"] = league_name()
+    result["promoted"] = league_tier() > old_tier
+    result["score"] = league_points
+    result["next"] = league_next_goal()
     save()
     return result
 

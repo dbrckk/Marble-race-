@@ -437,3 +437,11 @@ This Android update adds a meaningful skill collection to the replayable three-b
 - **Regression coverage:** tests/mastery_rewards.gd validates old-save migration, all nine achievements and five colors, persistence, no repeated rewards, real world triggers, strict offline-only updates and unchanged physics. tests/visual_polish.gd checks scrollable results.
 
 Android debug release candidate **1.21.0-rc**, version code 35. Device-based performance and screen usability must still be verified; this is not a production-signed Play Store AAB.
+
+## v1.22 RC — Rival League long-term goals
+
+After collecting the nine finite mastery stamps, every genuine **finished solo race** also awards reputation toward a five-tier career license: **ROOKIE → CHALLENGER (120) → CONTENDER (320) → ELITE (700) → LEGEND (1,300)**. Race position contributes a predictable score, with small bounded bonuses for physically validated clean passes (at most three) and the genuine optional shortcut. A difficult 1st-place run that also makes all three clean passes and earns the shortcut bonus is worth 63 reputation; ordinary finishes still make progress. Losses and timeouts earn no reputation.
+
+The license, lifetime solo race totals, clean passes and shortcut counts persist in the existing career ConfigFile; old saved progress remains compatible. The menu and perk selection expose the next milestone, while the result panel shows exact earned reputation and rank promotions. The local player's floating tag displays an earned license name as a visual reward. The license never boosts race stats, unlocks paid mechanics, or affects multiplayer. All points are awarded exactly once from the game's trusted offline end-of-race path, and tests/league_progress.gd verifies promotions, data persistence, legacy migration, replay results, invalid ranks and online exclusion.
+
+The existing five shader-based marble styles and physical mastery contracts remain unchanged.

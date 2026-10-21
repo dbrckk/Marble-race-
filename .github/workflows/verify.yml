@@ -206,6 +206,12 @@ jobs:
           set -euo pipefail
           timeout 75s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 300 --path . --script res://tests/career.gd 2>&1 | tee career.log
           grep -Fq "CAREER_PASS:" career.log
+      - name: Long-term solo league ranks and persistent replay milestones
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 900 --path . --script res://tests/league_progress.gd 2>&1 | tee league-progress.log
+          grep -Fq "LEAGUE_PROGRESS_PASS:" league-progress.log
       - name: Permanent mastery goals, unlockable marble styles and offline-only rewards
         shell: bash
         run: |

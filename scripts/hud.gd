@@ -281,6 +281,8 @@ func _refresh_career_menu() -> void:
         game.career.starts,game.career.victories,game.career.finishes]
     career_label.text += "\nMASTERY  %d/9  ·  MARBLE STYLES  %d/5" % [
         game.career.mastery_count(),game.career.unlocked_style_count()]
+    career_label.text += "\nLEAGUE  %s  ·  SOLO FINISHES %d" % [
+        game.career.league_progress_label(),game.career.league_races()]
     if game.career.unlocked < 3:
         career_label.text += "\n" + game.career.next_locked_requirement()
 
@@ -445,8 +447,9 @@ func _build_perks() -> void:
 
 func _refresh_mastery_preview() -> void:
     if is_instance_valid(mastery_label):
-        mastery_label.text = "MASTER %s:  %s" % [
-            game.track_title(),game.career.mastery_summary(game.selected_track)]
+        mastery_label.text = "MASTER %s:  %s\nLEAGUE: %s" % [
+            game.track_title(),game.career.mastery_summary(game.selected_track),
+            game.career.league_progress_label()]
     if is_instance_valid(style_button):
         var count: int = game.career.unlocked_style_count()
         style_button.text = "MARBLE: %s   •   %d / 5 STYLES   ↻" % [
@@ -1034,6 +1037,11 @@ func show_results(place: int, time: float, ranking: Array) -> void:
     var unlocked_styles: Array = status.get("mastery_styles",[])
     if not unlocked_styles.is_empty():
         mastery_text += "\nNEW MARBLE: " + ", ".join(PackedStringArray(unlocked_styles))
+    var league_text := "LEAGUE  %s  +%d REP" % [
+        str(status.get("league_tier",game.career.league_name())),
+        int(status.get("league_earned",0))]
+    if bool(status.get("league_promoted",false)):
+        league_text += "  •  LICENSE PROMOTED!"
     var sector_text := ""
     var sector_times: Array = status.get("sector_times",[])
     var sector_records: Array = status.get("sector_records",[])
@@ -1044,8 +1052,8 @@ func show_results(place: int, time: float, ranking: Array) -> void:
                 float(sector_times[sector]),
                 " ★" if sector_records.size() == 4 and bool(sector_records[sector]) else ""]
     if summary:
-        summary.text = "POSITION  #%d / 40   •   %s\nTIME  %.1fs\nCLEAN PASSES  %d / 3\n%s\n%s\n%s\n%s\n%s\nBEST  #%s\n\nTOP 5\n%s" % [
-            place,"FINISHED" if finished else "TIME OUT",time,clean_passes,mastery_text,stars_text,sector_text,
+        summary.text = "POSITION  #%d / 40   •   %s\nTIME  %.1fs\nCLEAN PASSES  %d / 3\n%s\n%s\n%s\n%s\n%s\n%s\nBEST  #%s\n\nTOP 5\n%s" % [
+            place,"FINISHED" if finished else "TIME OUT",time,clean_passes,league_text,mastery_text,stars_text,sector_text,
             record_text,unlock_text,
             str(game.career.track_best[game.selected_track]) if game.career.track_best[game.selected_track] > 0 else "—",
             leaders]

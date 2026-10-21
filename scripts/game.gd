@@ -886,6 +886,8 @@ func _spawn_racers() -> void:
 func _add_player_marker(m: RigidBody3D) -> void:
     var tag = Label3D.new()
     tag.text = "▼ YOU"
+    if not net.is_active() and career.league_tier() >= 1:
+        tag.text += "  •  " + career.league_name()
     tag.name = "PlayerTag"
     tag.font_size = 41
     tag.pixel_size = 0.014
@@ -1330,6 +1332,13 @@ func _end_race() -> void:
             last_result["mastery_styles"] = earned["new_styles"]
             last_result["mastery_track"] = earned["track_count"]
             last_result["mastery_total"] = earned["count"]
+            var league: Dictionary = career.award_league(
+                selected_track,player_rank(),completed,clean_count,used_bypass)
+            last_result["league_earned"] = league["earned"]
+            last_result["league_promoted"] = league["promoted"]
+            last_result["league_tier"] = league["tier"]
+            last_result["league_score"] = league["score"]
+            last_result["league_next"] = league["next"]
     if net.is_host():
         net.on_host_finish()
     audio.tone("finish")
