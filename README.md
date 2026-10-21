@@ -487,3 +487,21 @@ New headless `tests/career_transfer.gd` and a CI safety-policy regression verify
 Career restoration now verifies that the incoming temporary file has been written correctly **before** touching the existing save. It refuses to overwrite a current career that is unreadable, oversized, invalid UTF-8 or inconsistent with the career schema, rather than silently destroying it. When a current save exists, a byte-identical rollback copy is written, flushed, checked and moved into place **before** the imported save replaces the original. Any failed preparation leaves the original live file intact. A new headless regression deliberately corrupts an existing save, verifies that the import is refused, and checks that the previous rollback remains usable.
 
 This hardens the existing **SAVE / RESTORE** feature introduced in 1.25. It does not change the Android signing limitation: existing installations with different signing certificates still cannot update in place, and no stable signing key is stored in this repository. Android debug version **1.26.0-rc** (code 40).
+
+## v1.27 RC — AI shortcut reliability and verified Android release signing
+
+Two previously under-verified systems now have real, repeatable evidence:
+
+**Shortcut racecraft on all three tracks.** The AI specialists now aim at the physical shortcut's open portal earlier instead of trying to cross the solid guard late. Their original anti-stuck mechanism is relaxed only inside that actual entry portal; all closed barriers remain collidable, normal bots retain regular recovery and the human player's steering is unaffected. Glacier Pass additionally uses anticipatory lateral steering suited to its slippery approach. The 120-second headless simulation confirms these physical entries and actual jump/boost rewards by world, comparing the same 6 specialists on each track:
+
+| World | Previous physical route entries | Current verified entries | AI finishers / 39 |
+| --- | ---: | ---: | ---: |
+| Woodland Workshop | 1 / 6 | 4 / 6 | 37 |
+| Glacier Pass | 0 / 6 | 5 / 6 | 36 |
+| Ember Forge | 1 / 6 | 3 / 6 | 34 |
+
+No normal AI takes a shortcut accidentally. The regression now requires at least one genuine entrant, ramp launch and route reward on **each** world plus at least 30/39 physically finished bots, so future changes cannot quietly return Glacier's success rate to zero. The real route, server-side reward checks and AI lane selection remain unchanged for online fairness.
+
+**Fully exercised signing pipeline.** Android CI previously fetched only its debug export template, so the optional pinned-signed release path was not actually proven. GitHub Actions now downloads **both** Android templates and runs a real signed `--export-release` APK using a one-time key created in runner temporary storage. That test first verifies a wrong pinned SHA-256 is rejected before compilation, then exports with the correct fingerprint and checks the actual APK signature, version and Android package. The disposable signing key and test APK are deleted; only regular debug artifacts or properly configured personal stable-signed artifacts are uploaded. The user still needs to provide their **own permanent keystore** through the GitHub Actions secrets and pinned public fingerprint for future update-safe production builds. A CI-only test certificate does not make the distributed debug APK update-safe.
+
+Android candidate **1.27.0-rc**, version code 41. As always, real-phone collision feel, touch latency and performance remain a separate signoff from automated checks.
