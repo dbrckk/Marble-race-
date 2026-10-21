@@ -23,6 +23,16 @@ récent s'installera directement par-dessus un précédent. Android exige
 Le code contient les médailles, les records de temps, les classements, les
 déblocages, la maîtrise, la ligue et les apparences. Il ne contient pas les
 fichiers de course fantôme, les préférences, ni les données de connexion.
+**Attention lors du passage d'une version 1.24 (ou plus ancienne) vers
+la version 1.25 :** les anciennes versions ne disposent pas encore du bouton
+d'export. Si Android refuse l'installation par-dessus l'ancienne application
+à cause d'une signature différente, **ne désinstallez pas l'ancienne
+application en croyant que le nouvel export sauvera rétroactivement ses
+données**. La progression privée peut alors être perdue. Attendez de disposer
+d'une sauvegarde Android fiable ou d'un APK signé avec la même clé que votre
+installation actuelle. La fonction d'export de la 1.25 protège les
+réinstallations **suivantes**.
+
 Les codes contiennent un contrôle SHA-256 pour détecter les copies incomplètes
 ou endommagées, **pas** une signature d'authenticité. Restaurer un code
 **remplace** la progression locale. Une copie locale `marble_career.cfg.before_import` est conservée, et le bouton **UNDO PREVIOUS IMPORT** permet de prévisualiser cette version puis de la restaurer avec confirmation. Cette annulation locale n'existe plus après désinstallation.
