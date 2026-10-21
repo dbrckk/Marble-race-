@@ -2,6 +2,7 @@ extends SceneTree
 ## Real branch regression: 3 playable exterior decks, entry/exit portals,
 ## physical world contact, human navigation and server-authoritative rewards.
 const BypassScript = preload("res://scripts/shortcut_route.gd")
+const AIPath = preload("res://scripts/ai_race_strategy.gd")
 func _initialize() -> void:
     call_deferred("_run")
 
@@ -49,6 +50,35 @@ func _run() -> void:
                 assert(BypassScript.opens_rail(section,side,1,course))
             else:
                 assert(portal == 0,"Only entrance and exit may open the main railing")
+        # Shortcut-specialist AI must steer through the actual middle
+        # physical portal, not fight the ordinary main-road recovery wall.
+        var gate_z: float = BypassScript.ENTRY_Z-3.0
+        var on_portal := Vector3(game.track_center_at(gate_z)+side*5.25,
+            game.height_at(gate_z)+0.8,gate_z)
+        assert(AIPath.inside_shortcut_gate(road,on_portal),
+            "Only real physical entry portal should allow alternative AI lane")
+        assert(not AIPath.inside_shortcut_gate(road,Vector3(
+            game.track_center_at(gate_z),on_portal.y,gate_z)),
+            "Normal AI racer at the centerline must still recover normally")
+        assert(not AIPath.inside_shortcut_gate(road,Vector3(
+            game.track_center_at(gate_z)-side*5.25,on_portal.y,gate_z)),
+            "The opposite closed wall is not an allowed short-cut portal")
+        assert(not AIPath.inside_shortcut_gate(road,Vector3(
+            on_portal.x,on_portal.y,BypassScript.ENTRY_Z+6.0)),
+            "The approach before the opening must keep collision recovery")
+        assert(not AIPath.inside_shortcut_gate(road,Vector3(
+            on_portal.x,on_portal.y,BypassScript.ENTRY_Z-BypassScript.ENTRY_WINDOW-1.0)),
+            "Recovery relief must stop outside the fork area")
+        var near_x: float = AIPath.bypass_target_x(road,
+            BypassScript.ENTRY_Z+6.0)
+        var enter_x: float = AIPath.bypass_target_x(road,
+            BypassScript.ENTRY_Z-3.0)
+        assert(float(side)*(near_x-game.track_center_at(
+            BypassScript.ENTRY_Z+6.0)) < 5.40,
+            "Early approach must remain safely inside the solid rail")
+        assert(float(side)*(enter_x-game.track_center_at(
+            BypassScript.ENTRY_Z-3.0)) > 6.0,
+            "A specialist must target outside the gate once it opens")
         assert(game.track_surface.rails.size() == 106,
             "Two real portals must remove exactly two solid rail parts")
         assert(game.track_surface.planks.size() == 180,
