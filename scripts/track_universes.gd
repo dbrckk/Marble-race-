@@ -20,7 +20,7 @@ static func apply_atmosphere(env: Environment, sun: DirectionalLight3D, track: i
     if is_instance_valid(sun):
         sun.light_color = THEME_SUN[theme]
 
-func setup(track: int) -> void:
+func setup(track: int, stage: Node3D) -> void:
     var theme := clampi(track,0,2)
     name = "World_%s" % THEMES[theme].replace(" ","_")
     var base := StandardMaterial3D.new()
@@ -57,7 +57,7 @@ func setup(track: int) -> void:
         var z := 8.0 - float(section)*LEN
         for side in [-1.0,1.0]:
             var jitter := sin(float(section)*2.83+side)*1.4
-            var x: float = float(side)*(11.0 + float(section%3)*0.65)
+            var x: float = float(side)*(11.0 + float(section%3)*0.65) + stage.track_center_at(z)
             var floor_y := z*SLOPE
             var bank_basis := Basis().scaled(Vector3(3.7,1.6+0.3*(section%3),4.3))
             bases.append(Transform3D(bank_basis,Vector3(x,floor_y-1.7,z)))
