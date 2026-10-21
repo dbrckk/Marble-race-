@@ -393,3 +393,17 @@ This release targets repeatable racing decisions rather than simply adding more 
 - The existing online multiplayer, rematches, three-course obstacle tests, long race diagnostics and arm64 Android APK build remain covered by CI.
 
 Limits: lateral steering remains physics-based and cannot guarantee that every bot successfully enters a narrow shortcut. These changes have not been benchmarked on a physical Android device; improved fair-duration bot results should be assessed against repeatable physics logs rather than assuming they are better.
+
+## v1.19 RC — Camera clarity and physical impact feel
+
+This iteration improves the physical feel of the existing three-course, 40-marble Android racer without adding rendering passes or changing network authority:
+
+- **Predictive chase camera**: looks through upcoming winding turns, widens its field of view subtly at speed and during boost, and lifts slightly when a real edge shutter is imminent. Alternate elevated and overhead views remain available. The camera tracks the human player's real physics only; AI racers cannot control it.
+- **Frame-rate-independent follow**: exponential damping behaves consistently at 30/60 FPS; focus and position smooth separately to reduce abrupt lateral snaps during dense marble collisions. Speed-dependent FOV is clamped to 63–78 degrees for readability rather than exaggerated distortion.
+- **Controlled collision shake**: distinguish actual bumper, moving gate, marble-to-marble and downward landing events from routine fast rolling on floor planks. Camera impulses have a bounded amplitude, a short cooldown, and rapid decay. Physics impulses remain untouched.
+- **Weighted spatial Foley**: use relative contact velocity for marble-to-marble collisions, prioritize sharp metal/bumper/glass impacts, filter insignificant plank contact events, vary samples/pitch deterministically, and proportionally duck music. Android vibration only occurs on meaningful contacts. Existing locally bundled licensed sounds remain the entire audio source.
+- **Anticipatory hazard HUD**: the existing outer-shutter banner shows estimated seconds to impact alongside distance and highlights imminent hazards. The estimate derives from actual forward speed, with guardrails for near-zero speed.
+- **Light mobile footprint**: the shared `scripts/race_feedback.gd` contains constant-time computations. There are no added raycasts, geometry objects, expensive effects or per-marble audio nodes. Sound and rendering continue to respect the player's settings.
+- **Regression**: `tests/race_feedback.gd` checks frame-rate invariance, all three camera views, bounded camera movement, filtering horizontal floor rolling, relative collision severity, landing feedback, realistic Foley, and hazard ETA. Existing course-finish, human-only pickup, dedicated server, network, long race and Android build tests still run.
+
+Android build: `1.19.0-rc`, code 33. This is a **debug RC**, not a Play Store production AAB. Although automated scene and physics tests pass in CI, live handset steering, actual frame pacing and sensory comfort require a real-device trial.
