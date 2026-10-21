@@ -204,6 +204,7 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
     if (is_player or network_controlled) and boosting:
         drive_force += 8.0
     var side_force := 0.0
+    var following_bypass := false
     if is_player or network_controlled:
         # Steering retains authority at high speed, without making tiny inputs twitchy.
         var forward_speed: float = absf(linear_velocity.z)
@@ -224,7 +225,6 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
         # A small, deterministic field of rivals takes the optional road.
         # AI must physically steer through its fork: no teleports, and the
         # server remains the sole source of racing physics.
-        var following_bypass := false
         if wants_shortcut() and is_instance_valid(course_owner.shortcut_route):
             var road: Node3D = course_owner.shortcut_route
             var entered: bool = road.entered.has(racer_id)
@@ -253,6 +253,12 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
     var center_now: float = course_owner.recovery_center_at(position) if is_instance_valid(course_owner) else 0.0
     var relative_x: float = position.x-center_now
     var wall_proximity := clampf((absf(relative_x)-4.70)/1.05,0.0,1.0)
+    if following_bypass and AIPath.inside_shortcut_gate(
+        course_owner.shortcut_route,position):
+        # A selected AI specialist may steer through the REAL open gate.
+        # Previously the 31N recovery force cancelled its 18N steering.
+        # Never relax the wall on ordinary racers or human input.
+        wall_proximity = 0.0
     side_force += -signf(relative_x) * 31.0 * wall_proximity
     if linear_velocity.length() < 0.65 or (absf(linear_velocity.z) < 0.30 and absf(relative_x) > 3.5):
         stuck_seconds += delta
