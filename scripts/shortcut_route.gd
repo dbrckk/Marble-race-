@@ -128,7 +128,7 @@ func _batch(label: String, instances: Array[Transform3D],
 func _signage(color: Material) -> void:
     var entry := Label3D.new()
     entry.name = "ShortcutEntranceArrow"
-    entry.text = "SHORTCUT  >>"
+    entry.text = "SHORTCUT  <<" if side < 0 else "SHORTCUT  >>"
     entry.font_size = 48
     entry.pixel_size = 0.013
     entry.outline_size = 8
