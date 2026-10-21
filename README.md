@@ -457,3 +457,17 @@ Automated tests/biome_signature.gd checks all three specific landmark types, cou
 ## v1.23 RC — Animated biome landmarks
 
 All three circuits now have their own low-cost animated off-track signature scenery. Woodland Workshop's windmill blades rotate, Glacier Pass's crystalline branches subtly refract and breathe, and Ember Forge's furnace collars pulse and bob. All motions update at most 20 times per second, use one existing MultiMesh per biome for the animated details, and automatically stop in ECONOMY graphics mode. Gameplay collisions, shortcuts, rare item positions, the 40-marble physics and multiplayer authority remain unchanged. Headless biome regression checks landmark bounds, animated clocks and low-end fallback. Android debug RC version 1.23.0-rc (code 37).
+
+## v1.24 RC — Real overtakes, controlled speed effects and photo finishes
+
+This iteration focuses on immediate race feel for the local Android player, without adding physics work to each of the 40 marbles.
+
+- **Real physical passing:** the local player receives a restrained close-overtake cue only after crossing from *behind* a nearby opponent to *ahead* of them along the live downhill axis. Lateral/elevation limits and maximum physical movement checks filter different-lane flybys, recovery teleports, reversing and disconnected snapshots. A unique opponent is counted once per run; cues are rate limited to avoid noisy traffic piles.
+- **Final straight and close finishes:** a one-time reminder highlights the final approach from around 27 metres before the finish. A physically finished human gets a photo-finish callout if another marble crossed the stripe within 0.48 seconds, or is still within 1.8 metres of it. Ordinary finishes and podium finishes are separately labeled.
+- **Audio:** very quiet extra chimes reuse the bundled royalty-free SFX; the original boost audio and finish fanfare stay dominant. No external downloads or copyrighted music integrations.
+- **Mobile speed cues:** four thin noninteractive screen streaks increase gently with the user's measured forward speed or turbo activation, never exceed 20% opacity, and disappear entirely in ECONOMY graphics mode. Touch-steering and boost input regions stay clickable.
+- **Competition replay:** the solo results list adds the number of unique physical opponents passed during that run. It is deliberately *presentation only* and not an authoritative source for career stamps, currencies, online results or matchmaking.
+- **Performance:** pass detection samples at 10 Hz and only considers the local player against 39 other marbles; there are no extra collision bodies, nav meshes, raycasts, particles or network packets. Reset on every race prevents stale pass events after rematches.
+- **Regression:** a new `tests/race_moments.gd` validates legitimate and fake overtakes, teleports, duplicates, final straight, real photo finishes, four touch-safe streaks and the final results display. Existing Android export, visual tests and end-to-end WebSocket integration remain required.
+
+Android debug candidate **1.24.0-rc**, version code 38, before any device-specific comfort/performance signoff.
