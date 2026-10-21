@@ -79,25 +79,56 @@ static func restore_career(career: RefCounted, raw_code: String) -> Dictionary:
         return {"ok":false,"error":"Could not prepare restored data."}
     file.store_string(str(checked["content"]))
     file.flush()
+    var write_error: Error = file.get_error()
     file.close()
-    # Keep one on-device rollback copy in case the user imports an old code.
-    # Do not damage the live career file until the replacement is validated.
-    if FileAccess.file_exists(career.save_path):
-        var existing: PackedByteArray = FileAccess.get_file_as_bytes(career.save_path)
-        if existing.size() <= MAX_CONFIG_BYTES:
-            var backup := FileAccess.open(old_copy,FileAccess.WRITE)
-            if backup == null:
-                DirAccess.remove_absolute(ProjectSettings.globalize_path(temporary))
-                return {"ok":false,"error":"Could not preserve the previous save."}
-            backup.store_buffer(existing)
-            backup.flush()
-            backup.close()
+    if write_error != OK or FileAccess.get_file_as_string(temporary) != str(checked["content"]):
+        DirAccess.remove_absolute(ProjectSettings.globalize_path(temporary))
+        return {"ok":false,"error":"Could not verify the prepared career save."}
+    # Do not touch the existing rollback until the current save has passed
+    # validation. An unreadable or oversized current save is not safe to
+    # overwrite without an independently preserved copy.
+    var preserve_previous := FileAccess.file_exists(career.save_path)
+    var existing := PackedByteArray()
+    if preserve_previous:
+        existing = FileAccess.get_file_as_bytes(career.save_path)
+        if existing.is_empty() or existing.size() > MAX_CONFIG_BYTES:
+            DirAccess.remove_absolute(ProjectSettings.globalize_path(temporary))
+            return {"ok":false,"error":"Current save could not be backed up safely."}
+        var current_text: String = existing.get_string_from_utf8()
+        if current_text.to_utf8_buffer() != existing or (
+            not bool(_validate_config(current_text)["ok"])):
+            DirAccess.remove_absolute(ProjectSettings.globalize_path(temporary))
+            return {"ok":false,"error":"Current save is invalid. Restore cancelled to protect data."}
+    var rollback_temp: String = old_copy+".writing"
+    if preserve_previous:
+        var backup := FileAccess.open(rollback_temp,FileAccess.WRITE)
+        if backup == null:
+            DirAccess.remove_absolute(ProjectSettings.globalize_path(temporary))
+            return {"ok":false,"error":"Could not prepare the previous save copy."}
+        backup.store_buffer(existing)
+        backup.flush()
+        write_error = backup.get_error()
+        backup.close()
+        if write_error != OK or FileAccess.get_file_as_bytes(rollback_temp) != existing:
+            DirAccess.remove_absolute(ProjectSettings.globalize_path(temporary))
+            DirAccess.remove_absolute(ProjectSettings.globalize_path(rollback_temp))
+            return {"ok":false,"error":"Previous save backup failed verification."}
+    # Replace the live save only after both files have been checked.
     var result: Error = DirAccess.rename_absolute(
         ProjectSettings.globalize_path(temporary),
         ProjectSettings.globalize_path(career.save_path))
     if result != OK:
         DirAccess.remove_absolute(ProjectSettings.globalize_path(temporary))
         return {"ok":false,"error":"Android refused to replace the career save."}
+    if preserve_previous:
+        var backup_result: Error = DirAccess.rename_absolute(
+            ProjectSettings.globalize_path(rollback_temp),
+            ProjectSettings.globalize_path(old_copy))
+        if backup_result != OK:
+            # The new career is already installed. Keep the verified
+            # previous copy at its temporary path for manual recovery.
+            career.load_save()
+            return {"ok":false,"error":"Career imported, but rollback copy needs attention."}
     career.load_save()
     return {"ok":true,"starts":career.starts,"finishes":career.finishes,
         "mastery":career.mastery_count(),"league":career.league_points}
