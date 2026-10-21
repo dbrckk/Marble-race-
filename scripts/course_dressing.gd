@@ -41,6 +41,10 @@ func _decor_box(name_text: String, position: Vector3, size: Vector3, material: M
     add_child(piece)
     return piece
 
+func _center(z: float) -> float:
+    var stage := get_parent().get_parent() as Node3D
+    return stage.track_center_at(z) if is_instance_valid(stage) else 0.0
+
 func _rail_accents() -> void:
     # One batch for all golden upper rail strips. They sit outside the contact surface.
     var metal := BoxMesh.new()
@@ -54,7 +58,7 @@ func _rail_accents() -> void:
     for section in range(SEGMENTS):
         var z := 8.0-float(section)*LEN
         for side in range(2):
-            var pos := Vector3((-1.0 if side==0 else 1.0)*6.855,z*SLOPE+1.23,z)
+            var pos := Vector3((-1.0 if side==0 else 1.0)*6.855+_center(z),z*SLOPE+1.23,z)
             batch.set_instance_transform(section*2+side,Transform3D(angle,pos))
     var instance := MultiMeshInstance3D.new()
     instance.name = "GoldRailTopTrim_36Segments"
@@ -68,13 +72,13 @@ func _modular_bracing() -> void:
         var z := 7.0 - section*LEN
         var y: float = z*SLOPE
         _decor_box("WalnutCrossBeam_%02d"%section,
-            Vector3(0,y-1.6,z),Vector3(15.7,0.30,0.43),_wood)
+            Vector3(_center(z),y-1.6,z),Vector3(15.7,0.30,0.43),_wood)
         for side in [-1.0,1.0]:
             _decor_box("AngledCornerSupport_%d_%02d"%[int(side),section],
-                Vector3(side*7.38,y-0.81,z),Vector3(0.19,1.6,0.36),_dark)
+                Vector3(side*7.38+_center(z),y-0.81,z),Vector3(0.19,1.6,0.36),_dark)
         # 5mm-like runners below the wood structure.
         _decor_box("UndersideGoldRivetRail_%02d"%section,
-            Vector3(0,y-1.36,z),Vector3(14.9,0.045,0.13),_gold)
+            Vector3(_center(z),y-1.36,z),Vector3(14.9,0.045,0.13),_gold)
     for section in range(2,SEGMENTS,3):
         var z := 8.0 - section*LEN
         var y: float = z*SLOPE
@@ -87,7 +91,7 @@ func _modular_bracing() -> void:
         label.modulate = Color("#f7deaf")
         label.outline_size = 5
         label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-        label.position = Vector3(-7.84,y+1.82,z)
+        label.position = Vector3(-7.84+_center(z),y+1.82,z)
         add_child(label)
 
 func _flags_and_plates() -> void:
@@ -95,7 +99,7 @@ func _flags_and_plates() -> void:
         var z: float = 8.0 - float([4,9,14][i])*LEN
         var y: float = z*SLOPE
         for side in [-1.0,1.0]:
-            var x: float = side*7.45
+            var x: float = side*7.45+_center(z)
             _decor_box("FlagStaff",Vector3(x,y+2.82,z),
                 Vector3(0.063,3.0,0.072),_dark)
             var pin := MeshInstance3D.new()
@@ -134,5 +138,5 @@ func _flags_and_plates() -> void:
         var y: float = z*SLOPE
         var color := COLORS[0] if n==0 else Color("#e7ca7e")
         var plate := _material(color,0.31,0.20)
-        _decor_box("RaceLogoPlate",Vector3(0,y+2.95,z-0.03),
+        _decor_box("RaceLogoPlate",Vector3(_center(z),y+2.95,z-0.03),
             Vector3(3.9,0.13,0.33),plate)
