@@ -81,12 +81,15 @@ func setup(owner: Node3D, track: int) -> void:
             0.12 if course_id == 1 else 0.74)
         decks.append(deck)
         deck_art.append(Transform3D(basis.scaled(deck_size),middle))
-        # Keep the turn-off and merger open: exterior guard rails are
-        # installed only once the lane is clear of the main-track portal.
-        var between_z := middle.z
-        if between_z > -60.0 or between_z < -92.0:
+        # An outer rail also protects transitional branch sections; the
+        # inner rail only closes once fully detached from the main deck.
+        # Leave 5 metres on both ends unguarded for a wide steering portal.
+        var between_z: float = middle.z
+        if between_z > ENTRY_Z-5.0 or between_z < EXIT_Z+5.0:
             continue
         for rail_side in [-1,1]:
+            if (between_z > OUTER_START or between_z < OUTER_END) and rail_side != side:
+                continue
             var lateral: Vector3 = basis*Vector3.RIGHT
             var guard_pos := middle+lateral*float(rail_side)*(WIDTH*0.5-0.06)
             guard_pos.y += 0.61
