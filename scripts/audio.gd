@@ -260,6 +260,9 @@ func course_event(kind: String) -> void:
         "shortcut":
             _voice(TONES["boost"],-10.0,1.35)
             _voice(TONES["checkpoint"],-15.0,1.02)
+        "jump":
+            _voice(TONES["boost"],-18.0,1.58)
+            _voice(GLASS_HITS[0],-22.0,1.30)
 
 func item_pickup(kind: String) -> void:
     # Distinct pitch and voice combination of existing bundled audio.
