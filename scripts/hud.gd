@@ -54,6 +54,10 @@ var checkpoint_label: Label
 var hazard_label: Label
 var shortcut_label: Label
 var position_feedback: Label
+var race_moment_label: Label
+var speed_stripes: Array[ColorRect] = []
+var moment_remaining := 0.0
+var moment_duration := 1.0
 var last_seen_rank := -1
 var rank_toast_seconds := 0.0
 var toast_remaining := 0.0
@@ -553,6 +557,31 @@ func _build_race_hud() -> void:
     position_feedback.anchor_bottom = 0.298
     position_feedback.visible = false
     hud_layer.add_child(position_feedback)
+    race_moment_label = _text("",25,Color("#aaf2e5"))
+    race_moment_label.name = "LiveRaceMoment"
+    race_moment_label.anchor_left = 0.31
+    race_moment_label.anchor_right = 0.69
+    race_moment_label.anchor_top = 0.43
+    race_moment_label.anchor_bottom = 0.50
+    race_moment_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    race_moment_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    race_moment_label.visible = false
+    hud_layer.add_child(race_moment_label)
+    # Four noninteractive screen streaks cost only four UI rectangles,
+    # keep joystick/boost touch targets clear, and disappear in ECONOMY.
+    var streak_x := [0.225,0.250,0.745,0.770]
+    for i in range(streak_x.size()):
+        var streak := ColorRect.new()
+        streak.name = "MotionStreak_%d" % i
+        streak.anchor_left = float(streak_x[i])
+        streak.anchor_right = float(streak_x[i])+0.006
+        streak.anchor_top = 0.35+float(i%2)*0.07
+        streak.anchor_bottom = 0.63+float(i%2)*0.07
+        streak.color = Color(0.65,0.88,1.0,0.0)
+        streak.mouse_filter = Control.MOUSE_FILTER_IGNORE
+        streak.visible = false
+        hud_layer.add_child(streak)
+        speed_stripes.append(streak)
     boost_progress = _progress_bar(Color("#91e6e6"))
     boost_progress.name = "BoostCharge"
     boost_progress.anchor_left = 0.665
@@ -850,6 +879,11 @@ func show_perks() -> void:
 func show_race_ui() -> void:
     last_seen_rank = -1
     rank_toast_seconds = 0.0
+    moment_remaining = 0.0
+    if is_instance_valid(race_moment_label):
+        race_moment_label.visible = false
+    for streak in speed_stripes:
+        streak.visible = false
     if is_instance_valid(position_feedback):
         position_feedback.visible = false
     if is_instance_valid(shortcut_label):
@@ -869,7 +903,26 @@ func show_countdown(value: String) -> void:
 func hide_countdown() -> void:
     countdown_label.visible = false
 
+func show_race_moment(title: String, duration: float = 1.1) -> void:
+    if not is_instance_valid(race_moment_label):
+        return
+    race_moment_label.text = title
+    race_moment_label.add_theme_color_override("font_color",
+        Color("#f6e8b6") if title.contains("FINISH") or title.contains("STRAIGHT") else (
+            Color("#a2f3d8") if title.contains("PASS") or title.contains("OVERTAKE") else
+            Color("#b5ecff")))
+    moment_duration = clampf(duration,0.4,2.2)
+    moment_remaining = moment_duration
+    race_moment_label.modulate.a = 1.0
+    race_moment_label.visible = true
+
 func update_hud() -> void:
+    var elapsed: float = get_process_delta_time()
+    if moment_remaining > 0.0:
+        moment_remaining = maxf(0.0,moment_remaining-elapsed)
+        race_moment_label.visible = moment_remaining > 0.0
+        race_moment_label.modulate.a = minf(1.0,
+            minf(moment_remaining*3.0,(moment_duration-moment_remaining)*10.0+0.20))
     if rank_toast_seconds > 0.0:
         rank_toast_seconds -= get_process_delta_time()
         position_feedback.visible = rank_toast_seconds > 0.0
@@ -884,6 +937,12 @@ func update_hud() -> void:
     label_timer = 0.0
     if not is_instance_valid(game.player):
         return
+    var speed_intensity: float = game.race_moments.edge_intensity(
+        game.race_moments.local_speed,game.boosting,game.graphics_quality) if (
+        game.race_moments != null and game.race_state == "RACING") else 0.0
+    for line in speed_stripes:
+        line.visible = speed_intensity >= 0.01
+        line.color.a = speed_intensity
     var seconds = int(game.race_time)
     var centi = int((game.race_time - float(seconds)) * 100.0)
     clock_label.text = "%02d:%02d.%02d" % [seconds / 60, seconds % 60, centi]
@@ -1028,6 +1087,7 @@ func show_results(place: int, time: float, ranking: Array) -> void:
     var earned_stars: int = int(status.get("stars",0))
     var clean_passes: int = clampi(int(status.get("clean_passes",0)),0,3)
     var stars_text := "CAREER STARS: %d / 3" % earned_stars
+    var overtakes: int = maxi(0,int(status.get("overtakes",0)))
     var mastery_text := "MASTERY  %d/3  •  TOTAL %d/9" % [
         int(status.get("mastery_track",game.career.track_mastery_count(game.selected_track))),
         int(status.get("mastery_total",game.career.mastery_count()))]
@@ -1052,8 +1112,8 @@ func show_results(place: int, time: float, ranking: Array) -> void:
                 float(sector_times[sector]),
                 " ★" if sector_records.size() == 4 and bool(sector_records[sector]) else ""]
     if summary:
-        summary.text = "POSITION  #%d / 40   •   %s\nTIME  %.1fs\nCLEAN PASSES  %d / 3\n%s\n%s\n%s\n%s\n%s\n%s\nBEST  #%s\n\nTOP 5\n%s" % [
-            place,"FINISHED" if finished else "TIME OUT",time,clean_passes,league_text,mastery_text,stars_text,sector_text,
+        summary.text = "POSITION  #%d / 40   •   %s\nTIME  %.1fs\nCLEAN PASSES  %d / 3  •  OVERTAKES %d\n%s\n%s\n%s\n%s\n%s\n%s\nBEST  #%s\n\nTOP 5\n%s" % [
+            place,"FINISHED" if finished else "TIME OUT",time,clean_passes,overtakes,league_text,mastery_text,stars_text,sector_text,
             record_text,unlock_text,
             str(game.career.track_best[game.selected_track]) if game.career.track_best[game.selected_track] > 0 else "—",
             leaders]
