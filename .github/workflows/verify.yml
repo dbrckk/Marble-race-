@@ -144,6 +144,12 @@ jobs:
           set -euo pipefail
           timeout 100s ./Godot_v4.5.1-stable_linux.x86_64 --headless --fixed-fps 60 --quit-after 23000 --path . --script res://tests/ai_navigation.gd 2>&1 | tee ai-navigation.log
           grep -Fq "AI_NAVIGATION_PASS:" ai-navigation.log
+      - name: Timed physical race events and clean-pass authority regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 550 --path . --script res://tests/race_director.gd 2>&1 | tee race-director.log
+          grep -Fq "RACE_DIRECTOR_PASS:" race-director.log
       - name: Physical course identity and biome mechanics regression
         shell: bash
         run: |
