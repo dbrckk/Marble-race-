@@ -352,3 +352,15 @@ This update adds a **dedicated, authoritative physical game mechanic per track**
 - All 40 starting positions, decorative scenery/flags, rare human-only pickups and environmental effect zones follow the race centerline. Network multiplayer snapshots continue to use ordinary world transforms, with identical deterministic geometry rebuilt on server and clients.
 - A dedicated `tests/winding_tracks.gd` checks every section's bend, its collision seam, guard orientation and AI, pickup and hazard alignment. The existing 110-second race, all three track-finish simulations and the full championship still run in CI.
 - Design limitation: this is a smoothly varying **racing corridor made from offset rigid modules and protected connecting seams**, rather than a continuous rotated spline with loop-the-loops or real branching routes. Distinct branching shortcuts will require a separate topology and camera pass.
+
+## v1.16 RC — True fork-and-rejoin routes
+
+Three courses now include a **second, physically collidable road** outside the main track. At the first fork, a 4 m opening in the outer safety barrier lets a player steer onto an independent raised bridge; the second opening rejoins the original track before the later hazards. Woodland Workshop and Ember Forge branch to the right, Glacier Pass to the left.
+
+The detached section has separate collision floors and two outer guard rails. Its deck and guard artwork use **two GPU MultiMesh draw batches** rather than a mesh per collider. Theme-specific floor materials include slippery glacier surfaces, while a glowing directional sign marks the optional fork. The bridge avoids some of the main track's obstacle field and grants a **single physics-based dash** on reaching its middle; it does not teleport the marble or fabricate time progress. The reward is an environmental shortcut bonus, not a collectible: rare pickups are still limited to real human players.
+
+AI, physics recovery, and multiplayer stay authoritative: marbles near the detour are recovered relative to the bypass instead of being pushed across the old main-road rail; network clients cannot grant themselves the dash. Only admitted human online racers receive the accompanying sound and HUD notification.
+
+Automated `tests/shortcut_routes.gd` checks the two actual portals, physical deck collider and ray contact, guard count, safe main route, client-side anti-cheat check, server-granted reward and one-use reset. Existing multi-round online tests, long physical races, three-track finish tests, and the Android APK export remain mandatory.
+
+**Remaining scope:** This is a genuine optional branching lane, not yet a wholesale replacement of all course topology by an authored spline network with banked hairpins, multi-level crossings or shortcuts in every sector. We should confirm the real-device touch steering and sightline at both forks before public release.
