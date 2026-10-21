@@ -20,9 +20,13 @@ func _check() -> void:
         fx.emitting = false
         fx.queue_free()
         await process_frame
-    game.last_result = {"finished":true,"stars":3,"record":true,"unlocked":true}
+    game.last_result = {"finished":true,"stars":3,"record":true,
+        "unlocked":true,"clean_passes":2}
     game.ui.show_results(2,43.0,game.get_rankings())
     assert("3 STARS" in game.ui.result_header.text,"Gold presentation mismatched")
+    var near_miss_summary: Label = game.ui.results_layer.find_child("Summary",true,false)
+    assert("CLEAN PASSES  2 / 3" in near_miss_summary.text,
+        "Successful near misses must become a visible replay goal")
     var summary: Label = game.ui.results_layer.find_child("Summary",true,false)
     assert("CAREER STARS: 3 / 3" in summary.text, "Persistent stars must be visible")
     assert("TOP 5" in summary.text, "Leaderboard header should match five displayed rows")
