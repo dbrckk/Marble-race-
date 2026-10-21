@@ -2,6 +2,7 @@ extends CanvasLayer
 ## Native Godot touch UI. Full game remains playable offline and by keyboard.
 
 const TOUCH_CONTROLS = preload("res://scripts/touch_controls.gd")
+const RACE_MOMENTS = preload("res://scripts/race_moments.gd")
 const FONT_HEAVY = preload("res://assets/fonts/Rajdhani-Bold.ttf")
 const FONT_REGULAR = preload("res://assets/fonts/Rajdhani-Medium.ttf")
 const TEXT := Color("#fff1dc")
@@ -937,12 +938,12 @@ func update_hud() -> void:
     label_timer = 0.0
     if not is_instance_valid(game.player):
         return
-    var speed_intensity: float = game.race_moments.edge_intensity(
+    var speed_intensity: float = RACE_MOMENTS.edge_intensity(
         game.race_moments.local_speed,game.boosting,game.graphics_quality) if (
         game.race_moments != null and game.race_state == "RACING") else 0.0
     for line in speed_stripes:
         line.visible = speed_intensity >= 0.01
-        line.color.a = speed_intensity
+        line.color = Color(0.65,0.88,1.0,speed_intensity)
     var seconds = int(game.race_time)
     var centi = int((game.race_time - float(seconds)) * 100.0)
     clock_label.text = "%02d:%02d.%02d" % [seconds / 60, seconds % 60, centi]
