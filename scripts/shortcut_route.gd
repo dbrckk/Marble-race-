@@ -281,7 +281,11 @@ func tick(_delta: float, racers: Array[RigidBody3D], net: Node) -> void:
         var point := point_at(z)
         var horizontal_error: float = absf(marble.global_position.x-point.x)
         var vertical_error: float = absf(marble.global_position.y-point.y)
-        if z <= ENTRY_Z+1.5 and z >= ENTRY_Z-ENTRY_WINDOW and (
+        # Check the *outside* of the physical railing, not merely the
+        # adjacent main-road shoulder. This is also a truthful race metric.
+        var outside_portal: bool = float(side)*(
+            marble.global_position.x-stage.track_center_at(z)) > 6.68
+        if z <= ENTRY_Z+1.5 and z >= ENTRY_Z-ENTRY_WINDOW and outside_portal and (
             horizontal_error < WIDTH*0.5+1.1 and vertical_error < 2.3):
             entered[marble.racer_id] = true
         if not entered.has(marble.racer_id):
