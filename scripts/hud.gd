@@ -883,8 +883,15 @@ func update_hud() -> void:
     var hazard: Dictionary = game.upcoming_hazard(game.player.global_position.z)
     hazard_label.visible = not hazard.is_empty()
     if not hazard.is_empty():
-        hazard_label.text = "%s EDGE CLOSED   •   %dm" % [
-            str(hazard["side"]),int(hazard["distance"])]
+        var metres: float = float(hazard["distance"])
+        var approach: float = maxf(1.25,-game.player.linear_velocity.z)
+        var seconds_until: float = metres/approach
+        # Distance is more useful during slow manoeuvres; time-to-impact
+        # gets urgent at 20m/s and warns before the next blind baffle.
+        hazard_label.text = "%s EDGE  •  %dm  /  %.1fs" % [
+            str(hazard["side"]),int(metres),minf(seconds_until,12.0)]
+        hazard_label.add_theme_color_override("font_color",
+            Color("#ff9a85") if seconds_until < 1.1 else Color("#f9d49d"))
     var route_hint: Dictionary = game.shortcut_route.shortcut_hint(
         game.player.global_position) if is_instance_valid(game.shortcut_route) else {}
     shortcut_label.visible = not route_hint.is_empty()
