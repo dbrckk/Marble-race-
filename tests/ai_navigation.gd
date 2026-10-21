@@ -22,10 +22,26 @@ func _run() -> void:
             racer.freeze = false
             racer.sleeping = false
         var simulated_frames := 0
+        var glacier_portal: Dictionary = {}
         for frame in range(7200):
             game.race_time = float(frame)/60.0
             await physics_frame
             simulated_frames = frame+1
+            if track == 1 and frame % 5 == 0:
+                for marble in game.racers:
+                    if marble.wants_shortcut() and not marble.finished:
+                        var key: int = marble.racer_id
+                        if not glacier_portal.has(key):
+                            glacier_portal[key] = {}
+                        var marks: Dictionary = glacier_portal[key]
+                        for checkpoint_z in [-40.0,-50.5,-57.0]:
+                            var k: String = str(int(checkpoint_z))
+                            if marble.position.z <= checkpoint_z and not marks.has(k):
+                                var relative: float = float(game.shortcut_route.side)*(
+                                    marble.position.x-game.track_center_at(marble.position.z))
+                                marks[k] = [snappedf(marble.position.z,0.1),
+                                    snappedf(relative,0.1),
+                                    snappedf(float(game.shortcut_route.side)*marble.linear_velocity.x,0.1)]
             if game.race_state != "RACING":
                 break
         var candidates := 0
@@ -56,6 +72,11 @@ func _run() -> void:
                 bonuses += 1
             if marble.finished:
                 candidate_finished += 1
+        if track == 1:
+            for id in glacier_portal.keys():
+                print("GLACIER_PORTAL_PATH racer=",id,
+                    " checkpoints=",glacier_portal[id],
+                    " entered=",game.shortcut_route.entered.has(id))
         print("AI_NAVIGATION_METRICS track=",track,
             " frames=",simulated_frames,
             " candidates=",candidates,
