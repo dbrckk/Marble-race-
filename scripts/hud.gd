@@ -1021,10 +1021,10 @@ func show_results(place: int, time: float, ranking: Array) -> void:
         int(status.get("mastery_total",game.career.mastery_count()))]
     var new_goals: Array = status.get("mastery_new",[])
     if not new_goals.is_empty():
-        mastery_text += "\nNEW STAMPS: " + ", ".join(new_goals)
+        mastery_text += "\nNEW STAMPS: " + ", ".join(PackedStringArray(new_goals))
     var unlocked_styles: Array = status.get("mastery_styles",[])
     if not unlocked_styles.is_empty():
-        mastery_text += "\nNEW MARBLE: " + ", ".join(unlocked_styles)
+        mastery_text += "\nNEW MARBLE: " + ", ".join(PackedStringArray(unlocked_styles))
     var sector_text := ""
     var sector_times: Array = status.get("sector_times",[])
     var sector_records: Array = status.get("sector_records",[])
