@@ -868,6 +868,8 @@ func _spawn_racers() -> void:
             m.contact_monitor = true
             m.max_contacts_reported = 6
             _add_player_marker(m)
+            if not net.is_active() and is_instance_valid(player_marker):
+                player_marker.modulate = Racer.PLAYER_STYLE_BASE[career.selected_style].lightened(0.14)
             _add_player_trail(m)
 
     if selected_perk == "Head Start" and is_instance_valid(player):
@@ -1042,7 +1044,9 @@ func _process(delta: float) -> void:
             audio.update_progress(clampf(-player.position.z/absf(FINISH_Z),0.0,1.0))
             trail.emitting = graphics_quality > 0 and player.linear_velocity.length() > 4.0
             trail.initial_velocity_max = 2.6 if boosting else 0.75
-            trail.color = Color("#91f5fd") if boosting else Color("#eeb65e")
+            trail.color = Color("#91f5fd") if boosting else (
+                Racer.PLAYER_STYLE_BASE[career.selected_style]
+                if not net.is_active() else Color("#eeb65e"))
             var cp := -1
             if player.position.z < -46.0:
                 cp = 0
