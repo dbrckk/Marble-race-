@@ -19,7 +19,11 @@ static func bypass_target_x(road: Node3D, z: float) -> float:
     if z > road.ENTRY_Z+4.0:
         # Get into position inside the rails, rather than aiming through a
         # closed barrier before the opening appears.
-        return road.stage.track_center_at(aim_z)+float(road.side)*EARLY_LANE_OFFSET
+        # On Glacier's low-grip approach, build lane commitment earlier,
+        # but stay under the actual 6.16 m interior rail clearance.
+        var approach_offset: float = EARLY_LANE_OFFSET+(
+            0.60 if road.course_id == 1 else 0.0)
+        return road.stage.track_center_at(aim_z)+float(road.side)*approach_offset
     return road.point_at(aim_z).x
 
 static func inside_shortcut_gate(road: Node3D, position: Vector3) -> bool:
@@ -33,10 +37,16 @@ static func inside_shortcut_gate(road: Node3D, position: Vector3) -> bool:
     return relative > 3.20 and relative < 9.20
 
 static func bypass_steering(target_x: float, current_x: float,
-    side_velocity: float) -> float:
+    side_velocity: float, on_ice: bool = false) -> float:
+    # A deterministic racing-line skill, never position manipulation.
+    # Glacier specialists need human-like steering strength to counter
+    # reduced grip and make the very short *real* opening in time.
     var displacement: float = target_x-current_x
-    return clampf(displacement*3.25-side_velocity*1.05,
-        -BYPASS_LATERAL_FORCE,BYPASS_LATERAL_FORCE)
+    var gain: float = 5.0 if on_ice else 3.25
+    var damping: float = 0.85 if on_ice else 1.05
+    var force_limit: float = 27.0 if on_ice else BYPASS_LATERAL_FORCE
+    return clampf(displacement*gain-side_velocity*damping,
+        -force_limit,force_limit)
 
 static func baffle_dodge(position: Vector3, center_x: float) -> float:
     # Physical outer shutters begin around relative |x|=3.8. A modest
