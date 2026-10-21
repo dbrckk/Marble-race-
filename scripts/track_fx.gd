@@ -15,6 +15,10 @@ func _ready() -> void:
     _build_line_batches()
     _waypoint_lanterns()
 
+func _center(z: float) -> float:
+    var stage := get_parent().get_parent() as Node3D
+    return stage.track_center_at(z) if is_instance_valid(stage) else 0.0
+
 func _rivet_instancing() -> void:
     var material=StandardMaterial3D.new()
     material.albedo_color=Color("#b6a59b")
@@ -33,10 +37,10 @@ func _rivet_instancing() -> void:
             var z = 8.0-section*12.0+(unit-2.5)*1.87
             for side in [-1.0,1.0]:
                 # Along the colorful outer rails.
-                positions.append(Vector3(side*6.85, z*0.085+1.245,z))
+                positions.append(Vector3(side*6.85+_center(z), z*0.085+1.245,z))
             if unit%2==0:
-                positions.append(Vector3(-6.15,z*0.085+0.032,z))
-                positions.append(Vector3(6.15,z*0.085+0.032,z))
+                positions.append(Vector3(-6.15+_center(z),z*0.085+0.032,z))
+                positions.append(Vector3(6.15+_center(z),z*0.085+0.032,z))
     var mm=MultiMesh.new()
     mm.transform_format=MultiMesh.TRANSFORM_3D
     mm.use_colors=true
@@ -105,16 +109,16 @@ func _road_markings() -> void:
             for side in [-1.0,1.0]:
                 var base_x=side*3.35
                 var color=Color("#eed89a") if section%4==1 else Color("#a7d8c5")
-                _thin_line(Vector3(base_x-0.43,zz*.085+0.07,zz),Vector3(0.74,0.018,0.12),
+                _thin_line(Vector3(base_x-0.43+_center(zz),zz*.085+0.07,zz),Vector3(0.74,0.018,0.12),
                     color,0.05,-0.70)
-                _thin_line(Vector3(base_x+0.43,zz*.085+0.07,zz),Vector3(0.74,0.018,0.12),
+                _thin_line(Vector3(base_x+0.43+_center(zz),zz*.085+0.07,zz),Vector3(0.74,0.018,0.12),
                     color,0.05,0.70)
         # lane-side marker reflectors
         for side in [-1.0,1.0]:
             var x=side*5.67
             for j in range(3):
                 var zz=z+(j-1)*3.3
-                _thin_line(Vector3(x,zz*.085+0.045,zz),
+                _thin_line(Vector3(x+_center(zz),zz*.085+0.045,zz),
                     Vector3(0.20,0.018,0.64),Color("#f5e3b0"),0.20)
 
 func _waypoint_lanterns() -> void:
@@ -141,7 +145,7 @@ func _waypoint_lanterns() -> void:
             sphere.rings=6
             bulb.mesh=sphere
             bulb.material_override=m
-            bulb.position=Vector3(pole_x,y,z)
+            bulb.position=Vector3(pole_x+_center(z),y,z)
             bulb.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
             add_child(bulb)
             beacons.append(bulb)
