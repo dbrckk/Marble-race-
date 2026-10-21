@@ -47,7 +47,7 @@ func setup(owner: Node3D, track: int, variation: int) -> void:
         pickup.add_child(ring)
         var z: float = ITEM_Z[i]
         var x: float = ITEM_X[(i + track + variation) % ITEM_X.size()]
-        pickup.position = Vector3(x,game.height_at(z)+1.05,z)
+        pickup.position = Vector3(x+game.track_center_at(z),game.height_at(z)+1.05,z)
         add_child(pickup)
         items.append(pickup)
 
