@@ -30,6 +30,16 @@ func _run() -> void:
                 elapsed=frame
                 break
         var finished=game.racer_finish_order.size()
+        var candidates: int = 0
+        for racer in game.racers:
+            if racer.wants_shortcut():
+                candidates += 1
+        var entry_count: int = game.shortcut_route.entered.size()
+        var launch_count: int = game.shortcut_route.jumped.size()
+        var bonus_count: int = game.shortcut_route.triggered.size()
+        print("AI_ROUTE_TELEMETRY course=",level," candidates=",candidates,
+            " entered=",entry_count," jumped=",launch_count,
+            " bonus=",bonus_count," finishers=",finished)
         all_results.append(finished)
         print("COURSE",level,"finished",finished,"player_z",game.player.position.z,"seconds",game.race_time,
             "result",game.race_state,"elapsed_frames",elapsed)
