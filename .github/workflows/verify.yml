@@ -98,6 +98,12 @@ jobs:
           set -euo pipefail
           timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 520 --path . --script res://tests/race_feedback.gd 2>&1 | tee race-feedback.log
           grep -Fq "RACE_FEEL_PASS:" race-feedback.log
+      - name: Verified overtakes, final sprint and nonblocking Android speed cues
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 650 --path . --script res://tests/race_moments.gd 2>&1 | tee race-moments.log
+          grep -Fq "RACE_MOMENTS_PASS:" race-moments.log
       - name: Three worlds and human-only arcade pickups regression
         shell: bash
         run: |
