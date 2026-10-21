@@ -72,7 +72,7 @@ func setup(owner: Node3D, track: int) -> void:
         # Keep the turn-off and merger open: exterior guard rails are
         # installed only once the lane is clear of the main-track portal.
         var between_z := middle.z
-        if between_z < -60.0 or between_z > -92.0:
+        if between_z > -60.0 or between_z < -92.0:
             continue
         for rail_side in [-1,1]:
             var lateral: Vector3 = basis*Vector3.RIGHT
