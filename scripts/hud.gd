@@ -888,8 +888,12 @@ func update_hud() -> void:
         var seconds_until: float = metres/approach
         # Distance is more useful during slow manoeuvres; time-to-impact
         # gets urgent at 20m/s and warns before the next blind baffle.
-        hazard_label.text = "%s EDGE  •  %dm  /  %.1fs" % [
-            str(hazard["side"]),int(metres),minf(seconds_until,12.0)]
+        var hazard_name: String = str(hazard.get("kind","EDGE"))
+        var timing: String = "CHARGING" if hazard.has("active") and not bool(hazard["active"]) else "LIVE"
+        hazard_label.text = "%s  %s  •  %dm / %.1fs" % [
+            hazard_name,str(hazard["side"]),int(metres),minf(seconds_until,12.0)]
+        if hazard.has("kind") and hazard_name == "FORGE PISTON":
+            hazard_label.text += "  /  "+timing
         hazard_label.add_theme_color_override("font_color",
             Color("#ff9a85") if seconds_until < 1.1 else Color("#f9d49d"))
     var route_hint: Dictionary = game.shortcut_route.shortcut_hint(
@@ -919,11 +923,12 @@ func show_course_event(kind: String) -> void:
         "ice": "GLACIER  /  ICE DRIFT!",
         "vent": "FORGE  /  HEAT BLAST!",
         "shortcut": "SHORTCUT  /  PERFECT LINE!",
-        "jump": "AIRTIME  /  CLEAN LAUNCH!"
+        "jump": "AIRTIME  /  CLEAN LAUNCH!",
+        "near_miss": "NEAR MISS  /  CLEAN PASS!"
     }
     checkpoint_label.text = str(labels.get(kind,"COURSE HAZARD"))
     checkpoint_label.add_theme_color_override("font_color",
-        Color("#b6edff") if kind in ["ice","shortcut","jump"] else Color("#ffcb8c"))
+        Color("#b6edff") if kind in ["ice","shortcut","jump","near_miss"] else Color("#ffcb8c"))
     checkpoint_label.modulate.a = 1.0
     checkpoint_label.visible = true
     toast_remaining = 1.45
