@@ -981,6 +981,7 @@ func show_results(place: int, time: float, ranking: Array) -> void:
         "NEW GHOST RECORD!" if bool(status.get("ghost_record",false)) else "")
     var unlock_text := "NEXT CIRCUIT UNLOCKED!" if bool(status.get("unlocked",false)) else ""
     var earned_stars: int = int(status.get("stars",0))
+    var clean_passes: int = clampi(int(status.get("clean_passes",0)),0,3)
     var stars_text := "CAREER STARS: %d / 3" % earned_stars
     var sector_text := ""
     var sector_times: Array = status.get("sector_times",[])
