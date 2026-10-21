@@ -250,6 +250,20 @@ func update_progress(ratio: float) -> void:
 func finish_fanfare() -> void:
     _voice(FANFARE,-12.0,1.0)
 
+func race_moment(kind: String) -> void:
+    # Reserved, quiet licensed cues. The existing boost and finishing
+    # fanfare remain authoritative over these optional race-direction pings.
+    if not enabled:
+        return
+    match kind:
+        "overtake":
+            _voice(UI_SELECT,-22.0,1.30)
+            _voice(TONES["checkpoint"],-25.0,1.16)
+        "final_stretch":
+            _voice(TONES["checkpoint"],-23.0,0.86)
+        "photo_finish":
+            _voice(TONES["finish"],-19.0,1.28)
+
 func course_event(kind: String) -> void:
     match kind:
         "speed":
