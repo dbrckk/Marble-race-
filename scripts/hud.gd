@@ -332,8 +332,8 @@ func _copy_backup_code() -> void:
         return
     var code: String = str(data["code"])
     DisplayServer.clipboard_set(code)
-    backup_status.text = "COPIED %d CHARACTERS! Paste into Notes or Drive NOW.\\n"+
-        "Do not uninstall until the code is saved outside the game." % int(data["length"])
+    backup_status.text = ("COPIED %d CHARACTERS! Paste into Notes or Drive NOW.\n"+
+        "Do not uninstall until the code is saved outside the game.") % int(data["length"])
 
 func _check_backup_code() -> void:
     pending_backup_code = ""
@@ -346,8 +346,8 @@ func _check_backup_code() -> void:
         backup_status.text = str(data.get("error","Invalid backup."))
         return
     pending_backup_code = code
-    backup_status.text = "BACKUP: %d RACES / %d FINISHES / %d STAMPS / %d REP\\n"+
-        "CURRENT: %d RACES. Confirm only if this is your intended save." % [
+    backup_status.text = ("BACKUP: %d RACES / %d FINISHES / %d STAMPS / %d REP\n"+
+        "CURRENT: %d RACES. Confirm only if this is your intended save.") % [
             data["starts"],data["finishes"],data["mastery"],data["league"],
             game.career.starts]
     backup_confirm_button.disabled = false
@@ -366,8 +366,8 @@ func _confirm_restore_backup() -> void:
     # Rebuild the main menu with a valid course, not a stale locked preview.
     if not game.career.is_unlocked(game.selected_track):
         game.set_track(0)
-    backup_status.text = "RESTORED: %d RACES / %d FINISHES / %d STAMPS.\\n"+
-        "Your previous career remains as a local rollback copy." % [
+    backup_status.text = ("RESTORED: %d RACES / %d FINISHES / %d STAMPS.\n"+
+        "Your previous career remains as a local rollback copy.") % [
             result["starts"],result["finishes"],result["mastery"]]
     _refresh_career_menu()
 
