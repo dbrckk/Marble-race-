@@ -509,7 +509,7 @@ func _make_course() -> void:
     _decorations()
     _showroom()
     var universe := TrackUniverses.new()
-    universe.setup(selected_track)
+    universe.setup(selected_track,self)
     board.add_child(universe)
     race_items = RaceItems.new()
     race_items.name = "RareArcadePickups"
