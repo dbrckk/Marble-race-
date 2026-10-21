@@ -136,7 +136,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          timeout 100s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 23000 --path . --script res://tests/ai_navigation.gd 2>&1 | tee ai-navigation.log
+          timeout 100s ./Godot_v4.5.1-stable_linux.x86_64 --headless --fixed-fps 60 --quit-after 23000 --path . --script res://tests/ai_navigation.gd 2>&1 | tee ai-navigation.log
           grep -Fq "AI_NAVIGATION_PASS:" ai-navigation.log
       - name: Physical course identity and biome mechanics regression
         shell: bash
