@@ -132,7 +132,8 @@ func setup(stage: Node3D, track: int, variation: int) -> void:
             for particle in range(2):
                 var z: float = 6.0-float(section)*12.0-float(particle)*2.6
                 var drift_x: float = float((section+particle+layout)%3)*0.52
-                var x: float = stage.track_center_at(z)+side*(8.45+drift_x)
+                # Keep drifting ambiance beyond the playable bypass rail too.
+                var x: float = stage.track_center_at(z)+side*(13.65+drift_x)
                 var y: float = stage.height_at(z)+1.65+(
                     float((section+particle*3)%5)*0.42)
                 var mote_position := Vector3(x,y,z)
