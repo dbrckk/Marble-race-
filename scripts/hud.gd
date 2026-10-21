@@ -999,8 +999,11 @@ func show_results(place: int, time: float, ranking: Array) -> void:
             str(game.career.track_best[game.selected_track]) if game.career.track_best[game.selected_track] > 0 else "—",
             leaders]
     if game.net.is_active():
-        summary.text = "WORLDWIDE ONLINE RACE   •   40 MARBLES\nPOSITION #%d / 40   •   %s\nTIME %.1fs\nCLEAN PASSES  %d / 3\n\nTOP FINISHERS\n%s" % [
-            place,"FINISHED" if finished else "DNF",time,clean_passes,leaders]
+        # Solo challenge counters are not available on a display-only
+        # multiplayer client: never show a false zero instead of the
+        # server-authoritative remote clean-pass count.
+        summary.text = "WORLDWIDE ONLINE RACE   •   40 MARBLES\nPOSITION #%d / 40   •   %s\nTIME %.1fs\n\nTOP FINISHERS\n%s" % [
+            place,"FINISHED" if finished else "DNF",time,leaders]
         replay_button_ref.text = "ONLINE LOBBY — AUTO REMATCH"
         replay_button_ref.disabled = false
     else:
