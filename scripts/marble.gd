@@ -72,6 +72,31 @@ var ai_lane_goal := 0.0
 var ai_lane_timer := 0.0
 var last_boosting := false
 
+## Distinct reward-only glass palettes with zero physics or networking changes.
+## Original COPPER appearance remains the default for old saves.
+const PLAYER_STYLE_BASE := [
+    Color("#f29b48"), Color("#70d1ed"), Color("#ffe08e"),
+    Color("#bd87f3"), Color("#e9f8fb")]
+const PLAYER_STYLE_ACCENT := [
+    Color("#542b1d"), Color("#164f77"), Color("#bb6028"),
+    Color("#392467"), Color("#f58dce")]
+const PLAYER_STYLE_VEIN := [
+    Color("#fff0d0"), Color("#e9ffff"), Color("#fff1bd"),
+    Color("#f4caff"), Color("#89ebec")]
+
+func apply_player_style(style: int) -> void:
+    if not is_player or not is_instance_valid(glass_material):
+        return
+    var chosen: int = clampi(style,0,PLAYER_STYLE_BASE.size()-1)
+    glass_material.set_shader_parameter("base_color",PLAYER_STYLE_BASE[chosen])
+    glass_material.set_shader_parameter("accent_color",PLAYER_STYLE_ACCENT[chosen])
+    glass_material.set_shader_parameter("vein_color",PLAYER_STYLE_VEIN[chosen])
+    glass_material.set_shader_parameter("stripe_scale",0.80+float(chosen)*0.19)
+    glass_material.set_shader_parameter("pattern_seed",
+        seed_value+float(chosen)*2.83)
+    if is_instance_valid(boost_ring):
+        boost_ring.modulate = PLAYER_STYLE_BASE[chosen]
+
 func setup(index: int, player: bool, base_position: Vector3, chosen_perk: String = "") -> void:
     racer_id = index
     is_player = player
