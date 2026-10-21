@@ -25,8 +25,7 @@ déblocages, la maîtrise, la ligue et les apparences. Il ne contient pas les
 fichiers de course fantôme, les préférences, ni les données de connexion.
 Les codes contiennent un contrôle SHA-256 pour détecter les copies incomplètes
 ou endommagées, **pas** une signature d'authenticité. Restaurer un code
-**remplace** la progression locale. Une copie locale
-`marble_career.cfg.before_import` est conservée pour le diagnostic.
+**remplace** la progression locale. Une copie locale `marble_career.cfg.before_import` est conservée, et le bouton **UNDO PREVIOUS IMPORT** permet de prévisualiser cette version puis de la restaurer avec confirmation. Cette annulation locale n'existe plus après désinstallation.
 
 L'application n'envoie **aucune** de ces données à un serveur pour effectuer
 une sauvegarde et ne demande pas de permission Android d'accès aux fichiers.
