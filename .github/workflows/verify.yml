@@ -9,6 +9,12 @@ on:
 permissions:
   contents: read
 
+# Editing several files should not spend minutes signing/building obsolete
+# commits. Keep only the latest run per branch or pull request.
+concurrency:
+  group: marble-race-verify-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   godot-android:
     runs-on: ubuntu-latest
