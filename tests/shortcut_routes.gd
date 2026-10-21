@@ -1,7 +1,7 @@
 extends SceneTree
 ## Real branch regression: 3 playable exterior decks, entry/exit portals,
 ## physical world contact, human navigation and server-authoritative rewards.
-const Shortcut = preload("res://scripts/shortcut_route.gd")
+const BypassScript = preload("res://scripts/shortcut_route.gd")
 func _initialize() -> void:
     call_deferred("_run")
 
@@ -16,13 +16,13 @@ func _run() -> void:
     for course in range(3):
         assert(game.set_track(course),"Unlocked course should be selectable")
         var road: Node3D = game.shortcut_route
-        var side: int = Shortcut.side_for(course)
+        var side: int = BypassScript.side_for(course)
         assert(road == game.board.get_node("PhysicalShortcutRoute"))
-        assert(road.decks.size() == Shortcut.SEGMENTS,
+        assert(road.decks.size() == BypassScript.SEGMENTS,
             "The bypass needs solid deck colliders throughout")
         assert(road.guards.size() >= 20,
             "The exterior half of the shortcut must have solid rail guards")
-        assert(road.physical_distance > Shortcut.ENTRY_Z-Shortcut.EXIT_Z,
+        assert(road.physical_distance > BypassScript.ENTRY_Z-BypassScript.EXIT_Z,
             "The alternate road must physically diverge, not just paint arrows")
         assert(road.physical_distance < 75.0,
             "The side detour must not be an implausibly long route")
@@ -31,9 +31,9 @@ func _run() -> void:
         for section in range(18):
             var module: Node3D = game.board.get_node("Course_%02d" % section)
             var portal: int = int(module.get_meta("shortcut_portal",0))
-            if section in [Shortcut.ENTRY_SECTION,Shortcut.EXIT_SECTION]:
+            if section in [BypassScript.ENTRY_SECTION,BypassScript.EXIT_SECTION]:
                 assert(portal == side,"Entrance and merger must be on same bypass side")
-                assert(Shortcut.opens_rail(section,side,1,course))
+                assert(BypassScript.opens_rail(section,side,1,course))
             else:
                 assert(portal == 0,"Only entrance and exit may open the main railing")
         assert(game.track_surface.rails.size() == 106,
@@ -42,9 +42,9 @@ func _run() -> void:
             "The original main course stays physically continuous")
         assert(game.race_items.items.size() == 4,
             "Rare human-only items must not be replaced by shortcut reward")
-        var start: Vector3 = road.point_at(Shortcut.ENTRY_Z)
-        var exit_point: Vector3 = road.point_at(Shortcut.EXIT_Z)
-        var middle: Vector3 = road.point_at(Shortcut.REWARD_Z)
+        var start: Vector3 = road.point_at(BypassScript.ENTRY_Z)
+        var exit_point: Vector3 = road.point_at(BypassScript.EXIT_Z)
+        var middle: Vector3 = road.point_at(BypassScript.REWARD_Z)
         assert(absf(start.x-game.track_center_at(start.z)-float(side)*4.9) < 0.01)
         assert(absf(exit_point.x-game.track_center_at(exit_point.z)-float(side)*4.9) < 0.01)
         assert(absf(middle.x-game.track_center_at(middle.z)) > 9.0,
