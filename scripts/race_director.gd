@@ -193,6 +193,13 @@ func tick(racers: Array[RigidBody3D], net: Node) -> void:
                 Vector3(0.0,0.10,-NEAR_MISS_IMPULSE)*marble.mass)
             _feedback(marble,net)
 
+func clean_pass_count(racer_id: int) -> int:
+    var total := 0
+    for index in range(EVENT_Z.size()):
+        if awarded.has("%d:%d" % [index,racer_id]):
+            total += 1
+    return total
+
 func _feedback(marble: RigidBody3D, net: Node) -> void:
     if net.role == "server":
         if marble.network_controlled and net.joined_slots.values().has(marble.racer_id):
