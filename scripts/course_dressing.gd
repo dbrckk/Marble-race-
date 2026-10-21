@@ -59,7 +59,12 @@ func _rail_accents() -> void:
         var z := 8.0-float(section)*LEN
         for side in range(2):
             var pos := Vector3((-1.0 if side==0 else 1.0)*6.855+_center(z),z*SLOPE+1.23,z)
-            batch.set_instance_transform(section*2+side,Transform3D(angle,pos))
+            # Suppress decorative rail trim at the real fork / merger.
+            var portal_side: int = -1 if side == 0 else 1
+            var guide: Basis = angle
+            if section in [5,9] and portal_side == [1,-1,1][clampi(int(get_parent().get_parent().selected_track),0,2)]:
+                guide = Basis().scaled(Vector3.ZERO)
+            batch.set_instance_transform(section*2+side,Transform3D(guide,pos))
     var instance := MultiMeshInstance3D.new()
     instance.name = "GoldRailTopTrim_36Segments"
     instance.multimesh = batch
