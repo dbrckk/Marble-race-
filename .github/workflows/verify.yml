@@ -34,28 +34,6 @@ jobs:
           unzip -q godot.tpz 'templates/android_debug.apk'
           mv templates/android_debug.apk "$HOME/.local/share/godot/export_templates/4.5.1.stable/"
           echo "$PWD" >> "$GITHUB_PATH"
-      - name: Configure Android SDK
-        shell: bash
-        run: |
-          set -euo pipefail
-          : "${ANDROID_HOME:?Android SDK must be available on runner}"
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'build-tools;35.0.0' 'platforms;android-35' 'platform-tools'
-          mkdir -p "$HOME/.local/share/godot/keystores" "$HOME/.config/godot" build
-          keytool -genkeypair -noprompt \
-            -keystore "$HOME/.local/share/godot/keystores/debug.keystore" \
-            -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
-            -storepass android -keypass android \
-            -dname "CN=Android Debug,O=Open Source,C=US"
-          cat > "$HOME/.config/godot/editor_settings-4.5.tres" <<EOF
-          [gd_resource type="EditorSettings" format=3]
-
-          [resource]
-          export/android/android_sdk_path = "$ANDROID_HOME"
-          export/android/java_sdk_path = "$JAVA_HOME"
-          export/android/debug_keystore = "$HOME/.local/share/godot/keystores/debug.keystore"
-          export/android/debug_keystore_user = "androiddebugkey"
-          export/android/debug_keystore_pass = "android"
-          EOF
       - name: Import project assets
         run: ./Godot_v4.5.1-stable_linux.x86_64 --headless --editor --path . --quit
       - name: Adaptive Android graphics regression
@@ -242,6 +220,28 @@ jobs:
           set -euo pipefail
           timeout 180s ./Godot_v4.5.1-stable_linux.x86_64 --headless --fixed-fps 60 --quit-after 46000 --path . --script res://tests/end_to_end.gd 2>&1 | tee career-end-to-end.log
           grep -Fq "END_TO_END_PASS:" career-end-to-end.log
+      - name: Configure Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${ANDROID_HOME:?Android SDK must be available on runner}"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'build-tools;35.0.0' 'platforms;android-35' 'platform-tools'
+          mkdir -p "$HOME/.local/share/godot/keystores" "$HOME/.config/godot" build
+          keytool -genkeypair -noprompt \
+            -keystore "$HOME/.local/share/godot/keystores/debug.keystore" \
+            -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass android -keypass android \
+            -dname "CN=Android Debug,O=Open Source,C=US"
+          cat > "$HOME/.config/godot/editor_settings-4.5.tres" <<EOF
+          [gd_resource type="EditorSettings" format=3]
+
+          [resource]
+          export/android/android_sdk_path = "$ANDROID_HOME"
+          export/android/java_sdk_path = "$JAVA_HOME"
+          export/android/debug_keystore = "$HOME/.local/share/godot/keystores/debug.keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
+          EOF
       - name: Generate Android debug APK
         run: ./Godot_v4.5.1-stable_linux.x86_64 --headless --path . --export-debug Android build/marble-race-debug.apk
       - name: Verify Android debug APK signature
