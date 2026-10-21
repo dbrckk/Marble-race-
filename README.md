@@ -407,3 +407,18 @@ This iteration improves the physical feel of the existing three-course, 40-marbl
 - **Regression**: `tests/race_feedback.gd` checks frame-rate invariance, all three camera views, bounded camera movement, filtering horizontal floor rolling, relative collision severity, landing feedback, realistic Foley, and hazard ETA. Existing course-finish, human-only pickup, dedicated server, network, long race and Android build tests still run.
 
 Android build: `1.19.0-rc`, code 33. This is a **debug RC**, not a Play Store production AAB. Although automated scene and physics tests pass in CI, live handset steering, actual frame pacing and sensory comfort require a real-device trial.
+
+## v1.20 RC — Reactive course hazards and rewarded close passes
+
+This update introduces three **physically collidable, timed challenges on each track**, at safe module junctions instead of adding more permanent blockers into already crowded slaloms. Their position changes with the track variant, producing fresh racing decisions across rematches while preserving the 40-marble starting grid and the full-width central escape lane.
+
+- **Woodland Workshop:** three side-lane sweeping arms slowly oscillate across a small, bounded lateral range. They create passing windows without closing the road.
+- **Glacier Pass:** faster shifting icy shutters with wider lateral motion change where the safe line lies over time.
+- **Ember Forge:** three timed pistons rise smoothly from under the real race surface and retract again. A glowing ring communicates the active/charging phase. Their collision bodies move along with the visual, not as fake shader effects.
+- Each timed obstacle has a small **glowing ground halo** and a readable themed marker. The existing in-race obstacle warning announces the direction and distance, with estimated time-to-impact. Forge markers distinguish active from preparing hazards.
+- **Clean-pass bonus**: marbles passing close alongside an active timed obstacle earn one modest physical speed impulse per obstacle. The server verifies direction, lateral clearance and spatial proximity. AI and human racers have the same physics rules; these are environmental skills, **not rare items**. The four instant-use pickups remain exclusively for real human players.
+- **Human feedback:** earned near misses produce compact HUD text and a distinct two-tone cue from the existing licensed audio assets; server-authoritative online rewards send the alert only to the authenticated human who earned it.
+- **Performance and stability:** the director adds nine small animated pieces across all three tracks, three per active course, and checks at most three by 40 racers per physics frame. There are no dynamic shadows, particle storms, navigation meshes, network replication of individual hazard transforms or new external dependencies. Only the server or offline simulation awards physics.
+- **Automated test:** `tests/race_director.gd` verifies actual animated collision bodies, different biome timing, forge retract/extend motion, warnings, clean-pass proximity and one-time rewards, and client authority. The usual real-server integration, 120-second three-biome race, championship and arm64 Android APK export still run.
+
+This is an Android **debug release candidate**. Device-based verification remains necessary for collision feel, touch accuracy and performance before any public production AAB.
