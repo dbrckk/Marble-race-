@@ -182,6 +182,9 @@ func reset_round() -> void:
     triggered.clear()
 
 func tick(_delta: float, racers: Array[RigidBody3D], net: Node) -> void:
+    # Never apply gameplay effects from a rendering-only client replica.
+    if net.role == "client":
+        return
     for marble in racers:
         if not is_instance_valid(marble) or marble.finished or marble.eliminated or marble.freeze:
             continue
