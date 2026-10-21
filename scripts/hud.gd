@@ -52,6 +52,7 @@ var course_progress: ProgressBar
 var boost_progress: ProgressBar
 var checkpoint_label: Label
 var hazard_label: Label
+var shortcut_label: Label
 var position_feedback: Label
 var last_seen_rank := -1
 var rank_toast_seconds := 0.0
@@ -499,13 +500,22 @@ func _build_race_hud() -> void:
     hazard_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     hazard_label.visible = false
     hud_layer.add_child(hazard_label)
+    shortcut_label = _text("",17,Color("#f9d79a"))
+    shortcut_label.name = "ForkAndMergePreview"
+    shortcut_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    shortcut_label.anchor_left = 0.26
+    shortcut_label.anchor_right = 0.74
+    shortcut_label.anchor_top = 0.207
+    shortcut_label.anchor_bottom = 0.243
+    shortcut_label.visible = false
+    hud_layer.add_child(shortcut_label)
     position_feedback = _text("",21,Color("#a7f0d8"))
     position_feedback.name = "RankFeedback"
     position_feedback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     position_feedback.anchor_left = 0.38
     position_feedback.anchor_right = 0.62
-    position_feedback.anchor_top = 0.225
-    position_feedback.anchor_bottom = 0.270
+    position_feedback.anchor_top = 0.257
+    position_feedback.anchor_bottom = 0.298
     position_feedback.visible = false
     hud_layer.add_child(position_feedback)
     boost_progress = _progress_bar(Color("#91e6e6"))
@@ -797,6 +807,8 @@ func show_race_ui() -> void:
     rank_toast_seconds = 0.0
     if is_instance_valid(position_feedback):
         position_feedback.visible = false
+    if is_instance_valid(shortcut_label):
+        shortcut_label.visible = false
     if get_tree().paused:
         get_tree().paused = false
     _hide_all()
@@ -873,6 +885,18 @@ func update_hud() -> void:
     if not hazard.is_empty():
         hazard_label.text = "%s EDGE CLOSED   •   %dm" % [
             str(hazard["side"]),int(hazard["distance"])]
+    var route_hint: Dictionary = game.shortcut_route.shortcut_hint(
+        game.player.global_position) if is_instance_valid(game.shortcut_route) else {}
+    shortcut_label.visible = not route_hint.is_empty()
+    if not route_hint.is_empty():
+        if str(route_hint["mode"]) == "fork":
+            shortcut_label.text = "%s FOR SHORTCUT  •  %dm" % [
+                str(route_hint["side"]),int(route_hint["distance"])]
+            shortcut_label.add_theme_color_override("font_color",Color("#ffdda0"))
+        else:
+            shortcut_label.text = "MERGE %s  •  %dm" % [
+                str(route_hint["side"]),int(route_hint["distance"])]
+            shortcut_label.add_theme_color_override("font_color",Color("#a8f6e4"))
     var ranking = game.get_rankings()
     var table = "TOP RACERS\n"
     for i in range(min(3,ranking.size())):
@@ -887,11 +911,12 @@ func show_course_event(kind: String) -> void:
         "speed": "WOODLAND  /  SPEED LINE!",
         "ice": "GLACIER  /  ICE DRIFT!",
         "vent": "FORGE  /  HEAT BLAST!",
-        "shortcut": "SHORTCUT  /  PERFECT LINE!"
+        "shortcut": "SHORTCUT  /  PERFECT LINE!",
+        "jump": "AIRTIME  /  CLEAN LAUNCH!"
     }
     checkpoint_label.text = str(labels.get(kind,"COURSE HAZARD"))
     checkpoint_label.add_theme_color_override("font_color",
-        Color("#b6edff") if kind in ["ice","shortcut"] else Color("#ffcb8c"))
+        Color("#b6edff") if kind in ["ice","shortcut","jump"] else Color("#ffcb8c"))
     checkpoint_label.modulate.a = 1.0
     checkpoint_label.visible = true
     toast_remaining = 1.45
