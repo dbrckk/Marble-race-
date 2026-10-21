@@ -232,7 +232,7 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
                 road.ENTRY_Z,road.EXIT_Z,road.ENTRY_WINDOW):
                 var aim_x: float = AIPath.bypass_target_x(road,position.z)
                 side_force = AIPath.bypass_steering(aim_x,position.x,
-                    linear_velocity.x)
+                    linear_velocity.x,course_owner.selected_track == 1)
                 following_bypass = true
         if not following_bypass and is_instance_valid(course_owner):
             side_force += AIPath.baffle_dodge(position,
