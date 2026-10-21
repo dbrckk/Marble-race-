@@ -857,6 +857,10 @@ func _spawn_racers() -> void:
         m.setup(i, is_you, p, selected_perk)
         m.course_owner = self
         add_child(m)
+        # Cosmetic mastery rewards are entirely local to solo races. Public
+        # network race marbles keep the original uniform player material.
+        if is_you and not net.is_active():
+            m.apply_player_style(career.selected_style)
         m.freeze = true
         racers.append(m)
         if is_you:
@@ -1308,6 +1312,20 @@ func _end_race() -> void:
             is_instance_valid(race_director) and is_instance_valid(player)) else 0
         last_result["sector_times"] = durations
         last_result["sector_records"] = career.record_sectors(selected_track,durations) if completed and not net.is_active() else [false,false,false,false]
+        # An offline, genuinely finished race is the only source of mastery.
+        # Client snapshots and server online races must never modify career.
+        if not net.is_active():
+            var clean_count: int = race_director.clean_pass_count(player.racer_id) if (
+                is_instance_valid(race_director) and is_instance_valid(player)) else 0
+            var used_bypass: bool = is_instance_valid(shortcut_route) and (
+                is_instance_valid(player) and
+                shortcut_route.triggered.has(player.racer_id))
+            var earned: Dictionary = career.complete_mastery(
+                selected_track,completed,clean_count,used_bypass)
+            last_result["mastery_new"] = earned["new_goals"]
+            last_result["mastery_styles"] = earned["new_styles"]
+            last_result["mastery_track"] = earned["track_count"]
+            last_result["mastery_total"] = earned["count"]
     if net.is_host():
         net.on_host_finish()
     audio.tone("finish")
