@@ -364,3 +364,18 @@ AI, physics recovery, and multiplayer stay authoritative: marbles near the detou
 Automated `tests/shortcut_routes.gd` checks the two actual portals, physical deck collider and ray contact, guard count, safe main route, client-side anti-cheat check, server-granted reward and one-use reset. Existing multi-round online tests, long physical races, three-track finish tests, and the Android APK export remain mandatory.
 
 **Remaining scope:** This is a genuine optional branching lane, not yet a wholesale replacement of all course topology by an authored spline network with banked hairpins, multi-level crossings or shortcuts in every sector. We should confirm the real-device touch steering and sightline at both forks before public release.
+
+
+## v1.17 RC — Branch readability, banking and precision jumps
+
+v1.17 improves **player decision-making and racing feel** on all three v1.16 physical shortcut lanes while preserving the existing 40 physics-simulated racers:
+
+- **Proactive fork/merge HUD**: a compact amber cue 36 m before the turn-off displays the correct LEFT/RIGHT direction and remaining distance; once on the bypass, a mint-green cue shows distance and direction to merge. The label is hidden when no action is needed, preserving visibility on small Android screens.
+- **Clear physical signposting**: larger thematic entrance and merger arrows, two overhead glowing guide beams, 15 batched directional chevrons along the optional route, and protected approach edges. All are original Godot geometry, with no extra texture downloads or per-pixel lights.
+- **Real banked turns**: small (maximum 0.08 radians, approximately 4.6 degrees) curvature-dependent banking modifies both the rigid collision floor and its rendered mesh. The banking fades at the transitions so marbles do not catch a sudden angle at the fork or rejoin.
+- **One optional jump per shortcut**: a low solid launch ramp at a course-specific position, with a short, one-time physical upward impulse for a marble that has legitimately entered the alternate route. Marble momentum, gravity and collisions remain real; no scripted teleport or fake flight.
+- **Earned and balanced acceleration**: the previous arbitrary midpoint reward is replaced with an entry-validated, single-use impulse of 4.25 mass-scaled units, reduced from 5.4. The detour is longer than the direct spine, so success still depends on driving well rather than an automatic win. Jump and finish-line bonuses cannot be collected by repeatedly standing in a trigger. These terrain bonuses apply to all physically present marbles, unlike the scarce floating items, which remain human-only.
+- **Dedicated-server authority**: only the local simulation or dedicated server can apply these physics; a client cannot grant itself an item, a shortcut or a jump. The relevant player receives a reliable shortcut/jump HUD and audio notification using the game's existing licensed/created sound bank.
+- **Full-bridge regression**: tests/shortcut_routes.gd now validates banking, ramp collider and slope, route entry anti-cheat, navigation labels, once-per-race rewards and physics ray contact at fourteen points along each elevated branch, as well as the existing three-round multiplayer and Android build checks.
+
+**Known limits**: the new jumps are intentionally low and controllable rather than extreme stunt jumps. Real Android playtesting is still needed to confirm sightlines, steering sensitivity, collision smoothness at bridge transitions and frame pacing before Play Store publication.
