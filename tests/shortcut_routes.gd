@@ -74,6 +74,9 @@ func _run() -> void:
             "Driving on the detour must warn about the correct merge")
         assert(road.shortcut_hint(Vector3(0,0,-115.0)).is_empty(),
             "Route cues disappear after the merge")
+        assert(road.shortcut_hint(Vector3(
+            game.track_center_at(-70.0),game.height_at(-70.0),-70.0)).is_empty(),
+            "Main-track racers must never receive a false merge instruction")
         assert(absf(road.bank_at(-76.0)) <= BypassScript.MAX_BANK+0.001,
             "Bank angle must stay safe for Android marble physics")
         assert(absf(road.recovery_center_at(middle)-middle.x) < 0.01,
