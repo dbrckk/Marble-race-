@@ -62,6 +62,11 @@ func _verify() -> void:
     root.add_child(game)
     await process_frame
     game.career.save_path = SCENE_SAVE
+    game.career.league_points = 0
+    for index in range(3):
+        game.career.league_runs[index] = 0
+        game.career.league_clean_passes[index] = 0
+        game.career.league_shortcuts[index] = 0
     game.career.unlocked = 3
     game.set_process(false)
     game.set_physics_process(false)
