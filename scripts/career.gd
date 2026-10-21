@@ -3,6 +3,13 @@ extends RefCounted
 var save_path := "user://marble_career.cfg"
 const TRACKS := ["WOODWORKS", "SWITCHBACK", "GAUNTLET"]
 const TARGETS := [10, 8, 1]
+## Nine permanently earned solo mastery stamps: per circuit, complete a
+## valid race / earn a physical clean pass / succeed on the side shortcut.
+## Unlocks are cumulative and cosmetic only: no gameplay/stat paywall.
+const MASTERY_GOALS := ["FINISH RACE","CLEAN PASS","SHORTCUT"]
+const STYLE_NAMES := ["COPPER","AZURE","SOLAR","AMETHYST","PRISM"]
+const STYLE_THRESHOLDS := [0,2,4,6,9]
+const ALL_MASTERY_BITS := 7
 
 var starts := 0
 var finishes := 0
@@ -12,6 +19,8 @@ var track_best: Array[int] = [0, 0, 0]
 var track_time: Array[float] = [0.0, 0.0, 0.0]
 var unlocked := 1
 var stars: Array[int] = [0,0,0]
+var mastery_flags: Array[int] = [0,0,0]
+var selected_style := 0
 ## Four split records per circuit: 3 checkpoints plus the finish line.
 ## Flat typed array avoids nested Godot array serialization pitfalls.
 const SECTORS_PER_TRACK := 4
@@ -29,9 +38,16 @@ func load_save() -> void:
         track_best[index] = clampi(int(file.get_value("career","best_%d" % index,0)),0,40)
         track_time[index] = maxf(0.0,float(file.get_value("career","time_%d" % index,0.0)))
         stars[index] = clampi(int(file.get_value("career","stars_%d" % index,0)),0,3)
+        # Old pre-mastery saves contain no [mastery] section and remain valid.
+        mastery_flags[index] = clampi(
+            int(file.get_value("mastery","flags_%d" % index,0)),0,ALL_MASTERY_BITS)
         for sector in range(SECTORS_PER_TRACK):
             var saved := float(file.get_value("sectors","best_%d_%d" % [index,sector],0.0))
             sector_best[index*SECTORS_PER_TRACK+sector] = saved if is_finite(saved) and saved > 0.0 and saved < 600.0 else 0.0
+    selected_style = clampi(int(file.get_value("mastery","style",0)),
+        0,STYLE_NAMES.size()-1)
+    if not is_style_unlocked(selected_style):
+        selected_style = 0
     # Derive unlocks from completed results: saved data cannot lock a won track.
     unlocked = 1
     if track_best[0] > 0 and track_best[0] <= TARGETS[0]:
@@ -49,8 +65,11 @@ func save() -> int:
         file.set_value("career","best_%d" % index,track_best[index])
         file.set_value("career","time_%d" % index,track_time[index])
         file.set_value("career","stars_%d" % index,stars[index])
+        file.set_value("mastery","flags_%d" % index,
+            clampi(mastery_flags[index],0,ALL_MASTERY_BITS))
         for sector in range(SECTORS_PER_TRACK):
             file.set_value("sectors","best_%d_%d" % [index,sector],sector_best[index*SECTORS_PER_TRACK+sector])
+    file.set_value("mastery","style",selected_style)
     return file.save(save_path)
 
 func begin() -> void:
@@ -82,6 +101,101 @@ func complete(index: int, place: int, time_seconds: float, finished: bool) -> Di
     save()
     return {"record":record,"unlocked":newly_unlocked,"stars":stars[index],
         "best":track_best[index],"place":place,"finished":finished}
+
+
+func track_mastery_count(index: int) -> int:
+    if index < 0 or index >= TRACKS.size():
+        return 0
+    var mask: int = mastery_flags[index] & ALL_MASTERY_BITS
+    return int(bool(mask & 1)) + int(bool(mask & 2)) + int(bool(mask & 4))
+
+func mastery_count() -> int:
+    var total := 0
+    for track in range(TRACKS.size()):
+        total += track_mastery_count(track)
+    return total
+
+func has_mastery(index: int, goal: int) -> bool:
+    if index < 0 or index >= TRACKS.size() or goal < 0 or goal >= MASTERY_GOALS.size():
+        return false
+    return (mastery_flags[index] & (1 << goal)) != 0
+
+func is_style_unlocked(style: int) -> bool:
+    return style >= 0 and style < STYLE_NAMES.size() and (
+        mastery_count() >= STYLE_THRESHOLDS[style])
+
+func style_name() -> String:
+    return STYLE_NAMES[selected_style]
+
+func unlocked_style_count() -> int:
+    var total := 0
+    for i in range(STYLE_NAMES.size()):
+        if is_style_unlocked(i):
+            total += 1
+    return total
+
+func choose_style(style: int) -> bool:
+    if not is_style_unlocked(style):
+        return false
+    if selected_style != style:
+        selected_style = style
+        save()
+    return true
+
+func cycle_style() -> int:
+    # Unlock order is monotonic, but select via eligibility rather than
+    # assuming a sequential progression. The first style is always free.
+    for n in range(1,STYLE_NAMES.size()+1):
+        var next: int = (selected_style+n)%STYLE_NAMES.size()
+        if is_style_unlocked(next):
+            choose_style(next)
+            return selected_style
+    return selected_style
+
+func mastery_summary(index: int) -> String:
+    if index < 0 or index >= TRACKS.size():
+        return ""
+    var parts: Array[String] = []
+    for goal in range(MASTERY_GOALS.size()):
+        parts.append(("%s " % MASTERY_GOALS[goal]) +
+            ("✓" if has_mastery(index,goal) else "○"))
+    return "  •  ".join(parts)
+
+func complete_mastery(index: int, finished: bool,
+    clean_passes: int, shortcut_completed: bool) -> Dictionary:
+    # Caller is trusted solo finish logic only. Client/server results are
+    # explicitly excluded at the game layer, and a DNF never grants stamps.
+    var result: Dictionary = {"new_goals":[],"new_styles":[],
+        "count":mastery_count(),"track_count":track_mastery_count(index)}
+    if index < 0 or index >= TRACKS.size() or not finished:
+        return result
+    var previous_total: int = mastery_count()
+    var earn: int = 1
+    if clean_passes >= 1:
+        earn |= 2
+    if shortcut_completed:
+        earn |= 4
+    var before: int = mastery_flags[index]
+    var delta: int = earn & (~before)
+    if delta == 0:
+        return result
+    mastery_flags[index] = (before | earn) & ALL_MASTERY_BITS
+    var new_goals: Array[String] = []
+    for goal in range(MASTERY_GOALS.size()):
+        if (delta & (1 << goal)) != 0:
+            new_goals.append(MASTERY_GOALS[goal])
+    var new_total: int = mastery_count()
+    var new_styles: Array[String] = []
+    for style in range(1,STYLE_NAMES.size()):
+        var threshold: int = STYLE_THRESHOLDS[style]
+        if previous_total < threshold and new_total >= threshold:
+            new_styles.append(STYLE_NAMES[style])
+    result["new_goals"] = new_goals
+    result["new_styles"] = new_styles
+    result["count"] = new_total
+    result["track_count"] = track_mastery_count(index)
+    save()
+    return result
 
 func best_sector(index: int, sector: int) -> float:
     if index < 0 or index >= TRACKS.size() or sector < 0 or sector >= SECTORS_PER_TRACK:
