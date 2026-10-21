@@ -132,6 +132,12 @@ jobs:
           set -euo pipefail
           timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 550 --path . --script res://tests/shortcut_routes.gd 2>&1 | tee shortcut-routes.log
           grep -Fq "SHORTCUT_ROUTES_PASS:" shortcut-routes.log
+      - name: Real AI route success and 120-second fair physics race regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 100s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 23000 --path . --script res://tests/ai_navigation.gd 2>&1 | tee ai-navigation.log
+          grep -Fq "AI_NAVIGATION_PASS:" ai-navigation.log
       - name: Physical course identity and biome mechanics regression
         shell: bash
         run: |
