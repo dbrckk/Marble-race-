@@ -227,11 +227,15 @@ jobs:
           : "${ANDROID_HOME:?Android SDK must be available on runner}"
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'build-tools;35.0.0' 'platforms;android-35' 'platform-tools'
           mkdir -p "$HOME/.local/share/godot/keystores" "$HOME/.config/godot" build
-          keytool -genkeypair -noprompt \
-            -keystore "$HOME/.local/share/godot/keystores/debug.keystore" \
-            -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
-            -storepass android -keypass android \
-            -dname "CN=Android Debug,O=Open Source,C=US"
+          # Godot and hosted runners can already supply a debug key.
+          # Re-running keytool with the same alias fails; be idempotent.
+          if [ ! -f "$HOME/.local/share/godot/keystores/debug.keystore" ]; then
+            keytool -genkeypair -noprompt \
+              -keystore "$HOME/.local/share/godot/keystores/debug.keystore" \
+              -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass android -keypass android \
+              -dname "CN=Android Debug,O=Open Source,C=US"
+          fi
           cat > "$HOME/.config/godot/editor_settings-4.5.tres" <<EOF
           [gd_resource type="EditorSettings" format=3]
 
