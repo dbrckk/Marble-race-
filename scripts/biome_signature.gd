@@ -25,6 +25,13 @@ var signs: Array[Label3D] = []
 var landmark_positions: Array[Vector3] = []
 var mote_positions: Array[Vector3] = []
 var quality := 1
+var motion_clock := 0.0
+var motion_accumulator := 0.0
+var detail_origins: Array[Vector3] = []
+var detail_bases: Array[Basis] = []
+var detail_material: StandardMaterial3D
+var motion_frame_count := 0
+const MOTION_STEP := 0.05 # At most 20 low-cost transform uploads per second.
 
 func setup(stage: Node3D, track: int, variation: int) -> void:
     name = "TrackSignatureLandmarks"
@@ -36,6 +43,7 @@ func setup(stage: Node3D, track: int, variation: int) -> void:
     dark.roughness = 0.77 if biome == 0 else 0.37
     dark.metallic = 0.12 if biome < 2 else 0.54
     var accent := StandardMaterial3D.new()
+    detail_material = accent
     accent.albedo_color = COLORS[biome]
     accent.roughness = 0.40
     accent.metallic = 0.19 if biome < 2 else 0.42
@@ -120,6 +128,9 @@ func setup(stage: Node3D, track: int, variation: int) -> void:
                 signs.append(sign)
     hero = _batch(CORE_NAMES[biome],core_mesh,dark,core_at)
     details = _batch(DETAIL_NAMES[biome],detail_mesh,accent,detail_at)
+    for transform in detail_at:
+        detail_origins.append(transform.origin)
+        detail_bases.append(transform.basis)
     var mote_mesh := SphereMesh.new()
     mote_mesh.radius = 0.065 if biome != 1 else 0.045
     mote_mesh.height = mote_mesh.radius*2.0
@@ -146,6 +157,44 @@ func setup(stage: Node3D, track: int, variation: int) -> void:
     motes_material.set_shader_parameter("drift_span",[0.28,0.37,0.48][biome])
     motes = _batch("InstancedAmbientMotes",mote_mesh,motes_material,motes_at)
     set_quality(stage.graphics_quality)
+
+func _process(delta: float) -> void:
+    # Animate only the 24–36 decorative transforms, not physics objects.
+    # The main 40-marble simulation and rail colliders remain unchanged.
+    if quality == 0 or not is_instance_valid(details) or not details.visible:
+        return
+    motion_accumulator += minf(delta,0.10)
+    if motion_accumulator < MOTION_STEP:
+        return
+    var step: float = motion_accumulator
+    motion_accumulator = 0.0
+    motion_clock += step
+    motion_frame_count += 1
+    if biome == 0:
+        # The two blades on each of 12 windmills rotate as a paired rotor.
+        for i in range(detail_origins.size()):
+            var phase: float = float(i / 2)*0.29 + motion_clock*1.75
+            var basis := Basis(Vector3.FORWARD,phase+float(i%2)*PI*0.5)
+            details.multimesh.set_instance_transform(i,
+                Transform3D(basis,detail_origins[i]))
+    elif biome == 1:
+        # Crystal branches breathe at different phases, like icy refraction.
+        for i in range(detail_origins.size()):
+            var glow: float = 0.92+0.09*sin(motion_clock*1.6+float(i)*0.41)
+            details.multimesh.set_instance_transform(i,
+                Transform3D(detail_bases[i].scaled(Vector3(glow,glow,glow)),
+                    detail_origins[i]))
+    else:
+        # Forge collars lift and settle with staggered furnace pressure.
+        for i in range(detail_origins.size()):
+            var bob: float = 0.17*sin(motion_clock*2.5+float(i / 2)*0.73)
+            details.multimesh.set_instance_transform(i,
+                Transform3D(detail_bases[i],
+                    detail_origins[i]+Vector3(0.0,bob,0.0)))
+    if is_instance_valid(detail_material):
+        detail_material.emission_energy_multiplier = (
+            [0.14,0.64,1.04][biome] * (
+                0.87+0.13*sin(motion_clock*1.9) if biome > 0 else 1.0))
 
 func _batch(label: String, geometry: Mesh, shader: Material,
     poses: Array[Transform3D]) -> MultiMeshInstance3D:
