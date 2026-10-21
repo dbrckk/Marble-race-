@@ -27,6 +27,12 @@ func _check() -> void:
     var near_miss_summary: Label = game.ui.results_layer.find_child("Summary",true,false)
     assert("CLEAN PASSES  2 / 3" in near_miss_summary.text,
         "Successful near misses must become a visible replay goal")
+    var report_scroll: ScrollContainer = game.ui.results_layer.find_child(
+        "RaceResultsScroll",true,false) as ScrollContainer
+    assert(report_scroll != null and near_miss_summary.get_parent() == report_scroll,
+        "Long mastery/split result reports must scroll without hiding replay")
+    assert(game.ui.replay_button_ref.visible,
+        "Replay button must stay reachable after a detailed race report")
     var summary: Label = game.ui.results_layer.find_child("Summary",true,false)
     assert("CAREER STARS: 3 / 3" in summary.text, "Persistent stars must be visible")
     assert("TOP 5" in summary.text, "Leaderboard header should match five displayed rows")
