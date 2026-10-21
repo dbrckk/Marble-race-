@@ -19,6 +19,7 @@ const ObstacleFinish = preload("res://scripts/obstacle_finish.gd")
 const TrackSurface = preload("res://scripts/track_surface.gd")
 const TrackPath = preload("res://scripts/track_path.gd")
 const RaceFeedback = preload("res://scripts/race_feedback.gd")
+const RaceDirector = preload("res://scripts/race_director.gd")
 const ShortcutRoute = preload("res://scripts/shortcut_route.gd")
 const Career = preload("res://scripts/career.gd")
 const BestGhost = preload("res://scripts/best_ghost.gd")
@@ -91,6 +92,7 @@ var kinetic_time := 0.0
 var obstacle_finish: Node3D
 var race_items: Node3D
 var course_mechanics: Node3D
+var race_director: Node3D
 var shortcut_route: Node3D
 var track_surface: Node3D
 var track_physics_material: PhysicsMaterial
@@ -323,6 +325,10 @@ func upcoming_hazard(at_z: float) -> Dictionary:
         if distance >= -1.0 and distance < nearest:
             nearest = distance
             notice = {"side":hazard["side"],"distance":maxi(0,int(round(distance)))}
+    if is_instance_valid(race_director):
+        var event: Dictionary = race_director.event_ahead(at_z)
+        if not event.is_empty() and float(event["distance"]) < nearest:
+            notice = event
     return notice
 
 func current_timeout() -> float:
@@ -507,6 +513,9 @@ func _make_course() -> void:
                 _slalom(section_node, center_z, section)
 
     _connect_winding_sections()
+    race_director = RaceDirector.new()
+    board.add_child(race_director)
+    race_director.setup(self,selected_track,built_variation)
     shortcut_route = ShortcutRoute.new()
     board.add_child(shortcut_route)
     shortcut_route.setup(self,selected_track)
@@ -956,6 +965,8 @@ func start_race(perk_name: String) -> void:
         race_items.reset_round()
     if is_instance_valid(course_mechanics):
         course_mechanics.reset_round()
+    if is_instance_valid(race_director):
+        race_director.reset_round()
     if is_instance_valid(shortcut_route):
         shortcut_route.reset_round()
     best_ghost.begin(selected_track,built_variation,selected_perk,not net.is_active())
@@ -1092,6 +1103,10 @@ func _physics_process(delta: float) -> void:
             obj.rotation.y += delta * float(obj.get_meta("spin_speed"))
         else:
             obj.rotation.z = sin(kinetic_time*float(obj.get_meta("speed"))+float(obj.get_meta("phase")))*0.65
+    if is_instance_valid(race_director) and race_state == "RACING":
+        # All clients animate the same scripted hazards; only authority
+        # awards gameplay physics when a marble actually makes a near-miss.
+        race_director.animate(race_time)
     if race_state != "RACING" or net.is_client():
         return
     if is_instance_valid(race_items):
@@ -1100,6 +1115,8 @@ func _physics_process(delta: float) -> void:
         course_mechanics.tick(delta,racers,net)
     if is_instance_valid(shortcut_route):
         shortcut_route.tick(delta,racers,net)
+    if is_instance_valid(race_director):
+        race_director.tick(racers,net)
     for m in racers:
         if not is_instance_valid(m):
             continue
