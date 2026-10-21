@@ -471,3 +471,13 @@ This iteration focuses on immediate race feel for the local Android player, with
 - **Regression:** a new `tests/race_moments.gd` validates legitimate and fake overtakes, teleports, duplicates, final straight, real photo finishes, four touch-safe streaks and the final results display. Existing Android export, visual tests and end-to-end WebSocket integration remain required.
 
 Android debug candidate **1.24.0-rc**, version code 38, before any device-specific comfort/performance signoff.
+
+## v1.25 RC — Android progress transfer and pinned update signing
+
+**User data first:** The Android main menu offers a native **SAVE / RESTORE** dialog. The **COPY MY CAREER CODE** action exports the real saved ConfigFile as a portable, versioned, SHA-256-checked code that can be pasted into Notes or another app. **CHECK CODE** validates format and career counters and shows a preview; **CONFIRM REPLACE MY CAREER** performs a two-phase file replacement, preserves one local rollback copy, reloads progression and refreshes course locks. The user must paste the code *outside* the game before uninstalling. The code includes medals, finishers, time records, mastery stamps, styles and solo league reputation. Local ghost recordings and preferences are **not** included. No cloud connection or Android file permission is used.
+
+**Safe build identities:** Every GitHub Actions debug APK is accompanied by `debug-build-identity.txt` containing version, package name and actual certificate SHA-256. Debug certs can change across ephemeral GitHub runners: **never assume two debug APKs can update each other in place**. A separate `marble-race-android-stable-signed` artifact is produced only when the repository owner supplies the original keystore and three secrets plus a pinned public certificate SHA-256 variable. `ci/sign_android_release.sh` checks the certificate before signing and verifies the exported APK afterward; a changed certificate or incomplete config causes failure, not a dangerous replacement. The private key is never committed or uploaded.
+
+Full phone-only backup instructions, keystore requirements, GitHub secret names and APK compatibility precautions are in **[docs/ANDROID_UPDATES.md](docs/ANDROID_UPDATES.md)**. Existing play installations signed by other keys cannot necessarily be updated from either channel. Google Play production AAB signing is separate and not claimed ready here.
+
+New headless `tests/career_transfer.gd` and a CI safety-policy regression verify career data round trips, corruption rejection, rollback, Android dialog confirmation, missing-key fallback, and rejection of incomplete release credentials. Version `1.25.0-rc` (code 39).
