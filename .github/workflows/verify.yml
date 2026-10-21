@@ -206,6 +206,12 @@ jobs:
           set -euo pipefail
           timeout 75s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 300 --path . --script res://tests/career.gd 2>&1 | tee career.log
           grep -Fq "CAREER_PASS:" career.log
+      - name: Permanent mastery goals, unlockable marble styles and offline-only rewards
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 850 --path . --script res://tests/mastery_rewards.gd 2>&1 | tee mastery-rewards.log
+          grep -Fq "MASTERY_REWARDS_PASS:" mastery-rewards.log
       - name: Career UI and locked tracks regression
         shell: bash
         run: |
