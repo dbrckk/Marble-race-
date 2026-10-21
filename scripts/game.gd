@@ -17,6 +17,7 @@ const MechanismArt = preload("res://scripts/mechanism_art.gd")
 const CourseDressing = preload("res://scripts/course_dressing.gd")
 const ObstacleFinish = preload("res://scripts/obstacle_finish.gd")
 const TrackSurface = preload("res://scripts/track_surface.gd")
+const TrackPath = preload("res://scripts/track_path.gd")
 const Career = preload("res://scripts/career.gd")
 const BestGhost = preload("res://scripts/best_ghost.gd")
 const InternetSession = preload("res://scripts/internet_session.gd")
@@ -330,6 +331,10 @@ func track_title() -> String:
 func height_at(z: float) -> float:
     return z * SLOPE
 
+func track_center_at(z: float) -> float:
+    # Identical centerline across local clients, bots and authoritative server.
+    return TrackPath.center_at(z,selected_track)
+
 func _mat(color: Color, roughness := 0.74, metalness := 0.0) -> StandardMaterial3D:
     var key = color.to_html() + "_" + str(roughness) + "_" + str(metalness)
     if render_materials.has(key):
@@ -398,7 +403,7 @@ func _cylinder(parent: Node3D, location: Vector3, radius: float, tall: float, co
     body.position = location
     parent.add_child(body)
     if is_instance_valid(obstacle_finish):
-        obstacle_finish.register_post(location,radius,tall,color)
+        obstacle_finish.register_post(body.global_position,radius,tall,color)
     var hitbox = CollisionShape3D.new()
     var cylinder = CylinderShape3D.new()
     cylinder.radius = radius
@@ -452,6 +457,7 @@ func _make_course() -> void:
         var center_z = 8.0 - float(section) * SEGMENT_LENGTH
         var section_node = Node3D.new()
         section_node.name = "Course_%02d" % section
+        section_node.position.x = track_center_at(center_z)
         board.add_child(section_node)
         for lane in range(10):
             var x := (float(lane) - 4.5) * 1.34
@@ -462,10 +468,10 @@ func _make_course() -> void:
             # the exact original independent tilted BoxShape3D collider.
             _box(section_node,plank_at,
                 Vector3(1.315,0.65,SEGMENT_LENGTH+0.08),_wood_mat(shade),true,true,false)
-            track_surface.register_plank(plank_at,material_index)
+            track_surface.register_plank(plank_at+section_node.position,material_index)
             for j in range(2):
                 var z: float = center_z+(float(j)-0.5)*4.4
-                track_surface.register_groove(Vector3(x-0.34+(j%2)*0.31,height_at(z)+0.005,z))
+                track_surface.register_groove(Vector3(x-0.34+(j%2)*0.31+section_node.position.x,height_at(z)+0.005,z))
         for side in [-1,1]:
             for rail_piece in range(3):
                 var z: float = center_z+(rail_piece-1)*4.02
@@ -473,7 +479,7 @@ func _make_course() -> void:
                 var pos := Vector3(side*6.84,height_at(z)+0.58,z)
                 _box(section_node,pos,Vector3(0.57,1.26,4.04),
                     _lacquer(BARRIER_COLORS[color_idx]),true,true,false)
-                track_surface.register_rail(pos,color_idx)
+                track_surface.register_rail(pos+section_node.position,color_idx)
         if section in [3, 9, 14]:
             _terrain_ramp(section_node,center_z,section)
         if section > 0 and section < SEGMENTS - 3:
@@ -488,6 +494,7 @@ func _make_course() -> void:
             else:
                 _slalom(section_node, center_z, section)
 
+    _connect_winding_sections()
     obstacle_finish.rebuild()
     var woods: Array = []
     for color in WOOD_COLORS:
@@ -521,6 +528,25 @@ func _make_course() -> void:
     var polish := StudioPolish.new()
     polish.name = "StudioTrackGuides"
     board.add_child(polish)
+
+func _connect_winding_sections() -> void:
+    # Overlapping ground seams and angled side guards join adjacent offset
+    # physical modules: no open edge/gap at a directional change.
+    for section in range(SEGMENTS-1):
+        var seam_z: float = TrackPath.section_seam_z(section)
+        var before: float = TrackPath.section_center(section,selected_track)
+        var after: float = TrackPath.section_center(section+1,selected_track)
+        var drift: float = after-before
+        var mid: float = (before+after)*0.5
+        var seam := _box(board,Vector3(mid,height_at(seam_z)-0.34,seam_z),
+            Vector3(13.2+absf(drift),0.66,2.8),_wood_mat(_themed_wood(WOOD_COLORS[section%WOOD_COLORS.size()])),true,true,false)
+        seam.name = "ContinuousBendFloor_%02d" % section
+        for side in [-1.0,1.0]:
+            var rail := _box(board,Vector3(mid+side*6.84,height_at(seam_z)+0.58,seam_z),
+                Vector3(0.57,1.26,sqrt(3.6*3.6+drift*drift)+0.28),
+                _lacquer(TRACK_COLORS[selected_track]),true,false)
+            rail.name = "AngledBendGuard_%02d_%s" % [section,"L" if side < 0.0 else "R"]
+            rail.rotation.y = atan2(-drift,3.6)
 
 func _obstacle_layout(section: int) -> int:
     # 0: flowing slalom; 1: peg garden; 2: kinetic gates.
@@ -565,7 +591,7 @@ func _edge_baffles(parent: Node3D, center_z: float, section: int) -> void:
             size,_lacquer(material_color),true,true)
         node.name = "AntiEdgeBaffle_%02d_%s" % [section, "L" if side < 0.0 else "R"]
         hazard_beacons.append({"z":z,"side":"LEFT" if side < 0.0 else "RIGHT"})
-        obstacle_finish.register_block(node.transform,size,material_color)
+        obstacle_finish.register_block(node.global_transform,size,material_color)
     if selected_track >= 1 and section % 3 == 0:
         # This diagonal gate reaches further into the lane but leaves a
         # broad side opening. Alternates its side across modules.
@@ -577,7 +603,7 @@ func _edge_baffles(parent: Node3D, center_z: float, section: int) -> void:
         var gate := _box(parent,Vector3(x,height_at(z)+0.37,z),
             wide,_lacquer(tint),true,true)
         gate.name = "Chicane_%02d" % section
-        obstacle_finish.register_block(gate.transform,wide,tint)
+        obstacle_finish.register_block(gate.global_transform,wide,tint)
 
 func _pegs(parent: Node3D, center_z: float, n: int) -> void:
     # Checkerboard of rounded vertical posts, with traversable gaps.
@@ -598,7 +624,7 @@ func _gate_with_posts(parent: Node3D, center_z: float, n: int) -> void:
             var size := Vector3(0.91,1.37,1.25)
             var block := _box(parent, Vector3(x,height_at(z)+0.67,z),
                 size,_lacquer(gate_color),true,true)
-            obstacle_finish.register_block(block.transform,size,gate_color)
+            obstacle_finish.register_block(block.global_transform,size,gate_color)
     _add_spinner(parent, center_z, n)
     _swing_hammer(parent, center_z - 1.6, n)
 
@@ -634,7 +660,7 @@ func _slalom(parent: Node3D, center_z: float, n: int) -> void:
         var size := Vector3(3.4,0.75,1.05)
         var block := _box(parent, Vector3(x,height_at(z)+0.36,z),
             size,_lacquer(slalom_color),true,true)
-        obstacle_finish.register_block(block.transform,size,slalom_color)
+        obstacle_finish.register_block(block.global_transform,size,slalom_color)
     for i in range(3):
         var z = center_z + 2.3 - i * 3.5
         _cylinder(parent, Vector3(0, height_at(z)+0.65, z), 0.34, 1.3, BARRIER_COLORS[(n+2*i)%6])
@@ -680,24 +706,24 @@ func _add_spinner(parent: Node3D, z: float, n: int) -> void:
 func _start_arch() -> void:
     var z = 2.25
     for x in [-6.0, 6.0]:
-        _box(board, Vector3(x, height_at(z)+1.7, z), Vector3(0.52, 3.2, 0.45),
+        _box(board, Vector3(x+track_center_at(z), height_at(z)+1.7, z), Vector3(0.52, 3.2, 0.45),
             _mat(Color("#c84d40")), false)
-    _box(board, Vector3(0, height_at(z)+3.1, z),
+    _box(board, Vector3(track_center_at(z), height_at(z)+3.1, z),
         Vector3(12.4, 0.63, 0.52), _mat(Color("#ca5645")), false)
-    _floating_sign("START · 40 MARBLES", Vector3(0, height_at(z)+3.64, z))
+    _floating_sign("START · 40 MARBLES", Vector3(track_center_at(z), height_at(z)+3.64, z))
 
 func _finish_arch() -> void:
     # Visual finish stripe and physical finish detector coincide.
     var z = FINISH_Z
     for x in [-6.0, 6.0]:
-        _box(board, Vector3(x, height_at(z)+1.35, z),
+        _box(board, Vector3(x+track_center_at(z), height_at(z)+1.35, z),
             Vector3(0.48, 2.8, 0.45), _mat(Color("#eee1bd")), false)
-    _box(board, Vector3(0, height_at(z)+2.62, z),
+    _box(board, Vector3(track_center_at(z), height_at(z)+2.62, z),
         Vector3(12.6, 0.52, 0.55), _mat(Color("#f3d779")), false)
-    _floating_sign("FINISH", Vector3(0, height_at(z)+3.12, z))
+    _floating_sign("FINISH", Vector3(track_center_at(z), height_at(z)+3.12, z))
     # Checkered line visible on the wooden surface.
     for i in range(12):
-        _box(board, Vector3(-5.75 + i*1.04, height_at(z)+0.034, z),
+        _box(board, Vector3(track_center_at(z)-5.75 + i*1.04, height_at(z)+0.034, z),
             Vector3(1.02, 0.045, 0.63), _mat(Color("#f2e5d0") if i%2==0 else Color("#342a28")), false)
 
 func _checkpoint_arches() -> void:
@@ -705,11 +731,11 @@ func _checkpoint_arches() -> void:
         var z = 8.0 - float(n) * SEGMENT_LENGTH
         var y = height_at(z)
         for side in [-1.0,1.0]:
-            _box(board,Vector3(side*6.28,y+2.4,z),Vector3(0.21,4.7,0.28),
+            _box(board,Vector3(side*6.28+track_center_at(z),y+2.4,z),Vector3(0.21,4.7,0.28),
                 _mat(Color("#e6c488"),0.3,0.28),false)
-        _box(board,Vector3(0,y+4.65,z),Vector3(12.7,0.32,0.38),
+        _box(board,Vector3(track_center_at(z),y+4.65,z),Vector3(12.7,0.32,0.38),
             _mat(Color("#dfb66c"),0.35,0.2),false)
-        _floating_sign("CHECKPOINT %d" % int(n/5+1),Vector3(0,y+5.22,z))
+        _floating_sign("CHECKPOINT %d" % int(n/5+1),Vector3(track_center_at(z),y+5.22,z))
 
 func _floating_sign(message: String, location: Vector3) -> void:
     var label = Label3D.new()
@@ -729,7 +755,7 @@ func _decorations() -> void:
         var z = 5.0 - k * 17.0
         for side in [-1,1]:
             var x = side * 5.0
-            _box(board, Vector3(x,height_at(z)-2.6,z),
+            _box(board, Vector3(x+track_center_at(z),height_at(z)-2.6,z),
                 Vector3(0.6, 4.4, 0.65), _mat(Color("#79523b")), false)
 
 func _showroom() -> void:
@@ -799,10 +825,11 @@ func _spawn_racers() -> void:
         var col = (i * 5 + 3) % 8
         var z = 12.2 - row * 1.12
         var x = (col - 3.5) * 1.36
-        var p = Vector3(x, height_at(z) + 0.68, z)
+        var p = Vector3(x+track_center_at(z), height_at(z) + 0.68, z)
         var m = Racer.new()
         var is_you = i == player_slot
         m.setup(i, is_you, p, selected_perk)
+        m.course_owner = self
         add_child(m)
         m.freeze = true
         racers.append(m)
@@ -984,7 +1011,7 @@ func _process(delta: float) -> void:
                 cp = 2
             # Award split times only when the marble actually passes a sector
             # within the rolling surface; falling out of bounds is not progress.
-            if cp > last_checkpoint and absf(player.global_position.x) < 6.75 and (
+            if cp > last_checkpoint and absf(player.global_position.x-track_center_at(player.global_position.z)) < 6.75 and (
                 player.global_position.y > height_at(player.global_position.z)-0.3
                 and player.global_position.y < height_at(player.global_position.z)+9.0):
                 # A missing checkpoint invalidates split records: never invent a
