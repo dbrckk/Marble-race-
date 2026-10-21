@@ -104,3 +104,24 @@ Play App Signing : ne pas supposer qu'un APK stable externe pourra la
 remplacer directement.
 
 Les artefacts GitHub Actions ne sont conservés que pendant 21 jours.
+
+## Contrôle automatique réel de la signature (v1.27)
+
+La CI vérifie désormais **deux types d'exports Android**. Pour les essais,
+elle produit toujours un APK de débogage et son identité de signature, laquelle
+peut varier entre les machines GitHub. En complément, le script
+`ci/verify_release_signing.sh` génère une clé **strictement temporaire** sur
+l'agent GitHub, vérifie qu'une mauvaise empreinte bloque la signature, puis
+exporte un véritable APK *release* et en vérifie la signature et l'identité du
+paquet. Cet APK de vérification et sa clé sont supprimés et **ne sont pas
+distribués**. Le modèle d'export Android release de Godot 4.5.1 est maintenant
+installé dans la CI en plus du modèle debug.
+
+Ce contrôle prouve que la **chaîne d'export et la vérification de signature**
+fonctionnent ; il ne fournit pas la clé permanente nécessaire aux mises à
+jour. Le fichier `marble-race-android-stable-signed` ne peut être publié que
+si la keystore privée choisie par le propriétaire du jeu, son alias, son mot de
+passe et l'empreinte SHA-256 attendue ont été configurés séparément.
+
+**Ne jamais utiliser la clé temporaire de CI pour publier le jeu** : elle est
+volontairement différente à chaque vérification et détruite immédiatement.
