@@ -154,6 +154,13 @@ func setup(index: int, player: bool, base_position: Vector3, chosen_perk: String
     collision.shape = shape
     add_child(collision)
 
+func wants_shortcut() -> bool:
+    # About one in seven bot rivals per course, with a different set in
+    # each biome. Never select a local or remotely controlled human racer.
+    if is_player or network_controlled or not is_instance_valid(course_owner):
+        return false
+    return (racer_id*7+course_owner.selected_track*11)%13 < 2
+
 func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> void:
     if finished or eliminated or sleeping:
         return
@@ -189,6 +196,17 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
         var center_ahead: float = course_owner.track_center_at(position.z-5.0) if is_instance_valid(course_owner) else 0.0
         var lane_error: float = ai_lane_goal + center_ahead - position.x
         side_force = clampf(lane_error*1.0 - linear_velocity.x*0.18,-4.5,4.5)
+        # A small, deterministic field of rivals takes the optional road.
+        # AI must physically steer through its fork: no teleports, and the
+        # server remains the sole source of racing physics.
+        if wants_shortcut() and is_instance_valid(course_owner.shortcut_route):
+            var road: Node3D = course_owner.shortcut_route
+            if position.z < road.ENTRY_Z+12.0 and position.z > road.EXIT_Z-5.0:
+                var target_z: float = maxf(road.EXIT_Z,
+                    position.z-3.5)
+                var target_x: float = road.point_at(target_z).x
+                var desired: float = target_x-position.x
+                side_force = clampf(desired*4.2-linear_velocity.x*0.90,-19.0,19.0)
     # Progress watchdog: collisions sometimes wedge a sphere with nonzero angular
     # velocity, fooling speed-based stall detection. Measure net forward progress.
     progress_stall_seconds += delta
