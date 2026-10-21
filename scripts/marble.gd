@@ -201,7 +201,8 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
         progress_stall_seconds = 0.0
     # Real physics recovery: give a marble a small nudge if trapped against a
     # rail/post for >2 sec. No teleportation, no fake position interpolation.
-    var center_now: float = course_owner.track_center_at(position.z) if is_instance_valid(course_owner) else 0.0
+    # Let a marble keep its chosen outside lane instead of forcing it back.
+    var center_now: float = course_owner.recovery_center_at(position) if is_instance_valid(course_owner) else 0.0
     var relative_x: float = position.x-center_now
     var wall_proximity := clampf((absf(relative_x)-4.70)/1.05,0.0,1.0)
     side_force += -signf(relative_x) * 31.0 * wall_proximity
