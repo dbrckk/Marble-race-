@@ -1,6 +1,7 @@
 extends Node3D
 ## Offline CC0 Foley (Kenney), plus original composed loop and tonal race cues.
 ## Eight pooled voice channels prevent hard-cutting a sound every time a marble collides.
+const RaceFeedback = preload("res://scripts/race_feedback.gd")
 const SCORE = preload("res://assets/audio/music/marble_workshop.ogg")
 const ROLL = preload("res://assets/audio/sfx/wood_roll.ogg")
 const AIR = preload("res://assets/audio/sfx/airrush.ogg")
@@ -281,24 +282,35 @@ func boost() -> void:
         tone("boost")
         boost_delay = 1.5
 
-func _on_marble_collision(_body: Node) -> void:
+func _on_marble_collision(other: Node) -> void:
     if collision_delay > 0.0 or not is_instance_valid(target_marble):
         return
-    var speed = target_marble.linear_velocity.length()
-    if speed < 1.5:
+    var intensity: float = RaceFeedback.impact_intensity(
+        target_marble.linear_velocity,other)
+    if intensity < 0.14:
         return
-    collision_delay = 0.09 if speed > 7 else 0.17
-    var is_motor := _body.name.begins_with("KineticPaddle") or _body.name.begins_with("SwingHammer")
-    var is_peg := _body.name.begins_with("ToyPeg") or _body.name.begins_with("AntiEdgeBaffle") or _body.name.begins_with("Chicane_")
-    var kind = METAL_HITS if is_motor else (BUMPER_HITS if is_peg else (GLASS_HITS if _body is RigidBody3D else WOOD_HITS))
-    if speed >= 6.0 and haptic_cooldown <= 0.0 and OS.has_feature("mobile"):
-        # Mild and strong tactile events instead of vibrating equally for every tap.
-        Input.vibrate_handheld(15 if speed < 10.0 else 30)
-        haptic_cooldown = 0.45
-    var idx = rng.randi_range(0,kind.size()-1)
-    collision_duck = maxf(collision_duck,clampf(speed*0.24,0.0,2.7))
-    _spatial_voice(kind[idx],target_marble.global_position,
-        clampf(-17.0+speed*0.57,-18.0,-7.0),rng.randf_range(0.90,1.12))
+    var contact: String = RaceFeedback.collision_kind(other)
+    collision_delay = RaceFeedback.feedback_interval(intensity)
+    var samples: Array
+    match contact:
+        "mechanism":
+            samples = METAL_HITS
+        "bumper":
+            samples = BUMPER_HITS
+        "glass":
+            samples = GLASS_HITS
+        _:
+            samples = WOOD_HITS
+    if intensity > 0.40 and haptic_cooldown <= 0.0 and OS.has_feature("mobile"):
+        # Vibration follows actual relative contact severity, not simply
+        # rolling speed. Ignore repeated harmless board touch events.
+        Input.vibrate_handheld(12 if intensity < 0.70 else 26)
+        haptic_cooldown = 0.48
+    var idx: int = rng.randi_range(0,samples.size()-1)
+    collision_duck = maxf(collision_duck,lerpf(0.4,2.8,intensity))
+    _spatial_voice(samples[idx],target_marble.global_position,
+        lerpf(-24.0,-8.0,intensity),rng.randf_range(0.94,1.08)*
+        lerpf(0.90,1.08,intensity))
 
 func toggle_sound() -> bool:
     enabled = not enabled
