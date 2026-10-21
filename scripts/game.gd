@@ -18,6 +18,7 @@ const CourseDressing = preload("res://scripts/course_dressing.gd")
 const ObstacleFinish = preload("res://scripts/obstacle_finish.gd")
 const TrackSurface = preload("res://scripts/track_surface.gd")
 const TrackPath = preload("res://scripts/track_path.gd")
+const RaceFeedback = preload("res://scripts/race_feedback.gd")
 const ShortcutRoute = preload("res://scripts/shortcut_route.gd")
 const Career = preload("res://scripts/career.gd")
 const BestGhost = preload("res://scripts/best_ghost.gd")
@@ -638,6 +639,7 @@ func _gate_with_posts(parent: Node3D, center_z: float, n: int) -> void:
             var size := Vector3(0.91,1.37,1.25)
             var block := _box(parent, Vector3(x,height_at(z)+0.67,z),
                 size,_lacquer(gate_color),true,true)
+            block.name = "GatePost_%02d_%02d_%02d" % [n,row,i]
             obstacle_finish.register_block(block.global_transform,size,gate_color)
     _add_spinner(parent, center_z, n)
     _swing_hammer(parent, center_z - 1.6, n)
@@ -674,6 +676,7 @@ func _slalom(parent: Node3D, center_z: float, n: int) -> void:
         var size := Vector3(3.4,0.75,1.05)
         var block := _box(parent, Vector3(x,height_at(z)+0.36,z),
             size,_lacquer(slalom_color),true,true)
+        block.name = "SlalomBlock_%02d_%02d" % [n,i]
         obstacle_finish.register_block(block.global_transform,size,slalom_color)
     for i in range(3):
         var z = center_z + 2.3 - i * 3.5
@@ -905,15 +908,20 @@ func _add_player_trail(m: RigidBody3D) -> void:
     trail.emitting = false
     m.add_child(trail)
 
-func _camera_bump(_body: Node) -> void:
+func _camera_bump(body: Node) -> void:
     if not is_instance_valid(player) or race_state != "RACING":
         return
-    var impact_speed: float = player.linear_velocity.length()
-    if impact_speed < 2.2 or feedback_cooldown > 0.0:
+    if feedback_cooldown > 0.0:
         return
-    camera_shake = minf(0.14,camera_shake+impact_speed*0.005)
-    obstacle_notice = 0.46 if impact_speed > 7.0 else 0.20
-    feedback_cooldown = 0.16
+    # Rolling past a plank at 18 m/s is not an 18 m/s crash.
+    # Use the same contact classification as the spatial Foley.
+    var intensity: float = RaceFeedback.impact_intensity(
+        player.linear_velocity,body)
+    if intensity < 0.17:
+        return
+    camera_shake = minf(0.14,camera_shake+RaceFeedback.shake_strength(intensity))
+    obstacle_notice = 0.46 if intensity > 0.45 else 0.22
+    feedback_cooldown = RaceFeedback.feedback_interval(intensity)
 
 func start_race(perk_name: String) -> void:
     selected_perk = perk_name
@@ -941,6 +949,8 @@ func start_race(perk_name: String) -> void:
     steer_target = 0.0
     boosting = false
     cam_mode = 0
+    camera_shake = 0.0
+    camera.set_meta("previous_jitter",Vector3.ZERO)
     _spawn_racers()
     if is_instance_valid(race_items):
         race_items.reset_round()
@@ -1124,31 +1134,37 @@ func _update_camera(delta: float, force := false) -> void:
     if not is_instance_valid(camera):
         return
     if race_state == "MENU" or not is_instance_valid(player):
+        camera_shake = 0.0
+        camera.set_meta("previous_jitter",Vector3.ZERO)
         _position_intro_camera(force)
         return
-    var target = player.global_position
-    var desired: Vector3
-    var focus: Vector3
-    if cam_mode == 1:
-        desired = target + Vector3(0, 12.5, 18.0)
-        focus = target + Vector3(0, 0, -8.0)
-    elif cam_mode == 2:
-        desired = target + Vector3(0, 19.0, 2.5)
-        focus = target + Vector3(0, 0, -3.5)
-    else:
-        desired = target + Vector3(0, 6.5, 11.5)
-        focus = target + Vector3(0, 0.3, -5.5)
-    camera_shake = move_toward(camera_shake,0.0,delta*0.55)
-    camera_lookahead = camera_lookahead.lerp(
-        Vector3(clampf(player.linear_velocity.x*0.20,-1.8,1.8),0.0,
-        clampf(player.linear_velocity.z*0.27,-5.0,0.0)),minf(1.0,delta*3.0))
-    focus += camera_lookahead
-    var jitter := Vector3(sin(world_time*49.0), cos(world_time*43.0),0.0)*camera_shake
-    camera.global_position = desired if force else (camera.global_position - camera.get_meta("previous_jitter",Vector3.ZERO)).lerp(desired,min(delta*3.5,1.0))
+    # Use the centerline ahead so the racer can see approaching turns.
+    # Pure math; multiplayer does not need camera replication.
+    var ahead_x: float = track_center_at(player.global_position.z-12.0)
+    var next_gate: Dictionary = upcoming_hazard(player.global_position.z)
+    var distance: float = float(next_gate.get("distance",-1.0))
+    var pose: Dictionary = RaceFeedback.camera_pose(
+        player.global_position,player.linear_velocity,
+        ahead_x,cam_mode,boosting,distance)
+    var desired: Vector3 = pose["position"]
+    var focus: Vector3 = pose["focus"]
+    var previous_jitter: Vector3 = camera.get_meta(
+        "previous_jitter",Vector3.ZERO)
+    var follow_rate: float = lerpf(4.5,6.0,float(pose["pace"]))
+    var step: float = RaceFeedback.smooth_factor(delta,follow_rate)
+    var base: Vector3 = camera.global_position-previous_jitter
+    camera.global_position = desired if force else base.lerp(desired,step)
+    var focus_step: float = RaceFeedback.smooth_factor(delta,7.0)
+    camera_lookahead = focus if force else camera_lookahead.lerp(
+        focus,focus_step)
+    camera_shake *= exp(-clampf(delta,0.0,0.12)*9.5)
+    var jitter := Vector3(sin(world_time*52.0),
+        cos(world_time*47.0),0.0)*camera_shake
     camera.global_position += jitter
     camera.set_meta("previous_jitter",jitter)
-    camera.look_at(focus, Vector3.UP)
-    camera.fov = lerpf(camera.fov,clampf(62.0+player.linear_velocity.length()*0.48,64.0,76.0),minf(1,delta*2.8))
+    camera.look_at(camera_lookahead,Vector3.UP)
+    camera.fov = lerpf(camera.fov,float(pose["fov"]),
+        RaceFeedback.smooth_factor(delta,4.4))
 
 func _position_intro_camera(force: bool) -> void:
     var target = Vector3(6.5, 12.6, 22.0)
