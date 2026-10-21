@@ -190,6 +190,12 @@ jobs:
           set -euo pipefail
           timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 600 --path . --script res://tests/sector_timing.gd 2>&1 | tee sector-timing.log
           grep -Fq "SECTOR_TIMING_PASS:" sector-timing.log
+      - name: Portable Android career copy and restore with integrity checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 750 --path . --script res://tests/career_transfer.gd 2>&1 | tee career-transfer.log
+          grep -Fq "CAREER_TRANSFER_PASS:" career-transfer.log
       - name: Offline championship persistence
         shell: bash
         run: |
@@ -260,6 +266,22 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging build/marble-race-debug.apk > build/apk-badging.txt
           head -n 16 build/apk-badging.txt
           test -s build/marble-race-debug.apk
+      - name: Stable signing safety policy and absent-secret fallback
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n ci/sign_android_release.sh
+          policy_file="$RUNNER_TEMP/marble-signing-policy.out"
+          env -u MARBLE_KEYSTORE_B64 -u MARBLE_KEY_ALIAS -u MARBLE_KEY_PASSWORD -u MARBLE_CERT_SHA256 \
+            GITHUB_OUTPUT="$policy_file" bash ci/sign_android_release.sh
+          grep -Fq "configured=false" "$policy_file"
+          if env -u MARBLE_KEYSTORE_B64 -u MARBLE_KEY_ALIAS -u MARBLE_KEY_PASSWORD \
+              MARBLE_CERT_SHA256="invalid" GITHUB_OUTPUT="$policy_file" \
+              bash ci/sign_android_release.sh; then
+            echo "::error::Signing allowed incomplete credentials."
+            exit 1
+          fi
+          echo "PINNED_SIGNING_POLICY_PASS: missing secrets skip; partial secrets refuse"
       - name: Record APK identity and update-safety warning
         shell: bash
         run: |
