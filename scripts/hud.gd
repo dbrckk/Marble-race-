@@ -68,6 +68,8 @@ var sensitivity_button: Button
 var hand_button: Button
 var track_buttons: Array[Button] = []
 var career_label: Label
+var mastery_label: Label
+var style_button: Button
 var next_course_button: Button
 var result_header: Label
 var sensitivity_index := 1
@@ -268,6 +270,8 @@ func _refresh_career_menu() -> void:
             info += "NEW"
         else:
             info += "BEST #%d  %.1fs  %s" % [best,game.career.track_time[i],"★".repeat(stars)]
+        if available:
+            info += "  ·  M%d/3" % game.career.track_mastery_count(i)
         track_buttons[i].text = info
         track_buttons[i].disabled = not available
         track_buttons[i].add_theme_stylebox_override("normal",
@@ -275,6 +279,8 @@ func _refresh_career_menu() -> void:
             ORANGE if i == game.selected_track else Color(1,1,1,0.09),8))
     career_label.text = "RACES %d   WINS %d   FINISHES %d" % [
         game.career.starts,game.career.victories,game.career.finishes]
+    career_label.text += "\nMASTERY  %d/9  ·  MARBLE STYLES  %d/5" % [
+        game.career.mastery_count(),game.career.unlocked_style_count()]
     if game.career.unlocked < 3:
         career_label.text += "\n" + game.career.next_locked_requirement()
 
@@ -397,6 +403,10 @@ func _build_perks() -> void:
     var sub = _text("Choose a power before the race. Physics decides the rest.", 17, DIM)
     sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     col.add_child(sub)
+    mastery_label = _text("",15,DIM)
+    mastery_label.name = "MasteryChallenges"
+    mastery_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    col.add_child(mastery_label)
     var grid = GridContainer.new()
     grid.columns = 3
     grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -414,6 +424,12 @@ func _build_perks() -> void:
     selected_description = _text("Select one of the six perks.", 17, DIM)
     selected_description.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     col.add_child(selected_description)
+    style_button = _action("MARBLE STYLE: COPPER",Color("#35475a"))
+    style_button.name = "UnlockedMarbleStyles"
+    style_button.add_theme_font_size_override("font_size",17)
+    style_button.custom_minimum_size.y = 44
+    style_button.pressed.connect(_cycle_marble_style)
+    col.add_child(style_button)
     var row = HBoxContainer.new()
     row.add_theme_constant_override("separation", 13)
     col.add_child(row)
@@ -426,6 +442,22 @@ func _build_perks() -> void:
     start_button.disabled = true
     start_button.pressed.connect(func(): game.start_race(selected_name))
     row.add_child(start_button)
+
+func _refresh_mastery_preview() -> void:
+    if is_instance_valid(mastery_label):
+        mastery_label.text = "MASTER %s:  %s" % [
+            game.track_title(),game.career.mastery_summary(game.selected_track)]
+    if is_instance_valid(style_button):
+        var count: int = game.career.unlocked_style_count()
+        style_button.text = "MARBLE: %s   •   %d / 5 STYLES   ↻" % [
+            game.career.style_name(),count]
+        if count == 1:
+            style_button.text = "MARBLE: COPPER   •   AZURE AT 2 MASTERY STAMPS"
+        style_button.disabled = count <= 1
+
+func _cycle_marble_style() -> void:
+    game.career.cycle_style()
+    _refresh_mastery_preview()
 
 func _choose_perk(value: String) -> void:
     selected_name = value
@@ -800,6 +832,7 @@ func show_menu() -> void:
 
 func show_perks() -> void:
     _hide_all()
+    _refresh_mastery_preview()
     perks_layer.visible = true
 
 func show_race_ui() -> void:
@@ -983,6 +1016,15 @@ func show_results(place: int, time: float, ranking: Array) -> void:
     var earned_stars: int = int(status.get("stars",0))
     var clean_passes: int = clampi(int(status.get("clean_passes",0)),0,3)
     var stars_text := "CAREER STARS: %d / 3" % earned_stars
+    var mastery_text := "MASTERY  %d/3  •  TOTAL %d/9" % [
+        int(status.get("mastery_track",game.career.track_mastery_count(game.selected_track))),
+        int(status.get("mastery_total",game.career.mastery_count()))]
+    var new_goals: Array = status.get("mastery_new",[])
+    if not new_goals.is_empty():
+        mastery_text += "\nNEW STAMPS: " + ", ".join(new_goals)
+    var unlocked_styles: Array = status.get("mastery_styles",[])
+    if not unlocked_styles.is_empty():
+        mastery_text += "\nNEW MARBLE: " + ", ".join(unlocked_styles)
     var sector_text := ""
     var sector_times: Array = status.get("sector_times",[])
     var sector_records: Array = status.get("sector_records",[])
@@ -993,8 +1035,8 @@ func show_results(place: int, time: float, ranking: Array) -> void:
                 float(sector_times[sector]),
                 " ★" if sector_records.size() == 4 and bool(sector_records[sector]) else ""]
     if summary:
-        summary.text = "POSITION  #%d / 40   •   %s\nTIME  %.1fs\nCLEAN PASSES  %d / 3\n%s\n%s\n%s\n%s\nBEST  #%s\n\nTOP 5\n%s" % [
-            place,"FINISHED" if finished else "TIME OUT",time,clean_passes,stars_text,sector_text,
+        summary.text = "POSITION  #%d / 40   •   %s\nTIME  %.1fs\nCLEAN PASSES  %d / 3\n%s\n%s\n%s\n%s\n%s\nBEST  #%s\n\nTOP 5\n%s" % [
+            place,"FINISHED" if finished else "TIME OUT",time,clean_passes,mastery_text,stars_text,sector_text,
             record_text,unlock_text,
             str(game.career.track_best[game.selected_track]) if game.career.track_best[game.selected_track] > 0 else "—",
             leaders]
