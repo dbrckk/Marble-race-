@@ -111,6 +111,17 @@ func _run() -> void:
                 str(floor_hit.name) == "BypassLaunchRamp"),
                 "No gaps or unrelated obstacle colliders along the detour")
         game.start_race("Grip Tape")
+        # A minority of AI should attempt the physical bypass, rather
+        # than all 39 bots always following the same central racing line.
+        var bypass_bots := 0
+        for racer in game.racers:
+            if racer.racer_id == 39:
+                assert(not racer.wants_shortcut(),
+                    "A human player must never receive AI steering")
+            elif racer.wants_shortcut():
+                bypass_bots += 1
+        assert(bypass_bots >= 3 and bypass_bots <= 9,
+            "Each course should have a few rival shortcut specialists")
         game.race_state = "RACING"
         var player: RigidBody3D = game.player
         player.freeze = false
