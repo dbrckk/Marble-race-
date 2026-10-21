@@ -2,6 +2,7 @@ extends CanvasLayer
 ## Native Godot touch UI. Full game remains playable offline and by keyboard.
 
 const TOUCH_CONTROLS = preload("res://scripts/touch_controls.gd")
+const CAREER_TRANSFER = preload("res://scripts/career_transfer.gd")
 const RACE_MOMENTS = preload("res://scripts/race_moments.gd")
 const FONT_HEAVY = preload("res://assets/fonts/Rajdhani-Bold.ttf")
 const FONT_REGULAR = preload("res://assets/fonts/Rajdhani-Medium.ttf")
@@ -76,6 +77,11 @@ var career_label: Label
 var mastery_label: Label
 var style_button: Button
 var next_course_button: Button
+var backup_layer: Control
+var backup_status: Label
+var backup_input: TextEdit
+var backup_confirm_button: Button
+var pending_backup_code := ""
 var result_header: Label
 var sensitivity_index := 1
 var left_handed := false
@@ -95,6 +101,7 @@ func attach_game(owner_game: Node3D) -> void:
     _build_results()
     _build_pause_menu()
     _build_online_lobby()
+    _build_backup_dialog()
     game.net.lobby_changed.connect(_lan_status_update)
     game.net.session_closed.connect(_lan_status_update)
     _load_controls_config()
@@ -234,7 +241,135 @@ func _build_menu() -> void:
     hand_button.anchor_bottom = 0.730
     hand_button.pressed.connect(_hand_pressed)
     menu_layer.add_child(hand_button)
+    var backup_button := _action("SAVE / RESTORE  ↗",Color("#42535a"))
+    backup_button.name = "SaveRestore"
+    backup_button.anchor_left = 0.488
+    backup_button.anchor_right = 0.735
+    backup_button.anchor_top = 0.575
+    backup_button.anchor_bottom = 0.664
+    backup_button.add_theme_font_size_override("font_size",17)
+    backup_button.pressed.connect(show_backup_dialog)
+    menu_layer.add_child(backup_button)
     _build_track_picker()
+
+func _build_backup_dialog() -> void:
+    # Large-touch-target modal for Android without storage permissions.
+    backup_layer = Control.new()
+    backup_layer.name = "CareerSaveRestoreDialog"
+    backup_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    root.add_child(backup_layer)
+    backup_layer.add_child(_shade())
+    var panel := _panel()
+    panel.anchor_left = 0.15
+    panel.anchor_right = 0.85
+    panel.anchor_top = 0.075
+    panel.anchor_bottom = 0.925
+    backup_layer.add_child(panel)
+    var col := _column(9)
+    panel.add_child(col)
+    var title := _text("KEEP YOUR PROGRESS",32,ORANGE)
+    title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    col.add_child(title)
+    var explainer := _text(
+        "COPY: save your code in Notes, Drive or another app before uninstalling.\\n"+
+        "RESTORE: paste your old code and check it before replacing this career.\\n"+
+        "Covers medals, ranks, league points, times and marble styles. Not ghosts.",16,DIM)
+    explainer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    col.add_child(explainer)
+    backup_status = _text("",17,Color("#d1edd8"))
+    backup_status.name = "TransferStatus"
+    backup_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    backup_status.custom_minimum_size.y = 45
+    col.add_child(backup_status)
+    var copy := _action("1. COPY MY CAREER CODE",Color("#527264"))
+    copy.name = "CopyCareerCode"
+    copy.custom_minimum_size.y = 53
+    copy.pressed.connect(_copy_backup_code)
+    col.add_child(copy)
+    backup_input = TextEdit.new()
+    backup_input.name = "BackupPasteField"
+    backup_input.placeholder_text = "Paste the exported MARBLE-CAREER-V1 code here"
+    backup_input.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+    backup_input.custom_minimum_size.y = 115
+    backup_input.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    backup_input.add_theme_font_size_override("font_size",15)
+    col.add_child(backup_input)
+    var preview := _action("2. CHECK CODE BEFORE RESTORE",Color("#45616f"))
+    preview.name = "CheckCareerCode"
+    preview.custom_minimum_size.y = 49
+    preview.pressed.connect(_check_backup_code)
+    col.add_child(preview)
+    backup_confirm_button = _action("3. CONFIRM REPLACE MY CAREER",Color("#7a5145"))
+    backup_confirm_button.name = "ConfirmRestoreCareer"
+    backup_confirm_button.custom_minimum_size.y = 49
+    backup_confirm_button.disabled = true
+    backup_confirm_button.pressed.connect(_confirm_restore_backup)
+    col.add_child(backup_confirm_button)
+    var cancel := _action("BACK TO MAIN MENU",Color("#323b49"))
+    cancel.name = "CloseCareerTransfer"
+    cancel.custom_minimum_size.y = 48
+    cancel.pressed.connect(show_menu)
+    col.add_child(cancel)
+    backup_layer.visible = false
+
+func show_backup_dialog() -> void:
+    if game.net.is_active():
+        return
+    _hide_all()
+    backup_layer.visible = true
+    pending_backup_code = ""
+    backup_confirm_button.disabled = true
+    backup_input.text = ""
+    backup_status.text = "CURRENT: %d RACES, %d FINISHES, %d / 9 MASTERY." % [
+        game.career.starts,game.career.finishes,game.career.mastery_count()]
+
+func _copy_backup_code() -> void:
+    pending_backup_code = ""
+    backup_confirm_button.disabled = true
+    var data: Dictionary = CAREER_TRANSFER.export_career(game.career)
+    if not bool(data.get("ok",false)):
+        backup_status.text = str(data.get("error","Export failed."))
+        return
+    var code: String = str(data["code"])
+    DisplayServer.clipboard_set(code)
+    backup_status.text = "COPIED %d CHARACTERS! Paste into Notes or Drive NOW.\\n"+
+        "Do not uninstall until the code is saved outside the game." % int(data["length"])
+
+func _check_backup_code() -> void:
+    pending_backup_code = ""
+    backup_confirm_button.disabled = true
+    var code: String = backup_input.text.strip_edges()
+    if code.is_empty():
+        code = DisplayServer.clipboard_get().strip_edges()
+    var data: Dictionary = CAREER_TRANSFER.preview_code(code)
+    if not bool(data.get("ok",false)):
+        backup_status.text = str(data.get("error","Invalid backup."))
+        return
+    pending_backup_code = code
+    backup_status.text = "BACKUP: %d RACES / %d FINISHES / %d STAMPS / %d REP\\n"+
+        "CURRENT: %d RACES. Confirm only if this is your intended save." % [
+            data["starts"],data["finishes"],data["mastery"],data["league"],
+            game.career.starts]
+    backup_confirm_button.disabled = false
+
+func _confirm_restore_backup() -> void:
+    if pending_backup_code.is_empty() or backup_confirm_button.disabled:
+        return
+    var result: Dictionary = CAREER_TRANSFER.restore_career(
+        game.career,pending_backup_code)
+    pending_backup_code = ""
+    backup_confirm_button.disabled = true
+    if not bool(result.get("ok",false)):
+        backup_status.text = str(result.get("error","Restore failed."))
+        return
+    # The restored career may have fewer circuits unlocked.
+    # Rebuild the main menu with a valid course, not a stale locked preview.
+    if not game.career.is_unlocked(game.selected_track):
+        game.set_track(0)
+    backup_status.text = "RESTORED: %d RACES / %d FINISHES / %d STAMPS.\\n"+
+        "Your previous career remains as a local rollback copy." % [
+            result["starts"],result["finishes"],result["mastery"]]
+    _refresh_career_menu()
 
 func _build_track_picker() -> void:
     var panel := _panel()
@@ -864,6 +999,8 @@ func _hide_all() -> void:
         lan_layer.visible = false
     if is_instance_valid(pause_layer):
         pause_layer.visible = false
+    if is_instance_valid(backup_layer):
+        backup_layer.visible = false
 
 func show_menu() -> void:
     if get_tree().paused:
