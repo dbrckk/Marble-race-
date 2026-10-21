@@ -14,6 +14,9 @@ const WIDTH := 3.80
 const SEGMENTS := 28
 const REWARD_Z := -79.0
 const REWARD_RADIUS := 2.15
+const JUMP_Z := [-71.0,-74.0,-86.0]
+const ENTRY_WINDOW := 12.0
+const MAX_BANK := 0.080
 const SIDES := [1,-1,1]
 const TINTS := [Color("#f9bf79"),Color("#a3f5ff"),Color("#f89a6e")]
 
@@ -23,6 +26,10 @@ var side := 1
 var decks: Array[StaticBody3D] = []
 var guards: Array[StaticBody3D] = []
 var triggered: Dictionary = {}
+var entered: Dictionary = {}
+var jumped: Dictionary = {}
+var launch_ramps: Array[StaticBody3D] = []
+var banked_segments := 0
 var physical_distance := 0.0
 
 static func side_for(track: int) -> int:
@@ -61,6 +68,11 @@ func setup(owner: Node3D, track: int) -> void:
         var yaw := -atan2(delta.x,-delta.z)
         var pitch := atan2(delta.y,horizontal)
         var basis := Basis.from_euler(Vector3(pitch,yaw,0.0))
+        # Real camber, not a shader fake: collision + rendering share banking.
+        var bank := bank_at((za+zb)*0.5)
+        basis = basis * Basis(Vector3.FORWARD,bank)
+        if absf(bank) > 0.012:
+            banked_segments += 1
         var middle := (pa+pb)*0.5
         var length := delta.length()+0.18
         physical_distance += horizontal
@@ -85,8 +97,49 @@ func setup(owner: Node3D, track: int) -> void:
             guard_art.append(Transform3D(basis.scaled(size),guard_pos))
     _batch("BatchedBypassDeck",deck_art,deck_material)
     _batch("BatchedBypassGuards",guard_art,edge_material)
+    _launch_ramps(deck_material)
+    _racing_line(edge_material)
     _signage(edge_material)
     reset_round()
+
+func bank_at(z: float) -> float:
+    if z > OUTER_START or z < OUTER_END:
+        return 0.0
+    # Curvature from three points. Suppress banking near all merges.
+    var curvature: float = point_at(z-3.0).x-2.0*point_at(z).x+point_at(z+3.0).x
+    var fade: float = sin(PI*clampf((OUTER_START-z)/(OUTER_START-OUTER_END),0.0,1.0))
+    return clampf(curvature*1.6,-MAX_BANK,MAX_BANK)*fade
+
+func _launch_ramps(material: Material) -> void:
+    # Gentle optional air sections; low edges never wall off the narrow deck.
+    var at_z: float = JUMP_Z[course_id]
+    var at: Vector3 = point_at(at_z)
+    var size := Vector3(2.30,0.18,2.65)
+    # Local -Z points downhill. A small pitch climbs toward the lip.
+    var basis := Basis(Vector3.RIGHT,-atan(0.085)+0.18)
+    var ramp := _solid("BypassLaunchRamp",at+Vector3.UP*0.38,basis,size,0.66)
+    launch_ramps.append(ramp)
+    _batch("BatchedJumpTakeoff",[Transform3D(basis.scaled(size),ramp.position)],material)
+    var lip_mesh := BoxMesh.new()
+    lip_mesh.size = Vector3(2.34,0.055,0.14)
+    var strip := MeshInstance3D.new()
+    strip.name = "TakeoffPaintedLip"
+    strip.mesh = lip_mesh
+    strip.material_override = material
+    strip.position = at+Vector3.UP*0.60+Vector3(0.0,0.0,-1.08)
+    strip.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    add_child(strip)
+
+func _racing_line(material: Material) -> void:
+    var marks: Array[Transform3D] = []
+    for index in range(15):
+        var z: float = lerpf(ENTRY_Z-7.5,EXIT_Z+7.5,float(index)/14.0)
+        var pos: Vector3 = point_at(z)+Vector3.UP*0.325
+        var next: Vector3 = point_at(z-0.7)
+        var tangent := atan2(next.x-pos.x,0.7)
+        var scale_basis := Basis(Vector3.UP,tangent).scaled(Vector3(0.82,0.035,0.32))
+        marks.append(Transform3D(scale_basis,pos))
+    _batch("BypassNavigationChevrons",marks,material)
 
 func _solid(label: String, origin: Vector3, basis: Basis, size: Vector3,
     friction: float) -> StaticBody3D:
@@ -128,7 +181,7 @@ func _batch(label: String, instances: Array[Transform3D],
 func _signage(color: Material) -> void:
     var entry := Label3D.new()
     entry.name = "ShortcutEntranceArrow"
-    entry.text = "SHORTCUT  <<" if side < 0 else "SHORTCUT  >>"
+    entry.text = "LEFT  /  SHORTCUT" if side < 0 else "RIGHT  /  SHORTCUT"
     entry.font_size = 48
     entry.pixel_size = 0.013
     entry.outline_size = 8
@@ -138,7 +191,25 @@ func _signage(color: Material) -> void:
         stage.track_center_at(ENTRY_Z+4.5)+float(side)*4.7,
         stage.height_at(ENTRY_Z+4.5)+3.1,ENTRY_Z+4.5)
     add_child(entry)
-    # Three glowing stripes lead into the genuine physical fork.
+    # Two readable overhead banners, visible before steering into a fork.
+    var banner_marks: Array[Transform3D] = []
+    for at_z in [ENTRY_Z+7.0,EXIT_Z+5.0]:
+        var x: float = stage.track_center_at(at_z)+float(side)*4.1
+        var y: float = stage.height_at(at_z)+3.55
+        banner_marks.append(Transform3D(Basis().scaled(Vector3(4.8,0.18,0.26)),
+            Vector3(x,y,at_z)))
+    _batch("ShortcutGatewayBeams",banner_marks,color)
+    var return_label := Label3D.new()
+    return_label.name = "ShortcutMergeArrow"
+    return_label.text = "MERGE  RIGHT" if side < 0 else "MERGE  LEFT"
+    return_label.font_size = 39
+    return_label.pixel_size = 0.013
+    return_label.modulate = TINTS[course_id]
+    return_label.outline_size = 8
+    return_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+    return_label.position = point_at(EXIT_Z+6.0)+Vector3.UP*3.4
+    add_child(return_label)
+    # Glowing stripes lead into the genuine physical fork.
     var boxes: Array[Transform3D] = []
     for i in range(4):
         var z: float = ENTRY_Z+5.4-float(i)*2.1
@@ -178,8 +249,22 @@ func recovery_center_at(location: Vector3) -> float:
         return alternate
     return main
 
+func shortcut_hint(location: Vector3) -> Dictionary:
+    # HUD query; never changes gameplay state and requires no network traffic.
+    var z: float = location.z
+    if z <= ENTRY_Z+36.0 and z > ENTRY_Z:
+        return {"mode":"fork","side":"LEFT" if side < 0 else "RIGHT",
+            "distance":maxi(0,int(round(z-ENTRY_Z)))}
+    if z <= ENTRY_Z and z >= EXIT_Z and (
+        absf(location.x-point_at(z).x) < WIDTH*0.5+1.7):
+        return {"mode":"merge","side":"RIGHT" if side < 0 else "LEFT",
+            "distance":maxi(0,int(round(z-EXIT_Z)))}
+    return {}
+
 func reset_round() -> void:
     triggered.clear()
+    entered.clear()
+    jumped.clear()
 
 func tick(_delta: float, racers: Array[RigidBody3D], net: Node) -> void:
     # Never apply gameplay effects from a rendering-only client replica.
@@ -188,23 +273,35 @@ func tick(_delta: float, racers: Array[RigidBody3D], net: Node) -> void:
     for marble in racers:
         if not is_instance_valid(marble) or marble.finished or marble.eliminated or marble.freeze:
             continue
-        if triggered.has(marble.racer_id):
-            continue
         var z: float = marble.global_position.z
-        if absf(z-REWARD_Z) >= 2.25:
-            continue
         var point := point_at(z)
-        if absf(marble.global_position.x-point.x) > REWARD_RADIUS:
+        var horizontal_error: float = absf(marble.global_position.x-point.x)
+        var vertical_error: float = absf(marble.global_position.y-point.y)
+        if z <= ENTRY_Z+1.5 and z >= ENTRY_Z-ENTRY_WINDOW and (
+            horizontal_error < WIDTH*0.5+1.1 and vertical_error < 2.3):
+            entered[marble.racer_id] = true
+        if not entered.has(marble.racer_id):
             continue
-        if absf(marble.global_position.y-point.y) > 1.55:
+        var jump_z: float = JUMP_Z[course_id]
+        if not jumped.has(marble.racer_id) and absf(z-jump_z) <= 1.5 and (
+            horizontal_error < 1.38 and vertical_error < 1.65):
+            jumped[marble.racer_id] = true
+            marble.apply_central_impulse(Vector3(0.0,2.15,-1.65)*marble.mass)
+            _feedback(marble,net,"jump")
+        if triggered.has(marble.racer_id) or absf(z-REWARD_Z) >= 2.25:
+            continue
+        if horizontal_error > REWARD_RADIUS or vertical_error > 1.55:
             continue
         triggered[marble.racer_id] = true
-        # The detour avoids the central obstacle field; a one-time dash
-        # makes the risky alternative a real time-saving racing choice.
-        marble.apply_central_impulse(Vector3(0.0,0.32,-5.4)*marble.mass)
-        if net.role == "server":
-            if marble.network_controlled and net.joined_slots.values().has(marble.racer_id):
-                net.notify_course_event(marble.racer_id,"shortcut")
-        elif net.role == "offline" and marble.is_player:
-            stage.audio.course_event("shortcut")
-            stage.ui.show_course_event("shortcut")
+        # The side route is longer, with risk at its launch pad. Reward earned
+        # by actually entering the fork, not by spawning on the midpoint.
+        marble.apply_central_impulse(Vector3(0.0,0.32,-4.25)*marble.mass)
+        _feedback(marble,net,"shortcut")
+
+func _feedback(marble: RigidBody3D, net: Node, kind: String) -> void:
+    if net.role == "server":
+        if marble.network_controlled and net.joined_slots.values().has(marble.racer_id):
+            net.notify_course_event(marble.racer_id,kind)
+    elif net.role == "offline" and marble.is_player:
+        stage.audio.course_event(kind)
+        stage.ui.show_course_event(kind)
