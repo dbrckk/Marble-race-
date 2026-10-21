@@ -26,7 +26,7 @@ func setup(owner: Node3D, course_id: int) -> void:
         zone.name = "%sZone_%02d" % [kind.capitalize(),i]
         var z: float = ZONE_Z[i]
         var x: float = ZONE_X[(i+track_id)%ZONE_X.size()]
-        zone.position = Vector3(x,game.height_at(z)+0.035,z)
+        zone.position = Vector3(x+game.track_center_at(z),game.height_at(z)+0.035,z)
         add_child(zone)
         zones.append(zone)
         if track_id == 2:
