@@ -422,3 +422,18 @@ This update introduces three **physically collidable, timed challenges on each t
 - **Automated test:** `tests/race_director.gd` verifies actual animated collision bodies, different biome timing, forge retract/extend motion, warnings, clean-pass proximity and one-time rewards, and client authority. The usual real-server integration, 120-second three-biome race, championship and arm64 Android APK export still run.
 
 This is an Android **debug release candidate**. Device-based verification remains necessary for collision feel, touch accuracy and performance before any public production AAB.
+
+## v1.21 RC — Nine permanent mastery contracts and earned marble finishes
+
+This Android update adds a meaningful skill collection to the replayable three-biome championship:
+
+- **Three mastery challenges on every track** (nine permanent stamps): finish an actual solo race, earn at least one physical clean pass at a timed obstacle during a completed race, and successfully use that course's physical shortcut during a completed race. Stamps accumulate across separate races: all three are not required in one run.
+- **No artificial award path:** only the trusted offline race-finalization path reads real race director and shortcut evidence and writes mastery. Incomplete races, repeated awards and online client/server rounds cannot alter solo mastery.
+- **Five collectible cosmetic glass marbles:** Copper is the original starting style; Azure, Solar, Amethyst and Prism unlock at **2, 4, 6 and 9** total earned mastery stamps respectively. They change procedural shader color, streaks, player marker and speed-dust tint but preserve mass, radius, friction, perks and collisions. The style selection persists across app restarts.
+- **Visible progression:** the circuit selection menu shows the number of stamps and styles; each track button carries M#/3. The perk screen displays the three goals and their earned checks, plus a single tap-to-cycle style control. Solo results show newly completed goals and cosmetics.
+- **Preserved older saves:** the existing marble_career.cfg is extended with a mastery section. Missing fields leave historical stars, sectors, ranks and unlocks intact. Invalid and locked cosmetic selections are corrected on load.
+- **Small-screen result presentation:** detailed records, new goals, rankings and style unlocks scroll inside the race report; replay, next course and main menu buttons remain visible.
+- **Multiplayer stays fair:** earned physical close-pass speed boosts still work online when adjudicated by the server, but the online display does not fabricate offline mastery or remote-only skill totals.
+- **Regression coverage:** tests/mastery_rewards.gd validates old-save migration, all nine achievements and five colors, persistence, no repeated rewards, real world triggers, strict offline-only updates and unchanged physics. tests/visual_polish.gd checks scrollable results.
+
+Android debug release candidate **1.21.0-rc**, version code 35. Device-based performance and screen usability must still be verified; this is not a production-signed Play Store AAB.
