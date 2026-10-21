@@ -445,3 +445,11 @@ After collecting the nine finite mastery stamps, every genuine **finished solo r
 The license, lifetime solo race totals, clean passes and shortcut counts persist in the existing career ConfigFile; old saved progress remains compatible. The menu and perk selection expose the next milestone, while the result panel shows exact earned reputation and rank promotions. The local player's floating tag displays an earned license name as a visual reward. The license never boosts race stats, unlocks paid mechanics, or affects multiplayer. All points are awarded exactly once from the game's trusted offline end-of-race path, and tests/league_progress.gd verifies promotions, data persistence, legacy migration, replay results, invalid ranks and online exclusion.
 
 The existing five shader-based marble styles and physical mastery contracts remain unchanged.
+
+## v1.22 RC — Signature scenery and lightweight atmosphere
+
+The three courses now include physically separate **signature landscape landmarks**, aligned to the winding world centerline and never blocking any racing lane or shortcut. Woodland features timber windmill rotors, Glacier presents angular crystal spires and ice branches, while Ember Forge has dark industrial chimneys with glowing hot collars. Six paired roadside installations per environment include smaller themed signs (only on balanced/ultra quality).
+
+Each world uses **three additional GPU MultiMesh batches**: 12 main monuments, 24–36 thematic details and 72 tiny animated ambient motes. A single GLSL spatial shader animates firefly/snow/ember drift on the GPU using engine TIME and instance IDs, with no per-frame CPU work, network snapshots, colliders, new textures or audio dependencies. On the economy graphics preset, the hero silhouettes remain while secondary geometry, signs and all animated motes are disabled. Graphics settings are applied both at world creation and when toggled at runtime.
+
+Automated tests/biome_signature.gd checks all three specific landmark types, counts, batch/shader material, off-track safety, visual-quality gating, rematches and the existing 40-marble grid. These are rendering improvements; device frame pacing and visibility still require confirmation on the target Android handset.

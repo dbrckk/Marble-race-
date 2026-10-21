@@ -150,6 +150,12 @@ jobs:
           set -euo pipefail
           timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 550 --path . --script res://tests/race_director.gd 2>&1 | tee race-director.log
           grep -Fq "RACE_DIRECTOR_PASS:" race-director.log
+      - name: Three world silhouettes, GPU motes and Android graphics quality
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 600 --path . --script res://tests/biome_signature.gd 2>&1 | tee biome-signature.log
+          grep -Fq "BIOME_SIGNATURE_PASS:" biome-signature.log
       - name: Physical course identity and biome mechanics regression
         shell: bash
         run: |

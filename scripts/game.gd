@@ -28,6 +28,7 @@ const StudioPolish = preload("res://scripts/studio_polish.gd")
 const RaceItems = preload("res://scripts/race_items.gd")
 const CourseMechanics = preload("res://scripts/course_mechanics.gd")
 const TrackUniverses = preload("res://scripts/track_universes.gd")
+const BiomeSignature = preload("res://scripts/biome_signature.gd")
 
 const MARBLE_COUNT := 40
 const SLOPE := 0.085
@@ -288,6 +289,9 @@ func _apply_graphics_quality() -> void:
         var floor_details := board.get_node_or_null("StudioTrackGuides")
         if is_instance_valid(floor_details):
             floor_details.set_quality(graphics_quality)
+        var signature := board.get_node_or_null("TrackSignatureLandmarks")
+        if is_instance_valid(signature):
+            signature.set_quality(graphics_quality)
     # Compatibility renderer: avoid costly multisample AA outside ULTRA.
     var viewport := get_viewport()
     viewport.msaa_3d = Viewport.MSAA_2X if graphics_quality == 2 else Viewport.MSAA_DISABLED
@@ -535,6 +539,11 @@ func _make_course() -> void:
     var universe := TrackUniverses.new()
     universe.setup(selected_track,self)
     board.add_child(universe)
+    # Three batched hero silhouettes and ambient atmosphere for each biome.
+    # These are off-track, purely cosmetic and share no live physics logic.
+    var signature := BiomeSignature.new()
+    signature.setup(self,selected_track,built_variation)
+    board.add_child(signature)
     race_items = RaceItems.new()
     race_items.name = "RareArcadePickups"
     board.add_child(race_items)
