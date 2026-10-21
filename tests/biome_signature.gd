@@ -32,7 +32,14 @@ func _run() -> void:
         for i in range(12):
             var pose: Transform3D = art.hero.multimesh.get_instance_transform(i)
             assert(pose.origin.is_finite())
-            assert(absf(pose.origin.x-game.track_center_at(pose.origin.z)) > 13.0,
+            var lateral: float = absf(pose.origin.x-
+                game.track_center_at(pose.origin.z))
+            if lateral <= 13.0:
+                print("LANDMARK_DIAGNOSTIC track=",track," i=",i,
+                    " origin=",pose.origin," center=",
+                    game.track_center_at(pose.origin.z),
+                    " transform=",pose)
+            assert(lateral > 13.0,
                 "Landmarks may not block the track or its physical side route")
         for index in range(72):
             var particle: Transform3D = art.motes.multimesh.get_instance_transform(index)
