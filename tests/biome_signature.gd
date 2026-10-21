@@ -49,6 +49,27 @@ func _run() -> void:
                 "Budget-friendly quality tiers should hide glowing motes")
             assert(art.signs[0].visible == (level >= 1))
         game.set_graphics_quality(1)
+        assert(art.detail_origins.size() == art.details.multimesh.instance_count)
+        assert(art.detail_bases.size() == art.detail_origins.size())
+        for origin in art.detail_origins:
+            assert(origin.is_finite() and absf(origin.x-game.track_center_at(origin.z)) > 12.5,
+                "Animated landmarks must stay beyond shortcut physics")
+        art.motion_accumulator = 0.0
+        var frame_before: int = art.motion_frame_count
+        art._process(0.01)
+        assert(art.motion_frame_count == frame_before,
+            "Animation updates must be throttled below 20Hz")
+        art._process(0.05)
+        assert(art.motion_frame_count == frame_before+1,
+            "Each biome must animate secondary geometry on its own clock")
+        assert(art.motion_clock > 0.0 and art.detail_material.emission_energy_multiplier > 0.0)
+        game.set_graphics_quality(0)
+        art.motion_accumulator = 0.0
+        frame_before = art.motion_frame_count
+        art._process(0.20)
+        assert(art.motion_frame_count == frame_before,
+            "Economy mode must skip animated GPU transform updates")
+        game.set_graphics_quality(1)
         game.start_race("Grip Tape")
         assert(game.racers.size() == 40)
         assert(game.board.get_node("TrackSignatureLandmarks").hero.visible)
