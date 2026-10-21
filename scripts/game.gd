@@ -18,6 +18,7 @@ const CourseDressing = preload("res://scripts/course_dressing.gd")
 const ObstacleFinish = preload("res://scripts/obstacle_finish.gd")
 const TrackSurface = preload("res://scripts/track_surface.gd")
 const TrackPath = preload("res://scripts/track_path.gd")
+const ShortcutRoute = preload("res://scripts/shortcut_route.gd")
 const Career = preload("res://scripts/career.gd")
 const BestGhost = preload("res://scripts/best_ghost.gd")
 const InternetSession = preload("res://scripts/internet_session.gd")
@@ -89,6 +90,7 @@ var kinetic_time := 0.0
 var obstacle_finish: Node3D
 var race_items: Node3D
 var course_mechanics: Node3D
+var shortcut_route: Node3D
 var track_surface: Node3D
 var track_physics_material: PhysicsMaterial
 var primary_light: DirectionalLight3D
@@ -335,6 +337,11 @@ func track_center_at(z: float) -> float:
     # Identical centerline across local clients, bots and authoritative server.
     return TrackPath.center_at(z,selected_track)
 
+func recovery_center_at(location: Vector3) -> float:
+    if is_instance_valid(shortcut_route):
+        return shortcut_route.recovery_center_at(location)
+    return track_center_at(location.z)
+
 func _mat(color: Color, roughness := 0.74, metalness := 0.0) -> StandardMaterial3D:
     var key = color.to_html() + "_" + str(roughness) + "_" + str(metalness)
     if render_materials.has(key):
@@ -474,6 +481,10 @@ func _make_course() -> void:
                 track_surface.register_groove(Vector3(x-0.34+(j%2)*0.31+section_node.position.x,height_at(z)+0.005,z))
         for side in [-1,1]:
             for rail_piece in range(3):
+                # Physical fork and merger through two full-width portals.
+                if ShortcutRoute.opens_rail(section,side,rail_piece,selected_track):
+                    section_node.set_meta("shortcut_portal",side)
+                    continue
                 var z: float = center_z+(rail_piece-1)*4.02
                 var color_idx := (section+rail_piece+(0 if side==1 else 3))%BARRIER_COLORS.size()
                 var pos := Vector3(side*6.84,height_at(z)+0.58,z)
@@ -495,6 +506,9 @@ func _make_course() -> void:
                 _slalom(section_node, center_z, section)
 
     _connect_winding_sections()
+    shortcut_route = ShortcutRoute.new()
+    board.add_child(shortcut_route)
+    shortcut_route.setup(self,selected_track)
     obstacle_finish.rebuild()
     var woods: Array = []
     for color in WOOD_COLORS:
@@ -932,6 +946,8 @@ func start_race(perk_name: String) -> void:
         race_items.reset_round()
     if is_instance_valid(course_mechanics):
         course_mechanics.reset_round()
+    if is_instance_valid(shortcut_route):
+        shortcut_route.reset_round()
     best_ghost.begin(selected_track,built_variation,selected_perk,not net.is_active())
     audio.bind_marble(player)
     player.body_entered.connect(_camera_bump)
@@ -1072,6 +1088,8 @@ func _physics_process(delta: float) -> void:
         race_items.tick(delta,racers,net)
     if is_instance_valid(course_mechanics):
         course_mechanics.tick(delta,racers,net)
+    if is_instance_valid(shortcut_route):
+        shortcut_route.tick(delta,racers,net)
     for m in racers:
         if not is_instance_valid(m):
             continue
