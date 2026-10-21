@@ -29,21 +29,17 @@ func _run() -> void:
         assert(art.signs.size() == 6)
         assert(art.motes.material_override is ShaderMaterial)
         assert(art.motes.material_override.shader == SIGNATURE.MOTE_SHADER)
-        for i in range(12):
-            var pose: Transform3D = art.hero.multimesh.get_instance_transform(i)
-            assert(pose.origin.is_finite())
-            var lateral: float = absf(pose.origin.x-
-                game.track_center_at(pose.origin.z))
-            if lateral <= 13.0:
-                print("LANDMARK_DIAGNOSTIC track=",track," i=",i,
-                    " origin=",pose.origin," center=",
-                    game.track_center_at(pose.origin.z),
-                    " transform=",pose)
-            assert(lateral > 13.0,
+        # Headless Godot rendering does not reliably round-trip GPU
+        # instance transforms (it can return identity for every instance).
+        # Validate the exact CPU poses used to fill those MultiMesh batches.
+        assert(art.landmark_positions.size() == 12)
+        assert(art.mote_positions.size() == 72)
+        for pos in art.landmark_positions:
+            assert(pos.is_finite())
+            assert(absf(pos.x-game.track_center_at(pos.z)) > 13.0,
                 "Landmarks may not block the track or its physical side route")
-        for index in range(72):
-            var particle: Transform3D = art.motes.multimesh.get_instance_transform(index)
-            assert(absf(particle.origin.x-game.track_center_at(particle.origin.z)) > 7.7,
+        for pos in art.mote_positions:
+            assert(absf(pos.x-game.track_center_at(pos.z)) > 7.7,
                 "Atmosphere must not obscure the competitive center lane")
         for level in range(3):
             game.set_graphics_quality(level)

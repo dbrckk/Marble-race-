@@ -20,6 +20,10 @@ var hero: MultiMeshInstance3D
 var details: MultiMeshInstance3D
 var motes: MultiMeshInstance3D
 var signs: Array[Label3D] = []
+## Headless RenderingServer does not retain GPU MultiMesh instance transforms;
+## preserve small CPU positions for safety regression and editor diagnostics.
+var landmark_positions: Array[Vector3] = []
+var mote_positions: Array[Vector3] = []
 var quality := 1
 
 func setup(stage: Node3D, track: int, variation: int) -> void:
@@ -74,6 +78,7 @@ func setup(stage: Node3D, track: int, variation: int) -> void:
                 14.4+float((index+layout)%3)*0.8)
             var ground: float = stage.height_at(site_z)
             var origin := Vector3(x,ground+h*0.5-0.35,site_z)
+            landmark_positions.append(origin)
             core_at.append(Transform3D(
                 Basis(Vector3.UP,float(section)*0.21+side*0.19),origin))
             if biome == 0:
@@ -130,8 +135,9 @@ func setup(stage: Node3D, track: int, variation: int) -> void:
                 var x: float = stage.track_center_at(z)+side*(8.45+drift_x)
                 var y: float = stage.height_at(z)+1.65+(
                     float((section+particle*3)%5)*0.42)
-                motes_at.append(Transform3D(Basis(),
-                    Vector3(x,y,z)))
+                var mote_position := Vector3(x,y,z)
+                mote_positions.append(mote_position)
+                motes_at.append(Transform3D(Basis(),mote_position))
     var motes_material := ShaderMaterial.new()
     motes_material.shader = MOTE_SHADER
     motes_material.set_shader_parameter("mote_color",MOTES[biome])
