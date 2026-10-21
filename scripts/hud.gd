@@ -783,11 +783,20 @@ func _build_results() -> void:
     title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     col.add_child(title)
     result_header = title
-    var summary = _text("", 20)
+    # Mastery, split records and five finishers can exceed 720p height.
+    # Keep replay/menu buttons visible and make only the race report swipeable.
+    var detail_scroll := ScrollContainer.new()
+    detail_scroll.name = "RaceResultsScroll"
+    detail_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    detail_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    detail_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+    detail_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+    col.add_child(detail_scroll)
+    var summary = _text("", 19)
     summary.name = "Summary"
     summary.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    summary.size_flags_vertical = Control.SIZE_EXPAND_FILL
-    col.add_child(summary)
+    summary.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    detail_scroll.add_child(summary)
     var replay = _action("RACE AGAIN", ORANGE, Color("#251b0d"))
     replay.name = "Replay"
     replay.pressed.connect(func():
