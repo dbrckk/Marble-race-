@@ -114,6 +114,12 @@ jobs:
           set -euo pipefail
           timeout 80s ./Godot_v4.5.1-stable_linux.x86_64 --headless --path . --script res://tests/network_qos.gd 2>&1 | tee network-qos.log
           grep -Fq "NETWORK_QOS_PASS:" network-qos.log
+      - name: Predictive camera, realistic contact feedback and obstacle ETA
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 520 --path . --script res://tests/race_feedback.gd 2>&1 | tee race-feedback.log
+          grep -Fq "RACE_FEEL_PASS:" race-feedback.log
       - name: Three worlds and human-only arcade pickups regression
         shell: bash
         run: |
