@@ -30,7 +30,8 @@ func _run() -> void:
                 assert(absf(diff) < 1.5,"Turn exceeds protective overlap")
                 var seam: StaticBody3D = game.board.get_node("ContinuousBendFloor_%02d" % section)
                 assert(is_instance_valid(seam), "Physical ground joins must not be missing")
-                assert((seam.get_node("CollisionShape3D") as CollisionShape3D).shape.size.x >=
+                var seam_shape: CollisionShape3D = seam.get_child(0) as CollisionShape3D
+                assert(seam_shape != null and (seam_shape.shape as BoxShape3D).size.x >=
                     13.2+absf(diff)-0.01,"Bend floor must cover staggered edges")
                 for side in ["L","R"]:
                     var guard: StaticBody3D = game.board.get_node(
