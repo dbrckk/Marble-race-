@@ -59,6 +59,9 @@ func _run() -> void:
     assert(fresh.mastery_count() == 5 and fresh.selected_style == 2)
     assert(fresh.league_points == 453 and fresh.league_clean_passes[0] == 7)
     assert(fresh.sector_best[1] == 12.15 and fresh.track_best[0] == 3)
+    var earlier: Dictionary = Transfer.preview_previous_career(fresh)
+    assert(bool(earlier["ok"]) and int(earlier["starts"]) == 3,
+        "A preceding career must be previewable without risky blind rollback")
     var old = Career.new()
     old.save_path = RESTORE_PATH+".before_import"
     old.load_save()
@@ -110,6 +113,15 @@ func _run() -> void:
     game.ui._confirm_restore_backup()
     assert(game.ui.backup_confirm_button.disabled)
     assert(game.career.starts == 14 and game.career.league_points == 453)
+    assert(not game.ui.backup_previous_button.disabled,
+        "A successful import should expose reversible previous save")
+    game.ui._preview_previous_import()
+    assert(not game.ui.backup_confirm_button.disabled)
+    assert(game.ui.backup_status.text.contains("1 RACES"),
+        "Previous career preview must show original progression before undo")
+    game.ui._confirm_restore_backup()
+    assert(game.career.starts == 1 and game.career.finishes == 0,
+        "One explicit undo confirmation must recover the earlier live career")
     game.ui.show_menu()
     assert(game.ui.menu_layer.visible and not game.ui.backup_layer.visible,
         "Career transfer must return to native Android menu")
