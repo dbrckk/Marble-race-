@@ -55,6 +55,16 @@ func _run() -> void:
             assert(overview.shortcut_point(z).distance_to(
                 overview.project(z,location.x)) < 0.01,
                 "The briefing branch must project real shortcut geometry")
+        for z in [-22.0,-61.0,-106.0,-139.0,-166.0]:
+            var mark: Vector2 = overview.relief_point(z)
+            var actual_deviation: float = game.height_at(z)-(
+                z*PATH.BASE_SLOPE)
+            assert(mark.is_finite() and
+                absf(mark.y-(overview.size.y*0.855-
+                actual_deviation*overview.size.y*0.074)) < 0.001,
+                "Elevation diagram must show real collider heights, not fake scenery")
+        assert(overview.custom_minimum_size.y >= 170.0,
+            "Terrain chart needs its own readable touch-safe briefing region")
         for i in range(DIRECTOR.EVENT_Z.size()):
             assert(overview.hazard_side_at(i) == game.race_director.side_at(i),
                 "First course preview must use the real timed hazard side")
