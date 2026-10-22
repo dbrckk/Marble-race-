@@ -22,6 +22,10 @@ const EFFECT_WINDOW_FAR := -88.0
 const JUMP_Z := [-71.0,-74.0,-86.0]
 const ENTRY_WINDOW := 12.0
 const MAX_BANK := 0.080
+# Extra physical clearance above the main deck at the centre of each bypass.
+# The entire bridge (not merely its visual mesh) follows this terrain profile.
+const BRIDGE_RISE := [0.72,1.12,1.42]
+const MAX_BRIDGE_GRADE := 0.30
 const SIDES := [1,-1,1]
 const TINTS := [Color("#f9bf79"),Color("#a3f5ff"),Color("#f89a6e")]
 
@@ -109,10 +113,45 @@ func setup(owner: Node3D, track: int) -> void:
             guard_art.append(Transform3D(basis.scaled(size),guard_pos))
     _batch("BatchedBypassDeck",deck_art,deck_material)
     _batch("BatchedBypassGuards",guard_art,edge_material)
+    _bridge_structure(deck_material,edge_material)
     _launch_ramps(deck_material)
     _racing_line(edge_material)
     _signage(edge_material)
     reset_round()
+
+func bridge_lift_at(z: float) -> float:
+    # Smoothly match the existing main deck at both portals. On Forge the
+    # ridge has two shoulders, rather than the single Glacier crest.
+    var progress: float = clampf((ENTRY_Z-z)/(ENTRY_Z-EXIT_Z),0.0,1.0)
+    var envelope: float = pow(sin(progress*PI),2.0)
+    var shape := 1.0
+    if course_id == 2:
+        shape = 0.77+0.23*cos(TAU*2.0*progress)
+    return envelope*(0.36+BRIDGE_RISE[course_id]*shape)
+
+func _bridge_structure(deck_color: Material, edge_color: Material) -> void:
+    # Elevated paths need visible load-bearing structure. Ten pylons and
+    # five transverse braces use two GPU batches; no additional physics
+    # bodies, scripts, lights or dynamic shadows are created on Android.
+    var supports: Array[Transform3D] = []
+    var braces: Array[Transform3D] = []
+    for index in range(4,SEGMENTS-3,4):
+        var z: float = lerpf(ENTRY_Z,EXIT_Z,float(index)/float(SEGMENTS))
+        var point: Vector3 = point_at(z)
+        var baseline: float = stage.height_at(z)-2.10
+        var top: float = point.y-0.24
+        var height: float = maxf(1.0,top-baseline)
+        var center_y: float = baseline+height*0.5
+        for cross_side in [-1.0,1.0]:
+            var support_x: float = point.x+cross_side*(WIDTH*0.5+0.38)
+            supports.append(Transform3D(
+                Basis().scaled(Vector3(0.38,height,0.40)),
+                Vector3(support_x,center_y,z)))
+        braces.append(Transform3D(
+            Basis().scaled(Vector3(WIDTH+1.10,0.18,0.38)),
+            point+Vector3(0.0,-0.57,0.0)))
+    _batch("BatchedBypassBridgePylons",supports,deck_color)
+    _batch("BatchedBypassBridgeTrusses",braces,edge_color)
 
 func bank_at(z: float) -> float:
     if z > OUTER_START or z < OUTER_END:
@@ -243,7 +282,7 @@ func point_at(z: float) -> Vector3:
         var t: float = clampf((OUTER_END-z)/(OUTER_END-EXIT_Z),0.0,1.0)
         offset = lerpf(OUTER_OFFSET,INNER_OFFSET,smoothstep(0.0,1.0,t))
     var progress: float = clampf((ENTRY_Z-z)/(ENTRY_Z-EXIT_Z),0.0,1.0)
-    var lift := 0.36*pow(sin(progress*PI),2.0)
+    var lift: float = bridge_lift_at(z)
     return Vector3(
         stage.track_center_at(z)+float(side)*offset,
         stage.height_at(z)-0.28+lift,z)
