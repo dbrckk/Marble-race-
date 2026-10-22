@@ -111,7 +111,13 @@ func _verify() -> void:
                 "AI anticipation must not modify human inputs or transforms")
             await physics_frame
             if blocked:
-                assert(bot.linear_velocity.x*signf(obstacle_offset) < -0.025,
+                var measured_escape: float = bot.linear_velocity.x*signf(obstacle_offset)
+                if measured_escape >= -0.025:
+                    print("AI_GATE_STEER_DEBUG biome=",biome," layout=",layout,
+                        " z=",approach_z," obstacle_offset=",obstacle_offset,
+                        " planned=",safe," vel=",bot.linear_velocity,
+                        " bot_x=",bot.global_position.x)
+                assert(measured_escape < -0.025,
                     "Real physics must begin moving a threatened AI toward safety")
             game.return_to_menu()
     assert(active_cases >= 6 and retracted_cases >= 0)
