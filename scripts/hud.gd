@@ -1133,6 +1133,9 @@ func show_perks() -> void:
         course_strategy_label.text = course_briefing.describe() + (
             "\nRED = GATES   •   COLORED BRANCH = SHORTCUT   •   DIAMONDS = RARE HUMAN ITEMS   •   LAYOUT %d / 3"
             % (game.race_variation+1))
+        if not game.net.is_active():
+            course_strategy_label.text += (
+                "\nSOLO: FOLLOW A RIVAL TO EARN DRAFT BOOST RECHARGE")
     if is_instance_valid(perk_scroll):
         perk_scroll.scroll_vertical = 0
     perks_layer.visible = true
