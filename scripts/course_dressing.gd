@@ -56,7 +56,7 @@ func _batch_static_boxes() -> void:
         if not groups.has(key):
             groups[key] = {"material":material,"transforms":[]}
             ordered_keys.append(key)
-        var axis := Basis(Vector3.RIGHT,-atan(SLOPE)) if bool(box["tilt"]) else Basis()
+        var axis := Basis(Vector3.RIGHT,-atan(_grade(location.z))) if bool(box["tilt"]) else Basis()
         var basis: Basis = axis.scaled(box["size"])
         var entries: Array = groups[key]["transforms"]
         entries.append(Transform3D(basis,location))
@@ -87,6 +87,14 @@ func _center(z: float) -> float:
     var stage := get_parent().get_parent() as Node3D
     return stage.track_center_at(z) if is_instance_valid(stage) else 0.0
 
+func _height(z: float) -> float:
+    var stage := get_parent().get_parent() as Node3D
+    return stage.height_at(z)
+
+func _grade(z: float) -> float:
+    var stage := get_parent().get_parent() as Node3D
+    return stage.track_grade_at(z)
+
 func _rail_accents() -> void:
     # One batch for all golden upper rail strips. They sit outside the contact surface.
     var metal := BoxMesh.new()
@@ -96,11 +104,11 @@ func _rail_accents() -> void:
     batch.transform_format = MultiMesh.TRANSFORM_3D
     batch.mesh = metal
     batch.instance_count = SEGMENTS*2
-    var angle := Basis(Vector3.RIGHT,-atan(SLOPE))
     for section in range(SEGMENTS):
         var z := 8.0-float(section)*LEN
+        var angle := Basis(Vector3.RIGHT,-atan(_grade(z)))
         for side in range(2):
-            var pos := Vector3((-1.0 if side==0 else 1.0)*6.855+_center(z),z*SLOPE+1.23,z)
+            var pos := Vector3((-1.0 if side==0 else 1.0)*6.855+_center(z),_height(z)+1.23,z)
             # Suppress decorative rail trim at the real fork / merger.
             var portal_side: int = -1 if side == 0 else 1
             var guide: Basis = angle
@@ -117,7 +125,7 @@ func _modular_bracing() -> void:
     # No extra geometry on the racing surface: all decoration is underneath / outside.
     for section in range(0,SEGMENTS,2):
         var z := 7.0 - section*LEN
-        var y: float = z*SLOPE
+        var y: float = _height(z)
         _decor_box("WalnutCrossBeam_%02d"%section,
             Vector3(_center(z),y-1.6,z),Vector3(15.7,0.30,0.43),_wood)
         for side in [-1.0,1.0]:
@@ -128,7 +136,7 @@ func _modular_bracing() -> void:
             Vector3(_center(z),y-1.36,z),Vector3(14.9,0.045,0.13),_gold)
     for section in range(2,SEGMENTS,3):
         var z := 8.0 - section*LEN
-        var y: float = z*SLOPE
+        var y: float = _height(z)
         # Side module numbers add navigational texture at a distance.
         var label := Label3D.new()
         label.name = "SectionMarker_%02d" % section
@@ -144,7 +152,7 @@ func _modular_bracing() -> void:
 func _flags_and_plates() -> void:
     for i in range(3):
         var z: float = 8.0 - float([4,9,14][i])*LEN
-        var y: float = z*SLOPE
+        var y: float = _height(z)
         for side in [-1.0,1.0]:
             var x: float = side*7.45+_center(z)
             _decor_box("FlagStaff",Vector3(x,y+2.82,z),
@@ -182,7 +190,7 @@ func _flags_and_plates() -> void:
     # Distinct lacquer plate on start and finish; keeps tracks readable from camera.
     for n in range(2):
         var z := 2.25 if n==0 else -195.1
-        var y: float = z*SLOPE
+        var y: float = _height(z)
         var color := COLORS[0] if n==0 else Color("#e7ca7e")
         var plate := _material(color,0.31,0.20)
         _decor_box("RaceLogoPlate",Vector3(_center(z),y+2.95,z-0.03),
