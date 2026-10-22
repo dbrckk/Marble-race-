@@ -666,7 +666,11 @@ func _pegs(parent: Node3D, center_z: float, n: int) -> void:
     for row in range(3):
         var z = center_z + 3.0 - row * 3.2
         for c in range(5):
+            # Each rematch shifts the real peg corridors, not just their paint.
+            # Keep the outermost posts inside the 6.5m half-width and never
+            # close a complete row: spacing remains 2.2m for 0.62m posts.
             var shift := sin(float(n*9+row*3+race_variation*7))*0.23
+            shift += (float(race_variation)-1.0)*0.19*(1.0 if row%2==0 else -1.0)
             var x = (c - 2) * 2.20 + (0.56 if row % 2 == 1 else 0.0) + shift
             var tint = BARRIER_COLORS[(n + c + row) % BARRIER_COLORS.size()]
             _cylinder(parent, Vector3(x, height_at(z)+0.8, z), 0.31, 1.6, tint)
@@ -712,7 +716,10 @@ func _swing_hammer(parent: Node3D, z: float, n: int) -> void:
 func _slalom(parent: Node3D, center_z: float, n: int) -> void:
     for i in range(5 if selected_track == 2 else 4):
         var z = center_z + 4.4 - float(i) * (2.2 if selected_track == 2 else 2.8)
-        var x = (-3.5 if i % 2 == 0 else 3.5)
+        # The alternating barrier rhythm changes between layouts, but the
+        # 3.4m obstacle always leaves a full-width outside escape lane.
+        var side := -1.0 if (i+race_variation)%2==0 else 1.0
+        var x: float = side*(3.5+0.20*sin(float(n*3+i)))
         var slalom_color: Color = BARRIER_COLORS[(n+i)%6]
         var size := Vector3(3.4,0.75,1.05)
         var block := _box(parent, Vector3(x,height_at(z)+0.36,z),
