@@ -97,8 +97,12 @@ func setup(owner: Node3D, track: int, layout: int) -> void:
         signs.append(notice)
     reset_round()
 
+static func event_z_for(track: int, layout: int, index: int) -> float:
+    return EVENT_Z[index]+LAYOUT_OFFSETS[posmod(layout,3)][index]+(
+        BIOME_OFFSETS[clampi(track,0,2)][index])
+
 func event_z(index: int) -> float:
-    return EVENT_Z[index]+LAYOUT_OFFSETS[variation][index]+BIOME_OFFSETS[biome][index]
+    return event_z_for(biome,variation,index)
 
 func side_at(index: int) -> float:
     return -1.0 if (index+biome+variation)%2 == 0 else 1.0
