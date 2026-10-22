@@ -68,7 +68,7 @@ func _run() -> void:
             var sample_x: float = game.track_center_at(sample_z)+0.67
             var origin := Vector3(sample_x,game.height_at(sample_z)+1.1,sample_z)
             var destination := Vector3(sample_x,game.height_at(sample_z)-1.9,sample_z)
-            var hit := game.get_world_3d().direct_space_state.intersect_ray(
+            var hit: Dictionary = game.get_world_3d().direct_space_state.intersect_ray(
                 PhysicsRayQueryParameters3D.create(origin,destination))
             assert(not hit.is_empty(),"A marble must land on real physical road")
             assert(hit["collider"] is StaticBody3D,
