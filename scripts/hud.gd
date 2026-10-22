@@ -6,6 +6,7 @@ const CAREER_TRANSFER = preload("res://scripts/career_transfer.gd")
 const RACE_MOMENTS = preload("res://scripts/race_moments.gd")
 const COURSE_BRIEFING = preload("res://scripts/course_briefing.gd")
 const PROGRESS_RADAR = preload("res://scripts/race_progress_radar.gd")
+const RARE_ITEMS = preload("res://scripts/race_items.gd")
 const FONT_HEAVY = preload("res://assets/fonts/Rajdhani-Bold.ttf")
 const FONT_REGULAR = preload("res://assets/fonts/Rajdhani-Medium.ttf")
 const TEXT := Color("#fff1dc")
@@ -60,6 +61,7 @@ var boost_progress: ProgressBar
 var checkpoint_label: Label
 var hazard_label: Label
 var timed_gate_label: Label
+var rare_item_label: Label
 var shortcut_label: Label
 var position_feedback: Label
 var race_moment_label: Label
@@ -785,6 +787,19 @@ func _build_race_hud() -> void:
     timed_gate_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
     timed_gate_label.visible = false
     hud_layer.add_child(timed_gate_label)
+    # Rare collectible guidance occupies its own thin band beneath timed
+    # hazard warnings; it never covers the mobile steering or boost zones.
+    rare_item_label = _text("",15,Color("#b5eeff"))
+    rare_item_label.name = "UpcomingHumanPowerup"
+    rare_item_label.anchor_left = 0.285
+    rare_item_label.anchor_right = 0.715
+    rare_item_label.anchor_top = 0.391
+    rare_item_label.anchor_bottom = 0.426
+    rare_item_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    rare_item_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+    rare_item_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    rare_item_label.visible = false
+    hud_layer.add_child(rare_item_label)
     position_feedback = _text("",21,Color("#a7f0d8"))
     position_feedback.name = "RankFeedback"
     position_feedback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1116,7 +1131,7 @@ func show_perks() -> void:
     if is_instance_valid(course_briefing):
         course_briefing.configure(game,game.selected_track,game.race_variation)
         course_strategy_label.text = course_briefing.describe() + (
-            "\nRED = TIMED HAZARDS   •   COLORED BRANCH = SHORTCUT   •   LAYOUT %d / 3"
+            "\nRED = TIMED HAZARDS   •   DIAMONDS = RARE HUMAN ITEMS   •   LAYOUT %d / 3"
             % (game.race_variation+1))
     if is_instance_valid(perk_scroll):
         perk_scroll.scroll_vertical = 0
@@ -1138,6 +1153,8 @@ func show_race_ui() -> void:
         shortcut_label.visible = false
     if is_instance_valid(timed_gate_label):
         timed_gate_label.visible = false
+    if is_instance_valid(rare_item_label):
+        rare_item_label.visible = false
     if get_tree().paused:
         get_tree().paused = false
     _hide_all()
@@ -1304,6 +1321,20 @@ func update_hud() -> void:
                 Color("#a1edcc") if not projected_blocking else Color("#f6d49b")))
         if gate_eta <= 2.20 and gate_eta >= 0.25:
             game.audio.warn_timed_gate(gate_id,projected_blocking)
+    # Predict the next still-available, immediate-effect item. Clients
+    # consult their local server-confirmed visibility; AI never receive UI.
+    var next_item: Dictionary = game.race_items.nearest_available(
+        game.player.global_position,game.player.racer_id) if (
+        is_instance_valid(game.race_items) and game.race_state == "RACING") else {}
+    rare_item_label.visible = not next_item.is_empty()
+    if rare_item_label.visible:
+        rare_item_label.text = "RARE %s  •  %s  •  %dm" % [
+            str(next_item["label"]),str(next_item["side"]),
+            int(ceil(float(next_item["distance"])))]
+        var color_index: int = posmod(int(next_item["index"])+game.selected_track,
+            RARE_ITEMS.COLORS.size())
+        rare_item_label.add_theme_color_override("font_color",
+            RARE_ITEMS.COLORS[color_index].lightened(0.20))
     var route_hint: Dictionary = game.shortcut_route.shortcut_hint(
         game.player.global_position) if is_instance_valid(game.shortcut_route) else {}
     shortcut_label.visible = not route_hint.is_empty()
