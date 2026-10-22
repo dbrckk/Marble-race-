@@ -534,3 +534,15 @@ The **39 rival marbles now react to nearby traffic**, instead of blindly chasing
 - A new tests/ai_traffic.gd regression checks deterministic decisions, obstructed passing lanes, height separation, distant/faster leaders, rail constraints, player authority, caching, replay resets and no movement cheats. The full 120-second physical AI simulation and live WebSocket end-to-end test remain mandatory before Android packaging.
 
 Android debug candidate **1.31.0-rc** (version code **45**), pending complete CI and phone verification.
+
+## v1.35 RC — Real 3D relief and differentiated racing lines
+
+The **physical raceway**, not merely the scenery, now rises and falls with an individual smooth, continuous vertical profile for Woodland Workshop, Glacier Pass and Ember Forge. The three biomes retain the same 40 real rigid-body marbles and their authoritative race rules, but now have **distinct racing curvature and surface grade**. Forge features the strongest relief, Glacier a medium sequence of crests and dips, and Woodland gentler rolling ground. All contours fade to the original start and finish heights to preserve safe joins.
+
+- `scripts/track_path.gd` provides the shared, deterministic vertical height and derivative for all biomes alongside the existing centerline.
+- All **180 physical wooden planks**, real guardrails and their GPU MultiMesh rendering adopt the exact same local grade and altitude. Adjacent bend seams remain covered by physical connecting floors and rails.
+- The separate physically collidable shortcut decks, optional takeoff ramps, slippery Glacier slabs, terrain speed zones, forge hazards, decorative landscape, engraved road markings, flags, golden trim and 40 ground shadows align with the same height profile.
+- The playable centerline is more distinctive in the three worlds, while existing portal widths, marble steering authority, collision geometry and finish positions are preserved. No artificial position adjustment, bot teleportation or win reward is introduced.
+- The prerace Android schematic now includes a **real elevation-profile graph**, computed directly from the same terrain geometry, inside its scrollable area. START and BACK remain pinned outside the scroller.
+
+New headless `tests/terrain_relief.gd` checks finite, safe grades, substantial profile differences, collider and MultiMesh parity, intact shortcuts, raycast contact with physical floor and all 40 racers. The existing full physical navigation, 3-biome shortcut, replay, online networking and Android signing gates remain mandatory. Continuous simulation and real-device visual/thermal QA are still required before a production claim. Debug candidate **1.35.0-rc**, Android version code **49**.
