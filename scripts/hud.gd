@@ -1083,7 +1083,9 @@ func show_perks() -> void:
     _refresh_mastery_preview()
     if is_instance_valid(course_briefing):
         course_briefing.configure(game,game.selected_track,game.race_variation)
-        course_strategy_label.text = course_briefing.describe()
+        course_strategy_label.text = course_briefing.describe() + (
+            "\nRED = TIMED HAZARDS   •   COLORED BRANCH = SHORTCUT   •   LAYOUT %d / 3"
+            % (game.race_variation+1))
     if is_instance_valid(perk_scroll):
         perk_scroll.scroll_vertical = 0
     perks_layer.visible = true
