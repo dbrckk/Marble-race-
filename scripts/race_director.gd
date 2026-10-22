@@ -172,21 +172,24 @@ func tick(racers: Array[RigidBody3D], net: Node) -> void:
         var event: AnimatableBody3D = obstacles[i]
         if biome == 2 and not piston_up(i,clock):
             continue
+        # Compute hazard world transform only once per tick. Reject marbles
+        # outside its narrow physical timing gate before making string keys,
+        # hashing dictionaries or checking lateral/y clearance.
+        var event_position: Vector3 = event.global_position
         for marble in racers:
             if not is_instance_valid(marble) or marble.finished or marble.eliminated or marble.freeze:
                 continue
-            var key: String = "%d:%d" % [i,marble.racer_id]
-            if awarded.has(key):
+            var position: Vector3 = marble.global_position
+            var dz: float = position.z-event_position.z
+            if dz > -0.35 or dz < -EVENT_LENGTH:
                 continue
-            var offset: Vector3 = marble.global_position-event.global_position
-            # Only passing forward behind the active moving body counts.
-            # A clean lateral gap is required: body half-width 0.825.
-            if offset.z > -0.35 or offset.z < -EVENT_LENGTH:
-                continue
-            var lateral: float = absf(offset.x)
-            if lateral < 1.36 or lateral > 2.36 or absf(offset.y) > 1.6:
+            var lateral: float = absf(position.x-event_position.x)
+            if lateral < 1.36 or lateral > 2.36 or absf(position.y-event_position.y) > 1.6:
                 continue
             if marble.linear_velocity.z > -0.85:
+                continue
+            var key: String = "%d:%d" % [i,marble.racer_id]
+            if awarded.has(key):
                 continue
             awarded[key] = true
             marble.apply_central_impulse(
