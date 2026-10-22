@@ -31,6 +31,15 @@ static func _lane_occupancy(target_x: float, own: RigidBody3D,
         if dx < 1.10:
             penalty += (1.10-dx)*2.4*(
                 1.0-clampf(dz/5.5,0.0,1.0))
+            # A faster racer approaching from behind has right of way.
+            # Avoid cutting across their lane even if they are still
+            # several metres back. Uses only existing velocity snapshots.
+            var behind: float = other.position.z-own.position.z
+            var closing_speed: float = own.linear_velocity.z-other.linear_velocity.z
+            if behind > 0.0 and closing_speed > 2.0:
+                var time_to_contact: float = behind/closing_speed
+                penalty += (1.10-dx)*clampf(
+                    (1.5-time_to_contact)/1.5,0.0,1.0)*4.5
     return penalty
 
 static func traffic_lane(own: RigidBody3D, rivals: Array[RigidBody3D],
