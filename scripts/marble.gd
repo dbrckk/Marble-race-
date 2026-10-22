@@ -189,6 +189,16 @@ func wants_shortcut() -> bool:
     # Opponents rotate on rematches; track layout and AI stay deterministic.
     return (racer_id*7+course_owner.selected_track*11+course_owner.built_variation*5)%13 < 2
 
+static func recovery_side(relative_x: float, attempts: int) -> float:
+    # A failed inward escape may push directly into a slalom post forever.
+    # Alternate the exit edge on subsequent attempts while within the safe
+    # shoulder. At the actual outer rail always steer IN to avoid a fall.
+    if absf(relative_x) <= 1.0:
+        return 1.0 if attempts % 2 == 0 else -1.0
+    if absf(relative_x) > 2.4 and absf(relative_x) < 5.45 and attempts % 2 == 1:
+        return signf(relative_x)
+    return -signf(relative_x)
+
 func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> void:
     if finished or eliminated or sleeping:
         return
@@ -311,7 +321,7 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
     else:
         stuck_seconds = maxf(0.0,stuck_seconds - delta*3.0)
     if stuck_seconds > 1.65:
-        var side_direction := -signf(relative_x) if absf(relative_x)>1.0 else (1.0 if recovery_count%2==0 else -1.0)
+        var side_direction: float = recovery_side(relative_x,recovery_count)
         var effort := minf(2.8,1.0+float(recovery_count)*0.35)
         apply_central_impulse(Vector3(side_direction*3.6*effort,1.4*effort,-6.5*effort)*mass)
         stuck_seconds = 0.0
