@@ -50,6 +50,7 @@ var speed_label: Label
 var fps_label: Label
 var network_quality_label: Label
 var ghost_label: Label
+var duel_label: Label
 var quality_button: Button
 var fps_button: Button
 var course_progress: ProgressBar
@@ -718,6 +719,16 @@ func _build_race_hud() -> void:
     ghost_label = _small_panel_text("",14,Rect2(0.02,0.31,0.265,0.051))
     ghost_label.name = "PersonalBestGhostPace"
     ghost_label.get_parent().visible = false
+    duel_label = _text("",15,Color("#c4f2e7"))
+    duel_label.name = "ClosestPhysicalRival"
+    duel_label.anchor_left = 0.32
+    duel_label.anchor_right = 0.68
+    duel_label.anchor_top = 0.308
+    duel_label.anchor_bottom = 0.350
+    duel_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    duel_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    duel_label.visible = false
+    hud_layer.add_child(duel_label)
     fps_label = _small_panel_text("FPS --",16,Rect2(0.865,0.43,0.119,0.060))
     fps_label.get_parent().visible = game.show_fps
     course_progress = _progress_bar(Color("#e9ac5d"))
@@ -1184,6 +1195,18 @@ func update_hud() -> void:
         ghost_label.get_parent().visible = game.best_ghost.replay_available and not game.net.is_active()
         if game.best_ghost.replay_available:
             ghost_label.text = game.best_ghost.gap_text(game.player.global_position)
+    # Solo duel indicator: sampled from real 3D positions by RaceMoments
+    # (10Hz); no extra physics queries or per-frame allocation.
+    var duel: RefCounted = game.race_moments
+    duel_label.visible = not game.net.is_active() and (
+        game.race_state == "RACING") and duel != null and (
+        duel.closest_rival_gap < 12.0)
+    if duel_label.visible:
+        duel_label.text = "%s  %s  %.1fm" % [
+            "CHASE" if duel.closest_rival_ahead else "DEFEND",
+            duel.closest_rival_name.left(16),duel.closest_rival_gap]
+        duel_label.add_theme_color_override("font_color",
+            Color("#f6d8a3") if duel.closest_rival_ahead else Color("#a5e6e2"))
     if game.net.role == "client":
         network_quality_label.get_parent().visible = true
         var quality: String = game.net.quality_text()
