@@ -5,6 +5,7 @@ extends Control
 const TRACK_PATH = preload("res://scripts/track_path.gd")
 const SHORTCUT = preload("res://scripts/shortcut_route.gd")
 const DIRECTOR = preload("res://scripts/race_director.gd")
+const KICKERS = preload("res://scripts/arcade_bumpers.gd")
 const START_Z := 12.0
 const FINISH_Z := -185.0
 const TRACK_COLORS := [
@@ -40,6 +41,12 @@ func hazard_side_at(index: int) -> int:
 
 func hazard_z_at(index: int) -> float:
     return DIRECTOR.event_z_for(course,variation,index)
+
+func kicker_marker(station: int, side: int) -> Vector2:
+    var z: float = KICKERS.station_z(station,variation)
+    var x: float = TRACK_PATH.center_at(z,course)+KICKERS.side_offset(
+        station,side,course,variation)
+    return project(z,x)
 
 func describe() -> String:
     var side: String = "RIGHT" if SHORTCUT.side_for(course) > 0 else "LEFT"
@@ -109,6 +116,13 @@ func _draw() -> void:
         draw_circle(marker,6.0,Color(0.15,0.03,0.03,0.9))
         draw_circle(marker,4.0,Color("#ff6d62"))
         draw_circle(marker,1.5,Color("#fff0db"))
+    # Two springy edge posts at each of three real racing seam stations.
+    # Gold/cyan/coral rings are different from the red timed-hazard markers.
+    for station in range(KICKERS.STATION_Z.size()):
+        for side in KICKERS.SIDES:
+            var point: Vector2 = kicker_marker(station,side)
+            draw_circle(point,4.2,Color(0.03,0.07,0.10,0.94))
+            draw_circle(point,2.8,KICKERS.COLORS[course])
     draw_circle(main[0],6.0,Color("#9bebcf"))
     draw_circle(main[main.size()-1],6.0,Color("#ffde85"))
     # A separate real terrain profile makes the biome's physical hills
