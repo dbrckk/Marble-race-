@@ -12,6 +12,9 @@ var game: Node3D
 var items: Array[Node3D] = []
 var used: Dictionary = {}
 var clock := 0.0
+# Reused scratch list: scan the 40 marbles ONCE per physics frame, then
+# test pickup collisions for only the 1-4 authoritative human racers.
+var eligible_collectors: Array[RigidBody3D] = []
 
 func setup(owner: Node3D, track: int, variation: int) -> void:
     game = owner
@@ -65,17 +68,18 @@ func _is_human(marble: RigidBody3D, net: Node) -> bool:
 
 func tick(delta: float, racers: Array[RigidBody3D], net: Node) -> void:
     clock += delta
+    eligible_collectors.clear()
+    for marble in racers:
+        if is_instance_valid(marble) and not marble.finished and (
+            not marble.eliminated) and _is_human(marble,net):
+            eligible_collectors.append(marble)
     for i in range(items.size()):
         var pickup := items[i]
         if not is_instance_valid(pickup):
             continue
         pickup.rotation.y += delta * 1.8
         pickup.position.y = game.height_at(ITEM_Z[i])+1.05+sin(clock*2.5+i)*0.16
-        for marble in racers:
-            if not is_instance_valid(marble) or marble.finished or marble.eliminated:
-                continue
-            if not _is_human(marble,net):
-                continue
+        for marble in eligible_collectors:
             var key := "%d:%d" % [i,marble.racer_id]
             if used.has(key):
                 continue
