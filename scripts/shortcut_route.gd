@@ -128,7 +128,7 @@ func _launch_ramps(material: Material) -> void:
     var at: Vector3 = point_at(at_z)
     var size := Vector3(2.30,0.18,2.65)
     # Local -Z points downhill. A small pitch climbs toward the lip.
-    var basis := Basis(Vector3.RIGHT,-atan(0.085)+0.18)
+    var basis := Basis(Vector3.RIGHT,-atan(stage.track_grade_at(at_z))+0.18)
     var ramp := _solid("BypassLaunchRamp",at+Vector3.UP*0.38,basis,size,0.66)
     launch_ramps.append(ramp)
     _batch("BatchedJumpTakeoff",[Transform3D(basis.scaled(size),ramp.position)],material)
