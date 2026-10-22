@@ -56,6 +56,17 @@ func _run() -> void:
             assert(overview.shortcut_point(z).distance_to(
                 overview.project(z,location.x)) < 0.01,
                 "The briefing branch must project real shortcut geometry")
+        # The optional elevated deck must show its true physics altitude
+        # on the same pre-race relief chart as the main road.
+        for z in [-49.0,-63.0,-76.0,-89.0,-103.0]:
+            var alt_mark: Vector2 = overview.shortcut_relief_point(z)
+            var deck_top: float = physical.point_at(z).y+0.28
+            var y_expected: float = overview.size.y*0.855-(
+                deck_top-z*PATH.BASE_SLOPE)*overview.size.y*0.074
+            assert(alt_mark.is_finite() and absf(alt_mark.y-y_expected) < 0.001,
+                "Branch relief on the map must match the raised physical road")
+        assert(overview.describe().contains("RAISED BRIDGE"),
+            "Mobile course description should explain the new vertical risk")
         for z in [-22.0,-61.0,-106.0,-139.0,-166.0]:
             var mark: Vector2 = overview.relief_point(z)
             var actual_deviation: float = game.height_at(z)-(
