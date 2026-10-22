@@ -51,6 +51,12 @@ jobs:
           set -euo pipefail
           timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --path . --script res://tests/adaptive_graphics.gd 2>&1 | tee adaptive-graphics.log
           grep -Fq "ADAPTIVE_GRAPHICS_PASS:" adaptive-graphics.log
+      - name: Bounded Android frame telemetry and 40-marble spatial broad-phase
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 95s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 750 --path . --script res://tests/performance_budget.gd 2>&1 | tee performance-budget.log
+          grep -Fq "PERFORMANCE_BUDGET_PASS:" performance-budget.log
       - name: Smoke tests
         shell: bash
         run: |
