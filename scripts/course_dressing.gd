@@ -11,6 +11,10 @@ var _gold: StandardMaterial3D
 var _dark: StandardMaterial3D
 var _wood: StandardMaterial3D
 var _flag_materials: Array[ShaderMaterial] = []
+# Keep exact original box positions, dimensions and shared materials while
+# combining the small *static* ornaments into distance-cullable GPU batches.
+var static_boxes: Array[Dictionary] = []
+var static_batches: Array[MultiMeshInstance3D] = []
 
 func _ready() -> void:
     _gold = _material(Color("#d4a86a"),0.26,0.65)
@@ -19,6 +23,7 @@ func _ready() -> void:
     _rail_accents()
     _modular_bracing()
     _flags_and_plates()
+    _batch_static_boxes()
 
 func _material(color: Color, roughness: float, metallic: float) -> StandardMaterial3D:
     var m := StandardMaterial3D.new()
@@ -27,19 +32,56 @@ func _material(color: Color, roughness: float, metallic: float) -> StandardMater
     m.metallic = metallic
     return m
 
-func _decor_box(name_text: String, position: Vector3, size: Vector3, material: Material, tilt := false) -> MeshInstance3D:
-    var piece := MeshInstance3D.new()
-    piece.name = name_text
-    var mesh := BoxMesh.new()
-    mesh.size = size
-    piece.mesh = mesh
-    piece.material_override = material
-    piece.position = position
-    if tilt:
-        piece.rotation.x = -atan(SLOPE)
-    piece.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-    add_child(piece)
-    return piece
+func _decor_box(name_text: String, position: Vector3, size: Vector3,
+    material: Material, tilt := false) -> void:
+    # Legacy geometry was one MeshInstance3D per box, including rail bracing
+    # and flags. Record an identical transform; never make 44 draw objects.
+    static_boxes.append({
+        "label":name_text, "position":position, "size":size,
+        "material":material, "tilt":tilt
+    })
+
+func _batch_static_boxes() -> void:
+    # Three ~72m chunks preserve frustum/distance culling. One huge multimesh
+    # over the whole 216m course would defeat the camera's distance clipping.
+    var groups: Dictionary = {}
+    var ordered_keys: Array[String] = []
+    var unit_cube := BoxMesh.new()
+    unit_cube.size = Vector3.ONE
+    for box in static_boxes:
+        var material: Material = box["material"]
+        var location: Vector3 = box["position"]
+        var section: int = clampi(int(floor((8.0-location.z)/72.0)),0,2)
+        var key: String = "%d:%d" % [material.get_instance_id(),section]
+        if not groups.has(key):
+            groups[key] = {"material":material,"transforms":[]}
+            ordered_keys.append(key)
+        var axis := Basis(Vector3.RIGHT,-atan(SLOPE)) if bool(box["tilt"]) else Basis()
+        var basis: Basis = axis.scaled(box["size"])
+        var entries: Array = groups[key]["transforms"]
+        entries.append(Transform3D(basis,location))
+    for key in ordered_keys:
+        var group: Dictionary = groups[key]
+        var transforms: Array = group["transforms"]
+        var mesh := MultiMesh.new()
+        mesh.transform_format = MultiMesh.TRANSFORM_3D
+        mesh.mesh = unit_cube
+        mesh.instance_count = transforms.size()
+        for i in range(transforms.size()):
+            mesh.set_instance_transform(i,transforms[i])
+        var batch := MultiMeshInstance3D.new()
+        batch.name = "StaticDecorBatch_%02d" % static_batches.size()
+        batch.multimesh = mesh
+        batch.material_override = group["material"]
+        batch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+        add_child(batch)
+        static_batches.append(batch)
+
+func static_batch_instance_count() -> int:
+    var total := 0
+    for batch in static_batches:
+        total += batch.multimesh.instance_count
+    return total
 
 func _center(z: float) -> float:
     var stage := get_parent().get_parent() as Node3D
