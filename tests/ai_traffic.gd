@@ -77,17 +77,32 @@ func _check() -> void:
             follower,game.racers,center,preferred,2)
         assert(absf(target) <= Strategy.TRAFFIC_SAFE_LANE+0.001,
             "Passing intent must remain in the existing physical guardrails")
-    # These are real forces, not rewritten positions or an unfair speed stat.
+    # Do not destabilize the crowded start or either shortcut portal.
+    # Full 3D traffic decisions begin only after the last fork merges.
+    follower.ai_traffic_timer = 0.0
+    follower.ai_lane_timer = 2.0
+    follower.ai_lane_goal = 0.0
+    var human_timer: float = human.ai_traffic_timer
+    follower.drive(0.016,5.0,0.0,false)
+    assert(follower.ai_traffic_timer == 0.0,
+        "Opening pack must preserve the physically tested racing line")
+    var final_z := -135.0
+    var final_center: float = game.track_center_at(final_z)
+    var final_hazard: Dictionary = game.upcoming_hazard(final_z)
+    assert(final_hazard.is_empty() or (
+        float(final_hazard["distance"]) >= 3.5),
+        "Later overtaking test needs a real clear corridor")
+    follower.global_position = Vector3(final_center,
+        game.height_at(final_z)+0.8,final_z)
     follower.ai_traffic_timer = 0.0
     follower.ai_lane_timer = 2.0
     follower.ai_lane_goal = 0.0
     var before: Vector3 = follower.position
-    var human_timer: float = human.ai_traffic_timer
     follower.drive(0.016,5.0,0.0,false)
     assert(follower.position.is_equal_approx(before),
         "AI planner must not teleport racers across the course")
     assert(follower.ai_traffic_timer > 0.25,
-        "Rival evaluation must cache the lane for several physics frames")
+        "Final-half passing decisions must cache the lane between physics frames")
     assert(human.ai_traffic_timer == human_timer,
         "A remote or local human must retain direct steering")
     # Near a physical guard the new planner must deliberately fall back
