@@ -185,6 +185,12 @@ jobs:
           set -euo pipefail
           timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 600 --path . --script res://tests/biome_signature.gd 2>&1 | tee biome-signature.log
           grep -Fq "BIOME_SIGNATURE_PASS:" biome-signature.log
+      - name: Six real spring posts per race with batched Android artwork
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 95s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 1100 --path . --script res://tests/pinball_bumpers.gd 2>&1 | tee pinball-bumpers.log
+          grep -Fq "PINBALL_BUMPERS_PASS:" pinball-bumpers.log
       - name: Physical course identity and biome mechanics regression
         shell: bash
         run: |
