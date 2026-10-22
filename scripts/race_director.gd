@@ -2,7 +2,11 @@ extends Node3D
 ## Lightweight arcade race director: collidable timed hazards and earned clean
 ## passes. Real marbles and server authority decide the results; graphics never
 ## infer hits. Deterministic phases vary by biome and rematch variation.
+# Three physical gates remain; their placement varies by biome and layout.
+# All offsets are bounded away from shortcut entry and exit portals.
 const EVENT_Z := [-34.0,-118.0,-154.0]
+const LAYOUT_OFFSETS := [[0.0,0.0,0.0],[-4.0,5.0,-4.0],[4.0,-5.0,4.0]]
+const BIOME_OFFSETS := [[0.0,0.0,0.0],[2.0,-2.0,3.0],[-2.0,3.0,-2.0]]
 const EVENT_NAMES := ["SWEEPING ARM","ICE SHUTTER","FORGE PISTON"]
 const EVENT_COLORS := [Color("#edbe72"),Color("#a5ecf4"),Color("#ff9c63")]
 const BODY_WIDTH := 1.65
@@ -47,7 +51,7 @@ func setup(owner: Node3D, track: int, layout: int) -> void:
     ring_mesh.rings = 18
     ring_mesh.ring_segments = 7
     for i in range(EVENT_Z.size()):
-        var z: float = EVENT_Z[i]
+        var z: float = event_z(i)
         var side: float = side_at(i)
         var x: float = game.track_center_at(z)+side*3.22
         var body := AnimatableBody3D.new()
@@ -93,6 +97,9 @@ func setup(owner: Node3D, track: int, layout: int) -> void:
         signs.append(notice)
     reset_round()
 
+func event_z(index: int) -> float:
+    return EVENT_Z[index]+LAYOUT_OFFSETS[variation][index]+BIOME_OFFSETS[biome][index]
+
 func side_at(index: int) -> float:
     return -1.0 if (index+biome+variation)%2 == 0 else 1.0
 
@@ -118,7 +125,7 @@ func piston_up(index: int, elapsed: float) -> bool:
     return piston_extension(index,elapsed) > 0.43
 
 func position_at(index: int, elapsed: float) -> Vector3:
-    var z: float = EVENT_Z[index]
+    var z: float = event_z(index)
     var center: float = game.track_center_at(z)
     var side: float = side_at(index)
     var phase: float = phase_at(index,elapsed)
@@ -137,7 +144,7 @@ func animate(elapsed: float) -> void:
         var point: Vector3 = position_at(i,clock)
         obstacles[i].position = point
         warning_rings[i].position = Vector3(point.x,
-            game.height_at(EVENT_Z[i])+0.10,EVENT_Z[i])
+            game.height_at(event_z(i))+0.10,EVENT_Z[i])
         var rising: bool = piston_up(i,clock)
         # Cheap, readable telegraph without realtime lights/shadows.
         warning_rings[i].scale = Vector3.ONE*(
@@ -154,7 +161,7 @@ func event_ahead(z: float) -> Dictionary:
     var nearest: float = 24.0
     var result: Dictionary = {}
     for i in range(EVENT_Z.size()):
-        var distance: float = z-EVENT_Z[i]
+        var distance: float = z-event_z(i)
         if distance <= 0.0 or distance >= nearest:
             continue
         nearest = distance
