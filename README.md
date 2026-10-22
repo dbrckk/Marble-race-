@@ -519,3 +519,7 @@ The pre-race perk selection page now includes a **true schematic of the track th
 **Quality gates:** `tests/course_briefing.gd` covers all **three biomes × all three race variations**, asserts projected shortcut points match the real route, verifies the hazard sides match the built active colliders, tests layout labeling and selectable perks, and checks the start and back actions are outside the scrolling content and inside the dialog. Existing 40-racer online fairness, career saves and rendering are unchanged.
 
 Android debug candidate **1.29.0-rc** (version code **43**); signing compatibility cautions from `docs/ANDROID_UPDATES.md` still apply.
+
+## v1.30 RC — Chase and defend real nearby rivals
+
+The local race HUD now gives a brief, readable **CHASE** or **DEFEND** cue naming the physically closest rival within 12 metres and showing the real longitudinal gap. The underlying 10 Hz race-direction sample rejects rivals in distant side lanes or elevated bridges; after a true pass, CHASE changes to DEFEND. This is a presentation-only cue, with no AI advantages, collision changes, new GPU shaders, 3D meshes or network authority. The noninteractive label is hidden during online play and whenever there is no nearby opponent. The existing race-moments integration regression now verifies nearest-rival selection, actual gap, pass reversal, elevation filtering and touch safety. Android candidate **1.30.0-rc** (version code **44**).
