@@ -48,6 +48,8 @@ var mechanism: AudioStreamPlayer3D
 var moving_props: Array[Node3D] = []
 var mechanism_timer := 0.0
 var collision_duck := 0.0
+# Play at most one predictive danger cue for each real timed gate per race.
+var warned_timed_gates: Dictionary = {}
 var target_marble: RigidBody3D
 var enabled := true
 var collision_delay := 0.0
@@ -233,6 +235,7 @@ func set_track_theme(track: int) -> void:
         air.pitch_scale = [1.0,0.93,1.10][track_theme]
 
 func begin_race() -> void:
+    warned_timed_gates.clear()
     music_target_db = ([-20.0,-22.5,-18.5][track_theme]) if enabled else -80.0
     race_active = true
     finish_progress = 0.0
@@ -263,6 +266,16 @@ func race_moment(kind: String) -> void:
             _voice(TONES["checkpoint"],-23.0,0.86)
         "photo_finish":
             _voice(TONES["finish"],-19.0,1.28)
+
+func warn_timed_gate(index: int, blocking: bool) -> void:
+    # A short original countdown tone makes a single danger cue per gate,
+    # avoiding irritating warning loops or adding any audio mixer voices.
+    # Open Forge pistons are deliberately silent: never warn of false danger.
+    if not enabled or not race_active or not blocking or index < 0 or (
+        warned_timed_gates.has(index)):
+        return
+    warned_timed_gates[index] = true
+    _voice(TONES["count"],-20.0,[1.26,1.03,0.84][track_theme])
 
 func course_event(kind: String) -> void:
     match kind:
