@@ -20,6 +20,7 @@ const TrackSurface = preload("res://scripts/track_surface.gd")
 const TrackPath = preload("res://scripts/track_path.gd")
 const RaceFeedback = preload("res://scripts/race_feedback.gd")
 const RaceMoments = preload("res://scripts/race_moments.gd")
+const PerformanceBudget = preload("res://scripts/performance_budget.gd")
 const RaceDirector = preload("res://scripts/race_director.gd")
 const ShortcutRoute = preload("res://scripts/shortcut_route.gd")
 const Career = preload("res://scripts/career.gd")
@@ -78,6 +79,7 @@ var world_time := 0.0
 var finish_announced := false
 var camera_shake := 0.0
 var race_moments: RefCounted
+var performance_budget: RefCounted
 var camera_lookahead := Vector3.ZERO
 var feedback_cooldown := 0.0
 var obstacle_notice := 0.0
@@ -157,6 +159,7 @@ func _ready() -> void:
     ui.attach_game(self)
     race_moments = RaceMoments.new()
     race_moments.configure(self)
+    performance_budget = PerformanceBudget.new()
     _position_intro_camera(true)
     _spawn_racers() # Frozen showroom preview gives the menu moving-world context.
     best_ghost = BestGhost.new()
@@ -267,6 +270,10 @@ func toggle_fps_overlay() -> bool:
     show_fps = not show_fps
     if is_instance_valid(ui) and is_instance_valid(ui.fps_label):
         ui.fps_label.get_parent().visible = show_fps
+        if is_instance_valid(ui.performance_label):
+            ui.performance_label.get_parent().visible = show_fps
+    if show_fps and performance_budget != null:
+        performance_budget.reset()
     _save_visual_preferences()
     return show_fps
 
@@ -983,6 +990,8 @@ func start_race(perk_name: String) -> void:
     camera.set_meta("previous_jitter",Vector3.ZERO)
     if race_moments != null:
         race_moments.reset_round()
+    if performance_budget != null:
+        performance_budget.reset()
     _spawn_racers()
     if is_instance_valid(race_items):
         race_items.reset_round()
@@ -1022,6 +1031,8 @@ func return_to_menu() -> void:
 
 func _process(delta: float) -> void:
     _tick_auto_quality(delta)
+    if show_fps and race_state == "RACING" and performance_budget != null:
+        performance_budget.tick(delta)
     world_time += delta
     feedback_cooldown = maxf(0.0,feedback_cooldown-delta)
     obstacle_notice = maxf(0.0,obstacle_notice-delta)
