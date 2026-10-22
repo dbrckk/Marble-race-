@@ -82,10 +82,26 @@ func _verify() -> void:
             # oscillations and impacts at full speed.
             var crossing_lane: float = Strategy.timed_gate_safe_lane(
                 director,gate_z+0.20,-12.0,elapsed,obstacle_offset)
-            if biome != 2 or director.piston_up(event_index,elapsed+0.20/12.0):
-                assert(absf(crossing_lane-obstacle_offset) >=
+            var crossing_time: float = elapsed+0.20/12.0
+            var crossing_gate: Vector3 = director.position_at(
+                event_index,crossing_time)
+            var crossing_offset: float = crossing_gate.x-game.track_center_at(gate_z)
+            var crossing_preference: float = clampf(obstacle_offset,
+                -Strategy.TRAFFIC_SAFE_LANE,Strategy.TRAFFIC_SAFE_LANE)
+            # Moving gates can swing away before contact. Demand avoidance
+            # only when the real *predicted contact-time collider* still
+            # intersects the original racing line, not when the gate has
+            # genuinely opened a safe passage.
+            var crossing_blocked: bool = biome != 2 or director.piston_up(
+                event_index,crossing_time)
+            if crossing_blocked and absf(
+                crossing_preference-crossing_offset) < Strategy.GATE_CLEARANCE:
+                assert(absf(crossing_lane-crossing_offset) >=
                     Strategy.GATE_CLEARANCE-0.01,
-                    "Do not abandon the escape line inside the gate footprint")
+                    "Keep real contact-time clearance through gate footprint")
+            else:
+                assert(is_equal_approx(crossing_lane,crossing_preference),
+                    "Do not steer away from a gate that has moved clear")
             assert(is_equal_approx(Strategy.timed_gate_safe_lane(
                 director,gate_z-4.0,-12.0,elapsed,obstacle_offset),
                 bounded_preference),"Do not steer back toward an already passed gate")
