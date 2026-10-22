@@ -55,7 +55,7 @@ func _run() -> void:
                 "Visual and physical floor elevations must agree")
         var ramp: StaticBody3D = game.shortcut_route.launch_ramps[0]
         var launch_z: float = float(game.shortcut_route.JUMP_Z[course])
-        assert(absf(ramp.rotation.x+atan(game.track_grade_at(launch_z))-0.18) < 0.0001,
+        assert(absf(ramp.rotation.x+atan(game.shortcut_route.bridge_grade_at(launch_z))-0.18) < 0.0001,
             "The alternate route launch must respect the new terrain angle")
         for zone in game.course_mechanics.zones:
             assert(absf(zone.global_position.y-game.height_at(zone.position.z)-0.035) < 0.001,
