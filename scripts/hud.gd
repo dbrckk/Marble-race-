@@ -1182,7 +1182,10 @@ func update_hud() -> void:
     var seconds = int(game.race_time)
     var centi = int((game.race_time - float(seconds)) * 100.0)
     clock_label.text = "%02d:%02d.%02d" % [seconds / 60, seconds % 60, centi]
-    var place: int = game.player_rank()
+    # Reuse a single real standings sort for rank and top-three HUD,
+    # instead of sorting forty bodies twice every UI update.
+    var ranking: Array = game.get_rankings()
+    var place: int = ranking.find(game.player)+1
     if game.race_state == "RACING" and last_seen_rank > 0 and abs(place-last_seen_rank) >= 2:
         var gain := last_seen_rank - place
         position_feedback.text = "+%d PLACES" % gain if gain > 0 else "-%d PLACES" % abs(gain)
@@ -1266,7 +1269,6 @@ func update_hud() -> void:
             shortcut_label.text = "MERGE %s  •  %dm" % [
                 str(route_hint["side"]),int(route_hint["distance"])]
             shortcut_label.add_theme_color_override("font_color",Color("#a8f6e4"))
-    var ranking = game.get_rankings()
     var table = "TOP RACERS\n"
     for i in range(min(3,ranking.size())):
         var r = ranking[i]
