@@ -70,6 +70,9 @@ var glass_material: ShaderMaterial
 var boost_glow := 0.0
 var ai_lane_goal := 0.0
 var ai_lane_timer := 0.0
+var ai_traffic_timer := 0.0
+var ai_traffic_goal := 0.0
+var ai_traffic_offset := 0.0
 var last_boosting := false
 
 ## Distinct reward-only glass palettes with zero physics or networking changes.
@@ -235,8 +238,31 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
                     linear_velocity.x,course_owner.selected_track == 1)
                 following_bypass = true
         if not following_bypass and is_instance_valid(course_owner):
+            # A calm, staggered 2.5-3Hz assessment gives rivals genuine
+            # room to overtake slower marbles. It is never run for a player,
+            # a network-controlled human or a shortcut portal specialist.
+            ai_traffic_timer -= delta
+            if ai_traffic_timer <= 0.0:
+                ai_traffic_timer = AIPath.TRAFFIC_SCAN_PERIOD+(
+                    float(racer_id%4)*0.05)
+                ai_traffic_goal = AIPath.traffic_lane(self,
+                    course_owner.racers,center_ahead,ai_lane_goal,
+                    AIPath.temperament(racer_id,
+                        course_owner.selected_track,
+                        course_owner.built_variation))
+            ai_traffic_offset = move_toward(ai_traffic_offset,
+                ai_traffic_goal,delta*4.5)
+            side_force = clampf((
+                center_ahead+ai_traffic_offset-position.x)*1.0-(
+                linear_velocity.x*0.18),-4.5,4.5)
             side_force += AIPath.baffle_dodge(position,
                 course_owner.track_center_at(position.z))
+        elif following_bypass:
+            # Real shortcut steering retains full priority over crowd
+            # strategy, especially at Glacier's narrow entry portal.
+            ai_traffic_timer = 0.0
+            ai_traffic_goal = ai_lane_goal
+            ai_traffic_offset = ai_lane_goal
     # Progress watchdog: collisions sometimes wedge a sphere with nonzero angular
     # velocity, fooling speed-based stall detection. Measure net forward progress.
     progress_stall_seconds += delta
@@ -293,5 +319,8 @@ func teleport_to_start(new_position: Vector3) -> void:
     progress_stall_seconds = 0.0
     ai_lane_timer = 0.0
     ai_lane_goal = 0.0
+    ai_traffic_timer = 0.0
+    ai_traffic_goal = 0.0
+    ai_traffic_offset = 0.0
     network_controlled = false
     freeze = false
