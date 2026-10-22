@@ -149,6 +149,10 @@ func _draw() -> void:
         draw_colored_polygon(PackedVector2Array([
             position+Vector2(0.0,-4.8),position+Vector2(4.8,0.0),
             position+Vector2(0.0,4.8),position+Vector2(-4.8,0.0)]),color)
+        # Color-independent item names at a phone-safe small-map scale.
+        draw_string(get_theme_default_font(),position+Vector2(7.0,3.0),
+            RARE_ITEMS.label_at(index,course),
+            HORIZONTAL_ALIGNMENT_LEFT,-1,10,Color("#e5f1e9"))
     draw_circle(main[0],6.0,Color("#9bebcf"))
     draw_circle(main[main.size()-1],6.0,Color("#ffde85"))
     # A separate real terrain profile makes the biome's physical hills
