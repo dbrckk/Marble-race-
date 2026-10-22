@@ -53,7 +53,7 @@ func describe() -> String:
     var hazard: String = DIRECTOR.EVENT_NAMES[course]
     var theme: String = ["WOODLAND • FAST ROLLING","GLACIER • ICY CORNERS",
         "FORGE • HOT AIR VENTS"][course]
-    return "%s   •   %s   •   %s SHORTCUT" % [theme,hazard,side]
+    return "%s   •   %s   •   %s SHORTCUT   •   RAISED BRIDGE" % [theme,hazard,side]
 
 func project(world_z: float, world_x: float) -> Vector2:
     # Main racing lane and bypass are drawn with shared absolute world X.
@@ -66,6 +66,16 @@ func relief_point(world_z: float) -> Vector2:
     # absolute altitude would hide the interesting local crests and dips.
     var deviation: float = TRACK_PATH.height_at(world_z,course)-(
         world_z*TRACK_PATH.BASE_SLOPE)
+    return Vector2(project(world_z,0.0).x,
+        size.y*0.855-deviation*size.y*0.074)
+
+func shortcut_relief_point(world_z: float) -> Vector2:
+    # The lower graph shows the actual top of the optional bridge beside
+    # the original course, not an arbitrary painted rollercoaster curve.
+    var altitude: float = TRACK_PATH.height_at(world_z,course)
+    if is_instance_valid(stage) and is_instance_valid(stage.shortcut_route):
+        altitude = stage.shortcut_route.point_at(world_z).y+0.28
+    var deviation: float = altitude-world_z*TRACK_PATH.BASE_SLOPE
     return Vector2(project(world_z,0.0).x,
         size.y*0.855-deviation*size.y*0.074)
 
@@ -137,6 +147,11 @@ func _draw() -> void:
         var z: float = lerpf(START_Z,FINISH_Z,float(i)/64.0)
         relief.append(relief_point(z))
     draw_polyline(relief,accent.lightened(0.28),2.2,true)
+    var raised_bridge := PackedVector2Array()
+    for i in range(33):
+        var z: float = lerpf(SHORTCUT.ENTRY_Z,SHORTCUT.EXIT_Z,float(i)/32.0)
+        raised_bridge.append(shortcut_relief_point(z))
+    draw_polyline(raised_bridge,SIDE_COLORS[course],2.2,true)
     draw_string(get_theme_default_font(),Vector2(9.0,h-5.0),
         "PHYSICAL TERRAIN  •  RELIEF FROM BASE GRADE",
         HORIZONTAL_ALIGNMENT_LEFT,-1,10,Color(0.69,0.83,0.85,0.84))
