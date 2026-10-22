@@ -59,6 +59,7 @@ var race_radar: Control
 var boost_progress: ProgressBar
 var checkpoint_label: Label
 var hazard_label: Label
+var timed_gate_label: Label
 var shortcut_label: Label
 var position_feedback: Label
 var race_moment_label: Label
@@ -771,6 +772,19 @@ func _build_race_hud() -> void:
     shortcut_label.anchor_bottom = 0.243
     shortcut_label.visible = false
     hud_layer.add_child(shortcut_label)
+    # Dedicated kinetic-hazard predictor: the regular banner may still need
+    # to warn about a closer edge shutter in the same physical section.
+    timed_gate_label = _text("",15,Color("#f6d49b"))
+    timed_gate_label.name = "PredictedTimedGate"
+    timed_gate_label.anchor_left = 0.285
+    timed_gate_label.anchor_right = 0.715
+    timed_gate_label.anchor_top = 0.354
+    timed_gate_label.anchor_bottom = 0.389
+    timed_gate_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    timed_gate_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+    timed_gate_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    timed_gate_label.visible = false
+    hud_layer.add_child(timed_gate_label)
     position_feedback = _text("",21,Color("#a7f0d8"))
     position_feedback.name = "RankFeedback"
     position_feedback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1122,6 +1136,8 @@ func show_race_ui() -> void:
         position_feedback.visible = false
     if is_instance_valid(shortcut_label):
         shortcut_label.visible = false
+    if is_instance_valid(timed_gate_label):
+        timed_gate_label.visible = false
     if get_tree().paused:
         get_tree().paused = false
     _hide_all()
@@ -1242,8 +1258,10 @@ func update_hud() -> void:
         place_label.add_theme_color_override("font_color",TEXT)
     boost_progress.value = game.boost_energy*100.0
     var hazard: Dictionary = game.upcoming_hazard(game.player.global_position.z)
-    hazard_label.visible = not hazard.is_empty()
-    if not hazard.is_empty():
+    # Timed events have their own forecast, so do not show two duplicate
+    # hazard banners while also preserving warnings for physical edge gates.
+    hazard_label.visible = not hazard.is_empty() and not hazard.has("index")
+    if hazard_label.visible:
         var metres: float = float(hazard["distance"])
         var approach: float = maxf(1.25,-game.player.linear_velocity.z)
         var seconds_until: float = metres/approach
@@ -1257,6 +1275,35 @@ func update_hud() -> void:
             hazard_label.text += "  /  "+timing
         hazard_label.add_theme_color_override("font_color",
             Color("#ff9a85") if seconds_until < 1.1 else Color("#f9d49d"))
+    # Predicted *arrival* timing uses the same deterministic physical hazard
+    # timeline as the server, never the piston's misleading current state.
+    var moving_event: Dictionary = game.race_director.event_ahead(
+        game.player.global_position.z) if is_instance_valid(
+        game.race_director) else {}
+    timed_gate_label.visible = game.race_state == "RACING" and (
+        not moving_event.is_empty()) and (
+        float(moving_event.get("distance",999.0)) <= 21.0)
+    if timed_gate_label.visible:
+        var gate_distance: float = float(moving_event["distance"])
+        var gate_eta: float = gate_distance/maxf(
+            2.0,-game.player.linear_velocity.z)
+        var gate_id: int = int(moving_event["index"])
+        var projected_blocking: bool = game.selected_track != 2 or (
+            game.race_director.piston_up(gate_id,
+                game.race_director.clock+gate_eta))
+        var gate_side: String = str(moving_event["side"])
+        if game.selected_track == 2:
+            timed_gate_label.text = "FORGE PISTON %s  •  EST. %s  •  %.1fs" % [
+                gate_side,"BLOCKED" if projected_blocking else "OPEN",gate_eta]
+        else:
+            timed_gate_label.text = "%s %s  •  %dm / %.1fs" % [
+                str(moving_event["kind"]),gate_side,
+                int(gate_distance),gate_eta]
+        timed_gate_label.add_theme_color_override("font_color",
+            Color("#ffae91") if projected_blocking and gate_eta < 1.45 else (
+                Color("#a1edcc") if not projected_blocking else Color("#f6d49b")))
+        if gate_eta <= 2.20 and gate_eta >= 0.25:
+            game.audio.warn_timed_gate(gate_id,projected_blocking)
     var route_hint: Dictionary = game.shortcut_route.shortcut_hint(
         game.player.global_position) if is_instance_valid(game.shortcut_route) else {}
     shortcut_label.visible = not route_hint.is_empty()
