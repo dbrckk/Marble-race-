@@ -4,7 +4,13 @@ Original **3D Android marble-racing game** inspired by the look and mechanics sh
 
 Independent implementation in **Godot 4.5.1**, focused on real mobile playability, physics, and stylized toy-table graphics. No proprietary material from the reference game is redistributed.
 
-## Current state: Android QA build (v0.6)
+## Current state: Android QA build (v1.39.0-rc, versionCode 53)
+
+**Playable scope (October 2026):** three visually differentiated 3D worlds with physical elevation changes, nine repeatable obstacle layouts, forty individually simulated glass marbles, real banked and elevated side-route shortcuts, six player perks, progression, ghost comparisons and optional online races. Autonomous opponents use deterministic physical steering, real route choices, anticipatory passing and forecasts of moving hazards; human steering stays entirely manual. The phone HUD previews real course geometry and estimates when Forge pistons will be open or blocked on arrival, with a nonrepeating audio danger cue.
+
+This is a **tested Android debug candidate**, not a Play Store production release. GitHub Actions covers a 120-second full-physics AI race on each world, route/contact regressions, touch UI, server integration and Android APK packaging. Physical Redmi/Android frame-time, heat and touch feel remain to be verified on the actual handset; production signing and a release AAB are separate tasks. See [safe Android updates](docs/ANDROID_UPDATES.md).
+
+### Original v0.6 design baseline (retained for development history)
 
 - 40 independently simulated rigid-body glass marbles with seeded visual variations and position-aware AI
 - 18 segments of inclined wooden planks, rounded colorful safety rails, toy blocks, posts, slalom, rotating paddles, *new swinging hammers*, start/finish arches, checkpoint gates
@@ -546,3 +552,13 @@ The **physical raceway**, not merely the scenery, now rises and falls with an in
 - The prerace Android schematic now includes a **real elevation-profile graph**, computed directly from the same terrain geometry, inside its scrollable area. START and BACK remain pinned outside the scroller.
 
 New headless `tests/terrain_relief.gd` checks finite, safe grades, substantial profile differences, collider and MultiMesh parity, intact shortcuts, raycast contact with physical floor and all 40 racers. The existing full physical navigation, 3-biome shortcut, replay, online networking and Android signing gates remain mandatory. Continuous simulation and real-device visual/thermal QA are still required before a production claim. Debug candidate **1.35.0-rc**, Android version code **49**.
+
+## v1.39 RC — Predictive competitors and truthful live hazard warnings
+
+- **Anticipatory racing AI:** the ordinary autonomous opponents estimate the *future physical position* of a timed obstacle from their measured forward velocity and the obstacle's deterministic phase. When the current driving line would intersect an active arm, shutter or Forge piston, the planner selects a bounded, interior escape line and steers using genuine rigid-body forces. The specialized shortcut entrants are excluded from this steering override. Human and network-controlled racers are never assigned bot steering.
+- **No false Forge dangers:** the planner correctly leaves a route alone when the piston will have retracted by the time a marble reaches it, regardless of whether it is up now.
+- **Dedicated mobile telegraph:** a separate, small, noninteractive warning line announces actual kinetic hazards even when the existing proximity notice is showing an edge barrier. Forge displays **EST. BLOCKED** or **EST. OPEN** according to the expected arrival phase, clearly identifying it as an estimate dependent on current speed.
+- **Context-aware warning sound:** a brief existing original tone changes pitch by biome; it plays at most once per dangerous gate each race, never for a predicted-clear Forge approach, without downloading audio or spawning new per-marble players.
+- **Deterministic Android regression:** `tests/ai_hazard_prediction.gd` and `tests/timed_gate_hud.gd` inspect all three environments and three layouts, measured physics steering, proper current-versus-future piston timing, warning silence on clear passages, deduplication, manual control authority and touch-safe placement. They run in GitHub Actions alongside the full 120-second physics race, networking and Android export gates.
+
+**Android candidate:** `1.39.0-rc`, `versionCode 53`. The generated debug APK is suitable for testing, not a guaranteed in-place update over differently signed APKs and not a Play Store signed AAB. Back up the career code before reinstalling if signatures differ; see [Android updates and signing](docs/ANDROID_UPDATES.md).
