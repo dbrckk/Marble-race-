@@ -143,6 +143,12 @@ jobs:
           set -euo pipefail
           timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 480 --path . --script res://tests/arcade_items.gd 2>&1 | tee arcade-items.log
           grep -Fq "ARCADE_ITEMS_AND_WORLDS_PASS:" arcade-items.log
+      - name: Nine-layout real rare item preview and authenticated mobile HUD guidance
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 95s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 1200 --path . --script res://tests/rare_item_navigation.gd 2>&1 | tee rare-item-navigation.log
+          grep -Fq "RARE_ITEM_NAVIGATION_PASS:" rare-item-navigation.log
       - name: Continuous winding ground, guard seams and AI path regression
         shell: bash
         run: |
