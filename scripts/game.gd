@@ -1207,6 +1207,10 @@ func _update_camera(delta: float, force := false) -> void:
         ahead_x,cam_mode,boosting,distance)
     var desired: Vector3 = pose["position"]
     var focus: Vector3 = pose["focus"]
+    # Match the camera to the real 3D grade, not the old flat slope.
+    # Smooth interpolation remains unchanged; no per-frame raycasts.
+    focus = RaceFeedback.terrain_safe_focus(focus,height_at(focus.z))
+    desired = RaceFeedback.terrain_safe_camera(desired,height_at(desired.z))
     var previous_jitter: Vector3 = camera.get_meta(
         "previous_jitter",Vector3.ZERO)
     var follow_rate: float = lerpf(4.5,6.0,float(pose["pace"]))
