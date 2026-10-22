@@ -5,6 +5,8 @@ const ITEM_Z := [-28.0, -79.0, -128.0, -169.0]
 const ITEM_X := [-2.8, 2.8, -2.0, 2.0]
 const PICKUP_RADIUS_SQUARED := 3.1
 const ITEM_KINDS := ["turbo", "spring", "pulse", "stabilizer"]
+const ITEM_NAMES := ["TURBO", "JUMP", "SHOCKWAVE", "STEADY DASH"]
+const TRACK_PATH = preload("res://scripts/track_path.gd")
 const COLORS := [
     Color("#5ff0ff"), Color("#fce67b"), Color("#df90ff"), Color("#70edb8")
 ]
@@ -15,6 +17,39 @@ var clock := 0.0
 # Reused scratch list: scan the 40 marbles ONCE per physics frame, then
 # test pickup collisions for only the 1-4 authoritative human racers.
 var eligible_collectors: Array[RigidBody3D] = []
+
+static func kind_at(index: int, track: int) -> String:
+    return ITEM_KINDS[posmod(index+clampi(track,0,2),ITEM_KINDS.size())]
+
+static func label_at(index: int, track: int) -> String:
+    return ITEM_NAMES[posmod(index+clampi(track,0,2),ITEM_NAMES.size())]
+
+static func lane_offset(index: int, track: int, variation: int) -> float:
+    return ITEM_X[posmod(index+clampi(track,0,2)+posmod(variation,3),ITEM_X.size())]
+
+static func placement_at(index: int, track: int, variation: int) -> Vector3:
+    # Pure geometry shared by physical world and Android pre-race map.
+    var z: float = ITEM_Z[index]
+    return Vector3(TRACK_PATH.center_at(z,track)+lane_offset(index,track,variation),
+        TRACK_PATH.height_at(z,track)+1.05,z)
+
+func nearest_available(at: Vector3, racer_id: int, max_distance: float = 28.0) -> Dictionary:
+    # Only four candidate pickups. Called by HUD at 9Hz, never the 60Hz
+    # racing simulation. A collected client pickup stays hidden until reset.
+    for i in range(items.size()):
+        var pickup: Node3D = items[i]
+        if not is_instance_valid(pickup) or not pickup.visible or (
+            used.has("%d:%d" % [i,racer_id])):
+            continue
+        var distance: float = at.z-pickup.position.z
+        if distance < 0.0 or distance > max_distance:
+            continue
+        var side: String = "LEFT" if lane_offset(i,game.selected_track,
+            game.built_variation) < 0.0 else "RIGHT"
+        return {"index":i, "distance":distance, "side":side,
+            "kind":kind_at(i,game.selected_track),
+            "label":label_at(i,game.selected_track)}
+    return {}
 
 func setup(owner: Node3D, track: int, variation: int) -> void:
     game = owner
@@ -48,9 +83,19 @@ func setup(owner: Node3D, track: int, variation: int) -> void:
         ring.material_override = material
         ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
         pickup.add_child(ring)
-        var z: float = ITEM_Z[i]
-        var x: float = ITEM_X[(i + track + variation) % ITEM_X.size()]
-        pickup.position = Vector3(x+game.track_center_at(z),game.height_at(z)+1.05,z)
+        pickup.position = placement_at(i,track,variation)
+        # Readable identity from the approach, without changing hitbox size.
+        # One billboard per rare collectible; no extra lights or shadows.
+        var title := Label3D.new()
+        title.name = "ImmediateEffectLabel"
+        title.text = label_at(i,track)
+        title.font_size = 34
+        title.pixel_size = 0.010
+        title.outline_size = 10
+        title.modulate = material.albedo_color.lightened(0.27)
+        title.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+        title.position = Vector3(0.0,0.92,0.0)
+        pickup.add_child(title)
         add_child(pickup)
         items.append(pickup)
 
@@ -86,7 +131,7 @@ func tick(delta: float, racers: Array[RigidBody3D], net: Node) -> void:
             if marble.global_position.distance_squared_to(pickup.global_position) > PICKUP_RADIUS_SQUARED:
                 continue
             used[key] = true
-            var kind: String = ITEM_KINDS[(i + game.selected_track) % ITEM_KINDS.size()]
+            var kind: String = kind_at(i,game.selected_track)
             _activate(kind,marble,racers)
             if net.role == "server":
                 net.notify_item_collected(marble.racer_id,i,kind)
