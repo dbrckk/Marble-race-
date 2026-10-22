@@ -109,6 +109,11 @@ func _verify() -> void:
                 "AI may apply forces but must not teleport to a safe corridor")
             assert(game.player.global_position.is_equal_approx(human_before),
                 "AI anticipation must not modify human inputs or transforms")
+            # physics_frame is emitted before Godot integrates the queued
+            # central force. Observe the completed physics tick, not the
+            # pre-integration rigid-body velocity snapshot.
+            await physics_frame
+            await physics_frame
             await physics_frame
             if blocked:
                 var measured_escape: float = bot.linear_velocity.x*signf(obstacle_offset)
