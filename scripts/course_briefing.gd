@@ -41,7 +41,7 @@ func hazard_side_at(index: int) -> int:
 func describe() -> String:
     var side: String = "RIGHT" if SHORTCUT.side_for(course) > 0 else "LEFT"
     var hazard: String = DIRECTOR.EVENT_NAMES[course]
-    var theme := ["WOODLAND • FAST ROLLING","GLACIER • ICY CORNERS",
+    var theme: String = ["WOODLAND • FAST ROLLING","GLACIER • ICY CORNERS",
         "FORGE • HOT AIR VENTS"][course]
     return "%s   •   %s   •   %s SHORTCUT" % [theme,hazard,side]
 
