@@ -129,6 +129,11 @@ func bridge_lift_at(z: float) -> float:
         shape = 0.77+0.23*cos(TAU*2.0*progress)
     return envelope*(0.36+BRIDGE_RISE[course_id]*shape)
 
+func bridge_grade_at(z: float) -> float:
+    # Launch geometry must align to the *real elevated deck*, not the lower
+    # main-road slope. The twin samples share the physics path generator.
+    return point_at(z+0.5).y-point_at(z-0.5).y
+
 func _bridge_structure(deck_color: Material, edge_color: Material) -> void:
     # Elevated paths need visible load-bearing structure. Ten pylons and
     # five transverse braces use two GPU batches; no additional physics
@@ -167,7 +172,7 @@ func _launch_ramps(material: Material) -> void:
     var at: Vector3 = point_at(at_z)
     var size := Vector3(2.30,0.18,2.65)
     # Local -Z points downhill. A small pitch climbs toward the lip.
-    var basis := Basis(Vector3.RIGHT,-atan(stage.track_grade_at(at_z))+0.18)
+    var basis := Basis(Vector3.RIGHT,-atan(bridge_grade_at(at_z))+0.18)
     var ramp := _solid("BypassLaunchRamp",at+Vector3.UP*0.38,basis,size,0.66)
     launch_ramps.append(ramp)
     _batch("BatchedJumpTakeoff",[Transform3D(basis.scaled(size),ramp.position)],material)
