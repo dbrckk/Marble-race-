@@ -33,7 +33,7 @@ func _check() -> void:
     var human: RigidBody3D = game.player
     for racer in game.racers:
         racer.global_position = Vector3(25,0,12)
-    var base_z := -30.0
+    var base_z := 5.0 # Clear start straight: safe for the tactical sampling check.
     var center: float = game.track_center_at(base_z)
     var y: float = game.height_at(base_z)+0.8
     follower.global_position = Vector3(center,y,base_z)
@@ -90,6 +90,21 @@ func _check() -> void:
         "Rival evaluation must cache the lane for several physics frames")
     assert(human.ai_traffic_timer == human_timer,
         "A remote or local human must retain direct steering")
+    # Near a physical guard the new planner must deliberately fall back
+    # to the old, already validated obstacle-navigation behavior.
+    var gate_z := -30.0
+    var gate_center: float = game.track_center_at(gate_z)
+    var gate_hint: Dictionary = game.upcoming_hazard(gate_z)
+    assert(not gate_hint.is_empty() and float(gate_hint["distance"]) < 3.5,
+        "Regression needs a real guard close ahead")
+    follower.global_position = Vector3(gate_center,
+        game.height_at(gate_z)+0.8,gate_z)
+    follower.ai_traffic_timer = 0.0
+    follower.ai_lane_timer = 2.0
+    follower.ai_lane_goal = 0.0
+    follower.drive(0.016,5.0,0.0,false)
+    assert(follower.ai_traffic_timer == 0.0,
+        "AI must abandon new passing plans beside a real hazard")
     follower.teleport_to_start(Vector3(center,y,0))
     assert(follower.ai_traffic_timer == 0.0 and
         follower.ai_traffic_goal == 0.0 and
