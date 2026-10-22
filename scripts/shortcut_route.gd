@@ -281,7 +281,6 @@ func point_at(z: float) -> Vector3:
     else:
         var t: float = clampf((OUTER_END-z)/(OUTER_END-EXIT_Z),0.0,1.0)
         offset = lerpf(OUTER_OFFSET,INNER_OFFSET,smoothstep(0.0,1.0,t))
-    var progress: float = clampf((ENTRY_Z-z)/(ENTRY_Z-EXIT_Z),0.0,1.0)
     var lift: float = bridge_lift_at(z)
     return Vector3(
         stage.track_center_at(z)+float(side)*offset,
