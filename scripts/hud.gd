@@ -1131,7 +1131,7 @@ func show_perks() -> void:
     if is_instance_valid(course_briefing):
         course_briefing.configure(game,game.selected_track,game.race_variation)
         course_strategy_label.text = course_briefing.describe() + (
-            "\nRED = TIMED HAZARDS   •   DIAMONDS = RARE HUMAN ITEMS   •   LAYOUT %d / 3"
+            "\nRED = GATES   •   COLORED BRANCH = SHORTCUT   •   DIAMONDS = RARE HUMAN ITEMS   •   LAYOUT %d / 3"
             % (game.race_variation+1))
     if is_instance_valid(perk_scroll):
         perk_scroll.scroll_vertical = 0
