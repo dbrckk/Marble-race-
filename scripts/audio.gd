@@ -266,6 +266,10 @@ func race_moment(kind: String) -> void:
             _voice(TONES["checkpoint"],-23.0,0.86)
         "photo_finish":
             _voice(TONES["finish"],-19.0,1.28)
+        "slipstream":
+            # Subtle engagement cue; reuse the original licensed race sound
+            # rather than streaming or adding a loud continuous effect.
+            _voice(TONES["boost"],-24.0,0.84)
 
 func warn_timed_gate(index: int, blocking: bool) -> void:
     # A short original countdown tone makes a single danger cue per gate,
