@@ -5,6 +5,7 @@ const MAP = preload("res://scripts/course_briefing.gd")
 const PATH = preload("res://scripts/track_path.gd")
 const ROUTE = preload("res://scripts/shortcut_route.gd")
 const DIRECTOR = preload("res://scripts/race_director.gd")
+const KICKERS = preload("res://scripts/arcade_bumpers.gd")
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -93,6 +94,12 @@ func _run() -> void:
                 "The player should know which physical rematch layout comes next")
             game.start_race("Grip Tape")
             assert(game.built_variation == next_variant)
+            for station in range(KICKERS.STATION_Z.size()):
+                for side in KICKERS.SIDES:
+                    var actual: Vector3 = game.arcade_bumpers.location_at(station,side)
+                    assert(overview.kicker_marker(station,side).distance_to(
+                        overview.project(actual.z,actual.x)) < 0.01,
+                        "Pre-race neon spring posts must match real collider placements")
             for i in range(DIRECTOR.EVENT_Z.size()):
                 assert(MAP.hazard_side(track,next_variant,i) ==
                     game.race_director.side_at(i),
