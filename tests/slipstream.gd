@@ -22,6 +22,8 @@ func _check() -> void:
         game.return_to_menu()
         assert(game.set_track(track))
         game.start_race("Grip Tape")
+        assert(is_equal_approx(game.boost_energy,1.0),
+            "Every fresh race must start with a fully charged, fair boost meter")
         assert(game.slipstream != null)
         assert(game.racers.size() == 40)
         game.race_state = "RACING"
@@ -102,6 +104,7 @@ func _check() -> void:
         rival.finished = false
         game.slipstream.reset_round()
         assert(game.slipstream.strength == 0.0)
+        assert(game.draft_cue_cooldown >= 0.0)
         game.return_to_menu()
         assert(game.slipstream.strength == 0.0,
             "Reset and rematch must not inherit an old drafting charge")
