@@ -1230,9 +1230,13 @@ func update_hud() -> void:
     last_seen_rank = place
     place_label.text = "#%d / 40" % place
     remaining_label.text = "%s  •  %d FINISHED" % [game.track_title(),game.racer_finish_order.size()]
-    boost_label.text = "BOOST %d%%" % int(game.boost_energy * 100.0)
+    var drafting: bool = not game.net.is_active() and game.slipstream != null and (
+        game.slipstream.strength >= 0.30)
+    boost_label.text = ("BOOST %d%%  •  DRAFT" if drafting else "BOOST %d%%") % (
+        int(game.boost_energy*100.0))
     boost_label.add_theme_color_override("font_color",
-        Color("#ffcf82") if game.boost_energy >= 0.25 else Color("#e9746b"))
+        Color("#a4f4e5") if drafting else (
+            Color("#ffcf82") if game.boost_energy >= 0.25 else Color("#e9746b")))
     speed_label.text = "%02d KM/H" % int(game.player.linear_velocity.length() * 3.6)
     if is_instance_valid(game.best_ghost):
         ghost_label.get_parent().visible = game.best_ghost.replay_available and not game.net.is_active()
