@@ -27,8 +27,14 @@ func _run() -> void:
             "Every optional branch must have a gentle physical takeoff ramp")
         assert(road.launch_ramps[0].get_node_or_null("PhysicalShape") is CollisionShape3D,
             "A jump must be a real physical contact surface")
-        assert(absf(road.launch_ramps[0].rotation.x) > 0.07,
-            "Optional jump surface must have a real sloped collider")
+        # On a steep 3D hill an uphill launch can be nearly horizontal in
+        # world space while retaining the required 0.18-radian lip relative
+        # to the physical racing surface. Test relative lift, not world tilt.
+        var ramp_z: float = float(road.JUMP_Z[course])
+        var relative_lip: float = road.launch_ramps[0].rotation.x+atan(
+            game.track_grade_at(ramp_z))
+        assert(absf(relative_lip-0.18) < 0.001,
+            "Physical takeoff must rise by 0.18 radians relative to local terrain")
         assert(road.banked_segments > 0,
             "Every course bypass needs some actual physical banking")
         assert(road.physical_distance > BypassScript.ENTRY_Z-BypassScript.EXIT_Z,
