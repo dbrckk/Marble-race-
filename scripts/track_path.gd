@@ -8,6 +8,12 @@ const COURSE_SPAN := 210.0
 # a fake rollercoaster behind a perfectly flat racing surface.
 const AMPLITUDES := [1.1,1.9,2.65]
 const WAVELENGTHS := [32.0,28.0,26.0]
+# Secondary, biome-specific turns produce recognizable sequences of chicanes
+# instead of three scaled versions of one sine-wave course. The smooth
+# endpoint envelope keeps the start grid and finish gate aligned.
+const SECONDARY_AMPLITUDES := [0.36,0.78,1.12]
+const SECONDARY_CYCLES := [2.0,3.0,4.0]
+const SECONDARY_PHASES := [0.15,0.42,0.72]
 const BASE_SLOPE := 0.085
 const RELIEF_AMPLITUDES := [0.55,1.10,1.45]
 const RELIEF_CYCLES := [1.45,2.0,2.5]
@@ -34,7 +40,12 @@ static func center_at(z: float, track: int) -> float:
     var which: int = clampi(track,0,2)
     var travelled: float = clampf(COURSE_START_Z-z,0.0,COURSE_SPAN)
     var envelope: float = sin(PI*travelled/COURSE_SPAN)
-    return AMPLITUDES[which]*sin(travelled/WAVELENGTHS[which])*envelope
+    var progress: float = travelled/COURSE_SPAN
+    var secondary_envelope: float = envelope*envelope
+    var primary: float = AMPLITUDES[which]*sin(travelled/WAVELENGTHS[which])*envelope
+    var chicane: float = SECONDARY_AMPLITUDES[which]*secondary_envelope*sin(
+        TAU*(SECONDARY_CYCLES[which]*progress+SECONDARY_PHASES[which]))
+    return primary+chicane
 
 static func section_center(section: int, track: int) -> float:
     return center_at(8.0-float(section)*12.0,track)
