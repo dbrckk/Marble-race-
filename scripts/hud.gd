@@ -4,6 +4,7 @@ extends CanvasLayer
 const TOUCH_CONTROLS = preload("res://scripts/touch_controls.gd")
 const CAREER_TRANSFER = preload("res://scripts/career_transfer.gd")
 const RACE_MOMENTS = preload("res://scripts/race_moments.gd")
+const COURSE_BRIEFING = preload("res://scripts/course_briefing.gd")
 const PROGRESS_RADAR = preload("res://scripts/race_progress_radar.gd")
 const FONT_HEAVY = preload("res://assets/fonts/Rajdhani-Bold.ttf")
 const FONT_REGULAR = preload("res://assets/fonts/Rajdhani-Medium.ttf")
@@ -78,6 +79,10 @@ var track_buttons: Array[Button] = []
 var career_label: Label
 var mastery_label: Label
 var style_button: Button
+var perk_scroll: ScrollContainer
+var perk_panel: PanelContainer
+var course_briefing
+var course_strategy_label: Label
 var next_course_button: Button
 var backup_layer: Control
 var backup_status: Label
@@ -558,59 +563,88 @@ func _build_perks() -> void:
     perks_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
     root.add_child(perks_layer)
     perks_layer.add_child(_shade())
-    var panel = _panel()
-    panel.anchor_left = 0.125
-    panel.anchor_top = 0.055
-    panel.anchor_right = 0.875
-    panel.anchor_bottom = 0.945
-    perks_layer.add_child(panel)
-    var col = _column(12)
-    panel.add_child(col)
-    var header = _text("PICK YOUR PERK", 39)
+    perk_panel = _panel()
+    perk_panel.name = "PerkSelectionPanel"
+    perk_panel.anchor_left = 0.125
+    perk_panel.anchor_top = 0.055
+    perk_panel.anchor_right = 0.875
+    perk_panel.anchor_bottom = 0.945
+    perks_layer.add_child(perk_panel)
+
+    # Keep the START and BACK buttons always visible on landscape Android.
+    # Only the course preview and the six perk descriptions can scroll.
+    var shell := _column(8)
+    perk_panel.add_child(shell)
+    var header := _text("PICK YOUR PERK",32,ORANGE)
     header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    col.add_child(header)
-    var sub = _text("Choose a power before the race. Physics decides the rest.", 17, DIM)
+    shell.add_child(header)
+    perk_scroll = ScrollContainer.new()
+    perk_scroll.name = "PerkSelectionScroll"
+    perk_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    perk_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    perk_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+    perk_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+    perk_scroll.follow_focus = true
+    shell.add_child(perk_scroll)
+
+    var col := _column(8)
+    col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    perk_scroll.add_child(col)
+    var sub := _text("Read the course. Choose a marble power. Roll for the podium.",16,DIM)
     sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     col.add_child(sub)
+
+    course_briefing = COURSE_BRIEFING.new()
+    course_briefing.name = "PhysicalCourseBriefingMap"
+    course_briefing.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    col.add_child(course_briefing)
+    course_strategy_label = _text("",15,DIM)
+    course_strategy_label.name = "RealCourseStrategy"
+    course_strategy_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    col.add_child(course_strategy_label)
     mastery_label = _text("",15,DIM)
     mastery_label.name = "MasteryChallenges"
     mastery_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     col.add_child(mastery_label)
-    var grid = GridContainer.new()
+    var grid := GridContainer.new()
+    grid.name = "SixSelectablePerks"
     grid.columns = 3
-    grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
-    grid.add_theme_constant_override("h_separation", 10)
-    grid.add_theme_constant_override("v_separation", 10)
+    grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    grid.add_theme_constant_override("h_separation",8)
+    grid.add_theme_constant_override("v_separation",8)
     col.add_child(grid)
     for info in PERKS:
-        var item = _action(info[0].to_upper() + "\n\n" + info[1], CARD)
-        item.custom_minimum_size = Vector2(232, 123)
+        var item := _action(info[0].to_upper() + "\n" + info[1],CARD)
+        item.custom_minimum_size = Vector2(215,101)
         item.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-        item.add_theme_font_size_override("font_size", 16)
+        item.add_theme_font_size_override("font_size",16)
         item.pressed.connect(_choose_perk.bind(info[0]))
         grid.add_child(item)
         select_buttons.append(item)
-    selected_description = _text("Select one of the six perks.", 17, DIM)
+    selected_description = _text("Select one of the six perks.",16,DIM)
     selected_description.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     col.add_child(selected_description)
     style_button = _action("MARBLE STYLE: COPPER",Color("#35475a"))
     style_button.name = "UnlockedMarbleStyles"
     style_button.add_theme_font_size_override("font_size",17)
-    style_button.custom_minimum_size.y = 44
+    style_button.custom_minimum_size.y = 41
     style_button.pressed.connect(_cycle_marble_style)
     col.add_child(style_button)
-    var row = HBoxContainer.new()
-    row.add_theme_constant_override("separation", 13)
-    col.add_child(row)
-    var back = _action("← BACK", Color("#404650"))
+
+    var footer := HBoxContainer.new()
+    footer.name = "FixedPerkActions"
+    footer.add_theme_constant_override("separation",13)
+    shell.add_child(footer)
+    var back := _action("← BACK",Color("#404650"))
     back.custom_minimum_size.x = 180
     back.pressed.connect(show_menu)
-    row.add_child(back)
-    start_button = _action("START RACE  →", ORANGE, Color("#2a1b13"))
+    footer.add_child(back)
+    start_button = _action("START RACE  →",ORANGE,Color("#2a1b13"))
+    start_button.name = "StartRaceAlwaysAccessible"
     start_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     start_button.disabled = true
     start_button.pressed.connect(func(): game.start_race(selected_name))
-    row.add_child(start_button)
+    footer.add_child(start_button)
 
 func _refresh_mastery_preview() -> void:
     if is_instance_valid(mastery_label):
@@ -1047,6 +1081,11 @@ func show_menu() -> void:
 func show_perks() -> void:
     _hide_all()
     _refresh_mastery_preview()
+    if is_instance_valid(course_briefing):
+        course_briefing.configure(game,game.selected_track,game.race_variation)
+        course_strategy_label.text = course_briefing.describe()
+    if is_instance_valid(perk_scroll):
+        perk_scroll.scroll_vertical = 0
     perks_layer.visible = true
 
 func show_race_ui() -> void:
