@@ -72,9 +72,16 @@ func _run() -> void:
             # at the start grid. A downward ground probe must ignore them;
             # otherwise it measures the top of a marble as "terrain".
             var floor_probe := PhysicsRayQueryParameters3D.create(origin,destination)
+            # A Godot resource's Array property returns a copy here:
+            # append to a local array and assign it back, otherwise the
+            # ray exclusion is silently left empty.
+            var ignored: Array[RID] = []
             for marble in game.racers:
                 if is_instance_valid(marble):
-                    floor_probe.exclude.append(marble.get_rid())
+                    ignored.append(marble.get_rid())
+            floor_probe.exclude = ignored
+            assert(floor_probe.exclude.size() == ignored.size(),
+                "The physics query must actually exclude showroom marbles")
             var hit: Dictionary = game.get_world_3d().direct_space_state.intersect_ray(
                 floor_probe)
             assert(not hit.is_empty(),"A marble must land on real physical road")
