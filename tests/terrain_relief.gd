@@ -78,6 +78,13 @@ func _run() -> void:
             var hit: Dictionary = game.get_world_3d().direct_space_state.intersect_ray(
                 floor_probe)
             assert(not hit.is_empty(),"A marble must land on real physical road")
+            if not (hit["collider"] is StaticBody3D):
+                print("TERRAIN_RAY_DEBUG track=",course," section=",section,
+                    " collider=",hit["collider"],
+                    " type=",hit["collider"].get_class(),
+                    " at=",hit["position"],
+                    " origin=",origin,
+                    " exclude_count=",floor_probe.exclude.size())
             assert(hit["collider"] is StaticBody3D,
                 "Rideable elevation must be a physics surface, not a shader")
             assert(absf(float((hit["position"] as Vector3).y)-
