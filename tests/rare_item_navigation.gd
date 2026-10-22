@@ -49,6 +49,20 @@ func _verify() -> void:
                 assert(is_instance_valid(title) and
                     title.text == ITEMS.label_at(i,track))
                 assert(ITEMS.kind_at(i,track) in ITEMS.ITEM_KINDS)
+            # A raised detour cannot reach the rare item on the physically
+            # separated main road. Warning about it would mislead the player.
+            var bypass_position: Vector3 = game.shortcut_route.point_at(-76.0)
+            assert(game.shortcut_route.shortcut_hint(bypass_position).get(
+                "mode","") == "merge")
+            assert(game.race_items.nearest_available(
+                bypass_position,39,28.0).is_empty(),
+                "Do not advertise a main-road collectible across the bridge gap")
+            var main_position := Vector3(game.track_center_at(-76.0),
+                game.height_at(-76.0)+0.80,-76.0)
+            var reachable: Dictionary = game.race_items.nearest_available(
+                main_position,39,28.0)
+            assert(not reachable.is_empty() and int(reachable["index"]) == 1,
+                "Remaining on the main road must preserve the real pickup cue")
             # Actual next item, not one from the previous variation or a bot.
             var first: Vector3 = ITEMS.placement_at(0,track,variation)
             var human: RigidBody3D = game.player
