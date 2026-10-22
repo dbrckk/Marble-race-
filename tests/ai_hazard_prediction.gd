@@ -82,7 +82,7 @@ func _verify() -> void:
             # oscillations and impacts at full speed.
             var crossing_lane: float = Strategy.timed_gate_safe_lane(
                 director,gate_z+0.20,-12.0,elapsed,obstacle_offset)
-            if biome != 2 or director.piston_up(event_index,elapsed):
+            if biome != 2 or director.piston_up(event_index,elapsed+0.20/12.0):
                 assert(absf(crossing_lane-obstacle_offset) >=
                     Strategy.GATE_CLEARANCE-0.01,
                     "Do not abandon the escape line inside the gate footprint")
