@@ -74,6 +74,9 @@ func _run() -> void:
         "40 marbles on an unrelated track section must skip all route samples")
     var rival: RigidBody3D = game.racers[0]
     assert(rival != game.player)
+    # The harness stops the countdown and scene physics, so manually
+    # unfreeze the one contender whose route eligibility is being measured.
+    rival.freeze = false
     rival.global_position = Vector3(0,game.height_at(-50.0)+0.7,-50.0)
     var original_position: Vector3 = rival.position
     route.tick(0.016,game.racers,game.net)
