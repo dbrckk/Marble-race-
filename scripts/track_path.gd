@@ -11,8 +11,11 @@ const WAVELENGTHS := [32.0,28.0,26.0]
 # Secondary, biome-specific turns produce recognizable sequences of chicanes
 # instead of three scaled versions of one sine-wave course. The smooth
 # endpoint envelope keeps the start grid and finish gate aligned.
-const SECONDARY_AMPLITUDES := [0.36,0.78,1.12]
-const SECONDARY_CYCLES := [2.0,3.0,4.0]
+# The Forge chicane frequency/amplitude are bounded by real rail seam
+# overlap, not a visual-only spline. Stronger 4-cycle oscillations shifted
+# consecutive 12-metre modules by 2.52m and failed physical guard checks.
+const SECONDARY_AMPLITUDES := [0.36,0.78,0.60]
+const SECONDARY_CYCLES := [2.0,3.0,3.0]
 const SECONDARY_PHASES := [0.15,0.42,0.72]
 const BASE_SLOPE := 0.085
 const RELIEF_AMPLITUDES := [0.55,1.10,1.45]
