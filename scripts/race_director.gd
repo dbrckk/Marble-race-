@@ -172,6 +172,7 @@ func event_ahead(z: float) -> Dictionary:
         result = {"distance":maxi(0,int(round(distance))),
             "side":"LEFT" if side_at(i) < 0 else "RIGHT",
             "kind":EVENT_NAMES[biome],
+            "index":i, "z":event_z(i),
             "active":piston_up(i,clock),
             "phase":phase_at(i,clock)}
     return result
