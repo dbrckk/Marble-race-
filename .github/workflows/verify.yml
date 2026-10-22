@@ -149,6 +149,12 @@ jobs:
           set -euo pipefail
           timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 520 --path . --script res://tests/winding_tracks.gd 2>&1 | tee winding-tracks.log
           grep -Fq "WINDING_TRACKS_PASS:" winding-tracks.log
+      - name: Three physically banked terrain profiles and matching GPU road
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 95s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 620 --path . --script res://tests/terrain_relief.gd 2>&1 | tee terrain-relief.log
+          grep -Fq "TERRAIN_RELIEF_PASS:" terrain-relief.log
       - name: Physical branching shortcut and online authority regression
         shell: bash
         run: |
