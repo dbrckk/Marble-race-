@@ -31,8 +31,11 @@ func _batch(name_text: String, size: Vector3, positions: Array[Vector3],
     multi.transform_format = MultiMesh.TRANSFORM_3D
     multi.mesh = shape
     multi.instance_count = positions.size()
-    var basis := Basis(Vector3.RIGHT,-atan(SLOPE))
+    var stage := get_parent().get_parent() as Node3D
     for i in range(positions.size()):
+        # Marking orientation follows the same physical rolling slope.
+        var basis := Basis(Vector3.RIGHT,-atan(
+            stage.track_grade_at(positions[i].z)))
         multi.set_instance_transform(i,Transform3D(basis,positions[i]))
     var node := MultiMeshInstance3D.new()
     node.name = name_text
@@ -47,20 +50,23 @@ func _track_center(z: float) -> float:
     var stage := get_parent().get_parent() as Node3D
     return stage.track_center_at(z) if is_instance_valid(stage) else 0.0
 
+func _height(z: float) -> float:
+    return (get_parent().get_parent() as Node3D).height_at(z)
+
 func _lane_lights(tint: Color) -> void:
     # 80 narrow, intermittent inlaid brass markers at the safe central corridor.
     var points: Array[Vector3] = []
     for i in range(40):
         var z := 7.0-float(i)*4.8
         for side in [-1.0,1.0]:
-            points.append(Vector3(side*3.95+_track_center(z),z*SLOPE+0.035,z))
+            points.append(Vector3(side*3.95+_track_center(z),_height(z)+0.035,z))
     _batch("GuideStitch_80",Vector3(0.05,0.018,1.54),
         points,tint.darkened(0.19),0.13)
 
 func _checkpoint_stripes(tint: Color) -> void:
     var points: Array[Vector3] = []
     for z in [-46.0,-106.0,-166.0]:
-        points.append(Vector3(_track_center(z),z*SLOPE+0.05,z))
+        points.append(Vector3(_track_center(z),_height(z)+0.05,z))
     _batch("PrecisionSplitStripe_3",Vector3(10.8,0.02,0.17),
         points,tint,0.37)
 
@@ -71,7 +77,7 @@ func _warning_stripes(stage: Node3D, tint: Color) -> void:
         var x := -5.18 if warning["side"] == "LEFT" else 5.18
         for i in range(3):
             var ahead := z+float(i)*0.48
-            points.append(Vector3(x+_track_center(ahead),ahead*SLOPE+0.052,ahead))
+            points.append(Vector3(x+_track_center(ahead),_height(ahead)+0.052,ahead))
     _batch("WarningTactileApproach_84",Vector3(1.22,0.018,0.16),
         points,tint.lightened(0.2),0.24)
 
