@@ -154,15 +154,22 @@ func tick(delta: float, racers: Array[RigidBody3D], net: Node) -> void:
             continue
         if track_id == 2 and not vent_active(i,race_clock):
             continue
+        var zone_position: Vector3 = zone.global_position
+        # The long ribbons and circular forge vents are bounded in Z. Most
+        # of the forty racers are nowhere near any of the five zones.
+        var extent_z: float = sqrt(2.45) if track_id == 2 else ZONE_LENGTH*0.5
         for marble in racers:
             if not is_instance_valid(marble) or marble.finished or marble.eliminated or marble.freeze:
                 continue
-            var offset: Vector3 = marble.global_position-zone.global_position
+            var marble_position: Vector3 = marble.global_position
+            if absf(marble_position.z-zone_position.z) >= extent_z:
+                continue
+            var offset: Vector3 = marble_position-zone_position
             if absf(offset.y) > 1.7:
                 continue
-            var within := absf(offset.x) < ZONE_WIDTH*0.5 and absf(offset.z) < ZONE_LENGTH*0.5
+            var within := absf(offset.x) < ZONE_WIDTH*0.5
             if track_id == 2:
-                within = Vector2(offset.x,offset.z).length_squared() < 2.45
+                within = offset.x*offset.x+offset.z*offset.z < 2.45
             if not within:
                 continue
             var key := "%d:%d" % [i,marble.racer_id]
