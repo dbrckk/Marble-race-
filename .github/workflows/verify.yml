@@ -89,6 +89,12 @@ jobs:
           set -euo pipefail
           timeout 80s ./Godot_v4.5.1-stable_linux.x86_64 --headless --path . --script res://tests/visual_polish.gd 2>&1 | tee visual-polish.log
           grep -Fq "POLISH_PASS:" visual-polish.log
+      - name: Batched structural decoration and Android draw-call budgets
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 650 --path . --script res://tests/static_dressing_batches.gd 2>&1 | tee static-dressing.log
+          grep -Fq "STATIC_DRESSING_BATCH_PASS:" static-dressing.log
       - name: Android pause and app-background regression
         shell: bash
         run: |
