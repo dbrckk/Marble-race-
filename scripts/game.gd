@@ -20,6 +20,7 @@ const TrackSurface = preload("res://scripts/track_surface.gd")
 const TrackPath = preload("res://scripts/track_path.gd")
 const RaceFeedback = preload("res://scripts/race_feedback.gd")
 const RaceMoments = preload("res://scripts/race_moments.gd")
+const Slipstream = preload("res://scripts/slipstream.gd")
 const PerformanceBudget = preload("res://scripts/performance_budget.gd")
 const RaceDirector = preload("res://scripts/race_director.gd")
 const ShortcutRoute = preload("res://scripts/shortcut_route.gd")
@@ -80,6 +81,7 @@ var world_time := 0.0
 var finish_announced := false
 var camera_shake := 0.0
 var race_moments: RefCounted
+var slipstream: RefCounted
 var performance_budget: RefCounted
 var camera_lookahead := Vector3.ZERO
 var feedback_cooldown := 0.0
@@ -161,6 +163,7 @@ func _ready() -> void:
     ui.attach_game(self)
     race_moments = RaceMoments.new()
     race_moments.configure(self)
+    slipstream = Slipstream.new()
     performance_budget = PerformanceBudget.new()
     _position_intro_camera(true)
     _spawn_racers() # Frozen showroom preview gives the menu moving-world context.
@@ -1004,6 +1007,9 @@ func start_race(perk_name: String) -> void:
     steer = 0.0
     steer_target = 0.0
     boosting = false
+    boost_energy = 1.0 # A fresh race always has a full, fair turbo meter.
+    if slipstream != null:
+        slipstream.reset_round()
     cam_mode = 0
     camera_shake = 0.0
     camera.set_meta("previous_jitter",Vector3.ZERO)
@@ -1033,6 +1039,8 @@ func restart_race() -> void:
     start_race(selected_perk)
 
 func return_to_menu() -> void:
+    if slipstream != null:
+        slipstream.reset_round()
     if is_instance_valid(best_ghost):
         best_ghost.stop()
     for m in racers:
@@ -1132,7 +1140,11 @@ func _process(delta: float) -> void:
                 if boost_energy <= 0.0:
                     boosting = false
             else:
-                boost_energy = min(1.0, boost_energy + delta * 0.08)
+                # Sustained solo drafting earns a small extra charge without
+                # modifying online authority or the human-only rare items.
+                var draft_charge: float = slipstream.strength*Slipstream.RECOVERY_PER_SECOND if (
+                    slipstream != null and not net.is_active()) else 0.0
+                boost_energy = minf(1.0,boost_energy+delta*(0.08+draft_charge))
         if not net.is_client():
             var ended: bool = net.all_participants_finished() if net.is_host() else (
                 is_instance_valid(player) and (player.finished or player.eliminated))
@@ -1174,6 +1186,15 @@ func _physics_process(delta: float) -> void:
         shortcut_route.tick(delta,racers,net)
     if is_instance_valid(race_director):
         race_director.tick(racers,net)
+    # Drafting rewards actually following the same-elevation opponent.
+    # Scan at 7Hz; apply only a bounded physical force on the authoritative
+    # solo simulation. Online peers never receive untrusted local boosts.
+    if slipstream != null and not net.is_active() and is_instance_valid(player) and (
+        not player.freeze and not player.finished and not player.eliminated):
+        var draft: float = slipstream.tick(delta,player,racers)
+        if draft > 0.001:
+            player.apply_central_force(
+                Vector3(0.0,0.0,-Slipstream.FORWARD_FORCE*draft)*player.mass)
     for m in racers:
         if not is_instance_valid(m):
             continue
