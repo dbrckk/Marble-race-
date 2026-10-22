@@ -44,16 +44,18 @@ func clear_racers() -> void:
 func update_shadows() -> void:
     if pool.visible_instance_count <= 0:
         return
-    var axis := Basis(Vector3.RIGHT, -PI * 0.5 - atan(0.085))
+    var stage := get_parent() as Node3D
     for i in range(pool.visible_instance_count):
         var marble := racers[i]
         if not is_instance_valid(marble):
             pool.set_instance_transform(i,Transform3D(Basis(),Vector3(0,-1000,0)))
             continue
         var p := marble.global_position
-        var gap := maxf(0.0,p.y - p.z*0.085-0.39)
+        var road_height: float = stage.height_at(p.z)
+        var gap := maxf(0.0,p.y-road_height-0.39)
         var radius := clampf(1.0 + gap*0.14,0.8,1.55)
-        var location := Vector3(p.x,p.z*0.085+0.065,p.z)
+        var location := Vector3(p.x,road_height+0.065,p.z)
+        var axis := Basis(Vector3.RIGHT, -PI*0.5-atan(stage.track_grade_at(p.z)))
         var basis := axis.scaled(Vector3(radius,radius,radius))
         pool.set_instance_transform(i,Transform3D(basis,location))
 
