@@ -104,7 +104,10 @@ static func traffic_lane(own: RigidBody3D, rivals: Array[RigidBody3D],
 # used only by server/offline AI after the shortcut merges; players always
 # keep full manual steering authority.
 const GATE_LOOKAHEAD := 20.0
-const GATE_MIN_DISTANCE := 1.0
+# Maintain the avoidance line through the collider's full longitudinal
+# footprint. Otherwise a bot snaps back to its original lane at 1m and
+# clips the moving gate precisely as its marble reaches the obstacle.
+const GATE_MIN_DISTANCE := -1.25
 const GATE_CLEARANCE := 1.80
 const GATE_ESCAPE_CLEARANCE := 2.35
 
