@@ -29,6 +29,7 @@ const InternetSession = preload("res://scripts/internet_session.gd")
 const StudioPolish = preload("res://scripts/studio_polish.gd")
 const RaceItems = preload("res://scripts/race_items.gd")
 const CourseMechanics = preload("res://scripts/course_mechanics.gd")
+const ArcadeBumpers = preload("res://scripts/arcade_bumpers.gd")
 const TrackUniverses = preload("res://scripts/track_universes.gd")
 const BiomeSignature = preload("res://scripts/biome_signature.gd")
 
@@ -97,6 +98,7 @@ var kinetic_time := 0.0
 var obstacle_finish: Node3D
 var race_items: Node3D
 var course_mechanics: Node3D
+var arcade_bumpers: Node3D
 var race_director: Node3D
 var shortcut_route: Node3D
 var track_surface: Node3D
@@ -291,6 +293,8 @@ func _apply_graphics_quality() -> void:
         contact_shadows.set_update_rate(60 if graphics_quality == 2 else 30)
     if is_instance_valid(obstacle_finish):
         obstacle_finish.visible = graphics_quality > 0
+    if is_instance_valid(arcade_bumpers):
+        arcade_bumpers.set_quality(graphics_quality)
     if is_instance_valid(track_surface):
         track_surface.set_detail_quality(graphics_quality)
     if is_instance_valid(board):
@@ -565,6 +569,12 @@ func _make_course() -> void:
     course_mechanics.name = "CourseSpecificArcadeMechanics"
     board.add_child(course_mechanics)
     course_mechanics.setup(self,selected_track)
+    # Springy edge posts keep their physical colliders on every quality tier.
+    # Six post arts / twelve light rings render in just two GPU batches.
+    arcade_bumpers = ArcadeBumpers.new()
+    board.add_child(arcade_bumpers)
+    arcade_bumpers.setup(self,selected_track,built_variation)
+    arcade_bumpers.set_quality(graphics_quality)
     var cosmetic = TrackFX.new()
     cosmetic.name = "PolishedToyDetails"
     board.add_child(cosmetic)
