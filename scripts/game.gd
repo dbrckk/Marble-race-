@@ -82,6 +82,7 @@ var finish_announced := false
 var camera_shake := 0.0
 var race_moments: RefCounted
 var slipstream: RefCounted
+var draft_cue_cooldown := 0.0
 var performance_budget: RefCounted
 var camera_lookahead := Vector3.ZERO
 var feedback_cooldown := 0.0
@@ -1010,6 +1011,7 @@ func start_race(perk_name: String) -> void:
     boost_energy = 1.0 # A fresh race always has a full, fair turbo meter.
     if slipstream != null:
         slipstream.reset_round()
+    draft_cue_cooldown = 0.0
     cam_mode = 0
     camera_shake = 0.0
     camera.set_meta("previous_jitter",Vector3.ZERO)
@@ -1041,6 +1043,7 @@ func restart_race() -> void:
 func return_to_menu() -> void:
     if slipstream != null:
         slipstream.reset_round()
+    draft_cue_cooldown = 0.0
     if is_instance_valid(best_ghost):
         best_ghost.stop()
     for m in racers:
@@ -1189,12 +1192,20 @@ func _physics_process(delta: float) -> void:
         shortcut_route.tick(delta,racers,net)
     if is_instance_valid(race_director):
         race_director.tick(racers,net)
+    draft_cue_cooldown = maxf(0.0,draft_cue_cooldown-delta)
     # Drafting rewards actually following the same-elevation opponent.
     # Scan at 7Hz; apply only a bounded physical force on the authoritative
     # solo simulation. Online peers never receive untrusted local boosts.
     if slipstream != null and not net.is_active() and is_instance_valid(player) and (
         not player.freeze and not player.finished and not player.eliminated):
+        var before_draft: float = slipstream.strength
         var draft: float = slipstream.tick(delta,player,racers)
+        if before_draft < 0.55 and draft >= 0.55 and draft_cue_cooldown <= 0.0:
+            # One soft sound and short callout at lock-on, not every frame.
+            # Neither changes physics nor hides approaching obstacles.
+            draft_cue_cooldown = 4.5
+            audio.race_moment("slipstream")
+            ui.show_race_moment("SLIPSTREAM!",0.72)
         if draft > 0.001:
             player.apply_central_force(
                 Vector3(0.0,0.0,-Slipstream.FORWARD_FORCE*draft)*player.mass)
