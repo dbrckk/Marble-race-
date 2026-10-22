@@ -14,7 +14,7 @@ const TRAFFIC_SAFE_LANE := 3.15
 static func temperament(racer_id: int, track: int, variation: int) -> int:
     # Three predictable driving attitudes, redistributed per track/rematch:
     # 0 defensive, 1 balanced, 2 opportunistic. No random client input.
-    return posmod(racer_id*7 + track*5 + variation*3,3)
+    return posmod(racer_id*7 + track*5 + variation*4,3)
 
 static func _lane_occupancy(target_x: float, own: RigidBody3D,
     rivals: Array[RigidBody3D]) -> float:
