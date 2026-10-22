@@ -523,3 +523,14 @@ Android debug candidate **1.29.0-rc** (version code **43**); signing compatibili
 ## v1.30 RC — Chase and defend real nearby rivals
 
 The local race HUD now gives a brief, readable **CHASE** or **DEFEND** cue naming the physically closest rival within 12 metres and showing the real longitudinal gap. The underlying 10 Hz race-direction sample rejects rivals in distant side lanes or elevated bridges; after a true pass, CHASE changes to DEFEND. This is a presentation-only cue, with no AI advantages, collision changes, new GPU shaders, 3D meshes or network authority. The noninteractive label is hidden during online play and whenever there is no nearby opponent. The existing race-moments integration regression now verifies nearest-rival selection, actual gap, pass reversal, elevation filtering and touch safety. Android candidate **1.30.0-rc** (version code **44**).
+
+## v1.31 RC — Traffic-aware physics AI and meaningful overtaking
+
+The **39 rival marbles now react to nearby traffic**, instead of blindly chasing a slowly oscillating lane. Three seeded driving attitudes (defensive, balanced and opportunistic) change by racer, course and layout. When an AI is actually closing on a slower rival within 8 metres, it checks **two physically possible passing corridors**, penalizes lanes already occupied by another marble, and smoothly steers toward the safer opening. Faster leaders, distant marbles, elevated bridges, finishers and eliminated racers are ignored. Steering remains real low-powered lateral rigid-body force: **no speed cheats, teleportation or fake finishes**.
+
+- Each autonomous rival checks surrounding marbles only about **2–3 times per second**, staggered by racer ID; the sampled target is blended between checks.
+- Passing paths are clamped within a ±3.15 metre safe inner racing margin, with existing side-baffle protection and physical collision resolution left untouched.
+- Real shortcut specialists retain absolute priority at the fork, including Glacier's carefully validated narrow entry path. Both solo AI and the online authoritative server use the same rules, while **local and network-controlled humans never use AI traffic steering**.
+- A new tests/ai_traffic.gd regression checks deterministic decisions, obstructed passing lanes, height separation, distant/faster leaders, rail constraints, player authority, caching, replay resets and no movement cheats. The full 120-second physical AI simulation and live WebSocket end-to-end test remain mandatory before Android packaging.
+
+Android debug candidate **1.31.0-rc** (version code **45**), pending complete CI and phone verification.
