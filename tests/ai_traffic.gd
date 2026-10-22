@@ -55,6 +55,16 @@ func _check() -> void:
         follower,game.racers,center,0.0,1)
     assert(free_left < -1.3,
         "Tactical planning must avoid an occupied right corridor")
+    # A fast rival approaching from behind should not be cut off by
+    # a new overtaking move into its corridor. It is a real marble
+    # with a measured closing velocity, not a scripted obstacle.
+    blocker.global_position = Vector3(center+1.55,y,base_z+3.0)
+    blocker.linear_velocity = Vector3(0,0,-24)
+    follower.linear_velocity = Vector3(0,0,-12)
+    var protected_rear: float = Strategy.traffic_lane(
+        follower,game.racers,center,0.0,1)
+    assert(protected_rear < -1.3,
+        "AI must avoid the right lane when a faster marble approaches behind")
     # A multi-level intersection is not same-lane traffic.
     blocker.global_position.y += 5.0
     leader.global_position.y += 5.0
