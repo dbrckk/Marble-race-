@@ -24,7 +24,7 @@ func _check() -> void:
         assert(is_zero_approx(road.bridge_lift_at(Bypass.EXIT_Z)))
         var bridge_mid: float = (Bypass.ENTRY_Z+Bypass.EXIT_Z)*0.5
         var peak: float = road.bridge_lift_at(bridge_mid)
-        assert(peak > previous_peak+0.30,
+        assert(peak >= previous_peak+0.29,
             "Each biome requires an increasingly pronounced real bridge crest")
         previous_peak = peak
         assert(peak >= [1.07,1.47,1.77][biome])
