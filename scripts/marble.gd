@@ -290,7 +290,9 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
             # instant lane. In the final half, ordinary AI can read the
             # deterministic physical gate trajectory and move inward before
             # impact. Never interfere with a shortcut specialist or a human.
-            if position.z < -108.0 and not wants_shortcut() and (
+            # Enter the post-portal corridor early enough for rematches
+            # which place the second gate as near as z=-110.
+            if position.z < -96.0 and not wants_shortcut() and (
                 is_instance_valid(course_owner.race_director)):
                 var planned_offset: float = ai_traffic_offset if traffic_safe else ai_lane_goal
                 var safe_offset: float = AIPath.timed_gate_safe_lane(
