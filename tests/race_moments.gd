@@ -40,6 +40,9 @@ func _run() -> void:
     var p: RigidBody3D = stage.player
     assert(stage.race_moments != null)
     assert(stage.ui.race_moment_label != null)
+    assert(stage.ui.duel_label != null and
+        stage.ui.duel_label.mouse_filter == Control.MOUSE_FILTER_IGNORE,
+        "Nearby rival callout must never block steering or boost touches")
     assert(stage.ui.speed_stripes.size() == 4,
         "Four tiny color rectangles are the full speed FX budget")
     for quad in stage.ui.speed_stripes:
@@ -56,11 +59,25 @@ func _run() -> void:
     rival.global_position = Vector3(0,elevation,-22.2)
     stage.race_moments.tick(0.12)
     assert(stage.race_moments.unique_overtakes == 0)
+    assert(stage.race_moments.closest_rival_name == rival.display_name and
+        stage.race_moments.closest_rival_ahead and
+        absf(stage.race_moments.closest_rival_gap-2.2) < 0.01,
+        "Real closest challenger must be sampled from physics positions")
+    stage.ui.label_timer = 0.50
+    stage.ui.update_hud()
+    assert(stage.ui.duel_label.visible and
+        stage.ui.duel_label.text.contains("CHASE"),
+        "Player should see the nearest opponent ahead")
     p.global_position = Vector3(0,elevation,-23.5)
     stage.race_moments.tick(0.12)
     assert(stage.race_moments.unique_overtakes == 1,
         "A real relative crossing should count exactly one rival")
     assert(stage.ui.race_moment_label.text == "CLEAN OVERTAKE!")
+    stage.ui.label_timer = 0.50
+    stage.ui.update_hud()
+    assert(stage.ui.duel_label.visible and
+        stage.ui.duel_label.text.contains("DEFEND"),
+        "Passing the opponent should reverse the close-rival callout")
     # Back-and-forth movement may change ranking but must never farm a
     # second visual achievement against the same marble.
     p.global_position = Vector3(0,elevation,-20.0)
@@ -76,6 +93,10 @@ func _run() -> void:
     stage.race_moments.tick(0.12)
     assert(stage.race_moments.unique_overtakes == 1,
         "Recovery jumps cannot be counted as overtakes")
+    second_rival.global_position = Vector3(0,elevation+8.0,-24.0)
+    stage.race_moments.tick(0.12)
+    assert(stage.race_moments.closest_rival_name != second_rival.display_name,
+        "Opponents on elevated bridges must not appear as nearby duels")
     # Final-straight cue fires once. It never adds boosts, wins, mastery or
     # arbitrary extra finishers.
     stage.race_moments.message_at = -100.0
