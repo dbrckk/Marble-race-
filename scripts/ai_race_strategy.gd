@@ -27,7 +27,14 @@ static func _lane_occupancy(target_x: float, own: RigidBody3D,
         var dy: float = absf(other.position.y-own.position.y)
         if dz > 5.5 or dy > TRAFFIC_HEIGHT:
             continue
-        var dx: float = absf(other.position.x-target_x)
+        # A rival changing lanes is dangerous before its current sphere
+        # overlaps the intended corridor. Predict only a short, bounded
+        # window from authoritative velocity; no physics or RNG is added.
+        var current_dx: float = absf(other.position.x-target_x)
+        var predicted_x: float = other.position.x+clampf(
+            other.linear_velocity.x,-5.0,5.0)*0.42
+        var future_dx: float = absf(predicted_x-target_x)
+        var dx: float = minf(current_dx,future_dx)
         if dx < 1.10:
             penalty += (1.10-dx)*2.4*(
                 1.0-clampf(dz/5.5,0.0,1.0))
