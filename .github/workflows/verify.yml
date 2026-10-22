@@ -71,6 +71,12 @@ jobs:
           set -euo pipefail
           timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --path . --script res://tests/replay_variation.gd 2>&1 | tee replay-variation.log
           grep -Fq "VARIATION_AND_HAZARD_PASS:" replay-variation.log
+      - name: Scroll-safe Android prerace controls and real course map
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 95s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 1050 --path . --script res://tests/course_briefing.gd 2>&1 | tee course-briefing.log
+          grep -Fq "COURSE_BRIEFING_PASS:" course-briefing.log
       - name: HUD polish and particle budgets
         shell: bash
         run: |
