@@ -5,6 +5,81 @@ const LOOKAHEAD_METERS := 22.0
 const BYPASS_LOOKAHEAD := 5.8
 const EARLY_LANE_OFFSET := 5.15
 const BYPASS_LATERAL_FORCE := 18.0
+const TRAFFIC_SCAN_PERIOD := 0.34
+const TRAFFIC_AHEAD := 8.0
+const TRAFFIC_WIDTH := 1.25
+const TRAFFIC_HEIGHT := 1.45
+const TRAFFIC_SAFE_LANE := 3.15
+
+static func temperament(racer_id: int, track: int, variation: int) -> int:
+    # Three predictable driving attitudes, redistributed per track/rematch:
+    # 0 defensive, 1 balanced, 2 opportunistic. No random client input.
+    return posmod(racer_id*7 + track*5 + variation*3,3)
+
+static func _lane_occupancy(target_x: float, own: RigidBody3D,
+    rivals: Array[RigidBody3D]) -> float:
+    var penalty := 0.0
+    for other in rivals:
+        if other == own or not is_instance_valid(other) or (
+            other.finished or other.eliminated):
+            continue
+        var dz: float = absf(other.position.z-own.position.z)
+        var dy: float = absf(other.position.y-own.position.y)
+        if dz > 5.5 or dy > TRAFFIC_HEIGHT:
+            continue
+        var dx: float = absf(other.position.x-target_x)
+        if dx < 1.10:
+            penalty += (1.10-dx)*2.4*(
+                1.0-clampf(dz/5.5,0.0,1.0))
+    return penalty
+
+static func traffic_lane(own: RigidBody3D, rivals: Array[RigidBody3D],
+    center_x: float, preferred_offset: float, temperament_id: int) -> float:
+    # Called at most 3x/s per AI, *only* by the authoritative simulator.
+    # Compare two physical side corridors before choosing an overtaking line.
+    # Do not apply any impulses or manipulate positions/finishing times here.
+    var preferred: float = clampf(preferred_offset,
+        -TRAFFIC_SAFE_LANE,TRAFFIC_SAFE_LANE)
+    var desired_x: float = center_x+preferred
+    var leader: RigidBody3D = null
+    var nearest_gap := INF
+    for other in rivals:
+        if other == own or not is_instance_valid(other) or (
+            other.finished or other.eliminated):
+            continue
+        var ahead: float = own.position.z-other.position.z
+        if ahead < 0.65 or ahead > TRAFFIC_AHEAD:
+            continue
+        if absf(other.position.y-own.position.y) > TRAFFIC_HEIGHT or (
+            absf(other.position.x-desired_x) > TRAFFIC_WIDTH):
+            continue
+        # A faster marble approaching from behind is not an obstruction.
+        var speed_gain: float = other.linear_velocity.z-own.linear_velocity.z
+        if speed_gain < 0.4 and ahead > 2.5:
+            continue
+        if ahead < nearest_gap:
+            leader = other
+            nearest_gap = ahead
+    if leader == null:
+        return preferred
+    # Keep both choices inside the physical rail margins: close-to-wall
+    # candidates are penalized even if their projected path looks empty.
+    var lead_offset: float = leader.position.x-center_x
+    var left: float = clampf(lead_offset-1.55,-TRAFFIC_SAFE_LANE,TRAFFIC_SAFE_LANE)
+    var right: float = clampf(lead_offset+1.55,-TRAFFIC_SAFE_LANE,TRAFFIC_SAFE_LANE)
+    var cautious: float = [1.0,0.65,0.38][clampi(temperament_id,0,2)]
+    var left_cost: float = absf(left-preferred)*cautious+(
+        absf(left)/TRAFFIC_SAFE_LANE)*0.45+(
+        _lane_occupancy(center_x+left,own,rivals))
+    var right_cost: float = absf(right-preferred)*cautious+(
+        absf(right)/TRAFFIC_SAFE_LANE)*0.45+(
+        _lane_occupancy(center_x+right,own,rivals))
+    # The stable tie-break lets traffic patterns vary with AI personality
+    # without RNG state or per-frame unpredictable lane flips.
+    var choose_left: bool = left_cost < right_cost if (
+        absf(left_cost-right_cost) > 0.01) else own.racer_id%2 == 0
+    return left if choose_left else right
+
 
 static func pursue_bypass(z: float, entered: bool, entry_z: float,
     exit_z: float, entry_window: float) -> bool:
