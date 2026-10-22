@@ -26,6 +26,9 @@ var final_stretch_seen := false
 var finish_seen := false
 var local_speed := 0.0
 var previous_boost := false
+var closest_rival_gap := 999.0
+var closest_rival_name := ""
+var closest_rival_ahead := false
 
 func configure(owner: Node3D) -> void:
     game = owner
@@ -46,6 +49,9 @@ func reset_round() -> void:
     finish_seen = false
     local_speed = 0.0
     previous_boost = false
+    closest_rival_gap = 999.0
+    closest_rival_name = ""
+    closest_rival_ahead = false
 
 static func edge_intensity(speed: float, turbo: bool, quality: int) -> float:
     if quality <= 0:
@@ -103,10 +109,15 @@ func tick(delta: float) -> void:
         ahead.clear()
         previous_gap.clear()
         previous_rival_z.clear()
+        closest_rival_gap = 999.0
+        closest_rival_name = ""
         sampled_once = false
         return
     sampled_once = true
     var passes_now := 0
+    closest_rival_gap = 999.0
+    closest_rival_name = ""
+    closest_rival_ahead = false
     for marble in game.racers:
         if not is_instance_valid(marble) or marble == game.player or (
             marble.finished or marble.eliminated):
@@ -114,6 +125,14 @@ func tick(delta: float) -> void:
         var id: int = marble.racer_id
         var opponent: Vector3 = marble.global_position
         var gap: float = opponent.z-p.z
+        # Real longitudinal distance only; a distant side lane or an
+        # upper bridge must never masquerade as a nearby duel.
+        if absf(opponent.x-p.x) < PASS_LATERAL_LIMIT and (
+            absf(opponent.y-p.y) < PASS_VERTICAL_LIMIT) and (
+            absf(gap) < closest_rival_gap):
+            closest_rival_gap = absf(gap)
+            closest_rival_name = marble.display_name
+            closest_rival_ahead = gap < 0.0
         var old_gap: float = float(previous_gap.get(id,gap))
         var was_ahead: bool = bool(ahead.get(id,gap < -PASS_MARGIN))
         var rival_step: float = opponent.z-float(previous_rival_z.get(id,opponent.z))
