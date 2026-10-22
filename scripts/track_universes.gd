@@ -58,7 +58,7 @@ func setup(track: int, stage: Node3D) -> void:
         for side in [-1.0,1.0]:
             var jitter := sin(float(section)*2.83+side)*1.4
             var x: float = float(side)*(11.0 + float(section%3)*0.65) + stage.track_center_at(z)
-            var floor_y := z*SLOPE
+            var floor_y: float = stage.height_at(z)
             var bank_basis := Basis().scaled(Vector3(3.7,1.6+0.3*(section%3),4.3))
             bases.append(Transform3D(bank_basis,Vector3(x,floor_y-1.7,z)))
             var high := 0.78+float(section%4)*0.11
