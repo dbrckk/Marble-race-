@@ -55,6 +55,15 @@ func _check() -> void:
         follower,game.racers,center,0.0,1)
     assert(free_left < -1.3,
         "Tactical planning must avoid an occupied right corridor")
+    # A lateral mover can enter a passing corridor before the bot gets
+    # there. Predict the occupied lane without granting AI a speed cheat.
+    blocker.global_position = Vector3(center+2.85,y,base_z-3.0)
+    blocker.linear_velocity = Vector3(-3.5,0,-10)
+    var merging_left: float = Strategy.traffic_lane(
+        follower,game.racers,center,0.0,1)
+    assert(merging_left < -1.3,
+        "A rival moving laterally into the right lane must block that overtake")
+    blocker.linear_velocity = Vector3.ZERO
     # A fast rival approaching from behind should not be cut off by
     # a new overtaking move into its corridor. It is a real marble
     # with a measured closing velocity, not a scripted obstacle.
