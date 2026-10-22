@@ -68,8 +68,15 @@ func _run() -> void:
             var sample_x: float = game.track_center_at(sample_z)+0.67
             var origin := Vector3(sample_x,game.height_at(sample_z)+1.1,sample_z)
             var destination := Vector3(sample_x,game.height_at(sample_z)-1.9,sample_z)
+            # The showroom legitimately spawns 40 frozen RigidBody3D marbles
+            # at the start grid. A downward ground probe must ignore them;
+            # otherwise it measures the top of a marble as "terrain".
+            var floor_probe := PhysicsRayQueryParameters3D.create(origin,destination)
+            for marble in game.racers:
+                if is_instance_valid(marble):
+                    floor_probe.exclude.append(marble.get_rid())
             var hit: Dictionary = game.get_world_3d().direct_space_state.intersect_ray(
-                PhysicsRayQueryParameters3D.create(origin,destination))
+                floor_probe)
             assert(not hit.is_empty(),"A marble must land on real physical road")
             assert(hit["collider"] is StaticBody3D,
                 "Rideable elevation must be a physics surface, not a shader")
