@@ -38,6 +38,9 @@ static func hazard_side(track: int, next_variation: int, index: int) -> int:
 func hazard_side_at(index: int) -> int:
     return hazard_side(course,variation,index)
 
+func hazard_z_at(index: int) -> float:
+    return DIRECTOR.event_z_for(course,variation,index)
+
 func describe() -> String:
     var side: String = "RIGHT" if SHORTCUT.side_for(course) > 0 else "LEFT"
     var hazard: String = DIRECTOR.EVENT_NAMES[course]
@@ -99,7 +102,7 @@ func _draw() -> void:
         var dot: Vector2 = project(checkpoint,TRACK_PATH.center_at(checkpoint,course))
         draw_circle(dot,3.4,Color("#e5f4eb"))
     for index in range(DIRECTOR.EVENT_Z.size()):
-        var hazard_z: float = DIRECTOR.EVENT_Z[index]
+        var hazard_z: float = hazard_z_at(index)
         var world_x: float = TRACK_PATH.center_at(hazard_z,course)+(
             float(hazard_side_at(index))*3.22)
         var marker: Vector2 = project(hazard_z,world_x)
