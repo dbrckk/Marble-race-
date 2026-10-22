@@ -14,19 +14,19 @@ var grooves: Array[Transform3D] = []
 var batches: Array[MultiMeshInstance3D] = []
 var original_mesh_count := 0
 
-func _basis() -> Basis:
-    return Basis(Vector3.RIGHT, -atan(SLOPE))
+func _basis(grade: float) -> Basis:
+    return Basis(Vector3.RIGHT,-atan(grade))
 
-func register_plank(at: Vector3, material_index: int) -> void:
-    planks.append({"at":at, "material":material_index})
+func register_plank(at: Vector3, material_index: int, grade: float = SLOPE) -> void:
+    planks.append({"at":at, "material":material_index, "grade":grade})
     original_mesh_count += 1
 
-func register_rail(at: Vector3, material_index: int) -> void:
-    rails.append({"at":at, "material":material_index})
+func register_rail(at: Vector3, material_index: int, grade: float = SLOPE) -> void:
+    rails.append({"at":at, "material":material_index, "grade":grade})
     original_mesh_count += 1
 
-func register_groove(at: Vector3) -> void:
-    grooves.append(Transform3D(_basis(),at))
+func register_groove(at: Vector3, grade: float = SLOPE) -> void:
+    grooves.append(Transform3D(_basis(grade),at))
     original_mesh_count += 1
 
 func _batch(label_text: String, mesh: Mesh, material: Material, transforms: Array[Transform3D]) -> void:
@@ -47,12 +47,11 @@ func _batch(label_text: String, mesh: Mesh, material: Material, transforms: Arra
     batches.append(art)
 
 func _build_group(items: Array[Dictionary], materials: Array, mesh: Mesh, prefix: String) -> void:
-    var basis := _basis()
     for index in range(materials.size()):
         var transforms: Array[Transform3D] = []
         for item in items:
             if int(item["material"]) == index:
-                transforms.append(Transform3D(basis,item["at"]))
+                transforms.append(Transform3D(_basis(float(item["grade"])),item["at"]))
         _batch("%s_%02d" % [prefix,index],mesh,materials[index],transforms)
 
 func finish(wood_materials: Array, rail_materials: Array, groove_material: Material) -> void:
