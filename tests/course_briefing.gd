@@ -75,6 +75,9 @@ func _run() -> void:
             game.race_variation = next_variant
             game.ui.show_perks()
             assert(overview.variation == next_variant)
+            assert(game.ui.course_strategy_label.text.contains(
+                "LAYOUT %d / 3" % (next_variant+1)),
+                "The player should know which physical rematch layout comes next")
             game.start_race("Grip Tape")
             assert(game.built_variation == next_variant)
             for i in range(DIRECTOR.EVENT_Z.size()):
