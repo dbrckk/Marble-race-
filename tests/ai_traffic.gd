@@ -16,6 +16,11 @@ func _check() -> void:
                 assert(temperament >= 0 and temperament <= 2)
                 assert(Strategy.temperament(id,track,variation) == temperament,
                     "Driving personality cannot depend on client RNG")
+            assert(Strategy.temperament(id,track,0) !=
+                Strategy.temperament(id,track,1) and
+                Strategy.temperament(id,track,1) !=
+                Strategy.temperament(id,track,2),
+                "Every rematch layout must reshuffle the same AI's temperament")
     var game = load("res://scenes/main.tscn").instantiate()
     root.add_child(game)
     await process_frame
