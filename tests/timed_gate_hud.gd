@@ -46,14 +46,16 @@ func _verify() -> void:
                 var clear_found := false
                 for sample in range(120):
                     var t: float = float(sample)*0.08
-                    if director.piston_up(gate_index,t+eta) and not blocked_found:
+                    if director.piston_up(gate_index,t+eta) and (
+                        not director.piston_up(gate_index,t)) and not blocked_found:
                         blocked_clock = t
                         blocked_found = true
-                    if not director.piston_up(gate_index,t+eta) and not clear_found:
+                    if not director.piston_up(gate_index,t+eta) and (
+                        director.piston_up(gate_index,t)) and not clear_found:
                         clear_clock = t
                         clear_found = true
                 assert(blocked_found and clear_found,
-                    "Forge pistons require both real future blocked and open states")
+                    "Forge tests must prove opposite current and arrival states")
             game.player.global_position = Vector3(
                 game.track_center_at(approach_z),
                 game.height_at(approach_z)+0.8,approach_z)
@@ -81,14 +83,28 @@ func _verify() -> void:
             assert(game.audio.warned_timed_gates.size() == 1,
                 "The warning cannot spam ten overlapping sounds per second")
             if biome == 2:
+                # An upward piston *right now* is harmless if it will have
+                # retracted when this marble arrives. Clear the warning log
+                # and verify no false alarm is issued for that safe arrival.
+                game.audio.warned_timed_gates.clear()
                 director.animate(clear_clock)
                 game.race_time = clear_clock
+                assert(director.piston_up(gate_index,clear_clock))
+                assert(not director.piston_up(gate_index,clear_clock+eta))
                 game.ui.label_timer = 0.25
                 game.ui.update_hud()
                 assert(label.text.contains("EST. OPEN"),
-                    "A retracted Forge piston must give an accurate safe-window cue")
-                # No new warning is allowed for the estimated-open passage.
-                assert(game.audio.warned_timed_gates.size() == 1)
+                    "The HUD must show the FUTURE safe window, not today's piston state")
+                assert(game.audio.warned_timed_gates.is_empty(),
+                    "No audio danger alert is allowed for a predicted clear piston")
+                director.animate(blocked_clock)
+                game.race_time = blocked_clock
+                assert(not director.piston_up(gate_index,blocked_clock))
+                assert(director.piston_up(gate_index,blocked_clock+eta))
+                game.ui.label_timer = 0.25
+                game.ui.update_hud()
+                assert(game.audio.warned_timed_gates.has(gate_index),
+                    "The audio must warn when a currently down piston WILL rise")
             game.player.global_position.z = gate_z+35.0
             game.ui.label_timer = 0.25
             game.ui.update_hud()
