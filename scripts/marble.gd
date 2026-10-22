@@ -242,12 +242,12 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
             # their previously verified physics, while ordinary marbles only
             # attempt an overtake from the central open part of the road.
             # No lateral passing decision is made at a genuine hazard gate.
-            var center_now: float = course_owner.track_center_at(position.z)
+            var traffic_center: float = course_owner.track_center_at(position.z)
             var next_hazard: Dictionary = course_owner.upcoming_hazard(position.z)
             var hazard_near: bool = not next_hazard.is_empty() and (
                 float(next_hazard.get("distance",999.0)) < 3.5)
             var traffic_safe: bool = not wants_shortcut() and (
-                absf(position.x-center_now) < 2.15) and (
+                absf(position.x-traffic_center) < 2.15) and (
                 absf(ai_lane_goal) < 1.9) and not hazard_near
             if traffic_safe:
                 # Staggered 2.5-3 Hz scans; no physics simulation or network
@@ -272,7 +272,7 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
                 ai_traffic_timer = 0.0
                 ai_traffic_goal = ai_lane_goal
                 ai_traffic_offset = ai_lane_goal
-            side_force += AIPath.baffle_dodge(position,center_now)
+            side_force += AIPath.baffle_dodge(position,traffic_center)
         elif following_bypass:
             # Real shortcut steering retains full priority over crowd
             # strategy, especially at Glacier's narrow entry portal.
