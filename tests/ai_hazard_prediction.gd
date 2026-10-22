@@ -53,6 +53,8 @@ func _verify() -> void:
             var arrival: float = elapsed+arrival_seconds
             var future: Vector3 = director.position_at(event_index,arrival)
             var obstacle_offset: float = future.x-game.track_center_at(gate_z)
+            var bounded_preference: float = clampf(obstacle_offset,
+                -Strategy.TRAFFIC_SAFE_LANE,Strategy.TRAFFIC_SAFE_LANE)
             var safe: float = Strategy.timed_gate_safe_lane(director,
                 gate_z+distance,-12.0,elapsed,obstacle_offset)
             var blocked: bool = biome != 2 or director.piston_up(event_index,arrival)
@@ -67,17 +69,17 @@ func _verify() -> void:
                     "Avoidance must remain inside real outer guardrails")
             else:
                 retracted_cases += 1
-                assert(is_equal_approx(safe,obstacle_offset),
+                assert(is_equal_approx(safe,bounded_preference),
                     "Retracted Forge piston cannot trigger false avoidance")
             assert(is_equal_approx(safe,Strategy.timed_gate_safe_lane(
                 director,gate_z+distance,-12.0,elapsed,obstacle_offset)),
                 "AI predictions must be deterministic across client/server ticks")
             assert(is_equal_approx(Strategy.timed_gate_safe_lane(
                 director,gate_z+30.0,-12.0,elapsed,obstacle_offset),
-                obstacle_offset),"Do not dodge an obstacle outside the lookahead")
+                bounded_preference),"Do not dodge an obstacle outside the lookahead")
             assert(is_equal_approx(Strategy.timed_gate_safe_lane(
                 director,gate_z-4.0,-12.0,elapsed,obstacle_offset),
-                obstacle_offset),"Do not steer back toward an already passed gate")
+                bounded_preference),"Do not steer back toward an already passed gate")
             var opposite: float = -signf(obstacle_offset)*2.5
             assert(is_equal_approx(Strategy.timed_gate_safe_lane(
                 director,gate_z+distance,-12.0,elapsed,opposite),opposite),
