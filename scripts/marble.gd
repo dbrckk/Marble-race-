@@ -238,25 +238,41 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
                     linear_velocity.x,course_owner.selected_track == 1)
                 following_bypass = true
         if not following_bypass and is_instance_valid(course_owner):
-            # A calm, staggered 2.5-3Hz assessment gives rivals genuine
-            # room to overtake slower marbles. It is never run for a player,
-            # a network-controlled human or a shortcut portal specialist.
-            ai_traffic_timer -= delta
-            if ai_traffic_timer <= 0.0:
-                ai_traffic_timer = AIPath.TRAFFIC_SCAN_PERIOD+(
-                    float(racer_id%4)*0.05)
-                ai_traffic_goal = AIPath.traffic_lane(self,
-                    course_owner.racers,center_ahead,ai_lane_goal,
-                    AIPath.temperament(racer_id,
-                        course_owner.selected_track,
-                        course_owner.built_variation))
-            ai_traffic_offset = move_toward(ai_traffic_offset,
-                ai_traffic_goal,delta*4.5)
-            side_force = clampf((
-                center_ahead+ai_traffic_offset-position.x)*1.0-(
-                linear_velocity.x*0.18),-4.5,4.5)
-            side_force += AIPath.baffle_dodge(position,
-                course_owner.track_center_at(position.z))
+            # Safety-first line selection: specialist shortcuts always keep
+            # their previously verified physics, while ordinary marbles only
+            # attempt an overtake from the central open part of the road.
+            # No lateral passing decision is made at a genuine hazard gate.
+            var center_now: float = course_owner.track_center_at(position.z)
+            var next_hazard: Dictionary = course_owner.upcoming_hazard(position.z)
+            var hazard_near: bool = not next_hazard.is_empty() and (
+                float(next_hazard.get("distance",999.0)) < 3.5)
+            var traffic_safe: bool = not wants_shortcut() and (
+                absf(position.x-center_now) < 2.15) and (
+                absf(ai_lane_goal) < 1.9) and not hazard_near
+            if traffic_safe:
+                # Staggered 2.5-3 Hz scans; no physics simulation or network
+                # traffic added. Blend rather than snapping between lines.
+                ai_traffic_timer -= delta
+                if ai_traffic_timer <= 0.0:
+                    ai_traffic_timer = AIPath.TRAFFIC_SCAN_PERIOD+(
+                        float(racer_id%4)*0.05)
+                    ai_traffic_goal = AIPath.traffic_lane(self,
+                        course_owner.racers,center_ahead,ai_lane_goal,
+                        AIPath.temperament(racer_id,
+                            course_owner.selected_track,
+                            course_owner.built_variation))
+                ai_traffic_offset = move_toward(ai_traffic_offset,
+                    ai_traffic_goal,delta*4.5)
+                side_force = clampf((
+                    center_ahead+ai_traffic_offset-position.x)*1.0-(
+                    linear_velocity.x*0.18),-4.5,4.5)
+            else:
+                # Preserve the proven original control whenever a marble is
+                # already near a railing, a kinetic hazard or a shortcut.
+                ai_traffic_timer = 0.0
+                ai_traffic_goal = ai_lane_goal
+                ai_traffic_offset = ai_lane_goal
+            side_force += AIPath.baffle_dodge(position,center_now)
         elif following_bypass:
             # Real shortcut steering retains full priority over crowd
             # strategy, especially at Glacier's narrow entry portal.
