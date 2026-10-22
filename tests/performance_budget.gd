@@ -11,6 +11,10 @@ func _run() -> void:
     assert(Budget.percentile_95(PackedFloat32Array()) == 0.0)
     assert(is_equal_approx(Budget.percentile_95(
         PackedFloat32Array([11.0,13.0,30.0,19.0])),30.0))
+    assert(Budget.slow_frame_fraction(PackedFloat32Array()) == 0.0)
+    assert(is_equal_approx(Budget.slow_frame_fraction(
+        PackedFloat32Array([16.0,17.0,34.0,50.0])),0.5),
+        "Two out of four slow frames must yield 50 percent")
     for i in range(240):
         model.tick(1.0/60.0)
     assert(model.frame_ms.size() == Budget.HISTORY_FRAMES,
@@ -18,6 +22,8 @@ func _run() -> void:
     assert(model.sample_count == 240 and not model.report.is_empty(),
         "Runtime monitor sampling should accumulate measured frames")
     assert(model.report.has("physics_ms") and model.report.has("draw_calls"))
+    assert(float(model.report["slow_pct"]) == 0.0,
+        "Stable 60 FPS must not be reported as stuttering")
     assert(absf(float(model.report["p95_ms"])-1000.0/60.0) < 0.03,
         "Measured 60 Hz frame pacing must be about 16.7 ms")
     var before: int = model.sample_count
@@ -53,7 +59,8 @@ func _run() -> void:
         game.performance_budget.tick(1.0/60.0)
     game.ui.label_timer = 0.5
     game.ui.update_hud()
-    assert(game.ui.performance_label.text.contains("P95") and
+    assert(game.ui.performance_label.text.contains("SLOW") and
+        game.ui.performance_label.text.contains("P95") and
         game.ui.performance_label.text.contains("PHYS") and
         game.ui.performance_label.text.contains("DRAW"),
         "Android overlay must expose actionable frame, physics and draw cost")
