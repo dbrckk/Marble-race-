@@ -45,7 +45,7 @@ func _ribbon_visual(zone: Node3D, index: int) -> void:
     var mesh := BoxMesh.new()
     mesh.size = Vector3(ZONE_WIDTH,0.055,ZONE_LENGTH)
     art.mesh = mesh
-    art.rotation.x = -atan(0.085)
+    art.rotation.x = -atan(game.track_grade_at(zone.position.z))
     art.position.y = 0.035
     var material := StandardMaterial3D.new()
     material.albedo_color = TRACK_COLORS[track_id]
@@ -63,7 +63,7 @@ func _ribbon_visual(zone: Node3D, index: int) -> void:
         line.size = Vector3(ZONE_WIDTH-0.55,0.025,0.18)
         stripe_art.mesh = line
         stripe_art.position = Vector3(0.0,0.09,2.15-float(stripe)*2.12)
-        stripe_art.rotation.x = -atan(0.085)
+        stripe_art.rotation.x = -atan(game.track_grade_at(zone.position.z+stripe_art.position.z))
         var detail := StandardMaterial3D.new()
         detail.albedo_color = Color("#f5faf0") if track_id == 1 else Color("#fff2b6")
         detail.emission_enabled = true
@@ -77,7 +77,7 @@ func _ice_collision(zone: Node3D) -> void:
     # A very shallow, low-friction physical slab; no tall edge blocking 40 racers.
     var surface := StaticBody3D.new()
     surface.name = "LowFrictionIce"
-    surface.rotation.x = -atan(0.085)
+    surface.rotation.x = -atan(game.track_grade_at(zone.position.z))
     surface.position.y = 0.024
     var friction := PhysicsMaterial.new()
     friction.friction = 0.04
