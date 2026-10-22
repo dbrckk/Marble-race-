@@ -1,9 +1,18 @@
 extends SceneTree
+const RACER = preload("res://scripts/marble.gd")
 
 func _initialize() -> void:
     call_deferred("_run")
 
 func _run() -> void:
+    assert(RACER.recovery_side(4.30,0) < 0.0,
+        "First recovery should try the closest inward open line")
+    assert(RACER.recovery_side(4.30,1) > 0.0,
+        "Repeated failure must try the other side of the same slalom")
+    assert(RACER.recovery_side(-4.30,1) < 0.0,
+        "Alternate recovery must be symmetric on the other side")
+    assert(RACER.recovery_side(6.15,1) < 0.0,
+        "Never nudge a stranded marble outward through the physical rail")
     var stage = load("res://scenes/main.tscn").instantiate()
     root.add_child(stage)
     await process_frame
