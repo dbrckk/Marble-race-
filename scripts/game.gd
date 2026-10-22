@@ -1134,7 +1134,10 @@ func _process(delta: float) -> void:
                         cosmetics.pulse_checkpoint(sector)
                     _burst(player.global_position, false)
                     last_checkpoint = cp
-        if not net.is_client():
+        # Only an actual offline human owns this meter. A disconnected
+        # replica or dedicated server must never regenerate local boost
+        # simply because match_running changed to false.
+        if net.role == "offline":
             if boosting:
                 boost_energy = max(0.0, boost_energy - delta * 0.26)
                 if boost_energy <= 0.0:
