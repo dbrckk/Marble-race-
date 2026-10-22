@@ -14,6 +14,11 @@ const WIDTH := 3.80
 const SEGMENTS := 28
 const REWARD_Z := -79.0
 const REWARD_RADIUS := 2.15
+# Only the entry portal, takeoff pads and reward gate can apply effects.
+# All are between -46.5 and -87.5 on every biome; other positions do not
+# need the costly curved point_at() and world-height calculations at 60 Hz.
+const EFFECT_WINDOW_NEAR := ENTRY_Z + 1.5
+const EFFECT_WINDOW_FAR := -88.0
 const JUMP_Z := [-71.0,-74.0,-86.0]
 const ENTRY_WINDOW := 12.0
 const MAX_BANK := 0.080
@@ -31,6 +36,10 @@ var jumped: Dictionary = {}
 var launch_ramps: Array[StaticBody3D] = []
 var banked_segments := 0
 var physical_distance := 0.0
+var effect_candidates_last_tick := 0
+
+static func inside_effect_window(z: float) -> bool:
+    return z <= EFFECT_WINDOW_NEAR and z >= EFFECT_WINDOW_FAR
 
 static func side_for(track: int) -> int:
     return SIDES[clampi(track,0,2)]
@@ -272,12 +281,19 @@ func reset_round() -> void:
 
 func tick(_delta: float, racers: Array[RigidBody3D], net: Node) -> void:
     # Never apply gameplay effects from a rendering-only client replica.
+    effect_candidates_last_tick = 0
     if net.role == "client":
         return
     for marble in racers:
         if not is_instance_valid(marble) or marble.finished or marble.eliminated or marble.freeze:
             continue
         var z: float = marble.global_position.z
+        # Broad phase is conservative: every physics interaction remains in
+        # the covered interval on each of the three tracks. Outside it, no
+        # marble can earn an entry, ramp impulse or shortcut reward.
+        if not inside_effect_window(z):
+            continue
+        effect_candidates_last_tick += 1
         var point := point_at(z)
         var horizontal_error: float = absf(marble.global_position.x-point.x)
         var vertical_error: float = absf(marble.global_position.y-point.y)
