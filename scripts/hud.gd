@@ -48,6 +48,7 @@ var leaderboard: Label
 var boost_label: Label
 var speed_label: Label
 var fps_label: Label
+var performance_label: Label
 var network_quality_label: Label
 var ghost_label: Label
 var duel_label: Label
@@ -731,6 +732,12 @@ func _build_race_hud() -> void:
     hud_layer.add_child(duel_label)
     fps_label = _small_panel_text("FPS --",16,Rect2(0.865,0.43,0.119,0.060))
     fps_label.get_parent().visible = game.show_fps
+    performance_label = _small_panel_text(
+        "SAMPLING FRAMES...",13,Rect2(0.700,0.495,0.284,0.064))
+    performance_label.name = "PhonePerformanceTelemetry"
+    performance_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    performance_label.get_parent().mouse_filter = Control.MOUSE_FILTER_IGNORE
+    performance_label.get_parent().visible = game.show_fps
     course_progress = _progress_bar(Color("#e9ac5d"))
     course_progress.name = "CourseProgress"
     course_progress.anchor_left = 0.335
@@ -1219,6 +1226,12 @@ func update_hud() -> void:
         fps_label.text = "FPS %d" % measured
         fps_label.add_theme_color_override("font_color",
             Color("#ffb7a5") if measured < 30 else Color("#d4f8e3"))
+        if game.performance_budget != null:
+            performance_label.text = game.performance_budget.compact_text()
+            if not game.performance_budget.report.is_empty():
+                performance_label.add_theme_color_override("font_color",
+                    Color("#ffbd9c") if float(game.performance_budget.report[
+                        "p95_ms"]) > 33.3 else Color("#a8dfd2"))
     course_progress.value = clampf((-game.player.global_position.z/absf(game.FINISH_Z))*100.0,0.0,100.0)
     if game.obstacle_notice > 0.0:
         place_label.add_theme_color_override("font_color",Color("#ffb089"))
