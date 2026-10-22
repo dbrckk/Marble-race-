@@ -6,6 +6,22 @@ const FOLLOW_MIN := 3.4
 const FOLLOW_MAX := 8.0
 const FOV_MIN := 63.0
 const FOV_MAX := 78.0
+# Camera sightline must remain above actual physical crests, even on the
+# higher-relief Glacier and Forge circuits. Never move a marble or collider.
+const TERRAIN_LOOK_CLEARANCE := 0.95
+const CAMERA_GROUND_CLEARANCE := 3.8
+
+static func terrain_safe_focus(focus: Vector3, floor_height: float) -> Vector3:
+    if not is_finite(floor_height):
+        return focus
+    return Vector3(focus.x,maxf(focus.y,
+        floor_height+TERRAIN_LOOK_CLEARANCE),focus.z)
+
+static func terrain_safe_camera(position: Vector3, floor_height: float) -> Vector3:
+    if not is_finite(floor_height):
+        return position
+    return Vector3(position.x,maxf(position.y,
+        floor_height+CAMERA_GROUND_CLEARANCE),position.z)
 
 static func smooth_factor(delta: float, rate: float) -> float:
     # Frame-rate-independent, avoiding abrupt jumps when Android goes
