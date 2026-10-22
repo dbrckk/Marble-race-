@@ -18,6 +18,16 @@ func reset() -> void:
     sample_count = 0
     report.clear()
 
+static func slow_frame_fraction(values: PackedFloat32Array,
+    threshold_ms: float = 33.333) -> float:
+    if values.is_empty():
+        return 0.0
+    var slow := 0
+    for frame in values:
+        if frame > threshold_ms:
+            slow += 1
+    return float(slow)/float(values.size())
+
 static func percentile_95(values: PackedFloat32Array) -> float:
     if values.is_empty():
         return 0.0
@@ -47,6 +57,7 @@ func tick(delta: float) -> void:
     report = {
         "fps": Engine.get_frames_per_second(),
         "p95_ms": percentile_95(frame_ms),
+        "slow_pct": slow_frame_fraction(frame_ms)*100.0,
         "process_ms": maxf(0.0,Performance.get_monitor(Performance.TIME_PROCESS)*1000.0),
         "physics_ms": maxf(0.0,Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS)*1000.0),
         "draw_calls": maxi(0,int(Performance.get_monitor(
@@ -57,6 +68,6 @@ func tick(delta: float) -> void:
 func compact_text() -> String:
     if report.is_empty():
         return "SAMPLING FRAMES..."
-    return "P95 %.1fms   PHYS %.1fms   DRAW %d" % [
-        float(report["p95_ms"]),float(report["physics_ms"]),
-        int(report["draw_calls"])]
+    return "P95 %.1fms   SLOW %.0f%%   PHYS %.1fms   DRAW %d" % [
+        float(report["p95_ms"]),float(report["slow_pct"]),
+        float(report["physics_ms"]),int(report["draw_calls"])]
