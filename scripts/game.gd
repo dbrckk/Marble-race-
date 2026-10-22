@@ -353,7 +353,10 @@ func track_title() -> String:
     return TRACK_NAMES[selected_track]
 
 func height_at(z: float) -> float:
-    return z * SLOPE
+    return TrackPath.height_at(z,selected_track)
+
+func track_grade_at(z: float) -> float:
+    return TrackPath.grade_at(z,selected_track)
 
 func track_center_at(z: float) -> float:
     # Identical centerline across local clients, bots and authoritative server.
@@ -416,7 +419,7 @@ func _box(parent: Node3D, location: Vector3, dimensions: Vector3, material: Mate
         holder = Node3D.new()
     holder.position = location
     if tilt:
-        holder.rotation.x = -atan(SLOPE)
+        holder.rotation.x = -atan(track_grade_at(location.z))
     if show_art:
         var art := MeshInstance3D.new()
         var bevel := minf(0.11, minf(dimensions.x, minf(dimensions.y, dimensions.z)) * 0.12)
@@ -481,7 +484,6 @@ func _make_course() -> void:
     track_surface = TrackSurface.new()
     track_surface.name = "InstancedTrackSurface"
     board.add_child(track_surface)
-    var incline = -atan(SLOPE)
     for section in range(SEGMENTS):
         var center_z = 8.0 - float(section) * SEGMENT_LENGTH
         var section_node = Node3D.new()
@@ -497,10 +499,10 @@ func _make_course() -> void:
             # the exact original independent tilted BoxShape3D collider.
             _box(section_node,plank_at,
                 Vector3(1.315,0.65,SEGMENT_LENGTH+0.08),_wood_mat(shade),true,true,false)
-            track_surface.register_plank(plank_at+section_node.position,material_index)
+            track_surface.register_plank(plank_at+section_node.position,material_index,track_grade_at(center_z))
             for j in range(2):
                 var z: float = center_z+(float(j)-0.5)*4.4
-                track_surface.register_groove(Vector3(x-0.34+(j%2)*0.31+section_node.position.x,height_at(z)+0.005,z))
+                track_surface.register_groove(Vector3(x-0.34+(j%2)*0.31+section_node.position.x,height_at(z)+0.005,z),track_grade_at(z))
         for side in [-1,1]:
             for rail_piece in range(3):
                 # Physical fork and merger through two full-width portals.
@@ -512,7 +514,7 @@ func _make_course() -> void:
                 var pos := Vector3(side*6.84,height_at(z)+0.58,z)
                 _box(section_node,pos,Vector3(0.57,1.26,4.04),
                     _lacquer(BARRIER_COLORS[color_idx]),true,true,false)
-                track_surface.register_rail(pos+section_node.position,color_idx)
+                track_surface.register_rail(pos+section_node.position,color_idx,track_grade_at(z))
         if section in [3, 9, 14]:
             _terrain_ramp(section_node,center_z,section)
         if section > 0 and section < SEGMENTS - 3:
