@@ -55,6 +55,22 @@ func _run() -> void:
             assert((fast["position"] as Vector3).y >
                 (idle["position"] as Vector3).y,
                 "Chase camera should lift over a nearby physical hazard")
+    # The new 3D route has hills tall enough to obscure the traditional
+    # flat-course lookahead. Preserve the original sightline on descents,
+    # but lift it above a real crest without changing racing physics.
+    var low := Vector3(2.0,-2.0,-76.0)
+    var safe: Vector3 = RaceFeedback.terrain_safe_focus(low,1.45)
+    assert(absf(safe.y-(1.45+RaceFeedback.TERRAIN_LOOK_CLEARANCE)) < 0.001,
+        "The camera must aim above a physical hill")
+    var naturally_high := Vector3(2.0,8.0,-76.0)
+    assert(RaceFeedback.terrain_safe_focus(naturally_high,1.45) ==
+        naturally_high,"Do not over-raise an already safe focus")
+    var camera_low := Vector3(-1.0,0.5,-72.0)
+    assert(RaceFeedback.terrain_safe_camera(camera_low,2.1).y >=
+        2.1+RaceFeedback.CAMERA_GROUND_CLEARANCE-0.001,
+        "Camera may not sink into a hill behind the player")
+    assert(RaceFeedback.terrain_safe_camera(naturally_high,1.45) ==
+        naturally_high,"Keep high camera poses stable")
     var stage = load("res://scenes/main.tscn").instantiate()
     root.add_child(stage)
     await process_frame
@@ -91,6 +107,27 @@ func _run() -> void:
     stage.cam_mode = 0
     stage._update_camera(0.016,true)
     var before: Vector3 = stage.camera.global_position
+    # Inspect the actual integrated follow camera near the strongest terrain
+    # profile: the lookahead must stay above local collidable ground.
+    for track in range(3):
+        stage.selected_track = track
+        stage.player.position = Vector3(stage.track_center_at(-84.0),
+            stage.height_at(-84.0)+0.8,-84.0)
+        stage.camera_shake = 0.0
+        stage._update_camera(0.016,true)
+        assert(stage.camera_lookahead.y >=
+            stage.height_at(stage.camera_lookahead.z)+
+            RaceFeedback.TERRAIN_LOOK_CLEARANCE-0.01,
+            "Live camera must look above the actual 3D surface in every biome")
+        assert(stage.camera.global_position.y >=
+            stage.height_at(stage.camera.global_position.z)+
+            RaceFeedback.CAMERA_GROUND_CLEARANCE-0.02,
+            "Live camera position must clear the 3D hill in every biome")
+    # Restore the original track and camera path before the smooth-follow test.
+    stage.selected_track = 0
+    stage.player.position = Vector3(0,stage.height_at(-84.0)+0.8,-84.0)
+    stage._update_camera(0.016,true)
+    before = stage.camera.global_position
     stage.player.position += Vector3(0.7,0.0,-1.0)
     stage._update_camera(0.016,false)
     assert(stage.camera.global_position.distance_to(before) < 1.3,
