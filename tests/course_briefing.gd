@@ -68,8 +68,11 @@ func _run() -> void:
         for i in range(DIRECTOR.EVENT_Z.size()):
             assert(overview.hazard_side_at(i) == game.race_director.side_at(i),
                 "First course preview must use the real timed hazard side")
-            var marker: Vector2 = overview.project(DIRECTOR.EVENT_Z[i],
-                PATH.center_at(DIRECTOR.EVENT_Z[i],track)+(
+            var actual_z: float = game.race_director.event_z(i)
+            assert(is_equal_approx(overview.hazard_z_at(i),actual_z),
+                "The displayed hazard marker must show the real collider Z")
+            var marker: Vector2 = overview.project(overview.hazard_z_at(i),
+                PATH.center_at(actual_z,track)+(
                 float(overview.hazard_side_at(i))*3.22))
             assert(marker.is_finite())
             assert(marker.x > 20.0 and marker.x < overview.size.x-10.0)
@@ -93,7 +96,10 @@ func _run() -> void:
             for i in range(DIRECTOR.EVENT_Z.size()):
                 assert(MAP.hazard_side(track,next_variant,i) ==
                     game.race_director.side_at(i),
-                    "Previewed hazard placement must match its built rematch")
+                    "Previewed hazard side must match its built rematch")
+                assert(is_equal_approx(overview.hazard_z_at(i),
+                    game.race_director.event_z(i)),
+                    "Previewed hazard Z must match the real obstacle in every rematch")
             game.return_to_menu()
         assert(game.ui.start_button.visible)
     assert(track_colors[0] != track_colors[1] and
