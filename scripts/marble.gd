@@ -286,6 +286,20 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
                 ai_traffic_timer = 0.0
                 ai_traffic_goal = ai_lane_goal
                 ai_traffic_offset = ai_lane_goal
+            # Dynamic timed hazards have a future position, not merely an
+            # instant lane. In the final half, ordinary AI can read the
+            # deterministic physical gate trajectory and move inward before
+            # impact. Never interfere with a shortcut specialist or a human.
+            if position.z < -108.0 and not wants_shortcut() and (
+                is_instance_valid(course_owner.race_director)):
+                var planned_offset: float = ai_traffic_offset if traffic_safe else ai_lane_goal
+                var safe_offset: float = AIPath.timed_gate_safe_lane(
+                    course_owner.race_director,position.z,
+                    linear_velocity.z,elapsed,planned_offset)
+                if absf(safe_offset-planned_offset) > 0.10:
+                    side_force = clampf((
+                        center_ahead+safe_offset-position.x)*2.25-
+                        linear_velocity.x*0.55,-9.5,9.5)
             side_force += AIPath.baffle_dodge(position,traffic_center)
         elif following_bypass:
             # Real shortcut steering retains full priority over crowd
