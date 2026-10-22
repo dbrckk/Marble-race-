@@ -32,7 +32,7 @@ func _run() -> void:
         # to the physical racing surface. Test relative lift, not world tilt.
         var ramp_z: float = float(road.JUMP_Z[course])
         var relative_lip: float = road.launch_ramps[0].rotation.x+atan(
-            game.track_grade_at(ramp_z))
+            road.bridge_grade_at(ramp_z))
         assert(absf(relative_lip-0.18) < 0.001,
             "Physical takeoff must rise by 0.18 radians relative to local terrain")
         assert(road.banked_segments > 0,
