@@ -97,6 +97,47 @@ static func traffic_lane(own: RigidBody3D, rivals: Array[RigidBody3D],
     return left if choose_left else right
 
 
+
+# The timed gate moves during a marble's approach. Evaluate where the *real
+# collidable body* will be at arrival, rather than dodging its current mesh.
+# Return the preferred offset unchanged when the line remains safe. This is
+# used only by server/offline AI after the shortcut merges; players always
+# keep full manual steering authority.
+const GATE_LOOKAHEAD := 20.0
+const GATE_MIN_DISTANCE := 1.0
+const GATE_CLEARANCE := 1.80
+const GATE_ESCAPE_CLEARANCE := 2.35
+
+static func timed_gate_safe_lane(director: Node3D, own_z: float,
+    own_speed_z: float, elapsed: float, preferred_offset: float) -> float:
+    var preferred: float = clampf(preferred_offset,
+        -TRAFFIC_SAFE_LANE,TRAFFIC_SAFE_LANE)
+    if not is_instance_valid(director) or not is_instance_valid(director.game):
+        return preferred
+    for index in range(director.obstacles.size()):
+        var gate_z: float = director.event_z(index)
+        var distance: float = own_z-gate_z
+        if distance < GATE_MIN_DISTANCE or distance > GATE_LOOKAHEAD:
+            continue
+        var speed: float = clampf(-own_speed_z,6.0,24.0)
+        var arrive_at: float = elapsed+distance/speed
+        # An inactive piston is below the deck and does not block passage.
+        # Evaluate its predicted rise, not whether it happens to be up now.
+        if director.biome == 2 and not director.piston_up(index,arrive_at):
+            return preferred
+        var next_position: Vector3 = director.position_at(index,arrive_at)
+        var track_center: float = director.game.track_center_at(gate_z)
+        var obstacle_offset: float = next_position.x-track_center
+        if absf(preferred-obstacle_offset) >= GATE_CLEARANCE:
+            return preferred
+        # Passing on the interior side of a timed gate leaves the outer
+        # shoulder free, avoids the physical edge shutters and respects rails.
+        var safe_offset: float = obstacle_offset-signf(obstacle_offset)*(
+            GATE_ESCAPE_CLEARANCE)
+        return clampf(safe_offset,-TRAFFIC_SAFE_LANE,TRAFFIC_SAFE_LANE)
+    return preferred
+
+
 static func pursue_bypass(z: float, entered: bool, entry_z: float,
     exit_z: float, entry_window: float) -> bool:
     if z >= entry_z+LOOKAHEAD_METERS or z <= exit_z-4.0:
