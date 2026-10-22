@@ -173,6 +173,12 @@ jobs:
           set -euo pipefail
           timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 650 --path . --script res://tests/ai_traffic.gd 2>&1 | tee ai-traffic.log
           grep -Fq "AI_TRAFFIC_PASS:" ai-traffic.log
+      - name: Real moving-gate Android HUD and predictive audio warnings
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 95s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 1150 --path . --script res://tests/timed_gate_hud.gd 2>&1 | tee timed-gate-hud.log
+          grep -Fq "TIMED_HUD_PASS:" timed-gate-hud.log
       - name: Predictive physical timed-hazard AI across nine course layouts
         shell: bash
         run: |
