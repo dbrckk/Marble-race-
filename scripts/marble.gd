@@ -246,7 +246,11 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
             var next_hazard: Dictionary = course_owner.upcoming_hazard(position.z)
             var hazard_near: bool = not next_hazard.is_empty() and (
                 float(next_hazard.get("distance",999.0)) < 3.5)
-            var traffic_safe: bool = not wants_shortcut() and (
+            # Keep start-grid collisions, both route portals, jumps and
+            # their AI approach entirely unchanged. Tactical side choices
+            # belong in the run home where a passing duel matters most.
+            var traffic_safe: bool = position.z < -108.0 and (
+                not wants_shortcut()) and (
                 absf(position.x-traffic_center) < 2.15) and (
                 absf(ai_lane_goal) < 1.9) and not hazard_near
             if traffic_safe:
