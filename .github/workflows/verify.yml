@@ -131,6 +131,12 @@ jobs:
           set -euo pipefail
           timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 650 --path . --script res://tests/race_progress_radar.gd 2>&1 | tee race-radar.log
           grep -Fq "RACE_RADAR_PASS:" race-radar.log
+      - name: Real physics slipstream, solo boost regeneration and online anti-forgery
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 95s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 950 --path . --script res://tests/slipstream.gd 2>&1 | tee slipstream.log
+          grep -Fq "SLIPSTREAM_PASS:" slipstream.log
       - name: Verified overtakes, final sprint and nonblocking Android speed cues
         shell: bash
         run: |
