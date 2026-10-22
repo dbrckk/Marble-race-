@@ -6,6 +6,7 @@ const TRACK_PATH = preload("res://scripts/track_path.gd")
 const SHORTCUT = preload("res://scripts/shortcut_route.gd")
 const DIRECTOR = preload("res://scripts/race_director.gd")
 const KICKERS = preload("res://scripts/arcade_bumpers.gd")
+const RARE_ITEMS = preload("res://scripts/race_items.gd")
 const START_Z := 12.0
 const FINISH_Z := -185.0
 const TRACK_COLORS := [
@@ -47,6 +48,12 @@ func kicker_marker(station: int, side: int) -> Vector2:
     var x: float = TRACK_PATH.center_at(z,course)+KICKERS.side_offset(
         station,side,course,variation)
     return project(z,x)
+
+func item_marker(index: int) -> Vector2:
+    # Exactly the same absolute world-space placement as the collectible
+    # mesh and its 3D pickup check in every one of the nine race layouts.
+    var position: Vector3 = RARE_ITEMS.placement_at(index,course,variation)
+    return project(position.z,position.x)
 
 func describe() -> String:
     var side: String = "RIGHT" if SHORTCUT.side_for(course) > 0 else "LEFT"
@@ -133,6 +140,15 @@ func _draw() -> void:
             var point: Vector2 = kicker_marker(station,side)
             draw_circle(point,4.2,Color(0.03,0.07,0.10,0.94))
             draw_circle(point,2.8,KICKERS.COLORS[course])
+    # Four rare, instant HUMAN-only powerups. The diamond shape is distinct
+    # from circular kinetic hazards and bumper posts even on small screens.
+    for index in range(RARE_ITEMS.ITEM_Z.size()):
+        var position: Vector2 = item_marker(index)
+        var color: Color = RARE_ITEMS.COLORS[(index+course)%RARE_ITEMS.COLORS.size()]
+        draw_circle(position,6.0,Color(0.015,0.025,0.04,0.97))
+        draw_colored_polygon(PackedVector2Array([
+            position+Vector2(0.0,-4.8),position+Vector2(4.8,0.0),
+            position+Vector2(0.0,4.8),position+Vector2(-4.8,0.0)]),color)
     draw_circle(main[0],6.0,Color("#9bebcf"))
     draw_circle(main[main.size()-1],6.0,Color("#ffde85"))
     # A separate real terrain profile makes the biome's physical hills
