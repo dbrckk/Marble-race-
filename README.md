@@ -4,11 +4,11 @@ Original **3D Android marble-racing game** inspired by the look and mechanics sh
 
 Independent implementation in **Godot 4.5.1**, focused on real mobile playability, physics, and stylized toy-table graphics. No proprietary material from the reference game is redistributed.
 
-## Current state: Android QA build (v1.39.0-rc, versionCode 53)
+## Current state: Android QA build (v1.40.0-rc, versionCode 54)
 
 **Playable scope (October 2026):** three visually differentiated 3D worlds with physical elevation changes, nine repeatable obstacle layouts, forty individually simulated glass marbles, real banked and elevated side-route shortcuts, six player perks, progression, ghost comparisons and optional online races. Autonomous opponents use deterministic physical steering, real route choices, anticipatory passing and forecasts of moving hazards; human steering stays entirely manual. The phone HUD previews real course geometry and estimates when Forge pistons will be open or blocked on arrival, with a nonrepeating audio danger cue.
 
-This is a **tested Android debug candidate**, not a Play Store production release. GitHub Actions covers a 120-second full-physics AI race on each world, route/contact regressions, touch UI, server integration and Android APK packaging. Physical Redmi/Android frame-time, heat and touch feel remain to be verified on the actual handset; production signing and a release AAB are separate tasks. See [safe Android updates](docs/ANDROID_UPDATES.md).
+This is an **Android debug candidate** with rare-item route previews and touch HUD guidance; its newest changes are accepted only after the full CI build passes. It is not a Play Store production release. GitHub Actions covers a 120-second full-physics AI race on each world, route/contact regressions, touch UI, server integration and Android APK packaging. Physical Redmi/Android frame-time, heat and touch feel remain to be verified on the actual handset; production signing and a release AAB are separate tasks. See [safe Android updates](docs/ANDROID_UPDATES.md).
 
 ### Original v0.6 design baseline (retained for development history)
 
