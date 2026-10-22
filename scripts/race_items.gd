@@ -36,10 +36,17 @@ static func placement_at(index: int, track: int, variation: int) -> Vector3:
 func nearest_available(at: Vector3, racer_id: int, max_distance: float = 28.0) -> Dictionary:
     # Only four candidate pickups. Called by HUD at 9Hz, never the 60Hz
     # racing simulation. A collected client pickup stays hidden until reset.
+    # A racer committed to the exterior bridge cannot reach main-road items
+    # before the physical merge. Suppress misleading impossible pickup cues.
+    var on_outer_bridge: bool = is_instance_valid(game.shortcut_route) and (
+        str(game.shortcut_route.shortcut_hint(at).get("mode","")) == "merge")
     for i in range(items.size()):
         var pickup: Node3D = items[i]
         if not is_instance_valid(pickup) or not pickup.visible or (
             used.has("%d:%d" % [i,racer_id])):
+            continue
+        if on_outer_bridge and pickup.position.z <= game.shortcut_route.ENTRY_Z and (
+            pickup.position.z >= game.shortcut_route.EXIT_Z):
             continue
         var distance: float = at.z-pickup.position.z
         if distance < 0.0 or distance > max_distance:
