@@ -144,7 +144,7 @@ func animate(elapsed: float) -> void:
         var point: Vector3 = position_at(i,clock)
         obstacles[i].position = point
         warning_rings[i].position = Vector3(point.x,
-            game.height_at(event_z(i))+0.10,EVENT_Z[i])
+            game.height_at(event_z(i))+0.10,event_z(i))
         var rising: bool = piston_up(i,clock)
         # Cheap, readable telegraph without realtime lights/shadows.
         warning_rings[i].scale = Vector3.ONE*(
