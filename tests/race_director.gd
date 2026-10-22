@@ -18,6 +18,19 @@ func _run() -> void:
         assert(director == game.board.get_node("ReactiveRaceDirector"),
             "Timed course events must be part of the live world")
         assert(director.biome == course)
+        # Nine real placements, never a cosmetic shift or an AI-only hazard.
+        for layout in range(3):
+            director.variation = layout
+            for gate in range(3):
+                var shifted: float = director.event_z(gate)
+                assert(absf(shifted-Director.EVENT_Z[gate]) <= 9.0,
+                    "Physical gate must remain in its safe course sector")
+                assert(shifted > -185.0 and shifted < -15.0)
+                if layout > 0:
+                    assert(not is_equal_approx(shifted,
+                        Director.EVENT_Z[gate]+Director.BIOME_OFFSETS[course][gate]),
+                        "Rematch must change real gate placement")
+        director.variation = 0
         assert(director.obstacles.size() == 3 and
             director.warning_rings.size() == 3 and director.signs.size() == 3,
             "Three distinctly timed obstacles and visible telegraphs per race")
@@ -31,14 +44,14 @@ func _run() -> void:
             assert(shape.size.x > 1.5 and shape.size.x < 2.2)
             assert(absf(body.position.x-game.track_center_at(body.position.z)) <= 5.2,
                 "Hazard must remain inside the driveable corridor")
-            assert(body.position.z == Director.EVENT_Z[i],
+            assert(body.position.z == director.event_z(i),
                 "Hazard location must follow deterministic section seam")
             assert(director.signs[i] is Label3D,
                 "Obstacles must give enough readable warning on Android")
-        var notice: Dictionary = director.event_ahead(Director.EVENT_Z[0]+18.0)
+        var notice: Dictionary = director.event_ahead(director.event_z(0)+18.0)
         assert(not notice.is_empty() and int(notice["distance"]) == 18,
             "Race director should warn in advance of a real hazard")
-        assert(game.upcoming_hazard(Director.EVENT_Z[0]+11.0).has("side"),
+        assert(game.upcoming_hazard(director.event_z(0)+11.0).has("side"),
             "The existing HUD lookahead must include dynamic gates")
         director.animate(1.2)
         if course < 2:
