@@ -127,7 +127,9 @@ static func timed_gate_safe_lane(director: Node3D, own_z: float,
         # An inactive piston is below the deck and does not block passage.
         # Evaluate its predicted rise, not whether it happens to be up now.
         if director.biome == 2 and not director.piston_up(index,arrive_at):
-            return preferred
+            # This gate is buried at arrival, but a second gate farther
+            # down the road may still be active. Do not stop the scan.
+            continue
         var next_position: Vector3 = director.position_at(index,arrive_at)
         var track_center: float = director.game.track_center_at(gate_z)
         var obstacle_offset: float = next_position.x-track_center
