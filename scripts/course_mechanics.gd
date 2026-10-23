@@ -17,6 +17,7 @@ const ZONE_WIDTH := 3.4
 const ZONE_LENGTH := 6.5
 const LAVA_CYCLE := 4.8
 const LAVA_ACTIVE := 1.35
+const VENT_WINDUP := 0.78
 var game: Node3D
 var track_id := 0
 var variation := 0
@@ -155,17 +156,44 @@ func reset_round() -> void:
 func vent_active(index: int, seconds: float) -> bool:
     return fposmod(seconds+float(index)*1.19,LAVA_CYCLE) < LAVA_ACTIVE
 
+func vent_charge(index: int, seconds: float) -> float:
+    # A visible half-second windup makes a real eruption avoidable by skill,
+    # without granting immunity or moving its actual physical hit window.
+    if index < 0 or index >= ZONE_Z.size() or seconds < 0.0:
+        return 0.0
+    var phase: float = fposmod(seconds+float(index)*1.19,LAVA_CYCLE)
+    if phase < LAVA_ACTIVE:
+        return 1.0
+    return smoothstep(LAVA_CYCLE-VENT_WINDUP,LAVA_CYCLE,phase)
+
 func _process(_delta: float) -> void:
     if track_id != 2 or not is_instance_valid(game):
         return
-    var t: float = game.race_time if game.race_state == "RACING" else -10.0
+    # The offline and dedicated-server effect uses race_clock at physics
+    # frequency. Rendering it from a different process clock could show
+    # a safe vent while the authoritative impulse is already active.
+    # Online clients remain visual-only and follow their local race timer.
+    var t: float = -10.0
+    if game.race_state == "RACING":
+        t = game.race_time if game.net.role == "client" else race_clock
     for i in range(active_marks.size()):
         var flame := active_marks[i]
         if not is_instance_valid(flame):
             continue
-        flame.visible = t >= 0.0 and vent_active(i,t)
-        if flame.visible:
+        var intensity: float = vent_charge(i,t)
+        var active: bool = t >= 0.0 and vent_active(i,t)
+        flame.visible = intensity > 0.02
+        if not flame.visible:
+            continue
+        if active:
+            flame.position.y = 0.56
             flame.scale = Vector3(1.0,0.75+0.25*sin(t*14.0+i),1.0)
+        else:
+            # A small growing ember clearly telegraphs the next launch.
+            # Same existing cone mesh/material, zero extra Android draws.
+            flame.position.y = 0.18+0.38*intensity
+            flame.scale = Vector3(0.45+0.48*intensity,
+                0.12+0.60*intensity,0.45+0.48*intensity)
 
 func tick(delta: float, racers: Array[RigidBody3D], net: Node) -> void:
     race_clock += delta
