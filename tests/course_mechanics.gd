@@ -1,5 +1,6 @@
 extends SceneTree
 ## Regression: each biome has a different gameplay loop and authoritative effects.
+const MECHANICS = preload("res://scripts/course_mechanics.gd")
 func _initialize() -> void:
     call_deferred("_run")
 
@@ -19,6 +20,30 @@ func _run() -> void:
         assert(is_instance_valid(mechanic))
         assert(mechanic.track_id == track)
         assert(mechanic.zones.size() == 5,"Each course needs five intentional zone decisions")
+        # Changes must be gameplay geometry, not a painted rematch theme.
+        # Every layout shares the same lane bounds and terrain but takes
+        # distinct risk/reward decisions at multiple physical stations.
+        var unique_patterns: Array[String] = []
+        for layout in range(3):
+            var pattern := ""
+            for index in range(MECHANICS.ZONE_Z.size()):
+                var offset: float = MECHANICS.lane_offset(index,track,layout)
+                var spot: Vector3 = MECHANICS.placement_at(index,track,layout)
+                pattern += "L" if offset < 0.0 else "R"
+                assert(is_equal_approx(absf(offset),3.3),
+                    "Every biome effect must remain in a reachable guarded lane")
+                assert(absf(spot.x-game.track_center_at(spot.z)) < 3.5)
+                assert(absf(spot.y-game.height_at(spot.z)-0.035) < 0.001,
+                    "Risk and reward have to follow real physical road height")
+                if layout == 0:
+                    assert(mechanic.zones[index].global_position.distance_to(
+                        spot) < 0.001,"Original layout must preserve real zone positions")
+            assert(not unique_patterns.has(pattern),
+                "Three rematches must have genuinely different lane sequences")
+            unique_patterns.append(pattern)
+        assert(MECHANICS.lane_offset(-1,track,0) == 0.0 and
+            MECHANICS.lane_offset(99,track,0) == 0.0,
+            "Invalid zone indexes must never generate playable lane coordinates")
         var distribution := PackedInt32Array([0,0,0])
         for section in range(1,15):
             distribution[game._obstacle_layout(section)] += 1
