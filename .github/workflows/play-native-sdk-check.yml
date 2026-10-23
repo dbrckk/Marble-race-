@@ -44,7 +44,7 @@ jobs:
           unzip -q templates/android_source.zip -d android/build
           # Godot's own installer writes this adjacent to android/build.
           # Its exporter compares the content to GODOT_VERSION_FULL_CONFIG.
-          printf '4.5.1.stable\\n' > android/.build_version
+          echo '4.5.1.stable' > android/.build_version
           touch android/build/.gdignore
           test -f android/build/config.gradle
           grep -Fxq '4.5.1.stable' android/.build_version
