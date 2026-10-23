@@ -98,6 +98,57 @@ static func traffic_lane(own: RigidBody3D, rivals: Array[RigidBody3D],
 
 
 
+# All three biomes have meaningful racing-line zones: earn genuine speed on
+# Woodland, preserve grip on Glacier and avoid a Forge eruption at ARRIVAL.
+# Five static stations are read from the actual built layout, not an invented
+# map or an extra per-racer physics query. Only authoritative AI uses this.
+const ZONE_LOOKAHEAD := 14.0
+const ZONE_MIN_DISTANCE := -0.8
+const ZONE_AVOID_MARGIN := 0.58
+
+static func biome_zone_safe_lane(mechanics: Node3D, own_z: float,
+    speed_z: float, preferred_offset: float, temperament_id: int) -> float:
+    var preferred: float = clampf(preferred_offset,
+        -TRAFFIC_SAFE_LANE,TRAFFIC_SAFE_LANE)
+    if not is_instance_valid(mechanics) or not is_instance_valid(mechanics.game):
+        return preferred
+    var course: int = mechanics.track_id
+    var speed: float = clampf(-speed_z,6.0,24.0)
+    for index in range(mechanics.zones.size()):
+        var node: Node3D = mechanics.zones[index]
+        if not is_instance_valid(node):
+            continue
+        var dz: float = own_z-node.position.z
+        if dz < ZONE_MIN_DISTANCE or dz > ZONE_LOOKAHEAD:
+            continue
+        var offset: float = mechanics.lane_offset(index,course,mechanics.variation)
+        var clearance: float = absf(preferred-offset)
+        if course == 0:
+            # Only the opportunists chase a nearby speed ribbon; other
+            # personalities keep an open passing line and all racers still
+            # need to physically touch the strip to earn its impulse.
+            if temperament_id == 2 and dz >= 2.0 and clearance < 2.8:
+                return clampf(offset-signf(offset)*0.63,
+                    -TRAFFIC_SAFE_LANE,TRAFFIC_SAFE_LANE)
+        elif course == 1:
+            # Careful drivers skirt the physical low-friction slab;
+            # risk-taking opponents can intentionally drift on the ice.
+            if temperament_id == 0 and clearance < (
+                mechanics.ZONE_WIDTH*0.5+ZONE_AVOID_MARGIN):
+                return clampf(offset-signf(offset)*(
+                    mechanics.ZONE_WIDTH*0.5+ZONE_AVOID_MARGIN),
+                    -TRAFFIC_SAFE_LANE,TRAFFIC_SAFE_LANE)
+        elif course == 2:
+            # A vent which is down NOW may fire at a racer's arrival.
+            # Reuse the SAME server physics race_clock and eruption phase.
+            var eta: float = maxf(0.0,dz)/speed
+            if mechanics.vent_active(index,mechanics.race_clock+eta) and (
+                clearance < 1.95):
+                return clampf(offset-signf(offset)*2.55,
+                    -TRAFFIC_SAFE_LANE,TRAFFIC_SAFE_LANE)
+    return preferred
+
+
 # The timed gate moves during a marble's approach. Evaluate where the *real
 # collidable body* will be at arrival, rather than dodging its current mesh.
 # Return the preferred offset unchanged when the line remains safe. This is
