@@ -149,6 +149,20 @@ jobs:
           set -euo pipefail
           timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 480 --path . --script res://tests/arcade_items.gd 2>&1 | tee arcade-items.log
           grep -Fq "ARCADE_ITEMS_AND_WORLDS_PASS:" arcade-items.log
+      - name: Play Store v1 AAB and absent-credential fail-closed preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n ci/play_release_preflight.sh
+          grep -Fq 'name="Android Play"' export_presets.cfg
+          grep -Fq 'version/name="1.0.0"' export_presets.cfg
+          grep -Fq 'gradle_build/export_format=1' export_presets.cfg
+          if env -u MARBLE_ADMOB_REWARDED_UNIT_ID -u MARBLE_PLAY_VERIFY_URL               -u MARBLE_ADMOB_APP_ID -u MARBLE_KEYSTORE_B64               bash ci/play_release_preflight.sh > "$RUNNER_TEMP/marble-no-secrets.txt" 2>&1; then
+            echo "::error::Unsigned, SDK-less Play Store build unexpectedly passed."
+            exit 1
+          fi
+          grep -Fq 'PLAY_PREFLIGHT_BLOCKED:' "$RUNNER_TEMP/marble-no-secrets.txt"
+          echo "PLAY_PREFLIGHT_GATE_PASS: SDK/consent/billing/signing missing => refuse publication"
       - name: Ten fair temporary freemium skins and secure Android store gating
         shell: bash
         run: |
