@@ -1253,10 +1253,12 @@ func update_hud() -> void:
         duel.closest_rival_gap < 12.0)
     if duel_label.visible:
         duel_label.text = "%s  %s  %.1fm" % [
-            "CHASE" if duel.closest_rival_ahead else "DEFEND",
+            "SIDE BY SIDE" if duel.side_by_side_active else (
+                "CHASE" if duel.closest_rival_ahead else "DEFEND"),
             duel.closest_rival_name.left(16),duel.closest_rival_gap]
         duel_label.add_theme_color_override("font_color",
-            Color("#f6d8a3") if duel.closest_rival_ahead else Color("#a5e6e2"))
+            Color("#fbdaa4") if duel.side_by_side_active else (
+                Color("#f6d8a3") if duel.closest_rival_ahead else Color("#a5e6e2")))
     if game.net.role == "client":
         network_quality_label.get_parent().visible = true
         var quality: String = game.net.quality_text()
