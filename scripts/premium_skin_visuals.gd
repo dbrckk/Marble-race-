@@ -23,6 +23,7 @@ static func apply(game: Node3D) -> void:
             if default_mesh != null:
                 default_mesh.radius = 0.053
                 default_mesh.height = 0.105
+                default_mesh.material = null
         return
     var definition: Dictionary = SKINS.SKINS[index]
     var base := Color(str(definition["base"]))
@@ -75,10 +76,15 @@ static func apply(game: Node3D) -> void:
             tip = Color(0.72,0.88,1.0,0.42)
         palette.colors = PackedColorArray([core,tip,
             Color(tip.r,tip.g,tip.b,0.0)])
-        var ramp := GradientTexture1D.new()
-        ramp.width = 32
-        ramp.gradient = palette
-        game.trail.color_ramp = ramp
+        # CPUParticles3D.color_ramp is a Gradient (not a GPU
+        # GradientTexture1D). Use its native CPU age-colour path.
+        game.trail.color_ramp = palette
+        if puff != null:
+            var particle_material := StandardMaterial3D.new()
+            particle_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+            particle_material.vertex_color_use_as_albedo = true
+            particle_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+            puff.material = particle_material
 
 static func trail_tint(game: Node3D, boosting: bool) -> Color:
     if not is_instance_valid(game.skins) or game.skins.active_id() < 0:
