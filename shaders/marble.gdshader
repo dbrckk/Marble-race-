@@ -10,6 +10,9 @@ uniform float pattern_seed = 0.0;
 uniform float stripe_scale = 1.0;
 uniform float boost_strength : hint_range(0.0,1.0) = 0.0;
 uniform float visual_quality : hint_range(0.0,2.0) = 1.0;
+// Exclusive cosmetics only: zero preserves every original marble unchanged.
+uniform float skin_radiance : hint_range(0.0,1.0) = 0.0;
+uniform float skin_signature = 0.0;
 varying vec3 marble_local;
 
 float hash_13(vec3 p) {
@@ -35,6 +38,15 @@ void fragment() {
     // Core seems to float just under a polished shell.
     vec3 glass = mix(base_color.rgb,accent_color.rgb,layer);
     glass = mix(glass,vein_color.rgb,milk*0.71);
+    // Ten premium waveforms, retaining mobile GL compatibility: no
+    // transparency sorting, secondary texture, geometry pass or extra mesh.
+    float signature = skin_signature*0.71;
+    float aurora = sin(theta*(3.0+mod(skin_signature,4.0))+
+        p.y*(10.0+mod(skin_signature,3.0)*4.0)+
+        TIME*(0.45+mod(skin_signature,5.0)*0.15)+signature);
+    float stardust = pow(max(0.0,aurora),5.0);
+    glass = mix(glass,vein_color.rgb,
+        stardust*skin_radiance*0.52);
     float inner_glow = 0.84+0.13*sin(swirl*0.37 + theta*2.0);
     glass *= inner_glow;
     float sparkle = step(0.994,hash_13(floor(p*(68.0+visual_quality*14.0)+pattern_seed*7.0)));
@@ -57,5 +69,5 @@ void fragment() {
     CLEARCOAT = 0.91;
     RIM = 0.23 + boost_strength*0.18;
     RIM_TINT = 0.26;
-    EMISSION = glass*(0.022+boost_strength*0.09);
+    EMISSION = glass*(0.022+boost_strength*0.09+skin_radiance*(0.21+stardust*0.34));
 }
