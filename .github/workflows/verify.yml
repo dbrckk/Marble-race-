@@ -149,6 +149,12 @@ jobs:
           set -euo pipefail
           timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 480 --path . --script res://tests/arcade_items.gd 2>&1 | tee arcade-items.log
           grep -Fq "ARCADE_ITEMS_AND_WORLDS_PASS:" arcade-items.log
+      - name: Ten fair temporary freemium skins and secure Android store gating
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 100s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 1000 --path . --script res://tests/freemium_skins.gd 2>&1 | tee freemium-skins.log
+          grep -Fq "FREEMIUM_SKINS_PASS:" freemium-skins.log
       - name: Nine-layout distance-fair human shockwave and Android ring FX
         shell: bash
         run: |
