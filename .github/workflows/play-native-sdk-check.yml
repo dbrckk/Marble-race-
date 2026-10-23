@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - 'ci/install_play_dependencies.sh'
+      - 'ci/build_play_release.sh'
+      - 'ci/verify_play_aab_dry_run.sh'
       - '.github/workflows/play-native-sdk-check.yml'
   workflow_dispatch:
 
