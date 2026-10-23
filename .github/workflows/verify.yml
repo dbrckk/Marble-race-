@@ -149,6 +149,17 @@ jobs:
           set -euo pipefail
           timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 480 --path . --script res://tests/arcade_items.gd 2>&1 | tee arcade-items.log
           grep -Fq "ARCADE_ITEMS_AND_WORLDS_PASS:" arcade-items.log
+      - name: Play AAB native SDK gate and Godot-correct billing settings
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n ci/install_play_dependencies.sh ci/play_release_preflight.sh ci/build_play_release.sh
+          python3 -m unittest discover -s ci -p 'test_configure_play_store.py' -v 2>&1 | tee play-store-config.log
+          grep -Fq 'Ran 3 tests' play-store-config.log
+          python3 -m py_compile ci/configure_play_store.py
+          grep -Fq 'workflow_dispatch:' .github/workflows/play-internal.yml
+          grep -Fq 'marble-race-play-internal-aab' .github/workflows/play-internal.yml
+          echo "PLAY_STORE_CONFIG_PASS: safe Godot strings, native SDK checks, manual AAB workflow"
       - name: Secure Google Play consumable verification, refunds and replay protection
         shell: bash
         run: |
