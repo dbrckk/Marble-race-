@@ -227,6 +227,12 @@ jobs:
           set -euo pipefail
           timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 540 --path . --script res://tests/course_mechanics.gd 2>&1 | tee course-mechanics.log
           grep -Fq "COURSE_MECHANICS_PASS:" course-mechanics.log
+      - name: Nine-layout physical AI biome risk and reward choices
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 100s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 1400 --path . --script res://tests/biome_ai_choices.gd 2>&1 | tee biome-ai-choices.log
+          grep -Fq "BIOME_AI_CHOICES_PASS:" biome-ai-choices.log
       - name: Online dead-man controls and three-course rematch regression
         shell: bash
         run: |
