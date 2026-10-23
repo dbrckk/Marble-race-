@@ -2,6 +2,57 @@
 
 **Statut : préparation technique, PAS publiée.** La pipeline actuelle produit un APK de test. Le préréglage `Android Play` est un **AAB signé destiné à Play Console**, mais son export reste volontairement bloqué jusqu'à la configuration des SDK et des comptes marchands.
 
+## Publication depuis un smartphone Android (GitHub Actions)
+
+La préparation de l'AAB est désormais automatisée dans le workflow
+[`Build signed Google Play internal AAB`](../.github/workflows/play-internal.yml).
+Cette action **ne publie pas le jeu** : elle crée un AAB signé pour la piste
+interne, uniquement si la configuration réelle est complète.
+
+**Configurer une seule fois :**
+
+1. Dans Google Play Console, créer le produit **ponctuel consommable**
+   `random_skin_6h`, tarif cible **2 €** en France, et les comptes de test.
+   Chaque résultat aléatoire doit afficher **10 % de probabilité**.
+2. Dans AdMob, créer l'application Android et l'emplacement **Rewarded**.
+   Préparer les déclarations de confidentialité et les choix UMP requis.
+3. Héberger `billing_service/` (Dockerfile inclus), avec un vrai compte
+   de service Google Play Developer API et un **volume SQLite persistant**
+   sur une instance unique. Configurer `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`,
+   `MARBLE_DB_PATH=/data/purchases.sqlite3` et `PORT`. Tester `/healthz`.
+   L'URL utilisée par le jeu doit se terminer par **`/verify`** sur HTTPS.
+   Les secrets doivent être placés directement dans l'hébergeur, jamais dans
+   le dépôt, un APK, un message ou une capture.
+4. Dans GitHub → dépôt → Settings → Secrets and variables → Actions,
+   renseigner les **variables** `MARBLE_ADMOB_APP_ID`,
+   `MARBLE_ADMOB_REWARDED_UNIT_ID`, `MARBLE_PLAY_VERIFY_URL` et
+   `MARBLE_ANDROID_SIGNING_SHA256` (empreinte publique de la vraie clé).
+   Renseigner les **secrets** `MARBLE_ANDROID_KEYSTORE_BASE64`,
+   `MARBLE_ANDROID_KEY_ALIAS` et `MARBLE_ANDROID_KEY_PASSWORD`.
+   Réutiliser la clé d'upload existante si le package a déjà été publié.
+5. Depuis un téléphone, ouvrir GitHub → Actions →
+   **Build signed Google Play internal AAB** → Run workflow. Si toutes
+   les dépendances et informations sont valides, récupérer
+   `marble-race-play-internal-aab` dans les Artifacts. Uploader le
+   `marble-race-play.aab` sur la piste de **test interne** de Play Console.
+6. Tester sur un vrai téléphone Android : consentement accepté/refusé,
+   vidéo complète/interrompue, achat de test, transaction en attente,
+   récupération après coupure réseau, remplacement du skin actif,
+   expiration après 4/6 h, réinstallation, remboursements, performances.
+   **Ne passer en production qu'après tous ces essais.**
+
+Le workflow de contrôle indépendant
+[`Verify pinned Play Store native SDK dependencies`](../.github/workflows/play-native-sdk-check.yml)
+vérifie les versions et SHA-256 des bibliothèques officielles, puis tente une
+compilation AAB de test avec une **clé jetable détruite après usage**.
+Cet essai ne produit aucun artefact installable en production.
+
+Le composant `billing_service/app.py` vérifie les vrais jetons Google,
+bloque leur réutilisation, refuse les transactions en attente ou annulées,
+et persiste l'état d'une consommation. Son stockage doit être sauvegardé.
+L'app garde une transaction non confirmée pour réessayer la vérification
+sans initier un deuxième achat.
+
 ## Contenu V1
 
 - Trois univers à relief et neuf variantes de courses, 40 billes, physique et commandes Android, championnat et multijoueur.
