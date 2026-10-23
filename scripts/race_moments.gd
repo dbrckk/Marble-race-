@@ -10,6 +10,14 @@ const PASS_VERTICAL_LIMIT := 2.5
 const NOTIFICATION_COOLDOWN := 1.10
 const FINAL_STRETCH_Z := -158.0
 const PHOTO_FINISH_WINDOW := 0.48
+# A genuine shoulder-to-shoulder contest is more than a one-frame overlap:
+# two moving spheres must maintain comparable speed and elevation.
+const SIDE_DUEL_Z_LIMIT := 1.40
+const SIDE_DUEL_X_MIN := 0.78
+const SIDE_DUEL_X_MAX := 2.35
+const SIDE_DUEL_Y_LIMIT := 1.25
+const SIDE_DUEL_MIN_SPEED := 8.0
+const SIDE_DUEL_HOLD := 0.34
 
 var game: Node3D
 var elapsed := 0.0
@@ -29,6 +37,11 @@ var previous_boost := false
 var closest_rival_gap := 999.0
 var closest_rival_name := ""
 var closest_rival_ahead := false
+var side_by_side_id := -1
+var side_by_side_seconds := 0.0
+var side_by_side_active := false
+var side_by_side_events := 0
+var duel_announced: Dictionary = {}
 
 func configure(owner: Node3D) -> void:
     game = owner
@@ -52,6 +65,21 @@ func reset_round() -> void:
     closest_rival_gap = 999.0
     closest_rival_name = ""
     closest_rival_ahead = false
+    side_by_side_id = -1
+    side_by_side_seconds = 0.0
+    side_by_side_active = false
+    side_by_side_events = 0
+    duel_announced.clear()
+
+static func genuine_side_duel(gap_z: float, lateral: float,
+    vertical: float, own_forward: float, rival_forward: float) -> bool:
+    return absf(gap_z) <= SIDE_DUEL_Z_LIMIT and (
+        absf(lateral) >= SIDE_DUEL_X_MIN and
+        absf(lateral) <= SIDE_DUEL_X_MAX and
+        absf(vertical) <= SIDE_DUEL_Y_LIMIT and
+        own_forward >= SIDE_DUEL_MIN_SPEED and
+        rival_forward >= SIDE_DUEL_MIN_SPEED and
+        absf(own_forward-rival_forward) <= 7.0)
 
 static func edge_intensity(speed: float, turbo: bool, quality: int) -> float:
     if quality <= 0:
@@ -111,10 +139,15 @@ func tick(delta: float) -> void:
         previous_rival_z.clear()
         closest_rival_gap = 999.0
         closest_rival_name = ""
+        side_by_side_id = -1
+        side_by_side_seconds = 0.0
+        side_by_side_active = false
         sampled_once = false
         return
     sampled_once = true
     var passes_now := 0
+    var closest_duel_id := -1
+    var closest_duel_gap := INF
     closest_rival_gap = 999.0
     closest_rival_name = ""
     closest_rival_ahead = false
@@ -125,6 +158,11 @@ func tick(delta: float) -> void:
         var id: int = marble.racer_id
         var opponent: Vector3 = marble.global_position
         var gap: float = opponent.z-p.z
+        if genuine_side_duel(gap,opponent.x-p.x,opponent.y-p.y,
+                -game.player.linear_velocity.z,-marble.linear_velocity.z):
+            if absf(gap) < closest_duel_gap:
+                closest_duel_gap = absf(gap)
+                closest_duel_id = id
         # Real longitudinal distance only; a distant side lane or an
         # upper bridge must never masquerade as a nearby duel.
         if absf(opponent.x-p.x) < PASS_LATERAL_LIMIT and (
@@ -150,6 +188,27 @@ func tick(delta: float) -> void:
                 passes_now += 1
         previous_gap[id] = gap
         previous_rival_z[id] = opponent.z
+    if closest_duel_id < 0:
+        side_by_side_id = -1
+        side_by_side_seconds = 0.0
+    elif closest_duel_id != side_by_side_id:
+        side_by_side_id = closest_duel_id
+        side_by_side_seconds = 0.0
+    else:
+        side_by_side_seconds += interval
+    side_by_side_active = side_by_side_id >= 0 and (
+        side_by_side_seconds >= SIDE_DUEL_HOLD)
+    # Celebration is a client-side sound and visual cue only. It cannot
+    # grant turbo, change race ranking, or issue trusted network messages.
+    # Real overtakes and the final sprint have higher notification priority.
+    if side_by_side_active and passes_now == 0 and not (
+        duel_announced.has(side_by_side_id)) and (
+        elapsed-message_at >= NOTIFICATION_COOLDOWN):
+        duel_announced[side_by_side_id] = true
+        side_by_side_events += 1
+        message_at = elapsed
+        game.ui.show_race_moment("SIDE BY SIDE!",0.85)
+        game.audio.race_moment("duel")
     if passes_now > 0 and elapsed-message_at >= NOTIFICATION_COOLDOWN:
         message_at = elapsed
         game.ui.show_race_moment(
