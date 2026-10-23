@@ -48,8 +48,8 @@ func _read_config() -> void:
 
 func _read_consumed() -> void:
     var cfg := ConfigFile.new()
-    if cfg.load(CONSUMED_PATH) == OK:
-        for key in cfg.get_section_keys("used") if cfg.has_section("used") else []:
+    if cfg.load(CONSUMED_PATH) == OK and cfg.has_section("used"):
+        for key in cfg.get_section_keys("used"):
             consumed[key] = true
 
 func _remember_token(token: String) -> void:
