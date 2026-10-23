@@ -80,7 +80,7 @@ class VerificationTest(unittest.TestCase):
         self.check_refused({**self.payload, "package_name": "fake.package"}, 422)
         self.check_refused({**self.payload, "product_id": "other"}, 422)
         self.check_refused({**self.payload, "purchase_token": "short"}, 400)
-        self.check_refused({**self.payload, "purchase_token": "long\\nsecretxyz"}, 400)
+        self.check_refused({**self.payload, "purchase_token": "long" + chr(10) + "secretxyz"}, 400)
         self.play.receipts[self.token]["consumptionState"] = 1
         self.check_refused(self.payload, 409)
         self.assertEqual(self.play.consumed, [])
