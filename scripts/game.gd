@@ -572,7 +572,7 @@ func _make_course() -> void:
     course_mechanics = CourseMechanics.new()
     course_mechanics.name = "CourseSpecificArcadeMechanics"
     board.add_child(course_mechanics)
-    course_mechanics.setup(self,selected_track)
+    course_mechanics.setup(self,selected_track,built_variation)
     # Springy edge posts keep their physical colliders on every quality tier.
     # Six post arts / twelve light rings render in just two GPU batches.
     arcade_bumpers = ArcadeBumpers.new()
