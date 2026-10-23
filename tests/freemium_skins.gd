@@ -41,6 +41,27 @@ func _run() -> void:
         "Without native SDK and verified server, both paid options must fail CLOSED")
     assert(not game.monetization.watch() and not game.monetization.buy(),
         "Pressing an unconfigured store button must never create a skin")
+    # Poing AdMob v5 loads RewardedAd objects without a can_show_ad()
+    # method. Availability comes from its successful SDK load callback.
+    var ad_stub := RefCounted.new()
+    game.monetization.rewarded_ad = ad_stub
+    game.monetization.ump_consent_ready = false
+    assert(not game.monetization.can_watch(),
+        "Without UMP privacy consent no rewarded video may start")
+    game.monetization.ump_consent_ready = true
+    game.monetization.rewarded_loading = true
+    assert(not game.monetization.can_watch(),
+        "A still-loading rewarded video cannot be displayed")
+    game.monetization.rewarded_loading = false
+    assert(game.monetization.can_watch(),
+        "Poing v5 AdMob's loaded reward is ready without nonexistent can_show_ad")
+    game.monetization.watching = true
+    assert(not game.monetization.can_watch(),
+        "A second video cannot start while the first is on screen")
+    game.monetization.watching = false
+    game.monetization.ump_consent_ready = false
+    game.monetization.rewarded_ad = null
+    ad_stub = null
     assert(manager.active_id() == -1)
     # If network drops between real payment and backend verification, keep
     # the private Play token across relaunch and prevent double purchases.
