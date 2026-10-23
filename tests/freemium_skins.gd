@@ -58,7 +58,7 @@ func _run() -> void:
     assert(game.player.glass_material.get_shader_parameter("skin_radiance") == 1.0)
     assert(int(game.player.glass_material.get_shader_parameter("skin_signature")) ==
         manager.active_id())
-    assert(game.trail.color_ramp is GradientTexture1D,
+    assert(game.trail.color_ramp is Gradient,
         "Premium skins must visibly change particle age, not simply recolour glass")
     for key in ["flame","frost","smoke","petals","comet"]:
         var skin := -1
@@ -69,7 +69,7 @@ func _run() -> void:
         assert(skin >= 0)
         manager.skin_id = skin
         game._refresh_premium_skin()
-        assert(game.trail.color_ramp is GradientTexture1D)
+        assert(game.trail.color_ramp is Gradient)
         var sphere: SphereMesh = game.trail.mesh as SphereMesh
         if key == "smoke":
             assert(sphere.radius > 0.11 and game.trail.gravity.y > 0.0,
