@@ -149,6 +149,70 @@ func _verify() -> void:
                         " bot_x=",bot.global_position.x)
                 assert(measured_escape < -0.025,
                     "Real physics must begin moving a threatened AI toward safety")
+            # Exercise the previously unreachable first gate and the
+            # post-shortcut third gate through actual RigidBody3D forces,
+            # including one genuine shortcut-specialist competitor.
+            for coverage_gate in [0,2]:
+                var must_be_specialist: bool = coverage_gate == 2
+                var coverage_bot: RigidBody3D = null
+                for rival in game.racers:
+                    if not rival.is_player and (
+                        rival.wants_shortcut() == must_be_specialist):
+                        coverage_bot = rival
+                        break
+                assert(is_instance_valid(coverage_bot),
+                    "Both ordinary and shortcut specialist AI must exist")
+                var coverage_z: float = director.event_z(coverage_gate)
+                var coverage_distance := 11.0
+                var coverage_time := 0.0
+                if biome == 2:
+                    var found_active := false
+                    for sample in range(130):
+                        var candidate_time: float = float(sample)*0.08
+                        if director.piston_up(coverage_gate,
+                            candidate_time+coverage_distance/12.0):
+                            coverage_time = candidate_time
+                            found_active = true
+                            break
+                    assert(found_active,
+                        "Forge coverage needs a genuinely extended piston")
+                var coverage_obstacle: Vector3 = director.position_at(
+                    coverage_gate,coverage_time+coverage_distance/12.0)
+                var coverage_offset: float = coverage_obstacle.x-(
+                    game.track_center_at(coverage_z))
+                var coverage_preference: float = clampf(coverage_offset,
+                    -Strategy.TRAFFIC_SAFE_LANE,Strategy.TRAFFIC_SAFE_LANE)
+                var coverage_escape: float = Strategy.timed_gate_safe_lane(
+                    director,coverage_z+coverage_distance,-12.0,
+                    coverage_time,coverage_preference)
+                assert(absf(coverage_escape-coverage_offset) >=
+                    Strategy.GATE_CLEARANCE-0.01,
+                    "First and post-shortcut hazards require actual clearance")
+                var coverage_approach: float = coverage_z+coverage_distance
+                coverage_bot.freeze = false
+                coverage_bot.sleeping = false
+                coverage_bot.global_position = Vector3(
+                    game.track_center_at(coverage_approach)+coverage_preference,
+                    game.height_at(coverage_approach)+0.82,coverage_approach)
+                coverage_bot.linear_velocity = Vector3(0,0,-12)
+                coverage_bot.angular_velocity = Vector3.ZERO
+                coverage_bot.ai_lane_timer = 2.0
+                coverage_bot.ai_lane_goal = coverage_preference
+                coverage_bot.ai_traffic_timer = 0.0
+                var coverage_before: Vector3 = coverage_bot.global_position
+                var player_before: Vector3 = game.player.global_position
+                coverage_bot.drive(1.0/60.0,coverage_time,0.0,false)
+                assert(coverage_bot.global_position.is_equal_approx(
+                    coverage_before),"Gate anticipation must never teleport AI")
+                assert(game.player.global_position.is_equal_approx(
+                    player_before),"Gate prediction cannot steer a human racer")
+                await physics_frame
+                await physics_frame
+                await physics_frame
+                var inward_velocity: float = (
+                    coverage_bot.linear_velocity.x*signf(coverage_offset))
+                assert(inward_velocity < -0.025,
+                    "A real AI must physically turn inward at every gate")
             game.return_to_menu()
     assert(active_cases >= 6 and retracted_cases >= 0)
     game.queue_free()
