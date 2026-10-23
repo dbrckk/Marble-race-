@@ -42,6 +42,30 @@ func _run() -> void:
     assert(not game.monetization.watch() and not game.monetization.buy(),
         "Pressing an unconfigured store button must never create a skin")
     assert(manager.active_id() == -1)
+    # If network drops between real payment and backend verification, keep
+    # the private Play token across relaunch and prevent double purchases.
+    var bridge = game.monetization
+    var pending_qa := "qa_purchase_token_for_recovery_184723"
+    assert(bridge._hold_pending(pending_qa))
+    assert(bridge.pending_token == pending_qa)
+    assert(not bridge._hold_pending("different_paid_purchase_token_24178"),
+        "Never overwrite the first unverified purchase with a second token")
+    bridge.pending_token = ""
+    bridge._read_pending()
+    assert(bridge.pending_token == pending_qa,
+        "App relaunch must recover an unverified genuine Play receipt")
+    bridge.receipt_token = pending_qa
+    bridge._verified_purchase_response(1,503,PackedStringArray(),
+        "{}".to_utf8_buffer())
+    assert(bridge.pending_token == pending_qa and bridge.retry_remaining > 0.0,
+        "A server outage cannot silently discard a paid purchase")
+    assert(not bridge.can_buy(),
+        "An unverified purchase must block accidental repeat billing")
+    assert(manager.active_id() == -1,
+        "Network error cannot mint a cosmetic reward")
+    bridge._clear_pending()
+    assert(bridge.pending_token == "")
+    assert(not FileAccess.file_exists(bridge.PENDING_PATH))
     game.ui.show_skin_shop()
     assert(game.ui.skin_shop_layer.visible)
     assert(game.ui.skin_shop_layer.find_children(
