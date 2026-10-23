@@ -50,6 +50,54 @@ static func _lane_occupancy(target_x: float, own: RigidBody3D,
                     (1.5-time_to_contact)/1.5,0.0,1.0)*4.5
     return penalty
 
+# A rival cutting laterally into the same narrow racing corridor deserves
+# a measured evasive line. Read existing velocity snapshots only during the
+# already throttled AI traffic scan; never change a player's input, velocity,
+# body position, or checkpoint/finish state.
+const DUEL_Z_WINDOW := 2.4
+const DUEL_Y_WINDOW := 1.25
+const DUEL_FUTURE_SECONDS := 0.38
+const DUEL_SEPARATION := 1.02
+const DUEL_YIELD := 1.35
+
+static func side_duel_safe_lane(own: RigidBody3D,
+    rivals: Array[RigidBody3D], preferred_offset: float,
+    center_x: float) -> float:
+    var preferred: float = clampf(preferred_offset,
+        -TRAFFIC_SAFE_LANE,TRAFFIC_SAFE_LANE)
+    if not is_instance_valid(own):
+        return preferred
+    for other in rivals:
+        if not is_instance_valid(other) or other == own or (
+            other.finished or other.eliminated or other.freeze):
+            continue
+        var dz: float = absf(other.position.z-own.position.z)
+        if dz > DUEL_Z_WINDOW or absf(other.position.y-own.position.y) > DUEL_Y_WINDOW:
+            continue
+        var dx: float = other.position.x-own.position.x
+        if absf(dx) < 0.72 or absf(dx) > 2.75:
+            continue
+        var relative_x_speed: float = other.linear_velocity.x-own.linear_velocity.x
+        # If lateral separation will not close, a harmless parallel duel
+        # cannot make the bot suddenly weave or obstruct the human.
+        if relative_x_speed*signf(dx) > -0.45:
+            continue
+        var projected_dx: float = dx+clampf(relative_x_speed,-6.0,6.0)*(
+            DUEL_FUTURE_SECONDS)
+        if absf(projected_dx) >= DUEL_SEPARATION or (
+            signf(projected_dx) != signf(dx)):
+            continue
+        var alternative: float = clampf(preferred-signf(dx)*DUEL_YIELD,
+            -TRAFFIC_SAFE_LANE,TRAFFIC_SAFE_LANE)
+        # Only yield if the rival is closer to the proposed lane than the
+        # old lane, and the change actually opens useful physical space.
+        var current_gap: float = absf(other.position.x-(center_x+preferred))
+        var improved_gap: float = absf(other.position.x-(center_x+alternative))
+        if improved_gap >= current_gap+0.45 and (
+            absf(alternative-preferred) >= 0.55):
+            return alternative
+    return preferred
+
 static func traffic_lane(own: RigidBody3D, rivals: Array[RigidBody3D],
     center_x: float, preferred_offset: float, temperament_id: int) -> float:
     # Called at most 3x/s per AI, *only* by the authoritative simulator.
@@ -78,7 +126,7 @@ static func traffic_lane(own: RigidBody3D, rivals: Array[RigidBody3D],
             leader = other
             nearest_gap = ahead
     if leader == null:
-        return preferred
+        return side_duel_safe_lane(own,rivals,preferred,center_x)
     # Keep both choices inside the physical rail margins: close-to-wall
     # candidates are penalized even if their projected path looks empty.
     var lead_offset: float = leader.position.x-center_x
