@@ -26,9 +26,21 @@ GODOT_BIN="${GODOT_BIN:-./Godot_v4.5.1-stable_linux.x86_64}"
 "$GODOT_BIN" --headless --path . --export-release "Android Play" \
   build/marble-race-play.aab
 test -s build/marble-race-play.aab
-"$JAVA_HOME/bin/jarsigner" -verify -strict build/marble-race-play.aab
-"$JAVA_HOME/bin/keytool" -printcert -jarfile build/marble-race-play.aab |
-  grep -Fq "SHA256: "
+# Android App Bundles are ZIP/JAR-signed with an *upload certificate*,
+# normally self-signed, not with a public TLS CA chain. jarsigner -strict
+# incorrectly rejects legitimate self-signed Play upload keys. Verify all
+# signed entries without the public-trust warning-as-error policy, then
+# independently PIN the actual archive certificate to the original keystore.
+"$JAVA_HOME/bin/jarsigner" -verify build/marble-race-play.aab \
+  > "${RUNNER_TEMP:-/tmp}/marble-jarsigner-verification.log"
+aab_cert="$("$JAVA_HOME/bin/keytool" -printcert -jarfile \
+  build/marble-race-play.aab | sed -n \
+  's/^[[:space:]]*SHA256:[[:space:]]*//p' | head -n1 | \
+  tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
+[[ "$aab_cert" == "$expected" ]] || {
+  echo 'AAB signer certificate does not match the pinned upload key'
+  exit 1
+}
 cat > build/play-release-info.txt <<EOF
 MARBLE RACE — Google Play internal-track candidate (not published automatically)
 Package: com.dbrckk.marble_race
