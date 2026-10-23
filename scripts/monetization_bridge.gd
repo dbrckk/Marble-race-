@@ -28,11 +28,18 @@ var receipt_token := ""
 var info := "Premium cosmetics are not yet connected to Play services."
 var consumed: Dictionary = {}
 const CONSUMED_PATH := "user://marble_consumed_purchases.cfg"
+# A Play purchase can be consumed by Google even if the HTTPS response is
+# lost. Keep the private pending token to recheck without charging again.
+const PENDING_PATH := "user://marble_pending_play_purchase.cfg"
+const RETRY_SECONDS := 25.0
+var pending_token := ""
+var retry_remaining := 0.0
 
 func configure(lease_manager: Node) -> void:
     skins = lease_manager
     _read_config()
     _read_consumed()
+    _read_pending()
     http = HTTPRequest.new()
     add_child(http)
     http.request_completed.connect(_verified_purchase_response)
@@ -56,6 +63,44 @@ func _read_consumed() -> void:
         for key in cfg.get_section_keys("used"):
             consumed[key] = true
 
+func _read_pending() -> void:
+    var cfg := ConfigFile.new()
+    if cfg.load(PENDING_PATH) != OK:
+        return
+    var token := str(cfg.get_value("purchase","token",""))
+    if token.length() >= 12 and token.length() <= 2048:
+        pending_token = token
+        retry_remaining = 0.0
+
+func _hold_pending(token: String) -> bool:
+    if token.length() < 12 or token.length() > 2048 or (
+        pending_token != "" and pending_token != token):
+        return false
+    var cfg := ConfigFile.new()
+    cfg.set_value("purchase","token",token)
+    if cfg.save(PENDING_PATH) != OK:
+        info = "Cannot safely save the pending purchase; payment not credited."
+        changed.emit()
+        return false
+    pending_token = token
+    return true
+
+func _clear_pending() -> void:
+    pending_token = ""
+    retry_remaining = 0.0
+    DirAccess.remove_absolute(ProjectSettings.globalize_path(PENDING_PATH))
+
+func _process(delta: float) -> void:
+    # This only polls when a REAL Google Play purchase is waiting for a
+    # trusted backend reply. The ordinary ad-free game does no extra work.
+    if pending_token == "" or verifying or billing == null or (
+        not billing.is_ready()) or verify_url == "":
+        return
+    retry_remaining = maxf(0.0,retry_remaining-maxf(0.0,delta))
+    if retry_remaining <= 0.0:
+        retry_remaining = RETRY_SECONDS
+        _request_validation(pending_token)
+
 func _remember_token(token: String) -> void:
     var digest := token.sha256_text()
     consumed[digest] = true
@@ -70,7 +115,8 @@ func can_watch() -> bool:
 
 func can_buy() -> bool:
     return billing != null and billing.is_ready() and (
-        billed_product_available and not verifying and verify_url != "")
+        billed_product_available and not verifying and verify_url != "" and
+        pending_token == "")
 
 func _init_ads() -> void:
     if rewarded_unit == "" or not ResourceLoader.exists(
@@ -209,6 +255,8 @@ func _init_billing() -> void:
 func _billing_connected() -> void:
     billing.query_product_details(PackedStringArray([SKINS.PRODUCT_ID]),0)
     billing.query_purchases(0)
+    if pending_token != "" and verify_url != "":
+        _request_validation(pending_token)
 
 func _billing_details(response: Dictionary) -> void:
     billed_product_available = false
@@ -240,6 +288,10 @@ func _billing_purchases(result: Dictionary) -> void:
         var token := str(purchase.get("purchase_token",""))
         if token.length() < 12 or consumed.has(token.sha256_text()):
             continue
+        if not _hold_pending(token):
+            # A different purchase is still being recovered. Never drop
+            # the original token or bill twice merely to clear the queue.
+            continue
         _request_validation(token)
         break
 
@@ -259,7 +311,8 @@ func _request_validation(token: String) -> void:
     if err != OK:
         verifying = false
         receipt_token = ""
-        info = "Purchase verification unavailable. No reward was granted."
+        retry_remaining = RETRY_SECONDS
+        info = "Purchase saved. Verification will retry without another payment."
         changed.emit()
 
 func _verified_purchase_response(_result: int, status: int,
@@ -273,9 +326,14 @@ func _verified_purchase_response(_result: int, status: int,
         str(parsed.get("product_id","")) == SKINS.PRODUCT_ID) and (
         str(parsed.get("token_sha256","")) == token.sha256_text()) and (
         token != "" and not consumed.has(token.sha256_text())):
-        _remember_token(token)
-        skins.grant_from_verified_purchase()
-        info = "6-hour skin activated. Previous skin replaced."
+        if skins.grant_from_verified_purchase():
+            _remember_token(token)
+            _clear_pending()
+            info = "6-hour skin activated. Previous skin replaced."
+        else:
+            retry_remaining = RETRY_SECONDS
+            info = "Receipt confirmed, but the skin clock needs correction."
     else:
-        info = "Google Play payment not verified. No skin awarded."
+        retry_remaining = RETRY_SECONDS
+        info = "Purchase not yet verified; saved receipt will be retried."
     changed.emit()
