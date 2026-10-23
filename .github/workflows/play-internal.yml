@@ -1,0 +1,81 @@
+name: Build signed Google Play internal AAB
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: marble-play-internal-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  play-aab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: play-internal
+    steps:
+      - uses: actions/checkout@v4
+      - name: Java 17 for Godot Gradle and Play Billing
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Download pinned Godot 4.5.1 editor and export templates
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=4.5.1-stable
+          base="https://github.com/godotengine/godot/releases/download/$version"
+          curl -fL --retry 3 -o godot.zip "$base/Godot_v${version}_linux.x86_64.zip"
+          unzip -q godot.zip
+          chmod +x Godot_v${version}_linux.x86_64
+          curl -fL --retry 3 -o godot.tpz "$base/Godot_v${version}_export_templates.tpz"
+          mkdir -p "$HOME/.local/share/godot/export_templates/4.5.1.stable" android/build
+          unzip -q godot.tpz 'templates/android_debug.apk' 'templates/android_release.apk' 'templates/android_source.zip'
+          mv templates/android_debug.apk templates/android_release.apk "$HOME/.local/share/godot/export_templates/4.5.1.stable/"
+          unzip -q templates/android_source.zip -d android/build
+          test -f android/build/config.gradle
+          test -f android/build/gradlew
+          chmod +x android/build/gradlew
+      - name: Install required Android API36 and build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${ANDROID_HOME:?Android SDK required}"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-36' 'build-tools;36.0.0' 'platform-tools'
+          mkdir -p "$HOME/.config/godot" build
+          cat > "$HOME/.config/godot/editor_settings-4.5.tres" <<EOF
+          [gd_resource type="EditorSettings" format=3]
+
+          [resource]
+          export/android/android_sdk_path = "$ANDROID_HOME"
+          export/android/java_sdk_path = "$JAVA_HOME"
+          EOF
+      - name: Download exact, SHA-256-pinned AdMob and Google Play Billing plugins
+        shell: bash
+        run: bash ci/install_play_dependencies.sh
+      - name: Create signed internal-track AAB only with production SDKs and secrets
+        shell: bash
+        env:
+          MARBLE_ADMOB_APP_ID: ${{ vars.MARBLE_ADMOB_APP_ID }}
+          MARBLE_ADMOB_REWARDED_UNIT_ID: ${{ vars.MARBLE_ADMOB_REWARDED_UNIT_ID }}
+          MARBLE_PLAY_VERIFY_URL: ${{ vars.MARBLE_PLAY_VERIFY_URL }}
+          MARBLE_KEYSTORE_B64: ${{ secrets.MARBLE_ANDROID_KEYSTORE_BASE64 }}
+          MARBLE_KEY_ALIAS: ${{ secrets.MARBLE_ANDROID_KEY_ALIAS }}
+          MARBLE_KEY_PASSWORD: ${{ secrets.MARBLE_ANDROID_KEY_PASSWORD }}
+          MARBLE_CERT_SHA256: ${{ vars.MARBLE_ANDROID_SIGNING_SHA256 }}
+        run: |
+          set -euo pipefail
+          GODOT_BIN="$PWD/Godot_v4.5.1-stable_linux.x86_64" bash ci/build_play_release.sh
+      - name: Upload Play internal-track candidate (not auto-published)
+        uses: actions/upload-artifact@v4
+        with:
+          name: marble-race-play-internal-aab
+          path: |
+            build/marble-race-play.aab
+            build/play-release-info.txt
+          retention-days: 14
+          if-no-files-found: error
