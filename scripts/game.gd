@@ -971,13 +971,15 @@ func _add_player_trail(m: RigidBody3D) -> void:
 func _camera_bump(body: Node) -> void:
     if not is_instance_valid(player) or race_state != "RACING":
         return
-    if feedback_cooldown > 0.0:
-        return
     # Rolling past a plank at 18 m/s is not an 18 m/s crash.
-    # Use the same contact classification as the spatial Foley.
+    # Reuse the actual local contact event for the matching spring post
+    # even when general camera shake is cooling down. The post owns its
+    # own short rearm window and never changes the authoritative physics.
     var intensity: float = RaceFeedback.impact_intensity(
         player.linear_velocity,body)
-    if intensity < 0.17:
+    if is_instance_valid(arcade_bumpers):
+        arcade_bumpers.notify_contact(body,intensity)
+    if intensity < 0.17 or feedback_cooldown > 0.0:
         return
     camera_shake = minf(0.14,camera_shake+RaceFeedback.shake_strength(intensity))
     obstacle_notice = 0.46 if intensity > 0.45 else 0.22
@@ -1024,6 +1026,8 @@ func start_race(perk_name: String) -> void:
         race_items.reset_round()
     if is_instance_valid(course_mechanics):
         course_mechanics.reset_round()
+    if is_instance_valid(arcade_bumpers):
+        arcade_bumpers.reset_pulses()
     if is_instance_valid(race_director):
         race_director.reset_round()
     if is_instance_valid(shortcut_route):
@@ -1061,6 +1065,8 @@ func return_to_menu() -> void:
 
 func _process(delta: float) -> void:
     _tick_auto_quality(delta)
+    if race_state == "RACING" and is_instance_valid(arcade_bumpers):
+        arcade_bumpers.advance_visuals(delta)
     if show_fps and race_state == "RACING" and performance_budget != null:
         performance_budget.tick(delta)
     world_time += delta
