@@ -20,7 +20,8 @@ var rewarded_consumed := false
 var ads_initialized := false
 var billing: Node
 var billed_product_available := false
-var displayed_price := "2,00 €"
+var purchase_option_id := ""
+var displayed_price := "—"
 var verify_url := ""
 var verifying := false
 var http: HTTPRequest
@@ -260,20 +261,42 @@ func _billing_connected() -> void:
 
 func _billing_details(response: Dictionary) -> void:
     billed_product_available = false
-    if int(response.get("response_code",-1)) != 0:
-        return
-    for product in response.get("product_details",[]):
-        if str(product.get("product_id",product.get("productId",""))) == SKINS.PRODUCT_ID:
-            billed_product_available = true
-            # Price is ultimately taken from the Google Play purchase sheet.
-            var offer: Dictionary = product.get("one_time_purchase_offer_details",{})
-            displayed_price = str(offer.get("formatted_price","2,00 €"))
+    purchase_option_id = ""
+    displayed_price = "—"
+    # Google Play Billing v3.3.0 exposes the offers as an ARRAY. Never
+    # advertise a hardcoded 2-euro amount or enable a payment if Google
+    # has not returned a localized purchasable product offer.
+    if int(response.get("response_code",-1)) == 0:
+        for product in response.get("product_details",[]):
+            if not product is Dictionary or str(
+                product.get("product_id","")) != SKINS.PRODUCT_ID:
+                continue
+            var offers: Variant = product.get(
+                "one_time_purchase_offer_details_list",[])
+            if not offers is Array:
+                continue
+            for offer in offers:
+                if not offer is Dictionary:
+                    continue
+                var localized_price: String = str(
+                    offer.get("formatted_price","")).strip_edges()
+                if localized_price == "" or str(
+                    offer.get("price_currency_code","")) == "":
+                    continue
+                purchase_option_id = str(offer.get("purchase_option_id",""))
+                displayed_price = localized_price
+                billed_product_available = true
+                break
+            if billed_product_available:
+                info = "Google Play offer ready; charged price appears in the Google sheet."
+                break
     changed.emit()
 
 func buy() -> bool:
     if not can_buy():
         return false
-    var result: Dictionary = billing.purchase(SKINS.PRODUCT_ID)
+    var result: Dictionary = billing.purchase(SKINS.PRODUCT_ID,
+        purchase_option_id)
     return int(result.get("response_code",-1)) == 0
 
 func _billing_purchases(result: Dictionary) -> void:
