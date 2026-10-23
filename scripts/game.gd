@@ -299,6 +299,8 @@ func _apply_graphics_quality() -> void:
         obstacle_finish.visible = graphics_quality > 0
     if is_instance_valid(arcade_bumpers):
         arcade_bumpers.set_quality(graphics_quality)
+    if is_instance_valid(race_items):
+        race_items.set_quality(graphics_quality)
     if is_instance_valid(track_surface):
         track_surface.set_detail_quality(graphics_quality)
     if is_instance_valid(board):
