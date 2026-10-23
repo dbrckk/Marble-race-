@@ -56,9 +56,11 @@ func _verify() -> void:
                         clear_found = true
                 assert(blocked_found and clear_found,
                     "Forge tests must prove opposite current and arrival states")
+            var collision_x: float = director.position_at(
+                gate_index,blocked_clock+eta).x
+            # Deliberately enter the moving body's future footprint.
             game.player.global_position = Vector3(
-                game.track_center_at(approach_z),
-                game.height_at(approach_z)+0.8,approach_z)
+                collision_x,game.height_at(approach_z)+0.8,approach_z)
             game.player.linear_velocity = Vector3(0,0,-speed)
             director.animate(blocked_clock)
             game.race_time = blocked_clock
@@ -82,6 +84,37 @@ func _verify() -> void:
             game.ui.update_hud()
             assert(game.audio.warned_timed_gates.size() == 1,
                 "The warning cannot spam ten overlapping sounds per second")
+            assert(label.text.contains("DODGE!"),
+                "A real future lane intersection should clearly demand evasive action")
+            assert(director.threatens_line(
+                gate_index,blocked_clock,eta,collision_x,0.0),
+                "A stationary lateral line through the collision envelope is unsafe")
+            # The same moving gate is NOT a risk on the other side of
+            # the course: neither warning sound nor red HUD cue is justified.
+            var clear_x: float = game.track_center_at(gate_z)-(
+                director.side_at(gate_index)*2.5)
+            assert(not director.threatens_line(
+                gate_index,blocked_clock,eta,clear_x,0.0),
+                "Opposite-side lanes must remain safe and playable")
+            game.audio.warned_timed_gates.clear()
+            game.player.global_position.x = clear_x
+            game.ui.label_timer = 0.25
+            game.ui.update_hud()
+            assert(label.text.contains("LINE CLEAR"),
+                "The phone HUD must distinguish a safe racing line")
+            assert(game.audio.warned_timed_gates.is_empty(),
+                "Do not sound a dangerous-gate siren for a safe line")
+            # Fast lateral drift into the predicted body is dangerous even
+            # if the marble does not currently overlap the collider's X.
+            assert(director.threatens_line(gate_index,blocked_clock,eta,
+                collision_x-1.8,4.0),
+                "Bounded lateral trajectory prediction must include ongoing drift")
+            game.player.global_position.x = collision_x
+            game.ui.label_timer = 0.25
+            game.ui.update_hud()
+            assert(label.text.contains("DODGE!") and
+                game.audio.warned_timed_gates.has(gate_index),
+                "Returning to the collision lane must restore the real hazard warning")
             if biome == 2:
                 # An upward piston *right now* is harmless if it will have
                 # retracted when this marble arrives. Clear the warning log
@@ -93,8 +126,12 @@ func _verify() -> void:
                 assert(not director.piston_up(gate_index,clear_clock+eta))
                 game.ui.label_timer = 0.25
                 game.ui.update_hud()
-                assert(label.text.contains("EST. OPEN"),
-                    "The HUD must show the FUTURE safe window, not today's piston state")
+                assert(label.text.contains("EST. OPEN") and
+                    label.text.contains("LINE CLEAR"),
+                    "A retracted future piston must show an explicitly safe window")
+                assert(not director.threatens_line(
+                    gate_index,clear_clock,eta,collision_x,0.0),
+                    "Buried pistons must not be reported as dangerous")
                 assert(game.audio.warned_timed_gates.is_empty(),
                     "No audio danger alert is allowed for a predicted clear piston")
                 director.animate(blocked_clock)
@@ -117,5 +154,5 @@ func _verify() -> void:
         await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_timed_hud_career.cfg"))
-    print("TIMED_HUD_PASS: 9 layouts, truthful Forge arrival windows, touch-safe warning and deduplicated audio")
+    print("TIMED_HUD_PASS: 9 layouts, actual lane intersections, quiet safe lines, future Forge timing and bounded drift")
     quit(0)
