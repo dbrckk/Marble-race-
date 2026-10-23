@@ -20,6 +20,8 @@ const TrackSurface = preload("res://scripts/track_surface.gd")
 const TrackPath = preload("res://scripts/track_path.gd")
 const RaceFeedback = preload("res://scripts/race_feedback.gd")
 const RaceMoments = preload("res://scripts/race_moments.gd")
+const TemporarySkins = preload("res://scripts/temporary_skins.gd")
+const PremiumSkinVisuals = preload("res://scripts/premium_skin_visuals.gd")
 const Slipstream = preload("res://scripts/slipstream.gd")
 const PerformanceBudget = preload("res://scripts/performance_budget.gd")
 const RaceDirector = preload("res://scripts/race_director.gd")
@@ -92,6 +94,7 @@ var last_checkpoint := -1
 var checkpoint_splits: Array[float] = []
 var course_flash := 0.0
 var trail: CPUParticles3D
+var skins: Node
 var starting_camera_target := Vector3(0, 0, 0)
 var player_marker: Label3D
 var contact_shadows: Node3D
@@ -130,6 +133,10 @@ func _ready() -> void:
     rng.seed = 424242
     career = Career.new()
     career.load_save()
+    skins = TemporarySkins.new()
+    skins.name = "TemporaryCosmeticPass"
+    add_child(skins)
+    skins.changed.connect(_refresh_premium_skin)
     track_physics_material = PhysicsMaterial.new()
     track_physics_material.friction = 0.85
     track_physics_material.bounce = 0.09
@@ -916,6 +923,7 @@ func _spawn_racers() -> void:
             if not net.is_active() and is_instance_valid(player_marker):
                 player_marker.modulate = Racer.PLAYER_STYLE_BASE[career.selected_style].lightened(0.14)
             _add_player_trail(m)
+            PremiumSkinVisuals.apply(self)
 
     if selected_perk == "Head Start" and is_instance_valid(player):
         player.position.z -= 3.2
@@ -969,6 +977,12 @@ func _add_player_trail(m: RigidBody3D) -> void:
     trail.mesh = dust
     trail.emitting = false
     m.add_child(trail)
+
+func _refresh_premium_skin() -> void:
+    if is_instance_valid(player):
+        PremiumSkinVisuals.apply(self)
+    if is_instance_valid(ui):
+        ui.refresh_skin_shop()
 
 func _camera_bump(body: Node) -> void:
     if not is_instance_valid(player) or race_state != "RACING":
@@ -1067,6 +1081,9 @@ func return_to_menu() -> void:
 
 func _process(delta: float) -> void:
     _tick_auto_quality(delta)
+    # Expiry works in menus, races and following Android resume.
+    if is_instance_valid(skins):
+        skins.remaining()
     if race_state == "RACING" and is_instance_valid(arcade_bumpers):
         arcade_bumpers.advance_visuals(delta)
     if show_fps and race_state == "RACING" and performance_budget != null:
@@ -1110,9 +1127,7 @@ func _process(delta: float) -> void:
             audio.update_progress(clampf(-player.position.z/absf(FINISH_Z),0.0,1.0))
             trail.emitting = graphics_quality > 0 and player.linear_velocity.length() > 4.0
             trail.initial_velocity_max = 2.6 if boosting else 0.75
-            trail.color = Color("#91f5fd") if boosting else (
-                Racer.PLAYER_STYLE_BASE[career.selected_style]
-                if not net.is_active() else Color("#eeb65e"))
+            trail.color = PremiumSkinVisuals.trail_tint(self,boosting)
             var cp := -1
             if player.position.z < -46.0:
                 cp = 0
