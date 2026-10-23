@@ -326,7 +326,12 @@ func _verified_purchase_response(_result: int, status: int,
         str(parsed.get("product_id","")) == SKINS.PRODUCT_ID) and (
         str(parsed.get("token_sha256","")) == token.sha256_text()) and (
         token != "" and not consumed.has(token.sha256_text())):
-        if skins.grant_from_verified_purchase():
+        # The server picks one cryptographically random skin and fixes its
+        # absolute UTC deadline. Retries of a lost receipt NEVER roll
+        # another skin or grant a fresh six-hour lease.
+        var verified_id: int = int(parsed.get("skin_id",-1))
+        var verified_until: int = int(parsed.get("expires_utc",0))
+        if skins.grant_from_verified_entitlement(verified_id,verified_until):
             _remember_token(token)
             _clear_pending()
             info = "6-hour skin activated. Previous skin replaced."
