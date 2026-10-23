@@ -26,6 +26,11 @@ const PERKS := [
 var game: Node3D
 var root: Control
 var menu_layer: Control
+var skin_shop_layer: Control
+var skin_shop_status: Label
+var skin_shop_notice: Label
+var skin_ad_button: Button
+var skin_purchase_button: Button
 var perks_layer: Control
 var hud_layer: Control
 var results_layer: Control
@@ -109,6 +114,7 @@ func attach_game(owner_game: Node3D) -> void:
     root.mouse_filter = Control.MOUSE_FILTER_IGNORE
     add_child(root)
     _build_menu()
+    _build_skin_shop()
     _build_perks()
     _build_race_hud()
     _build_results()
@@ -228,6 +234,15 @@ func _build_menu() -> void:
         quality_button.text = "GRAPHICS: " + game.graphics_mode_label()
     )
     menu_layer.add_child(quality_button)
+    var skins_button := _action("EXCLUSIVE SKINS  ✦",Color("#513c75"))
+    skins_button.name = "ExclusiveTemporarySkins"
+    skins_button.anchor_left = 0.76
+    skins_button.anchor_right = 0.975
+    skins_button.anchor_top = 0.345
+    skins_button.anchor_bottom = 0.440
+    skins_button.add_theme_font_size_override("font_size",17)
+    skins_button.pressed.connect(show_skin_shop)
+    menu_layer.add_child(skins_button)
     fps_button = _action("FPS DISPLAY: " + ("ON" if game.show_fps else "OFF"),Color(0.13,0.18,0.22,0.86))
     fps_button.add_theme_font_size_override("font_size",17)
     fps_button.anchor_left = 0.76
@@ -562,6 +577,112 @@ func _leave_multiplayer() -> void:
     if game.net.is_active():
         game.net.leave_room()
     game.return_to_menu()
+
+func _build_skin_shop() -> void:
+    skin_shop_layer = Control.new()
+    skin_shop_layer.name = "ExclusiveSkinCollection"
+    skin_shop_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    root.add_child(skin_shop_layer)
+    skin_shop_layer.add_child(_shade())
+    var panel := _panel()
+    panel.anchor_left = 0.14
+    panel.anchor_right = 0.86
+    panel.anchor_top = 0.065
+    panel.anchor_bottom = 0.935
+    skin_shop_layer.add_child(panel)
+    var col := _column(9)
+    panel.add_child(col)
+    var heading := _text("THE EXCLUSIVE COLLECTION",32,ORANGE)
+    heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    col.add_child(heading)
+    skin_shop_status = _text("No temporary skin active",20,Color("#b9f8e5"))
+    skin_shop_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    col.add_child(skin_shop_status)
+    var rules := _text(
+        "10 extraordinary cosmetic skins. Every draw: 10% per skin. " +
+        "A reroll can select the same skin again. New unlock REPLACES the " +
+        "previous skin and its remaining time. No racing advantages.",
+        16,DIM)
+    rules.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    col.add_child(rules)
+    var scroller := ScrollContainer.new()
+    scroller.name = "TenSkinCatalogueScroll"
+    scroller.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    scroller.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    scroller.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+    scroller.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+    col.add_child(scroller)
+    var list := _column(5)
+    list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    scroller.add_child(list)
+    for index in range(game.skins.SKINS.size()):
+        var definition: Dictionary = game.skins.SKINS[index]
+        var skin_label := _text("%02d  ✦  %s   |   %s  |  10%% chance" % [
+            index+1,str(definition["name"]),str(definition["fx"]).to_upper()],
+            17,Color(str(definition["accent"])))
+        skin_label.name = "ExclusiveSkin_%02d" % index
+        list.add_child(skin_label)
+    var purchase_rules := _text(
+        "WATCH A VOLUNTARY REWARDED AD → random skin for 4 hours.\n" +
+        "ONE-TIME CONSUMABLE PURCHASE, target price €2 → random skin for " +
+        "6 hours. No video. Google Play displays final local price. " +
+        "Both offers share the same 10% odds for each of the 10 skins.",
+        16,Color("#e9e1c5"))
+    purchase_rules.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    col.add_child(purchase_rules)
+    var actions := HBoxContainer.new()
+    actions.add_theme_constant_override("separation",12)
+    col.add_child(actions)
+    skin_ad_button = _action("WATCH AD  ·  4 H",Color("#3a6b69"))
+    skin_ad_button.name = "VoluntaryRewardedAd"
+    skin_ad_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    skin_ad_button.add_theme_font_size_override("font_size",18)
+    skin_ad_button.pressed.connect(func():
+        if not game.monetization.watch():
+            skin_shop_notice.text = "Video not available. No skin was awarded."
+        refresh_skin_shop())
+    actions.add_child(skin_ad_button)
+    skin_purchase_button = _action("BUY  €2  ·  6 H",Color("#7a526f"))
+    skin_purchase_button.name = "PlayVerifiedSkinPurchase"
+    skin_purchase_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    skin_purchase_button.add_theme_font_size_override("font_size",18)
+    skin_purchase_button.pressed.connect(func():
+        if not game.monetization.buy():
+            skin_shop_notice.text = "Google Play purchase unavailable. No charge."
+        refresh_skin_shop())
+    actions.add_child(skin_purchase_button)
+    skin_shop_notice = _text("",14,DIM)
+    skin_shop_notice.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    col.add_child(skin_shop_notice)
+    var back := _action("BACK TO MAIN MENU",Color("#343b47"))
+    back.custom_minimum_size.y = 42
+    back.add_theme_font_size_override("font_size",18)
+    back.pressed.connect(show_menu)
+    col.add_child(back)
+    skin_shop_layer.visible = false
+    game.monetization.changed.connect(refresh_skin_shop)
+
+func refresh_skin_shop() -> void:
+    if not is_instance_valid(skin_shop_status) or not is_instance_valid(game.skins):
+        return
+    var index: int = game.skins.active_id()
+    skin_shop_status.text = (
+        "%s  •  %s remaining" % [
+            str(game.skins.SKINS[index]["name"]),
+            game.skins.format_time(game.skins.remaining())]
+        if index >= 0 else "No exclusive skin active")
+    if is_instance_valid(skin_ad_button):
+        skin_ad_button.disabled = not game.monetization.can_watch()
+    if is_instance_valid(skin_purchase_button):
+        skin_purchase_button.disabled = not game.monetization.can_buy()
+        skin_purchase_button.text = "BUY  %s  ·  6 H" % game.monetization.displayed_price
+    if is_instance_valid(skin_shop_notice):
+        skin_shop_notice.text = game.monetization.info
+
+func show_skin_shop() -> void:
+    _hide_all()
+    refresh_skin_shop()
+    skin_shop_layer.visible = true
 
 func _build_perks() -> void:
     perks_layer = Control.new()
@@ -1117,6 +1238,8 @@ func _hide_all() -> void:
         pause_layer.visible = false
     if is_instance_valid(backup_layer):
         backup_layer.visible = false
+    if is_instance_valid(skin_shop_layer):
+        skin_shop_layer.visible = false
 
 func show_menu() -> void:
     if get_tree().paused:
