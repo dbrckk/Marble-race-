@@ -10,6 +10,7 @@ const TRAFFIC_AHEAD := 8.0
 const TRAFFIC_WIDTH := 1.25
 const TRAFFIC_HEIGHT := 1.45
 const TRAFFIC_SAFE_LANE := 3.15
+const ZONE_MECHANICS = preload("res://scripts/course_mechanics.gd")
 
 static func temperament(racer_id: int, track: int, variation: int) -> int:
     # Three predictable driving attitudes, redistributed per track/rematch:
@@ -121,7 +122,7 @@ static func biome_zone_safe_lane(mechanics: Node3D, own_z: float,
         var dz: float = own_z-node.position.z
         if dz < ZONE_MIN_DISTANCE or dz > ZONE_LOOKAHEAD:
             continue
-        var offset: float = mechanics.lane_offset(index,course,mechanics.variation)
+        var offset: float = ZONE_MECHANICS.lane_offset(index,course,mechanics.variation)
         var clearance: float = absf(preferred-offset)
         if course == 0:
             # Only the opportunists chase a nearby speed ribbon; other
@@ -134,9 +135,9 @@ static func biome_zone_safe_lane(mechanics: Node3D, own_z: float,
             # Careful drivers skirt the physical low-friction slab;
             # risk-taking opponents can intentionally drift on the ice.
             if temperament_id == 0 and clearance < (
-                mechanics.ZONE_WIDTH*0.5+ZONE_AVOID_MARGIN):
+                ZONE_MECHANICS.ZONE_WIDTH*0.5+ZONE_AVOID_MARGIN):
                 return clampf(offset-signf(offset)*(
-                    mechanics.ZONE_WIDTH*0.5+ZONE_AVOID_MARGIN),
+                    ZONE_MECHANICS.ZONE_WIDTH*0.5+ZONE_AVOID_MARGIN),
                     -TRAFFIC_SAFE_LANE,TRAFFIC_SAFE_LANE)
         elif course == 2:
             # A vent which is down NOW may fire at a racer's arrival.
