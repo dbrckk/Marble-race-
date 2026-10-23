@@ -150,6 +150,11 @@ func _check() -> void:
         follower,game.racers,0.0,final_center)),
         "A rival on an elevated bridge is not a same-level collision threat")
     blocker.global_position.y -= 5.0
+    # start_race starts with every marble frozen for its countdown. The
+    # fixture manually enters RACING, so unfreeze this bot before claiming
+    # that the actual physics tick should move it.
+    follower.freeze = false
+    follower.sleeping = false
     follower.ai_traffic_timer = 0.0
     follower.ai_lane_goal = 0.0
     follower.ai_lane_timer = 2.0
