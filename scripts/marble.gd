@@ -286,14 +286,26 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
                 ai_traffic_timer = 0.0
                 ai_traffic_goal = ai_lane_goal
                 ai_traffic_offset = ai_lane_goal
-            # Predict real timed collider positions on ALL three gates.
-            # Previously the first gate was ignored (z > -96), and bots
-            # selected for a shortcut never dodged hazards after rejoining.
-            # The branch above already gives active bypass steering priority;
-            # once a specialist merges, it must race by the same rules.
-            # Human input still has exclusive control of human marbles.
+            # Biome tactics matter on all rematches: some bots seek a
+            # physical boost, cautious drivers avoid ice and everyone reads
+            # the Forge vent's arrival phase. Existing moving-gate avoidance
+            # still has final priority. Never apply this to human steering,
+            # or to specialists currently on their exterior physical road.
+            var planned_offset: float = ai_traffic_offset if traffic_safe else ai_lane_goal
+            if is_instance_valid(course_owner.course_mechanics):
+                var zone_offset: float = AIPath.biome_zone_safe_lane(
+                    course_owner.course_mechanics,position.z,
+                    linear_velocity.z,planned_offset,
+                    AIPath.temperament(racer_id,course_owner.selected_track,
+                        course_owner.built_variation))
+                if absf(zone_offset-planned_offset) > 0.10:
+                    side_force = clampf((
+                        center_ahead+zone_offset-position.x)*2.2-
+                        linear_velocity.x*0.48,-8.5,8.5)
+                    planned_offset = zone_offset
+            # The physical timed-gate collider overrides a lucrative boost
+            # or tempting drift when both appear in the same approach.
             if is_instance_valid(course_owner.race_director):
-                var planned_offset: float = ai_traffic_offset if traffic_safe else ai_lane_goal
                 var safe_offset: float = AIPath.timed_gate_safe_lane(
                     course_owner.race_director,position.z,
                     linear_velocity.z,elapsed,planned_offset)
