@@ -5,6 +5,9 @@ consumable purchase to `POST /verify`. The service checks the Google Play
 Developer API, rejects pending, canceled, unknown, already consumed or
 incorrect products, consumes the valid purchase via the official API, and
 returns exactly the receipt contract accepted by `monetization_bridge.gd`.
+The backend chooses **exactly one of ten** skins with `secrets.randbelow(10)`
+and fixes the UTC expiration when Google confirms consumption. Both values
+are persisted with the token digest and returned unchanged on retries.
 
 This service **never** generates a skin by itself. The mobile app grants
 one randomized 6-hour cosmetic only after an authenticated, consumed reply.
@@ -37,7 +40,10 @@ service account JSON into GitHub, an Android package, or the conversation.
 - A token is durably reserved before consumption; if a Google response is
   lost after the purchase is consumed, a subsequent retry can safely
   complete **only** that previously reserved token.
-- After completion, all further attempts return HTTP 409 without reward.
+- After completion, a lost response can be retried: the server repeats the
+  **same** cryptographically selected skin ID and **same absolute expiry**,
+  without renewing its six-hour lease or consuming the product twice.
+  Expired, canceled or invalid Google purchases remain rejected.
 - There is no client-controlled amount, product, duration or arbitrary
   package selection.
 - Requests are bounded to 4096 bytes, no sensitive error details or tokens
