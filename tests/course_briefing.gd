@@ -6,6 +6,7 @@ const PATH = preload("res://scripts/track_path.gd")
 const ROUTE = preload("res://scripts/shortcut_route.gd")
 const DIRECTOR = preload("res://scripts/race_director.gd")
 const KICKERS = preload("res://scripts/arcade_bumpers.gd")
+const ZONES = preload("res://scripts/course_mechanics.gd")
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -105,6 +106,20 @@ func _run() -> void:
                 "The player should know which physical rematch layout comes next")
             game.start_race("Grip Tape")
             assert(game.built_variation == next_variant)
+            assert(game.course_mechanics.variation == next_variant,
+                "Biome zones must follow the same rematch as moving gates")
+            assert(game.course_mechanics.zones.size() == ZONES.ZONE_Z.size())
+            for index in range(ZONES.ZONE_Z.size()):
+                var forecast: Vector3 = ZONES.placement_at(
+                    index,track,next_variant)
+                var active_zone: Node3D = game.course_mechanics.zones[index]
+                assert(active_zone.global_position.distance_to(forecast) < 0.001,
+                    "The actual authoritative zone must follow next rematch geometry")
+                assert(overview.zone_marker(index).distance_to(
+                    overview.project(forecast.z,forecast.x)) < 0.01,
+                    "Pre-race zone markers must match physical power or hazard areas")
+                assert(absf(forecast.x-PATH.center_at(forecast.z,track)) <= 3.31,
+                    "Changing track lanes must not move a patch outside the rails")
             for station in range(KICKERS.STATION_Z.size()):
                 for side in KICKERS.SIDES:
                     var actual: Vector3 = game.arcade_bumpers.location_at(station,side)
