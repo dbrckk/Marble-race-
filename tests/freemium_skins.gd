@@ -101,6 +101,25 @@ func _run() -> void:
     manager.last_seen_utc = 0
     manager._save()
     manager.changed.emit()
+    # Google Play Billing 3.3 returns an ARRAY of one-time purchase offers,
+    # not the old singular object. Show real localized prices only.
+    bridge._billing_details({"response_code":0,"product_details":[{
+        "product_id":LEASE.PRODUCT_ID,
+        "one_time_purchase_offer_details_list":[{
+            "formatted_price":"2,00 €","price_currency_code":"EUR",
+            "purchase_option_id":"regular_offer"}]}]})
+    assert(bridge.billed_product_available and
+        bridge.displayed_price == "2,00 €" and
+        bridge.purchase_option_id == "regular_offer",
+        "The purchase button must read a real localized Play Billing 3.3 offer")
+    assert(not bridge.can_buy(),
+        "An offline mock offer cannot make a missing native billing SDK purchasable")
+    bridge._billing_details({"response_code":0,"product_details":[{
+        "product_id":LEASE.PRODUCT_ID,
+        "one_time_purchase_offer_details_list":null}]})
+    assert(not bridge.billed_product_available and
+        bridge.displayed_price == "—",
+        "No offer must disable purchases rather than invent a two-euro price")
     game.ui.show_skin_shop()
     assert(game.ui.skin_shop_layer.visible)
     assert(game.ui.skin_shop_layer.find_children(
