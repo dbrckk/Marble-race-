@@ -8,14 +8,18 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import secrets
 import sqlite3
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import quote
 
 PACKAGE = "com.dbrckk.marble_race"
 PRODUCT = "random_skin_6h"
+SKIN_COUNT = 10
+PAID_SECONDS = 6 * 60 * 60
 SCOPE = "https://www.googleapis.com/auth/androidpublisher"
 MAX_BODY = 4096
 
@@ -73,8 +77,10 @@ class Ledger:
         self.conn.execute("PRAGMA busy_timeout=20000")
         self.conn.execute("CREATE TABLE IF NOT EXISTS purchases ("
                           "digest TEXT PRIMARY KEY, state TEXT NOT NULL CHECK"
-                          "(state IN ('pending','granted')), updated INTEGER NOT NULL"
-                          " DEFAULT (unixepoch()))")
+                          "(state IN ('pending','granted')),"
+                          "skin_id INTEGER NOT NULL CHECK(skin_id BETWEEN 0 AND 9),"
+                          "expires_utc INTEGER NOT NULL DEFAULT 0,"
+                          "updated INTEGER NOT NULL DEFAULT (unixepoch()))")
         self.conn.commit()
         self.lock = threading.RLock()
 
@@ -85,21 +91,37 @@ class Ledger:
         return row[0] if row else None
 
     def reserve(self, digest: str) -> bool:
+        # Secure random draw happens ONCE per Google purchase token. A crash
+        # before consumption can replay the exact same pending skin.
+        skin_id = secrets.randbelow(SKIN_COUNT)
         with self.conn:
             cur = self.conn.execute(
-                "INSERT OR IGNORE INTO purchases(digest,state) VALUES(?,'pending')",
-                (digest,),
+                "INSERT OR IGNORE INTO purchases(digest,state,skin_id) "
+                "VALUES(?,'pending',?)", (digest,skin_id)
             )
         return cur.rowcount == 1
 
     def complete(self, digest: str) -> None:
         with self.conn:
             cur = self.conn.execute(
-                "UPDATE purchases SET state='granted',updated=unixepoch() "
-                "WHERE digest=? AND state='pending'", (digest,)
+                "UPDATE purchases SET state='granted',"
+                "expires_utc=?,updated=unixepoch() "
+                "WHERE digest=? AND state='pending'",
+                (int(time.time()) + PAID_SECONDS, digest),
             )
             if cur.rowcount != 1:
                 raise PurchaseError(409, "Purchase cannot be claimed again.")
+
+    def entitlement(self, digest: str) -> dict:
+        row = self.conn.execute(
+            "SELECT skin_id,expires_utc,state FROM purchases WHERE digest=?",
+            (digest,),
+        ).fetchone()
+        if not row or row[2] != "granted" or row[1] <= int(time.time()):
+            raise PurchaseError(409, "Purchase lease has already expired.")
+        return {"ok": True, "consumed": True, "product_id": PRODUCT,
+                "token_sha256": digest, "skin_id": row[0],
+                "expires_utc": row[1]}
 
 
 class PurchaseService:
@@ -128,8 +150,9 @@ class PurchaseService:
         # A single persistent backend replica is required in production.
         with self.ledger.lock:
             state = self.ledger.lookup(digest)
-            if state == "granted":
-                raise PurchaseError(409, "Purchase already redeemed.")
+            # A prior success response might have been lost in transit.
+            # Always check Google again and return the *same* immutable
+            # server-assigned skin+expiry. Never reroll or renew a lease.
             receipt = self.play.get(token)
             if receipt.get("purchaseState") != 0:
                 # Google values: 0 PURCHASED, 1 CANCELED, 2 PENDING.
@@ -139,10 +162,13 @@ class PurchaseService:
             consumption = receipt.get("consumptionState")
             if consumption not in (0, 1):
                 raise PurchaseError(503, "Missing Google Play consumption state.")
+            if state == "granted":
+                if consumption != 1:
+                    raise PurchaseError(409, "Purchase is no longer consumed.")
+                return self.ledger.entitlement(digest)
             if consumption == 1:
-                # Recovery after a crash between consuming a purchase at
-                # Google and marking it complete locally: safe ONLY for a
-                # previously durably reserved token.
+                # Recovery after a crash between consuming at Google and
+                # local commit is safe only for a durably reserved token.
                 if state != "pending":
                     raise PurchaseError(409, "Purchase already consumed.")
             else:
@@ -150,8 +176,7 @@ class PurchaseService:
                     raise PurchaseError(409, "Purchase already reserved.")
                 self.play.consume(token)
             self.ledger.complete(digest)
-            return {"ok": True, "consumed": True, "product_id": PRODUCT,
-                    "token_sha256": digest}
+            return self.ledger.entitlement(digest)
 
 
 class Handler(BaseHTTPRequestHandler):
