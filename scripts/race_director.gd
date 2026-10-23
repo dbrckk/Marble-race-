@@ -142,6 +142,27 @@ func position_at(index: int, elapsed: float) -> Vector3:
     return Vector3(center+side*(3.22+radius*sin(phase*TAU)),
         game.height_at(z)+0.42,z)
 
+# The phone HUD uses the real collider trajectory, not just its biome phase.
+# A gate that blocks the far outside lane must not warn someone safely on
+# the centre line. The 0.40s lateral extrapolation is intentionally bounded:
+# it accounts for ongoing drift without pretending to predict future taps.
+const LANE_THREAT_RADIUS := BODY_WIDTH*0.5+0.39+0.18
+const LANE_DRIFT_PREVIEW := 0.40
+
+func threatens_line(index: int, elapsed: float, eta: float,
+        current_x: float, lateral_speed: float) -> bool:
+    if index < 0 or index >= obstacles.size() or (
+        not is_finite(elapsed) or not is_finite(eta) or
+        not is_finite(current_x) or not is_finite(lateral_speed) or eta < 0.0):
+        return false
+    var arrival: float = elapsed+eta
+    if biome == 2 and not piston_up(index,arrival):
+        return false
+    var obstacle_x: float = position_at(index,arrival).x
+    var future_x: float = current_x+clampf(lateral_speed,-5.0,5.0)*(
+        minf(eta,LANE_DRIFT_PREVIEW))
+    return absf(future_x-obstacle_x) < LANE_THREAT_RADIUS
+
 func animate(elapsed: float) -> void:
     clock = maxf(0.0,elapsed)
     for i in range(obstacles.size()):
