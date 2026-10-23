@@ -59,12 +59,16 @@ class VerificationTest(unittest.TestCase):
 
     def test_true_google_purchase_exactly_once(self):
         receipt = self.svc.verify(self.payload)
-        self.assertEqual(receipt, {
-            "ok": True, "consumed": True, "product_id": PRODUCT,
-            "token_sha256": hashlib.sha256(self.token.encode()).hexdigest(),
-        })
+        self.assertTrue(receipt["ok"] and receipt["consumed"])
+        self.assertEqual(receipt["product_id"], PRODUCT)
+        self.assertEqual(receipt["token_sha256"],
+                         hashlib.sha256(self.token.encode()).hexdigest())
+        self.assertIn(receipt["skin_id"], range(10))
+        self.assertTrue(0 < receipt["expires_utc"] - __import__("time").time() <= 21600)
         self.assertEqual(self.play.consumed, [self.token])
-        self.check_refused(self.payload, 409)
+        replay = self.svc.verify(self.payload)
+        self.assertEqual(replay, receipt,
+                         "Lost receipt responses must replay EXACTLY the prior lease")
         self.assertEqual(len(self.play.consumed), 1)
 
     def test_not_pending_refunded_canceled_or_wrong_product(self):
@@ -93,7 +97,7 @@ class VerificationTest(unittest.TestCase):
         recovered = self.svc.verify(self.payload)
         self.assertTrue(recovered["ok"])
         self.assertEqual(self.play.consumed, [self.token])
-        self.check_refused(self.payload, 409)
+        self.assertEqual(self.svc.verify(self.payload), recovered)
 
     def test_google_outage_no_reward_or_reservation(self):
         self.play.unavailable = True
@@ -108,9 +112,9 @@ class VerificationTest(unittest.TestCase):
         second = Ledger(self.path)
         try:
             fresh = PurchaseService(second, self.play)
-            with self.assertRaises(PurchaseError) as error:
-                fresh.verify(self.payload)
-            self.assertEqual(error.exception.code, 409)
+            self.assertEqual(fresh.verify(self.payload),
+                             self.svc.verify(self.payload),
+                             "Reopened ledger replays the same skin and expiry")
         finally:
             second.conn.close()
 
@@ -132,8 +136,8 @@ class VerificationTest(unittest.TestCase):
             t.start()
         for t in threads:
             t.join(timeout=5)
-        self.assertEqual(statuses.count(200), 1)
-        self.assertEqual(statuses.count(409), 9)
+        self.assertEqual(statuses.count(200), 10)
+        self.assertEqual(statuses.count(409), 0)
         self.assertEqual(len(self.play.consumed), 1)
 
     def test_http_contract_no_token_leak(self):
@@ -155,9 +159,9 @@ class VerificationTest(unittest.TestCase):
                 self.assertEqual(response.status, 200)
                 self.assertEqual(response.headers["Cache-Control"], "no-store")
                 self.assertNotIn(self.token, response.read().decode())
-            with self.assertRaises(HTTPError) as retry:
-                urlopen(request, timeout=3)
-            self.assertEqual(retry.exception.code, 409)
+            with urlopen(request, timeout=3) as retry:
+                self.assertEqual(retry.status, 200)
+                self.assertNotIn(self.token, retry.read().decode())
             with self.assertRaises(HTTPError) as huge:
                 urlopen(Request(address + "/verify", data=b"X" * 5000,
                                 method="POST"), timeout=3)
