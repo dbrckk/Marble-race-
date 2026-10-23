@@ -25,6 +25,7 @@ const PERKS := [
 
 var game: Node3D
 var root: Control
+const PREMIUM_COLLECTION = preload("res://scripts/temporary_skins.gd")
 var menu_layer: Control
 var skin_shop_layer: Control
 var skin_shop_status: Label
@@ -615,8 +616,8 @@ func _build_skin_shop() -> void:
     var list := _column(5)
     list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     scroller.add_child(list)
-    for index in range(game.skins.SKINS.size()):
-        var definition: Dictionary = game.skins.SKINS[index]
+    for index in range(PREMIUM_COLLECTION.SKINS.size()):
+        var definition: Dictionary = PREMIUM_COLLECTION.SKINS[index]
         var skin_label := _text("%02d  ✦  %s   |   %s  |  10%% chance" % [
             index+1,str(definition["name"]),str(definition["fx"]).to_upper()],
             17,Color(str(definition["accent"])))
@@ -668,8 +669,8 @@ func refresh_skin_shop() -> void:
     var index: int = game.skins.active_id()
     skin_shop_status.text = (
         "%s  •  %s remaining" % [
-            str(game.skins.SKINS[index]["name"]),
-            game.skins.format_time(game.skins.remaining())]
+            str(PREMIUM_COLLECTION.SKINS[index]["name"]),
+            PREMIUM_COLLECTION.format_time(game.skins.remaining())]
         if index >= 0 else "No exclusive skin active")
     if is_instance_valid(skin_ad_button):
         skin_ad_button.disabled = not game.monetization.can_watch()
