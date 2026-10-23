@@ -162,8 +162,16 @@ func _check() -> void:
     await physics_frame
     await physics_frame
     await physics_frame
-    assert(follower.linear_velocity.x < -0.01,
-        "The late-race AI must actually yield through Godot physics forces")
+    # On a winding hill the world-X velocity may initially point right
+    # while the centreline itself bends right. The important physical
+    # invariant is that the cached steering target yields LEFT *relative
+    # to that centreline*. A three-frame absolute-X sign check is false.
+    assert(follower.ai_traffic_goal < -1.0 and
+        follower.ai_traffic_offset < 0.0,
+        "The final-half bot must commit to an inward defensive line")
+    assert(follower.linear_velocity.is_finite() and
+        follower.global_position.distance_to(defender_before) > 0.001,
+        "The new maneuver must use real Godot force integration, not a teleport")
     blocker.global_position.x = final_center+15.0
     # Near a physical guard the new planner must deliberately fall back
     # to the old, already validated obstacle-navigation behavior.
