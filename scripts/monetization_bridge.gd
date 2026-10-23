@@ -119,10 +119,17 @@ func _consent_complete(info_object: Object) -> void:
         return
     ump_consent_ready = true
     if not ads_initialized:
-        var mobile_ads_script: Script = load(ADS_ROOT+"MobileAds.gd")
-        mobile_ads_script.call("initialize")
         ads_initialized = true
-    _load_rewarded_ad()
+        var mobile_ads_script: Script = load(ADS_ROOT+"MobileAds.gd")
+        var callback_script: Script = load(
+            ADS_ROOT+"listeners/OnInitializationCompleteListener.gd")
+        var initialized: Object = callback_script.new()
+        # Google Next-Gen Mobile Ads initializes asynchronously. Loading a
+        # RewardedAd before this callback would crash Android SDK v5.
+        initialized.set("on_initialization_complete",
+            func(_status: Variant) -> void:
+                _load_rewarded_ad())
+        mobile_ads_script.call("initialize",initialized)
 
 func _load_rewarded_ad() -> void:
     if rewarded_loading or not ump_consent_ready or rewarded_unit == "":
