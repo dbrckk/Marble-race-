@@ -134,7 +134,9 @@ static func timed_gate_safe_lane(director: Node3D, own_z: float,
         var track_center: float = director.game.track_center_at(gate_z)
         var obstacle_offset: float = next_position.x-track_center
         if absf(preferred-obstacle_offset) >= GATE_CLEARANCE:
-            return preferred
+            # This timed collider will not intersect the chosen line.
+            # Other upcoming colliders may still need avoidance.
+            continue
         # Passing on the interior side of a timed gate leaves the outer
         # shoulder free, avoids the physical edge shutters and respects rails.
         var safe_offset: float = obstacle_offset-signf(obstacle_offset)*(
