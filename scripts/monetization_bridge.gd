@@ -7,6 +7,7 @@ signal changed
 const SKINS = preload("res://scripts/temporary_skins.gd")
 const SETTINGS := "res://monetization_config.cfg"
 const ADS_ROOT := "res://addons/admob/gdscript/src/api/"
+const UMP_ROOT := "res://addons/admob/gdscript/src/ump/"
 const BILLING_CLIENT := "res://addons/GodotGooglePlayBilling/BillingClient.gd"
 var skins: Node
 var rewarded_ad: Object
@@ -14,6 +15,9 @@ var rewarded_loader: Object
 var rewarded_loading := false
 var watching := false
 var rewarded_unit := ""
+var ump_consent_ready := false
+var rewarded_consumed := false
+var ads_initialized := false
 var billing: Node
 var billed_product_available := false
 var displayed_price := "2,00 €"
@@ -61,7 +65,7 @@ func _remember_token(token: String) -> void:
     cfg.save(CONSUMED_PATH)
 
 func can_watch() -> bool:
-    return rewarded_ad != null and not watching and (
+    return ump_consent_ready and rewarded_ad != null and not watching and (
         rewarded_ad.has_method("can_show_ad") and rewarded_ad.can_show_ad())
 
 func can_buy() -> bool:
@@ -71,14 +75,59 @@ func can_buy() -> bool:
 func _init_ads() -> void:
     if rewarded_unit == "" or not ResourceLoader.exists(
         ADS_ROOT+"RewardedAdLoader.gd") or not Engine.has_singleton(
-        "PoingGodotAdMobRewardedAd"):
-        info = "Rewarded ads require the AdMob Android plugin and live ad unit."
+        "PoingGodotAdMobRewardedAd") or not Engine.has_singleton(
+        "PoingGodotAdMobUserMessagingPlatform") or not Engine.has_singleton(
+        "PoingGodotAdMobConsentInformation"):
+        info = "Rewarded ads require native AdMob, UMP consent and live ad ID."
         return
-    # The plugin's UMP privacy/consent flow must be configured in the
-    # Android export before enabling its production ad unit.
+    if not ResourceLoader.exists(UMP_ROOT+"api/UserMessagingPlatform.gd") or (
+        not ResourceLoader.exists(UMP_ROOT+"core/ConsentRequestParameters.gd")):
+        info = "Google UMP privacy SDK is missing. No rewarded ads."
+        return
+    var consent_info_script: Script = load(UMP_ROOT+"api/ConsentInformation.gd")
+    var request_script: Script = load(UMP_ROOT+"core/ConsentRequestParameters.gd")
+    var consent_api: Script = load(UMP_ROOT+"api/UserMessagingPlatform.gd")
+    var info_object: Object = consent_api.get("consent_information")
+    # Request updated consent at every launch. Never display an ad or start
+    # Google Mobile Ads from a stale, UNKNOWN or REQUIRED consent state.
+    info_object.update(request_script.new(),func() -> void:
+        var state: int = int(info_object.get_consent_status())
+        if state == 2:
+            # ConsentStatus.REQUIRED: first display the real UMP consent form.
+            consent_api.load_consent_form(func(form: Object) -> void:
+                form.show(func(_error: Variant) -> void:
+                    _consent_complete(info_object)),func(_err: Variant) -> void:
+                        info = "Consent form unavailable; video reward disabled."
+                        changed.emit())
+        else:
+            _consent_complete(info_object),func(_err: Variant) -> void:
+                info = "Ad privacy status unavailable; video reward disabled."
+                changed.emit())
+
+func _consent_complete(info_object: Object) -> void:
+    var status: int = int(info_object.get_consent_status())
+    # The plugin defines status 1=NOT_REQUIRED and 3=OBTAINED. Treat all
+    # other states conservatively rather than targeting ads without consent.
+    if status not in [1,3]:
+        info = "Video ad unavailable under the current privacy choices."
+        changed.emit()
+        return
+    ump_consent_ready = true
+    if not ads_initialized:
+        var mobile_ads_script: Script = load(ADS_ROOT+"MobileAds.gd")
+        mobile_ads_script.call("initialize")
+        ads_initialized = true
+    _load_rewarded_ad()
+
+func _load_rewarded_ad() -> void:
+    if rewarded_loading or not ump_consent_ready or rewarded_unit == "":
+        return
+    rewarded_ad = null
+    if is_instance_valid(rewarded_loader):
+        rewarded_loader = null
     var loader_script: Script = load(ADS_ROOT+"RewardedAdLoader.gd")
     var callback_script: Script = load(ADS_ROOT+"listeners/RewardedAdLoadCallback.gd")
-    var request_script: Script = load(ADS_ROOT+"AdRequest.gd")
+    var request_script: Script = load(ADS_ROOT+"core/AdRequest.gd")
     rewarded_loader = loader_script.new()
     var callback: Object = callback_script.new()
     callback.set("on_ad_loaded",func(ad: Object) -> void:
@@ -94,23 +143,41 @@ func _init_ads() -> void:
     rewarded_loading = true
     rewarded_loader.load(rewarded_unit,request_script.new(),callback)
 
+func _ad_closed() -> void:
+    # A short video, early dismissal and completed rewarded video all need
+    # a fresh loaded ad to support repeated four-hour rerolls.
+    watching = false
+    if is_instance_valid(rewarded_ad):
+        rewarded_ad.destroy()
+    rewarded_ad = null
+    rewarded_consumed = false
+    if ump_consent_ready:
+        _load_rewarded_ad()
+    changed.emit()
+
 func watch() -> bool:
     if not can_watch():
         return false
     watching = true
+    rewarded_consumed = false
     var listener_script: Script = load(
         ADS_ROOT+"listeners/OnUserEarnedRewardListener.gd")
     var listener: Object = listener_script.new()
     listener.set("on_user_earned_reward",func(_reward: Variant) -> void:
-        if not watching or not is_instance_valid(skins):
+        if not watching or rewarded_consumed or not is_instance_valid(skins):
             return
-        # This callback is emitted only by Google Mobile Ads after earning
-        # the reward. Closing or failing the ad never grants a cosmetic.
-        watching = false
+        # The only grant is the actual SDK reward callback, never the ad
+        # opening, impression, early dismissal or load-complete callback.
+        rewarded_consumed = true
         skins.grant_from_confirmed_ad()
-        rewarded_ad = null
         info = "4-hour skin activated. Previous skin replaced."
         changed.emit())
+    var fullscreen: Object = rewarded_ad.get("full_screen_content_callback")
+    fullscreen.set("on_ad_dismissed_full_screen_content",func() -> void:
+        _ad_closed())
+    fullscreen.set("on_ad_failed_to_show_full_screen_content",func(_error: Variant) -> void:
+        info = "Video could not play. No new skin was awarded."
+        _ad_closed())
     rewarded_ad.show(listener)
     return true
 
