@@ -262,6 +262,10 @@ func race_moment(kind: String) -> void:
         "overtake":
             _voice(UI_SELECT,-22.0,1.30)
             _voice(TONES["checkpoint"],-25.0,1.16)
+        "duel":
+            # One short, quiet crowd-race ping per truly sustained side duel.
+            # Existing licensed UI sample, no new persistent mixer channel.
+            _voice(UI_SELECT,-25.0,1.06)
         "final_stretch":
             _voice(TONES["checkpoint"],-23.0,0.86)
         "photo_finish":
