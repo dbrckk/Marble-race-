@@ -3,7 +3,15 @@ extends Node3D
 ## All physical changes run offline or on the dedicated server, never on clients.
 ## Unlike rare items, natural hazards and surface zones affect AI as well.
 const ZONE_Z := [-22.0, -61.0, -98.0, -139.0, -168.0]
-const ZONE_X := [-3.3, 3.3, -3.3, 3.3, -3.3]
+# Three authored lane patterns give rematches genuinely different choices.
+# Layout zero preserves the existing course, while the other two change
+# the physical zones and their race-line consequences, not just decoration.
+const LANE_PATTERNS := [
+    [-3.3,3.3,-3.3,3.3,-3.3],
+    [3.3,-3.3,3.3,-3.3,3.3],
+    [-3.3,-3.3,3.3,3.3,-3.3]
+]
+const TRACK_PATH = preload("res://scripts/track_path.gd")
 const TRACK_COLORS := [Color("#e6b56e"), Color("#8beaff"), Color("#ff8759")]
 const ZONE_WIDTH := 3.4
 const ZONE_LENGTH := 6.5
@@ -11,22 +19,35 @@ const LAVA_CYCLE := 4.8
 const LAVA_ACTIVE := 1.35
 var game: Node3D
 var track_id := 0
+var variation := 0
 var zones: Array[Node3D] = []
 var active_marks: Array[MeshInstance3D] = []
 var collected: Dictionary = {}
 var last_burst: Dictionary = {}
 var race_clock := 0.0
 
-func setup(owner: Node3D, course_id: int) -> void:
+static func lane_offset(index: int, track: int, layout: int) -> float:
+    if index < 0 or index >= ZONE_Z.size():
+        return 0.0
+    return float(LANE_PATTERNS[posmod(layout,3)][
+        (index+clampi(track,0,2))%ZONE_Z.size()])
+
+static func placement_at(index: int, track: int, layout: int) -> Vector3:
+    if index < 0 or index >= ZONE_Z.size():
+        return Vector3.ZERO
+    var z: float = ZONE_Z[index]
+    return Vector3(TRACK_PATH.center_at(z,track)+lane_offset(
+        index,track,layout),TRACK_PATH.height_at(z,track)+0.035,z)
+
+func setup(owner: Node3D, course_id: int, next_layout: int = 0) -> void:
     game = owner
     track_id = clampi(course_id,0,2)
+    variation = posmod(next_layout,3)
     for i in range(ZONE_Z.size()):
         var zone := Node3D.new()
         var kind := _kind()
         zone.name = "%sZone_%02d" % [kind.capitalize(),i]
-        var z: float = ZONE_Z[i]
-        var x: float = ZONE_X[(i+track_id)%ZONE_X.size()]
-        zone.position = Vector3(x+game.track_center_at(z),game.height_at(z)+0.035,z)
+        zone.position = placement_at(i,track_id,variation)
         add_child(zone)
         zones.append(zone)
         if track_id == 2:
@@ -176,13 +197,15 @@ func tick(delta: float, racers: Array[RigidBody3D], net: Node) -> void:
             if track_id == 1:
                 # Continuous, bounded lateral drift in an icy lane. This is
                 # recoverable by player steering and also applies to bots.
-                marble.apply_central_force(Vector3(signf(zone.position.x)*2.3,0.0,0.0)*marble.mass)
+                marble.apply_central_force(Vector3(
+                    signf(lane_offset(i,track_id,variation))*2.3,0.0,0.0)*marble.mass)
             elif track_id == 2:
                 if race_clock-float(last_burst.get(key,-100.0)) < LAVA_CYCLE-0.3:
                     continue
                 last_burst[key] = race_clock
                 marble.apply_central_impulse(Vector3(
-                    signf(zone.position.x)*1.35,1.05,1.75)*marble.mass)
+                    signf(lane_offset(i,track_id,variation))*1.35,
+                    1.05,1.75)*marble.mass)
                 _feedback(marble,net,"vent")
                 continue
             if collected.has(key):
@@ -192,7 +215,9 @@ func tick(delta: float, racers: Array[RigidBody3D], net: Node) -> void:
                 marble.apply_central_impulse(Vector3(0.0,0.15,-4.6)*marble.mass)
                 _feedback(marble,net,"speed")
             else:
-                marble.apply_central_impulse(Vector3(signf(zone.position.x)*1.2,0.05,-0.4)*marble.mass)
+                marble.apply_central_impulse(Vector3(
+                    signf(lane_offset(i,track_id,variation))*1.2,
+                    0.05,-0.4)*marble.mass)
                 _feedback(marble,net,"ice")
 
 func _feedback(marble: RigidBody3D, net: Node, kind: String) -> void:
