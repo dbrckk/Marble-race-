@@ -1,0 +1,26 @@
+name: Verify pinned Play Store native SDK dependencies
+
+on:
+  push:
+    paths:
+      - 'ci/install_play_dependencies.sh'
+      - '.github/workflows/play-native-sdk-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sdk-integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and verify upstream native Android plugin archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash ci/install_play_dependencies.sh
+          find addons/admob/android/bin/ads -type f | sort | head -25
+          find addons/GodotGooglePlayBilling -type f | sort | head -25
+          echo "PLAY_NATIVE_SDKS_PASS: pinned archives and real Android AARs"
