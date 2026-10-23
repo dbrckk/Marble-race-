@@ -111,8 +111,13 @@ func _remember_token(token: String) -> void:
     cfg.save(CONSUMED_PATH)
 
 func can_watch() -> bool:
-    return ump_consent_ready and rewarded_ad != null and not watching and (
-        rewarded_ad.has_method("can_show_ad") and rewarded_ad.can_show_ad())
+    # Poing AdMob v5.1.0 RewardedAd exposes show() and destroy(), NOT
+    # can_show_ad(). A non-null instance received via on_ad_loaded is the
+    # SDK's readiness proof; demanding that nonexistent method would keep
+    # every legitimate rewarded video permanently disabled on Android.
+    return ump_consent_ready and rewarded_ad != null and (
+        not rewarded_loading and not watching and
+        is_instance_valid(rewarded_ad))
 
 func can_buy() -> bool:
     return billing != null and billing.is_ready() and (
