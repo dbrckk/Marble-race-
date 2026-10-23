@@ -45,18 +45,18 @@ verify_url="${MARBLE_PLAY_VERIFY_URL:-}"
   say_no "Do not use Google's sample ad unit in a public release"
 [[ "$verify_url" =~ ^https://[^[:space:]]+$ ]] ||
   say_no "Trusted production Google Play purchase verification API not configured"
-[[ -n "${MARBLE_ADMOB_APP_ID:-}" ]] ||
-  say_no "Native AdMob app ID and UMP consent configuration not supplied"
+[[ "${MARBLE_ADMOB_APP_ID:-}" =~ ^ca-app-pub-[0-9]+~[0-9]+$ ]] ||
+  say_no "Expected a real AdMob application ID (with ~)"
 [[ -n "${MARBLE_KEYSTORE_B64:-}" && -n "${MARBLE_KEY_ALIAS:-}" &&
    -n "${MARBLE_KEY_PASSWORD:-}" && -n "${MARBLE_CERT_SHA256:-}" ]] ||
   say_no "Pinned production Play signing key not configured"
-python3 - "$ad_unit" "$verify_url" <<'PY'
-import configparser,sys
-p="monetization_config.cfg"
-c=configparser.ConfigParser()
-c.read(p)
-c["admob"]["rewarded_unit_id"]=sys.argv[1]
-c["billing"]["verification_url"]=sys.argv[2]
-with open(p,"w") as f:c.write(f)
-PY
+# Godot ConfigFile needs quoted strings; the earlier configparser export
+# emitted raw URLs, which could disable production SDK initialization.
+# Enable the actual native export plugins and manifest app ID in this
+# temporary CI workspace, never in the public debug builds.
+python3 ci/configure_play_store.py
+grep -Fq 'general/android/app_id="' project.godot ||
+  say_no "AdMob manifest app ID was not injected"
+grep -Fq 'verification_url="https://' monetization_config.cfg ||
+  say_no "Google Play verifier was not quoted as a Godot string"
 echo 'PLAY_PREFLIGHT_PASS: Gradle, SDK36, real opt-in ad, Play verify service and signing prerequisites present'
