@@ -221,7 +221,11 @@ func _run() -> void:
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_freemium_career.cfg"))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(LEASE.SAVE_PATH))
-    DirAccess.remove_absolute(ProjectSettings.globalize_path(bridge.CONSUMED_PATH))
-    DirAccess.remove_absolute(ProjectSettings.globalize_path(bridge.PENDING_PATH))
+    # The scene was queued for deletion above; never dereference its
+    # monetization child after process_frame frees the live Node.
+    DirAccess.remove_absolute(ProjectSettings.globalize_path(
+        "user://marble_consumed_purchases.cfg"))
+    DirAccess.remove_absolute(ProjectSettings.globalize_path(
+        "user://marble_pending_play_purchase.cfg"))
     print("FREEMIUM_SKINS_PASS: 10 skins, 10% rolls, 4h/6h, nonstacking, persistence, expiry, cosmetic-only, fail-closed IAP and ads")
     quit(0)
