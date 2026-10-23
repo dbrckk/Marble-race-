@@ -59,7 +59,8 @@ func _refresh() -> void:
     var now := int(Time.get_unix_time_from_system())
     # No untrusted device-clock rollback can extend an expiring cosmetic lease.
     if now < last_seen_utc-90 or skin_id < 0 or skin_id >= SKINS.size() or (
-        ends_utc <= now or ends_utc > now+PAID_SECONDS+120):
+        source not in ["ad","play"] or ends_utc <= now or
+        ends_utc > now+(FREE_SECONDS if source == "ad" else PAID_SECONDS)+120):
         if skin_id >= 0:
             skin_id = -1
             ends_utc = 0
