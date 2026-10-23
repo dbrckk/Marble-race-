@@ -1315,19 +1315,29 @@ func update_hud() -> void:
         var projected_blocking: bool = game.selected_track != 2 or (
             game.race_director.piston_up(gate_id,
                 game.race_director.clock+gate_eta))
+        # A rising piston still needs a warning ONLY when the predicted
+        # collision envelope overlaps this player's physical driving line.
+        # Show a calm clear-line cue otherwise; do not punish safe steering
+        # with false hazard sounds when the gate moves on the opposite rail.
+        var player_threatened: bool = projected_blocking and (
+            game.race_director.threatens_line(
+                gate_id,game.race_director.clock,gate_eta,
+                game.player.global_position.x,game.player.linear_velocity.x))
         var gate_side: String = str(moving_event["side"])
+        var lane_verdict: String = "DODGE!" if player_threatened else "LINE CLEAR"
         if game.selected_track == 2:
-            timed_gate_label.text = "FORGE PISTON %s  •  EST. %s  •  %.1fs" % [
-                gate_side,"BLOCKED" if projected_blocking else "OPEN",gate_eta]
+            timed_gate_label.text = "FORGE PISTON %s  •  EST. %s  •  %s  •  %.1fs" % [
+                gate_side,"BLOCKED" if projected_blocking else "OPEN",
+                lane_verdict,gate_eta]
         else:
-            timed_gate_label.text = "%s %s  •  %dm / %.1fs" % [
-                str(moving_event["kind"]),gate_side,
+            timed_gate_label.text = "%s %s  •  %s  •  %dm / %.1fs" % [
+                str(moving_event["kind"]),gate_side,lane_verdict,
                 int(gate_distance),gate_eta]
         timed_gate_label.add_theme_color_override("font_color",
-            Color("#ffae91") if projected_blocking and gate_eta < 1.45 else (
-                Color("#a1edcc") if not projected_blocking else Color("#f6d49b")))
+            Color("#ffae91") if player_threatened and gate_eta < 1.45 else (
+                Color("#a1edcc") if not player_threatened else Color("#f6d49b")))
         if gate_eta <= 2.20 and gate_eta >= 0.25:
-            game.audio.warn_timed_gate(gate_id,projected_blocking)
+            game.audio.warn_timed_gate(gate_id,player_threatened)
     # Predict the next still-available, immediate-effect item. Clients
     # consult their local server-confirmed visibility; AI never receive UI.
     var next_item: Dictionary = game.race_items.nearest_available(
