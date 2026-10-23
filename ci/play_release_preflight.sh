@@ -16,6 +16,12 @@ grep -Fq 'package/unique_name="com.dbrckk.marble_race"' export_presets.cfg ||
 test -d addons/admob || say_no "Poing Studios AdMob Godot addon is missing"
 test -f addons/GodotGooglePlayBilling/BillingClient.gd ||
   say_no "First-party Play Billing addon is missing"
+test -f addons/admob/android/bin/ads/poing_godot_admob_ads.gd ||
+  say_no "AdMob native exporter missing (GDScript-only will not serve real ads)"
+find addons/admob/android/bin/ads -name '*.aar' -print -quit | grep -q . ||
+  say_no "AdMob Android native AAR missing"
+find addons/GodotGooglePlayBilling -name '*.aar' -print -quit | grep -q . ||
+  say_no "Billing Android native AAR missing"
 test -d android/build || say_no "Android Gradle build template not installed"
 
 # Godot 4.5.1 ships with targetSdk 35. Google Play NEW apps from Aug 31 2026
