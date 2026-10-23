@@ -90,19 +90,24 @@ func _init_ads() -> void:
     var info_object: Object = consent_api.get("consent_information")
     # Request updated consent at every launch. Never display an ad or start
     # Google Mobile Ads from a stale, UNKNOWN or REQUIRED consent state.
-    info_object.update(request_script.new(),func() -> void:
+    var on_consent_success := func() -> void:
         var state: int = int(info_object.get_consent_status())
         if state == 2:
             # ConsentStatus.REQUIRED: first display the real UMP consent form.
-            consent_api.load_consent_form(func(form: Object) -> void:
-                form.show(func(_error: Variant) -> void:
-                    _consent_complete(info_object)),func(_err: Variant) -> void:
-                        info = "Consent form unavailable; video reward disabled."
-                        changed.emit())
+            var on_form_loaded := func(form: Object) -> void:
+                var on_dismissed := func(_error: Variant) -> void:
+                    _consent_complete(info_object)
+                form.show(on_dismissed)
+            var on_form_failed := func(_err: Variant) -> void:
+                info = "Consent form unavailable; video reward disabled."
+                changed.emit()
+            consent_api.load_consent_form(on_form_loaded,on_form_failed)
         else:
-            _consent_complete(info_object),func(_err: Variant) -> void:
-                info = "Ad privacy status unavailable; video reward disabled."
-                changed.emit())
+            _consent_complete(info_object)
+    var on_consent_failed := func(_err: Variant) -> void:
+        info = "Ad privacy status unavailable; video reward disabled."
+        changed.emit()
+    info_object.update(request_script.new(),on_consent_success,on_consent_failed)
 
 func _consent_complete(info_object: Object) -> void:
     var status: int = int(info_object.get_consent_status())
