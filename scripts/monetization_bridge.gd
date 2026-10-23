@@ -172,7 +172,7 @@ func _request_validation(token: String) -> void:
     changed.emit()
     # The server must call the Google Play Developer API, reject refunded /
     # previously consumed tokens, and atomically consume this consumable.
-    # Only HTTPS JSON {"ok":true,"product_id":"random_skin_6h"} grants a skin.
+    # Only HTTPS JSON with ok, consumed, matching product and token_sha256 grants a skin.
     var payload := JSON.stringify({"product_id":SKINS.PRODUCT_ID,
         "package_name":"com.dbrckk.marble_race","purchase_token":token})
     var err := http.request(verify_url,[
@@ -190,7 +190,9 @@ func _verified_purchase_response(_result: int, status: int,
     verifying = false
     var parsed: Variant = JSON.parse_string(body.get_string_from_utf8())
     if status == 200 and parsed is Dictionary and bool(parsed.get("ok",false)) and (
+        bool(parsed.get("consumed",false))) and (
         str(parsed.get("product_id","")) == SKINS.PRODUCT_ID) and (
+        str(parsed.get("token_sha256","")) == token.sha256_text()) and (
         token != "" and not consumed.has(token.sha256_text())):
         _remember_token(token)
         skins.grant_from_verified_purchase()
