@@ -58,6 +58,25 @@ func _run() -> void:
     assert(game.player.glass_material.get_shader_parameter("skin_radiance") == 1.0)
     assert(int(game.player.glass_material.get_shader_parameter("skin_signature")) ==
         manager.active_id())
+    assert(game.trail.color_ramp is GradientTexture1D,
+        "Premium skins must visibly change particle age, not simply recolour glass")
+    for key in ["flame","frost","smoke","petals","comet"]:
+        var skin := -1
+        for index in range(LEASE.SKINS.size()):
+            if str(LEASE.SKINS[index]["fx"]) == key:
+                skin = index
+                break
+        assert(skin >= 0)
+        manager.skin_id = skin
+        game._refresh_premium_skin()
+        assert(game.trail.color_ramp is GradientTexture1D)
+        var sphere: SphereMesh = game.trail.mesh as SphereMesh
+        if key == "smoke":
+            assert(sphere.radius > 0.11 and game.trail.gravity.y > 0.0,
+                "Premium smoke must behave like larger rising puffs")
+        if key == "frost":
+            assert(sphere.radius > 0.07 and game.trail.gravity.y < 0.0,
+                "Frost should use cool falling flakes, not the flame effect")
     var first: int = manager.active_id()
     var old_until: int = manager.ends_utc
     assert(manager._grant(LEASE.PAID_SECONDS,"play"))
@@ -85,6 +104,9 @@ func _run() -> void:
     manager.ends_utc = int(Time.get_unix_time_from_system())-1
     assert(manager.remaining() == 0 and manager.active_id() == -1)
     assert(game.player.glass_material.get_shader_parameter("skin_radiance") == 0.0)
+    assert(game.trail.color_ramp == null and
+        absf((game.trail.mesh as SphereMesh).radius-0.053) < 0.001,
+        "Skin expiry must restore the ordinary player trail with no premium remnants")
     # An invalid/rolled-back clock cannot prolong a skin indefinitely.
     manager.last_seen_utc = int(Time.get_unix_time_from_system())+200
     assert(not manager._grant(LEASE.FREE_SECONDS,"ad"))
