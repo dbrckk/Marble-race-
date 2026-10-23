@@ -341,6 +341,10 @@ func _on_marble_collision(other: Node) -> void:
         Input.vibrate_handheld(12 if intensity < 0.70 else 26)
         haptic_cooldown = 0.48
     var idx: int = rng.randi_range(0,samples.size()-1)
+    if contact == "bumper" and other.name.begins_with("PinballKicker_"):
+        # The existing soft/hard CC0 samples now distinguish a true
+        # spring-post tap from a strong rebound. Keep the same voice pool.
+        idx = 1 if intensity >= 0.55 else 0
     collision_duck = maxf(collision_duck,lerpf(0.4,2.8,intensity))
     _spatial_voice(samples[idx],target_marble.global_position,
         lerpf(-24.0,-8.0,intensity),rng.randf_range(0.94,1.08)*
