@@ -19,6 +19,18 @@ func _run() -> void:
         "Teleportation must not trigger the pass announcement")
     assert(not Moments.genuine_overtake(-1.3,1.4,0.2,0.1,-2.5,2.7,true),
         "A teleporting AI cannot award a race pass")
+    assert(Moments.genuine_side_duel(0.45,1.25,0.25,14.0,13.0),
+        "Two fast marbles at the same road height should enter a close duel")
+    assert(not Moments.genuine_side_duel(0.45,1.25,4.0,14.0,13.0),
+        "Marbles on different elevation decks cannot become a duel")
+    assert(not Moments.genuine_side_duel(0.45,1.25,0.0,2.0,13.0),
+        "Parked rivals do not generate false shoulder-to-shoulder drama")
+    assert(not Moments.genuine_side_duel(0.45,3.5,0.0,14.0,13.0),
+        "Distant lanes do not qualify as a close contest")
+    assert(not Moments.genuine_side_duel(0.45,0.2,0.0,14.0,13.0),
+        "Actual overlapping marbles are a collision, not a duel")
+    assert(not Moments.genuine_side_duel(6.0,1.25,0.0,14.0,13.0),
+        "A lone chase several metres behind is not side-by-side")
     assert(Moments.edge_intensity(30.0,true,0) == 0.0,
         "Economy preset must disable decorative motion streaks")
     assert(Moments.edge_intensity(20.0,false,2) >
@@ -111,6 +123,44 @@ func _run() -> void:
         not stage.race_moments.final_stretch_seen,
         "Rematches must reset local one-time race direction flags")
 
+    # Hold a true same-level two-marble duel for multiple real 10Hz
+    # samples. Only that verified fight may receive a one-shot cue.
+    for marble in stage.racers:
+        if marble != p:
+            marble.global_position = Vector3(25.0,0.0,14.0)
+    var duel_z: float = -80.0
+    var duel_center: float = stage.track_center_at(duel_z)
+    var duel_height: float = stage.height_at(duel_z)+0.80
+    p.global_position = Vector3(duel_center,duel_height,duel_z)
+    rival.global_position = Vector3(duel_center+1.30,duel_height,duel_z-0.40)
+    p.linear_velocity = Vector3(0.0,0.0,-13.0)
+    rival.linear_velocity = Vector3(0.0,0.0,-13.5)
+    rival.finished = false
+    for sample in range(6):
+        stage.race_moments.tick(0.12)
+    assert(stage.race_moments.side_by_side_active and
+        stage.race_moments.side_by_side_events == 1,
+        "A sustained honest wheel-to-wheel duel must get exactly one cue")
+    assert(stage.ui.race_moment_label.text == "SIDE BY SIDE!",
+        "Duel announcement must come from actual rigid-body track positions")
+    stage.ui.label_timer = 0.5
+    stage.ui.update_hud()
+    assert(stage.ui.duel_label.visible and
+        stage.ui.duel_label.text.contains("SIDE BY SIDE"),
+        "Android's existing no-touch duel banner should identify a real contest")
+    for sample in range(15):
+        stage.race_moments.tick(0.12)
+    assert(stage.race_moments.side_by_side_events == 1,
+        "Staying alongside the same opponent must not spam sound and alerts")
+    rival.global_position.y += 5.0
+    stage.race_moments.tick(0.12)
+    assert(not stage.race_moments.side_by_side_active,
+        "An elevated road must immediately end the same-level duel cue")
+    stage.race_moments.reset_round()
+    assert(stage.race_moments.side_by_side_events == 0 and
+        not stage.race_moments.side_by_side_active and
+        stage.race_moments.duel_announced.is_empty(),
+        "Rematches must reset duel anti-spam and local presentation stats")
     p.global_position = Vector3(0,stage.height_at(-182.0)+0.8,-182.0)
     p.finished = true
     p.finish_time = 52.0
@@ -153,5 +203,5 @@ func _run() -> void:
     await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://test_arcade_race_moments.cfg"))
-    print("RACE_MOMENTS_PASS: legitimate overtakes, finish drama, 4 mobile streaks, anti-spam and solo stats")
+    print("RACE_MOMENTS_PASS: legitimate overtakes, held side duels, clean resets, finish drama, mobile HUD, no ranking cheats")
     quit()
