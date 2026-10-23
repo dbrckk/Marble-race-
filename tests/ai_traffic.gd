@@ -124,6 +124,47 @@ func _check() -> void:
         "Final-half passing decisions must cache the lane between physics frames")
     assert(human.ai_traffic_timer == human_timer,
         "A remote or local human must retain direct steering")
+    # A real rival moves left into the bot from its right during a late
+    # wheel-to-wheel contest. The bot must open space with limited forces.
+    # A harmless parallel duel or bridge-level opponent must NOT cause
+    # needless weaving, and existing human controls remain untouched.
+    blocker.freeze = false
+    blocker.global_position = Vector3(final_center+1.5,
+        game.height_at(final_z)+0.8,final_z-0.3)
+    blocker.linear_velocity = Vector3(-3.2,0.0,-13.0)
+    follower.linear_velocity = Vector3(0.0,0.0,-13.0)
+    var yielding: float = Strategy.side_duel_safe_lane(
+        follower,game.racers,0.0,final_center)
+    assert(yielding < -1.0 and yielding >= -Strategy.TRAFFIC_SAFE_LANE,
+        "AI must open physical space when an adjacent rival cuts into its lane")
+    assert(Strategy.traffic_lane(
+        follower,game.racers,final_center,0.0,1) == yielding,
+        "Risk of side contact must affect normal cached traffic planning")
+    blocker.linear_velocity.x = 1.0
+    assert(is_zero_approx(Strategy.side_duel_safe_lane(
+        follower,game.racers,0.0,final_center)),
+        "A parallel rival moving away does not require defensive weaving")
+    blocker.linear_velocity.x = -3.2
+    blocker.global_position.y += 5.0
+    assert(is_zero_approx(Strategy.side_duel_safe_lane(
+        follower,game.racers,0.0,final_center)),
+        "A rival on an elevated bridge is not a same-level collision threat")
+    blocker.global_position.y -= 5.0
+    follower.ai_traffic_timer = 0.0
+    follower.ai_lane_goal = 0.0
+    follower.ai_lane_timer = 2.0
+    var defender_before: Vector3 = follower.global_position
+    var player_before: Vector3 = human.global_position
+    follower.drive(1.0/60.0,5.0,0.0,false)
+    assert(follower.global_position.is_equal_approx(defender_before) and
+        human.global_position.is_equal_approx(player_before),
+        "Defensive AI maneuvers cannot teleport any racer")
+    await physics_frame
+    await physics_frame
+    await physics_frame
+    assert(follower.linear_velocity.x < -0.01,
+        "The late-race AI must actually yield through Godot physics forces")
+    blocker.global_position.x = final_center+15.0
     # Near a physical guard the new planner must deliberately fall back
     # to the old, already validated obstacle-navigation behavior.
     var gate_z := -30.0
@@ -147,5 +188,5 @@ func _check() -> void:
     game.return_to_menu()
     game.queue_free()
     await process_frame
-    print("AI_TRAFFIC_PASS: deterministic tactical passes, open lanes, safe bounds, human authority, cached scans")
+    print("AI_TRAFFIC_PASS: physical overtakes, lateral duel yielding, bridge safety, no teleports, human authority, cached scans")
     quit(0)
