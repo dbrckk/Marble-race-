@@ -48,8 +48,11 @@ compilation AAB de test avec une **clé jetable détruite après usage**.
 Cet essai ne produit aucun artefact installable en production.
 
 Le composant `billing_service/app.py` vérifie les vrais jetons Google,
-bloque leur réutilisation, refuse les transactions en attente ou annulées,
-et persiste l'état d'une consommation. Son stockage doit être sauvegardé.
+refuse les transactions en attente ou annulées, et persiste l'état de
+consommation. Il attribue **une seule fois** un des dix skins (tirage serveur
+cryptographiquement aléatoire) et son expiration UTC six heures plus tard.
+Si une réponse est perdue, une nouvelle demande retourne le **même skin
+et la même expiration**, jamais un nouveau tirage ou six heures supplémentaires. Son stockage doit être sauvegardé.
 L'app garde une transaction non confirmée pour réessayer la vérification
 sans initier un deuxième achat.
 
