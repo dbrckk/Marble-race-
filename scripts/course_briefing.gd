@@ -7,6 +7,7 @@ const SHORTCUT = preload("res://scripts/shortcut_route.gd")
 const DIRECTOR = preload("res://scripts/race_director.gd")
 const KICKERS = preload("res://scripts/arcade_bumpers.gd")
 const RARE_ITEMS = preload("res://scripts/race_items.gd")
+const ZONES = preload("res://scripts/course_mechanics.gd")
 const START_Z := 12.0
 const FINISH_Z := -185.0
 const TRACK_COLORS := [
@@ -53,6 +54,13 @@ func item_marker(index: int) -> Vector2:
     # Exactly the same absolute world-space placement as the collectible
     # mesh and its 3D pickup check in every one of the nine race layouts.
     var position: Vector3 = RARE_ITEMS.placement_at(index,course,variation)
+    return project(position.z,position.x)
+
+func zone_marker(index: int) -> Vector2:
+    # The briefing and the actual contact-zone geometry use one pure
+    # placement function. It forecasts NEXT layout even while a previous
+    # built race still exists in the scene.
+    var position: Vector3 = ZONES.placement_at(index,course,variation)
     return project(position.z,position.x)
 
 func describe() -> String:
@@ -140,6 +148,13 @@ func _draw() -> void:
             var point: Vector2 = kicker_marker(station,side)
             draw_circle(point,4.2,Color(0.03,0.07,0.10,0.94))
             draw_circle(point,2.8,KICKERS.COLORS[course])
+    # Five physically effective strips, ice patches or Forge vents.
+    # Small filled markers distinguish them from red moving gates and
+    # the diamond-shaped human-only items without adding a HUD overlay.
+    for index in range(ZONES.ZONE_Z.size()):
+        var position: Vector2 = zone_marker(index)
+        draw_circle(position,3.4,Color(0.02,0.03,0.05,0.96))
+        draw_circle(position,2.2,ZONES.TRACK_COLORS[course])
     # Four rare, instant HUMAN-only powerups. The diamond shape is distinct
     # from circular kinetic hazards and bumper posts even on small screens.
     for index in range(RARE_ITEMS.ITEM_Z.size()):
