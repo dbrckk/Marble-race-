@@ -93,6 +93,28 @@ func _run() -> void:
             mechanic.tick(0.016,game.racers,game.net)
             assert(float(mechanic.last_burst["0:39"]) > previous_time,
                 "Vents must be repeatable on later eruption cycles")
+            assert(is_equal_approx(mechanic.vent_charge(0,0.1),1.0),
+                "An active Forge eruption must have a full-strength visual")
+            assert(mechanic.vent_charge(0,3.0) == 0.0 and
+                mechanic.vent_charge(0,-1.0) == 0.0,
+                "Idle vents must not send misleading eruption warnings")
+            var windup: float = mechanic.vent_charge(0,4.35)
+            assert(windup > 0.0 and windup < 1.0,
+                "An upcoming eruption must visibly wind up before the next hit")
+            mechanic.race_clock = 4.35
+            mechanic._process(0.016)
+            assert(mechanic.active_marks[0].visible and
+                mechanic.active_marks[0].scale.y < 0.75,
+                "Forge must warn with a small growing ember before physics activate")
+            mechanic.race_clock = 3.0
+            mechanic._process(0.016)
+            assert(not mechanic.active_marks[0].visible,
+                "Safe cooling periods must not resemble a live eruption")
+            mechanic.race_clock = 0.1
+            mechanic._process(0.016)
+            assert(mechanic.active_marks[0].visible and
+                mechanic.active_marks[0].scale.y > 0.5,
+                "Active authoritative physics and visible lava must agree")
             # The course event RPC is display-only: no client-authoritative physics.
             game.net.role = "client"
             game.net.match_running = true
