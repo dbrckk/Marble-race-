@@ -4,6 +4,14 @@ extends Node3D
 const ITEM_Z := [-28.0, -79.0, -128.0, -169.0]
 const ITEM_X := [-2.8, 2.8, -2.0, 2.0]
 const PICKUP_RADIUS_SQUARED := 3.1
+# The physical shockwave is a true radial, same-deck interaction. Remote
+# clients only render the confirmed result; no client can apply its impulse.
+const PULSE_RANGE := 4.12
+const PULSE_MIN_DISTANCE := 0.32
+const PULSE_VERTICAL_LIMIT := 1.20
+const PULSE_HORIZONTAL_IMPULSE := 4.15
+const PULSE_LIFT_IMPULSE := 1.10
+const PULSE_VISUAL_DURATION := 0.52
 const ITEM_KINDS := ["turbo", "spring", "pulse", "stabilizer"]
 const ITEM_NAMES := ["TURBO", "JUMP", "SHOCKWAVE", "STEADY DASH"]
 const TRACK_PATH = preload("res://scripts/track_path.gd")
@@ -17,6 +25,11 @@ var clock := 0.0
 # Reused scratch list: scan the 40 marbles ONCE per physics frame, then
 # test pickup collisions for only the 1-4 authoritative human racers.
 var eligible_collectors: Array[RigidBody3D] = []
+var pulse_ring: MeshInstance3D
+var pulse_material: StandardMaterial3D
+var pulse_remaining := 0.0
+var visual_quality := 1
+var confirmed_pulses := 0
 
 static func kind_at(index: int, track: int) -> String:
     return ITEM_KINDS[posmod(index+clampi(track,0,2),ITEM_KINDS.size())]
@@ -105,10 +118,87 @@ func setup(owner: Node3D, track: int, variation: int) -> void:
         pickup.add_child(title)
         add_child(pickup)
         items.append(pickup)
+    _build_pulse_fx()
+
+func _build_pulse_fx() -> void:
+    # A single reusable unlit torus is enough for one local human's instant
+    # rare item. No lights, shaders, particles, physics bodies or extra
+    # audio channels; it is invisible unless a real pulse is confirmed.
+    pulse_ring = MeshInstance3D.new()
+    pulse_ring.name = "ConfirmedShockwaveVisual"
+    var mesh := TorusMesh.new()
+    mesh.inner_radius = 0.90
+    mesh.outer_radius = 1.03
+    mesh.rings = 24
+    mesh.ring_segments = 6
+    pulse_ring.mesh = mesh
+    pulse_material = StandardMaterial3D.new()
+    pulse_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    pulse_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+    pulse_material.albedo_color = COLORS[2]
+    pulse_material.emission_enabled = true
+    pulse_material.emission = COLORS[2]
+    pulse_material.emission_energy_multiplier = 0.72
+    pulse_material.no_depth_test = false
+    pulse_ring.material_override = pulse_material
+    pulse_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    pulse_ring.visible = false
+    add_child(pulse_ring)
+
+func set_quality(quality: int) -> void:
+    visual_quality = clampi(quality,0,2)
+    if is_instance_valid(pulse_ring):
+        pulse_ring.visible = visual_quality > 0 and pulse_remaining > 0.0
+
+func _show_pulse(at: Vector3) -> void:
+    # Triggered only after offline/server-authoritative human collection.
+    # The client uses the validated dedicated-server notification instead.
+    confirmed_pulses += 1
+    pulse_remaining = PULSE_VISUAL_DURATION
+    if not is_instance_valid(pulse_ring):
+        return
+    pulse_ring.global_position = at+Vector3(0.0,-0.46,0.0)
+    pulse_ring.scale = Vector3.ONE*0.36
+    set_quality(visual_quality)
+
+func _process(delta: float) -> void:
+    if pulse_remaining <= 0.0 or not is_finite(delta) or delta <= 0.0:
+        return
+    pulse_remaining = maxf(0.0,pulse_remaining-delta)
+    if not is_instance_valid(pulse_ring):
+        return
+    if visual_quality == 0 or pulse_remaining <= 0.0:
+        pulse_ring.visible = false
+        return
+    var progress: float = 1.0-pulse_remaining/PULSE_VISUAL_DURATION
+    var radius: float = lerpf(0.36,PULSE_RANGE,progress)
+    pulse_ring.scale = Vector3(radius,1.0,radius)
+    var fade: Color = COLORS[2]
+    fade.a = 0.88*pow(1.0-progress,1.4)
+    pulse_material.albedo_color = fade
+
+static func pulse_impulse(offset: Vector3) -> Vector3:
+    # Zero means no hit; also makes distance falloff deterministic enough
+    # to validate independently of rendering and multiplayer state.
+    if not offset.is_finite() or absf(offset.y) > PULSE_VERTICAL_LIMIT:
+        return Vector3.ZERO
+    var lateral := Vector2(offset.x,offset.z)
+    var distance: float = lateral.length()
+    if distance < PULSE_MIN_DISTANCE or distance >= PULSE_RANGE:
+        return Vector3.ZERO
+    var intensity: float = 1.0-smoothstep(
+        PULSE_MIN_DISTANCE,PULSE_RANGE,distance)
+    var direction := Vector3(offset.x,0.0,offset.z)/distance
+    return direction*(PULSE_HORIZONTAL_IMPULSE*intensity)+(
+        Vector3.UP*PULSE_LIFT_IMPULSE*intensity)
 
 func reset_round() -> void:
     clock = 0.0
     used.clear()
+    pulse_remaining = 0.0
+    confirmed_pulses = 0
+    if is_instance_valid(pulse_ring):
+        pulse_ring.visible = false
     for item in items:
         if is_instance_valid(item):
             item.visible = true
@@ -144,6 +234,8 @@ func tick(delta: float, racers: Array[RigidBody3D], net: Node) -> void:
                 net.notify_item_collected(marble.racer_id,i,kind)
             if net.role == "offline":
                 pickup.visible = false
+                if kind == "pulse":
+                    _show_pulse(marble.global_position)
                 game.audio.item_pickup(kind)
                 game.ui.show_item_pickup(kind)
             # Shared pickups remain visible in multiplayer: each human can
@@ -153,6 +245,8 @@ func tick(delta: float, racers: Array[RigidBody3D], net: Node) -> void:
 func mark_local_pickup(index: int) -> void:
     # Client display only: the dedicated server already applied the effect.
     if index >= 0 and index < items.size() and is_instance_valid(items[index]):
+        if items[index].visible and kind_at(index,game.selected_track) == "pulse":
+            _show_pulse(items[index].global_position)
         items[index].visible = false
 
 func _activate(kind: String, racer: RigidBody3D, racers: Array[RigidBody3D]) -> void:
@@ -161,14 +255,19 @@ func _activate(kind: String, racer: RigidBody3D, racers: Array[RigidBody3D]) -> 
     elif kind == "spring":
         racer.apply_central_impulse(Vector3(0.0,5.0,-3.4)*racer.mass)
     elif kind == "pulse":
+        # Every close rival receives a bounded impulse proportional to its
+        # actual distance, provided both spheres are on the same 3D deck.
+        # No effects through raised shortcuts, on frozen/finished bodies
+        # or outside the visible wave's exact horizontal radius.
         for opponent in racers:
-            if opponent == racer or not is_instance_valid(opponent) or opponent.finished or opponent.eliminated:
+            if opponent == racer or not is_instance_valid(opponent) or (
+                opponent.finished or opponent.eliminated or opponent.freeze):
                 continue
-            var offset: Vector3 = opponent.global_position-racer.global_position
-            if offset.length_squared() > 17.0 or offset.length_squared() < 0.1:
+            var impulse: Vector3 = pulse_impulse(
+                opponent.global_position-racer.global_position)
+            if impulse == Vector3.ZERO:
                 continue
-            var horizontal := Vector3(offset.x,0.0,offset.z).normalized()
-            opponent.apply_central_impulse((horizontal*3.8+Vector3.UP*1.2)*opponent.mass)
+            opponent.apply_central_impulse(impulse*opponent.mass)
         racer.apply_central_impulse(Vector3(0.0,0.5,-2.4)*racer.mass)
     else:
         racer.linear_velocity.x *= 0.25
