@@ -2,6 +2,7 @@ extends RefCounted
 ## Local-player cosmetics only. This class never touches the marble's
 ## RigidBody3D mass, impulses, friction, velocity or online authority.
 const SKINS = preload("res://scripts/temporary_skins.gd")
+const RACER = preload("res://scripts/marble.gd")
 
 static func apply(game: Node3D) -> void:
     if not is_instance_valid(game.player) or not is_instance_valid(game.player.glass_material):
@@ -44,7 +45,7 @@ static func apply(game: Node3D) -> void:
 static func trail_tint(game: Node3D, boosting: bool) -> Color:
     if not is_instance_valid(game.skins) or game.skins.active_id() < 0:
         return Color("#91f5fd") if boosting else (
-            game.Racer.PLAYER_STYLE_BASE[game.career.selected_style]
+            RACER.PLAYER_STYLE_BASE[game.career.selected_style]
             if not game.net.is_active() else Color("#eeb65e"))
     var definition: Dictionary = game.skins.active_skin()
     var accent := Color(str(definition["accent"]))
