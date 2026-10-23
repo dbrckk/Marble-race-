@@ -21,6 +21,7 @@ const TrackPath = preload("res://scripts/track_path.gd")
 const RaceFeedback = preload("res://scripts/race_feedback.gd")
 const RaceMoments = preload("res://scripts/race_moments.gd")
 const TemporarySkins = preload("res://scripts/temporary_skins.gd")
+const MonetizationBridge = preload("res://scripts/monetization_bridge.gd")
 const PremiumSkinVisuals = preload("res://scripts/premium_skin_visuals.gd")
 const Slipstream = preload("res://scripts/slipstream.gd")
 const PerformanceBudget = preload("res://scripts/performance_budget.gd")
@@ -95,6 +96,7 @@ var checkpoint_splits: Array[float] = []
 var course_flash := 0.0
 var trail: CPUParticles3D
 var skins: Node
+var monetization: Node
 var starting_camera_target := Vector3(0, 0, 0)
 var player_marker: Label3D
 var contact_shadows: Node3D
@@ -137,6 +139,10 @@ func _ready() -> void:
     skins.name = "TemporaryCosmeticPass"
     add_child(skins)
     skins.changed.connect(_refresh_premium_skin)
+    monetization = MonetizationBridge.new()
+    monetization.name = "VerifiedStoreBridge"
+    add_child(monetization)
+    monetization.configure(skins)
     track_physics_material = PhysicsMaterial.new()
     track_physics_material.friction = 0.85
     track_physics_material.bounce = 0.09
