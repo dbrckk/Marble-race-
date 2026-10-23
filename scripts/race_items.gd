@@ -184,7 +184,10 @@ static func pulse_impulse(offset: Vector3) -> Vector3:
         return Vector3.ZERO
     var lateral := Vector2(offset.x,offset.z)
     var distance: float = lateral.length()
-    if distance < PULSE_MIN_DISTANCE or distance >= PULSE_RANGE:
+    # Godot stores Vector3 positions as 32-bit floats. A query at exactly
+    # the advertised radius can round a few nanometres *inside* the edge;
+    # reject that invisible remnant instead of giving an unfair micro-push.
+    if distance < PULSE_MIN_DISTANCE or distance >= PULSE_RANGE-0.001:
         return Vector3.ZERO
     var intensity: float = 1.0-smoothstep(
         PULSE_MIN_DISTANCE,PULSE_RANGE,distance)
