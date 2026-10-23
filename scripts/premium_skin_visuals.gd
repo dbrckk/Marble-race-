@@ -18,6 +18,11 @@ static func apply(game: Node3D) -> void:
             game.trail.lifetime = 0.52
             game.trail.spread = 20.0
             game.trail.gravity = Vector3(0.0,-0.12,0.0)
+            game.trail.color_ramp = null
+            var default_mesh: SphereMesh = game.trail.mesh as SphereMesh
+            if default_mesh != null:
+                default_mesh.radius = 0.053
+                default_mesh.height = 0.105
         return
     var definition: Dictionary = SKINS.SKINS[index]
     var base := Color(str(definition["base"]))
@@ -41,6 +46,39 @@ static func apply(game: Node3D) -> void:
         game.trail.gravity = Vector3(0.0,
             0.55 if category in ["smoke","ember","flame"] else -0.12,0.0)
         game.trail.color = accent
+        var puff: SphereMesh = game.trail.mesh as SphereMesh
+        if puff != null:
+            puff.radius = 0.115 if category == "smoke" else (
+                0.079 if category in ["frost","petals","ribbon"] else 0.053)
+            puff.height = puff.radius*2.0
+        # Each specialty family has a different luminous age profile.
+        # One 1D 32-pixel gradient feeds the EXISTING mobile particle system,
+        # avoiding ten simultaneous emitters, sprite textures or shadow pass.
+        var palette := Gradient.new()
+        palette.offsets = PackedFloat32Array([0.0,0.32,1.0])
+        var core: Color = Color.WHITE
+        var tip: Color = Color.WHITE
+        if category == "smoke":
+            core = Color(0.75,0.83,0.97,0.44)
+            tip = Color(0.47,0.53,0.72,0.22)
+        elif category in ["flame","ember"]:
+            core = Color(1.0,0.95,0.63,0.92)
+            tip = Color(1.0,0.30,0.13,0.40)
+        elif category == "frost":
+            core = Color(0.94,1.0,1.0,0.93)
+            tip = Color(0.32,0.78,1.0,0.42)
+        elif category == "petals":
+            core = Color(1.0,0.73,0.96,0.86)
+            tip = Color(0.75,0.56,1.0,0.40)
+        else:
+            core = Color(1.0,1.0,1.0,0.93)
+            tip = Color(0.72,0.88,1.0,0.42)
+        palette.colors = PackedColorArray([core,tip,
+            Color(tip.r,tip.g,tip.b,0.0)])
+        var ramp := GradientTexture1D.new()
+        ramp.width = 32
+        ramp.gradient = palette
+        game.trail.color_ramp = ramp
 
 static func trail_tint(game: Node3D, boosting: bool) -> Color:
     if not is_instance_valid(game.skins) or game.skins.active_id() < 0:
