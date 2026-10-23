@@ -149,6 +149,12 @@ jobs:
           set -euo pipefail
           timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 480 --path . --script res://tests/arcade_items.gd 2>&1 | tee arcade-items.log
           grep -Fq "ARCADE_ITEMS_AND_WORLDS_PASS:" arcade-items.log
+      - name: Nine-layout distance-fair human shockwave and Android ring FX
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 95s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 1300 --path . --script res://tests/shockwave_physics.gd 2>&1 | tee shockwave-physics.log
+          grep -Fq "SHOCKWAVE_PHYSICS_PASS:" shockwave-physics.log
       - name: Nine-layout real rare item preview and authenticated mobile HUD guidance
         shell: bash
         run: |
