@@ -66,6 +66,41 @@ func _run() -> void:
     bridge._clear_pending()
     assert(bridge.pending_token == "")
     assert(not FileAccess.file_exists(bridge.PENDING_PATH))
+    # A backend-generated identity + absolute expiry must be used without
+    # client-side rerolling, even if a verified response is repeated.
+    var issued_at := int(Time.get_unix_time_from_system())
+    var server_expires: int = issued_at+LEASE.PAID_SECONDS-35
+    assert(not manager.grant_from_verified_entitlement(-1,server_expires) and
+        not manager.grant_from_verified_entitlement(10,server_expires) and
+        not manager.grant_from_verified_entitlement(3,issued_at-1) and
+        not manager.grant_from_verified_entitlement(3,
+            issued_at+LEASE.PAID_SECONDS+200),
+        "An invalid, expired or overlong server-paid lease must be rejected")
+    assert(bridge._hold_pending(pending_qa))
+    bridge.receipt_token = pending_qa
+    var verified_response := JSON.stringify({"ok":true,"consumed":true,
+        "product_id":LEASE.PRODUCT_ID,
+        "token_sha256":pending_qa.sha256_text(),"skin_id":7,
+        "expires_utc":server_expires})
+    bridge._verified_purchase_response(0,200,PackedStringArray(),
+        verified_response.to_utf8_buffer())
+    assert(manager.active_id() == 7 and manager.ends_utc == server_expires and
+        manager.source == "play",
+        "A validated purchase must apply the immutable server-selected skin")
+    assert(bridge.pending_token == "" and
+        not FileAccess.file_exists(bridge.PENDING_PATH),
+        "Successful entitlement must resolve the saved purchase")
+    assert(bridge.consumed.has(pending_qa.sha256_text()),
+        "A redeemed product token is locally protected from repeat credit")
+    assert(manager.grant_from_verified_entitlement(7,server_expires) and
+        manager.ends_utc == server_expires,
+        "Replayed backend receipt cannot extend six hours or reroll")
+    manager.skin_id = -1
+    manager.ends_utc = 0
+    manager.source = ""
+    manager.last_seen_utc = 0
+    manager._save()
+    manager.changed.emit()
     game.ui.show_skin_shop()
     assert(game.ui.skin_shop_layer.visible)
     assert(game.ui.skin_shop_layer.find_children(
@@ -146,5 +181,7 @@ func _run() -> void:
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_freemium_career.cfg"))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(LEASE.SAVE_PATH))
+    DirAccess.remove_absolute(ProjectSettings.globalize_path(bridge.CONSUMED_PATH))
+    DirAccess.remove_absolute(ProjectSettings.globalize_path(bridge.PENDING_PATH))
     print("FREEMIUM_SKINS_PASS: 10 skins, 10% rolls, 4h/6h, nonstacking, persistence, expiry, cosmetic-only, fail-closed IAP and ads")
     quit(0)
