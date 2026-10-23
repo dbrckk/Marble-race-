@@ -87,10 +87,22 @@ func grant_from_confirmed_ad() -> bool:
     # Call only from the native SDK's on_user_earned_reward event.
     return _grant(FREE_SECONDS,"ad")
 
-func grant_from_verified_purchase() -> bool:
-    # Call only after backend purchase-token validation and idempotent
-    # consumption. Never grant on click, pending purchase or billing launch.
-    return _grant(PAID_SECONDS,"play")
+func grant_from_verified_entitlement(index: int, expiry_unix: int) -> bool:
+    # A purchased skin identity and expiration are assigned ONCE by the
+    # trusted Google Play verifier, not rolled or renewed in Android.
+    # Replaying a lost HTTPS response therefore restores the same original
+    # entitlement, never another six hours or a second random skin.
+    var now := int(Time.get_unix_time_from_system())
+    if index < 0 or index >= SKINS.size() or expiry_unix <= now or (
+        expiry_unix > now+PAID_SECONDS+120) or now < last_seen_utc-90:
+        return false
+    skin_id = index
+    ends_utc = expiry_unix
+    last_seen_utc = now
+    source = "play"
+    _save()
+    changed.emit()
+    return true
 
 func _grant(duration: int, origin: String) -> bool:
     if duration not in [FREE_SECONDS,PAID_SECONDS] or origin not in ["ad","play"]:
