@@ -286,14 +286,13 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
                 ai_traffic_timer = 0.0
                 ai_traffic_goal = ai_lane_goal
                 ai_traffic_offset = ai_lane_goal
-            # Dynamic timed hazards have a future position, not merely an
-            # instant lane. In the final half, ordinary AI can read the
-            # deterministic physical gate trajectory and move inward before
-            # impact. Never interfere with a shortcut specialist or a human.
-            # Enter the post-portal corridor early enough for rematches
-            # which place the second gate as near as z=-110.
-            if position.z < -96.0 and not wants_shortcut() and (
-                is_instance_valid(course_owner.race_director)):
+            # Predict real timed collider positions on ALL three gates.
+            # Previously the first gate was ignored (z > -96), and bots
+            # selected for a shortcut never dodged hazards after rejoining.
+            # The branch above already gives active bypass steering priority;
+            # once a specialist merges, it must race by the same rules.
+            # Human input still has exclusive control of human marbles.
+            if is_instance_valid(course_owner.race_director):
                 var planned_offset: float = ai_traffic_offset if traffic_safe else ai_lane_goal
                 var safe_offset: float = AIPath.timed_gate_safe_lane(
                     course_owner.race_director,position.z,
