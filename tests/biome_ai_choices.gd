@@ -68,8 +68,7 @@ func _verify() -> void:
             expected = STRATEGY.biome_zone_safe_lane(
                 mechanics,z,-12.0,preferred,temperament)
             assert(absf(expected) <= STRATEGY.TRAFFIC_SAFE_LANE)
-            assert((expected-preferred)*side > (
-                0.4 if biome == 0 else -0.4),
+            assert(absf(expected-preferred) > 0.75,
                 "Biomes must create a real route choice, not decorative hints")
             if biome == 0:
                 assert((expected-preferred)*side > 0.8,
@@ -121,7 +120,7 @@ func _verify() -> void:
             await physics_frame
             await physics_frame
             var lateral: float = bot.linear_velocity.x*side
-            if lateral <= (0.02 if biome == 0 else -999.0) and biome == 0:
+            if biome == 0 and lateral <= 0.02:
                 print("ZONE_AI_DEBUG wood ",layout," offset=",expected,
                     " speed=",bot.linear_velocity," position=",bot.global_position)
             if biome == 0:
