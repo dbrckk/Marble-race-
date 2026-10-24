@@ -206,6 +206,43 @@ func _run() -> void:
     assert(game.trail.color_ramp == null and
         absf((game.trail.mesh as SphereMesh).radius-0.053) < 0.001,
         "Skin expiry must restore the ordinary player trail with no premium remnants")
+    # Production saves must not disguise an ad reward as a six-hour
+    # entitlement, nor resurrect a lease with an unknown origin.
+    var now_utc := int(Time.get_unix_time_from_system())
+    manager.skin_id = 2
+    manager.source = "ad"
+    manager.ends_utc = now_utc+LEASE.PAID_SECONDS
+    manager.last_seen_utc = now_utc
+    manager._save()
+    manager._refresh()
+    assert(manager.active_id() == -1,
+        "Restored four-hour ad lease must reject a six-hour forged deadline")
+    manager.skin_id = 3
+    manager.source = "unknown"
+    manager.ends_utc = now_utc+LEASE.FREE_SECONDS
+    manager.last_seen_utc = now_utc
+    manager._save()
+    manager._refresh()
+    assert(manager.active_id() == -1,
+        "Unrecognized lease origin cannot unlock exclusive skins")
+    assert(not manager.grant_from_verified_entitlement(-1,now_utc+3600))
+    assert(not manager.grant_from_verified_entitlement(10,now_utc+3600))
+    assert(not manager.grant_from_verified_entitlement(4,
+        now_utc+LEASE.PAID_SECONDS+600),
+        "An unverifiable paid expiry beyond six hours must be rejected")
+    assert(manager.grant_from_verified_entitlement(4,
+        now_utc+LEASE.PAID_SECONDS-10),
+        "Valid server-selected paid entitlement must be applied exactly")
+    assert(manager.skin_id == 4 and manager.source == "play" and
+        manager.ends_utc == now_utc+LEASE.PAID_SECONDS-10,
+        "Client must preserve the server's skin and UTC expiry")
+    manager._save()
+    manager._read()
+    assert(manager.skin_id == 4 and manager.remaining() > 0,
+        "Verified paid lease survives app restore without rerolling")
+    manager.skin_id = -1
+    manager.ends_utc = 0
+    manager.source = ""
     # An invalid/rolled-back clock cannot prolong a skin indefinitely.
     manager.last_seen_utc = int(Time.get_unix_time_from_system())+200
     assert(not manager._grant(LEASE.FREE_SECONDS,"ad"))
