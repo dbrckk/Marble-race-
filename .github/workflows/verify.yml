@@ -213,6 +213,12 @@ jobs:
           set -euo pipefail
           timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 520 --path . --script res://tests/winding_tracks.gd 2>&1 | tee winding-tracks.log
           grep -Fq "WINDING_TRACKS_PASS:" winding-tracks.log
+      - name: Physically banked apex corridors and GPU-instanced biome passage geometry
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 110s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 1500 --path . --script res://tests/sculpted_passages.gd 2>&1 | tee sculpted-passages.log
+          grep -Fq "SCULPTED_PASSAGES_PASS:" sculpted-passages.log
       - name: Three physically banked terrain profiles and matching GPU road
         shell: bash
         run: |
