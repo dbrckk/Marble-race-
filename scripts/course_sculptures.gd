@@ -15,6 +15,9 @@ const BANK_TOP_RISE := 0.20
 const VAULT_CLEARANCE := 5.0
 const VAULT_HALF_WIDTH := 7.75
 const VAULT_RIB_OFFSETS := [-3.3,0.0,3.3]
+# Three visibly different profiles: warm timber canopy, pointed Alpine ice
+# passage and lower industrial foundry ribs. Silhouette, not just recolor.
+const VAULT_PITCHES := [0.15,0.245,0.19]
 const COLOR_BODIES := [
     Color("#98704e"),Color("#719ab0"),Color("#77504a")]
 const COLOR_GLOWS := [
@@ -31,6 +34,7 @@ var vault_posts: MultiMeshInstance3D
 var vault_roofs: MultiMeshInstance3D
 var vault_highlights: MultiMeshInstance3D
 var arch_rib_count := 0
+var vault_crest_points: Array[Vector3] = []
 var quality := 1
 
 static func bank_side(section: int, track: int, layout: int) -> float:
@@ -149,14 +153,20 @@ func _world_passage_vaults() -> void:
                 var origin := Vector3(
                     center_x+side*VAULT_HALF_WIDTH*0.56,
                     floor_y+VAULT_CLEARANCE+0.57,z)
-                var pitch: float = -float(side)*0.165
+                # Pitch outward-downward: both halves rise toward the
+                # centre, forming a real Alpine/timber ridge, never a V.
+                var pitch: float = float(side)*VAULT_PITCHES[biome]
                 var roof_basis := Basis(Vector3.FORWARD,pitch)
                 roof_segments.append(Transform3D(roof_basis,origin))
                 pillars.append(Transform3D(Basis(),
                     Vector3(center_x+side*VAULT_HALF_WIDTH,
                     floor_y+VAULT_CLEARANCE*0.5,z)))
+            var crest_height: float = floor_y+VAULT_CLEARANCE+0.57+(
+                sin(VAULT_PITCHES[biome])*VAULT_HALF_WIDTH*0.5)
+            var ridge := Vector3(center_x,crest_height,z)
+            vault_crest_points.append(ridge)
             highlights.append(Transform3D(Basis(),
-                Vector3(center_x,floor_y+VAULT_CLEARANCE+1.25,z)))
+                ridge+Vector3(0.0,0.08,0.0)))
     var column_mesh := BoxMesh.new()
     column_mesh.size = Vector3(0.43,VAULT_CLEARANCE,0.62)
     vault_posts = _instanced("NineGatewayPillarPairs",column_mesh,
