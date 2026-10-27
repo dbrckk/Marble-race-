@@ -253,7 +253,6 @@ func animate(elapsed: float) -> void:
         var sign_text: String = EVENT_NAMES[biome]+" / "+cue
         if signs[i].text != sign_text:
             signs[i].text = sign_text
-        signs[i].modulate.a = 0.86 if rising else 0.35
         signs[i].modulate = EVENT_COLORS[biome].lerp(
             Color("#b7f5cb"),0.36 if cue == "OPEN" else 0.0)
         signs[i].modulate.a = 0.86 if rising else 0.47
