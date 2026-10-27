@@ -341,6 +341,12 @@ jobs:
           set -euo pipefail
           timeout 75s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 300 --path . --script res://tests/career.gd 2>&1 | tee career.log
           grep -Fq "CAREER_PASS:" career.log
+      - name: Permanent precision medals and Android-safe transferable skill career
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 1000 --path . --script res://tests/precision_medals.gd 2>&1 | tee precision-medals.log
+          grep -Fq "PRECISION_MEDALS_PASS:" precision-medals.log
       - name: Long-term solo league ranks and persistent replay milestones
         shell: bash
         run: |
