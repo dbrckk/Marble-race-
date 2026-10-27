@@ -74,7 +74,8 @@ func _verify() -> void:
     root.add_child(game)
     await process_frame
     game.career.save_path = SCENE_SAVE
-    game.career.precision_best = [0,0,0]
+    for index in range(3):
+        game.career.precision_best[index] = 0
     game.career.precision_total = 0
     game.career.precision_perfect_runs = 0
     game.career.unlocked = 3
