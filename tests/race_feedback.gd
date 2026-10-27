@@ -32,6 +32,19 @@ func _run() -> void:
         "Head-on marble collision needs stronger feedback")
     assert(RaceFeedback.impact_intensity(roll,peg) > 0.7)
     assert(RaceFeedback.impact_intensity(roll,hammer) > 0.7)
+    # Banked racing-line perception must remain optical only: no forced
+    # marble rotation and no motion in overhead/alternate camera modes.
+    assert(RaceFeedback.camera_roll(0.0,0.0,2.0,0) == 0.0)
+    assert(RaceFeedback.camera_roll(8.0,19.0,2.4,0) < 0.0)
+    assert(RaceFeedback.camera_roll(-8.0,19.0,-2.4,0) > 0.0)
+    assert(absf(RaceFeedback.camera_roll(100.0,40.0,12.0,0)) <=
+        RaceFeedback.CAMERA_ROLL_LIMIT,
+        "Camera-only bank must stay below 2.6 degrees")
+    assert(RaceFeedback.camera_roll(8.0,19.0,2.4,1) == 0.0 and
+        RaceFeedback.camera_roll(8.0,19.0,2.4,2) == 0.0,
+        "Overhead and manual alternate cameras cannot inherit chase roll")
+    assert(RaceFeedback.camera_roll(NAN,19.0,2.4,0) == 0.0,
+        "Invalid movement readings cannot tilt the Android camera")
     assert(RaceFeedback.feedback_interval(0.9) < RaceFeedback.feedback_interval(0.1))
     assert(RaceFeedback.smooth_factor(0.0,5.0) == 0.0)
     assert(RaceFeedback.smooth_factor(1.0,5.0) < 1.0)
