@@ -1325,6 +1325,14 @@ func _update_camera(delta: float, force := false) -> void:
     camera.global_position += jitter
     camera.set_meta("previous_jitter",jitter)
     camera.look_at(camera_lookahead,Vector3.UP)
+    # Light, reversible banking follows only real lateral velocity and the
+    # course centreline. Never rotate a physics node or override overhead
+    # camera choices. Stays below 2.6 degrees even at the 24m/s speed cap.
+    var curve_delta: float = ahead_x-track_center_at(
+        player.global_position.z+5.0)
+    camera.rotate_object_local(Vector3.FORWARD,RaceFeedback.camera_roll(
+        player.linear_velocity.x,-player.linear_velocity.z,
+        curve_delta,cam_mode))
     camera.fov = lerpf(camera.fov,float(pose["fov"]),
         RaceFeedback.smooth_factor(delta,4.4))
 
