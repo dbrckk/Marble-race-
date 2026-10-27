@@ -1433,6 +1433,13 @@ func _end_race() -> void:
         last_result["ghost_record"] = ghost_record
         last_result["clean_passes"] = race_director.clean_pass_count(player.racer_id) if (
             is_instance_valid(race_director) and is_instance_valid(player)) else 0
+        var real_precision: int = race_director.precision_pass_count(
+            player.racer_id) if is_instance_valid(race_director) and (
+            is_instance_valid(player)) else 0
+        # Server owns all physical skill rewards, but only the authenticated
+        # SOLO career may persist new medals/reputation. Remote clients
+        # cannot submit their own precision count as a result payload.
+        last_result["precision_passes"] = real_precision if not net.is_active() else 0
         # Presentation-only: do not feed local pass counters into career
         # rewards or anything that can be forged by an online client.
         last_result["overtakes"] = race_moments.unique_overtakes if (
@@ -1453,8 +1460,15 @@ func _end_race() -> void:
             last_result["mastery_styles"] = earned["new_styles"]
             last_result["mastery_track"] = earned["track_count"]
             last_result["mastery_total"] = earned["count"]
+            var precision: Dictionary = career.award_precision(
+                selected_track,real_precision,completed)
+            last_result["precision_medal"] = precision["medal"]
+            last_result["precision_best"] = precision["best"]
+            last_result["precision_new_record"] = precision["new_record"]
+            last_result["precision_perfect_runs"] = precision["perfect_runs"]
             var league: Dictionary = career.award_league(
-                selected_track,player_rank(),completed,clean_count,used_bypass)
+                selected_track,player_rank(),completed,clean_count,
+                used_bypass,real_precision)
             last_result["league_earned"] = league["earned"]
             last_result["league_promoted"] = league["promoted"]
             last_result["league_tier"] = league["tier"]
