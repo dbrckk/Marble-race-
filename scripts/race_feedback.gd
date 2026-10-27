@@ -30,7 +30,7 @@ static func smooth_factor(delta: float, rate: float) -> float:
 
 static func camera_pose(position: Vector3, velocity: Vector3,
     center_ahead_x: float, camera_mode: int, boosting: bool,
-    hazard_distance: float) -> Dictionary:
+    hazard_distance: float, close_duel: bool = false) -> Dictionary:
     var planar_speed: float = Vector2(velocity.x,velocity.z).length()
     var pace: float = clampf((planar_speed-3.0)/19.0,0.0,1.0)
     # A compact preview pulls the camera up and back before a near-side
@@ -55,8 +55,18 @@ static func camera_pose(position: Vector3, velocity: Vector3,
             focus = position+Vector3(
                 bend*0.72+clampf(velocity.x*0.10,-0.7,0.7),
                 0.25,-5.6-lead*0.70)
+    # A verified sustained duel gets slightly more framing room to see
+    # the competing sphere. Only camera mode 0 changes; overhead/manual
+    # modes retain their exact original framing and human control.
+    var duel_lift: float = 0.0
+    if close_duel and camera_mode == 0:
+        var intensity: float = clampf((planar_speed-7.0)/13.0,0.0,1.0)
+        duel_lift = 0.9*intensity
+        desired += Vector3(0.0,duel_lift,1.3*intensity)
+        focus += Vector3(0.0,0.0,0.65*intensity)
     var fov: float = clampf(
-        64.0+pace*9.0+(3.1 if boosting else 0.0)+risk*1.4,
+        64.0+pace*9.0+(3.1 if boosting else 0.0)+risk*1.4+
+        duel_lift*2.1,
         FOV_MIN,FOV_MAX)
     return {"position":desired,"focus":focus,"fov":fov,"pace":pace,"risk":risk}
 
