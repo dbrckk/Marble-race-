@@ -21,6 +21,12 @@ const BASE_SLOPE := 0.085
 const RELIEF_AMPLITUDES := [0.55,1.10,1.45]
 const RELIEF_CYCLES := [1.45,2.0,2.5]
 const RELIEF_PHASES := [0.06,0.13,0.22]
+# Small biome-specific rolling crests. They are part of the authoritative
+# physical height function, not decorative meshes or hidden speed boosts.
+# Their smooth envelope keeps the grid, finish and joins unchanged.
+const MICRO_RELIEF := [0.10,0.17,0.24]
+const MICRO_CYCLES := [3.0,3.5,4.0]
+const MICRO_PHASES := [0.15,0.38,0.61]
 
 static func height_at(z: float, track: int) -> float:
     # A continuous smooth physical course profile. Fade to the original
@@ -31,7 +37,9 @@ static func height_at(z: float, track: int) -> float:
     var envelope: float = pow(sin(PI*progress),2.0)
     var crest: float = RELIEF_AMPLITUDES[selected]*envelope*sin(
         TAU*(RELIEF_CYCLES[selected]*progress+RELIEF_PHASES[selected]))
-    return z*BASE_SLOPE+crest
+    var rolling: float = MICRO_RELIEF[selected]*envelope*sin(
+        TAU*(MICRO_CYCLES[selected]*progress+MICRO_PHASES[selected]))
+    return z*BASE_SLOPE+crest+rolling
 
 static func grade_at(z: float, track: int) -> float:
     # Local derivative determines the angle of every *physical* plank,
