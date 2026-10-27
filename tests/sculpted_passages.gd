@@ -34,8 +34,20 @@ func _run() -> void:
             assert(geometry.banks.size() == 8 and
                 geometry.bank_roots.size() == 4,
                 "Four banked positions require two genuine sloping colliders each")
-            assert(geometry.arch_rib_count == 9,
-                "Three biome bridges/tunnels should have three portal ribs each")
+            assert(geometry.arch_rib_count == 9 and
+                geometry.vault_crest_points.size() == 9,
+                "Three biome passages require exactly nine actual elevated ribs")
+            var roof_pitch: float = GEOMETRY.VAULT_PITCHES[biome]
+            assert(roof_pitch > 0.10 and roof_pitch < 0.28,
+                "Each world must have a pronounced, traversable-looking roof ridge")
+            var crest: Vector3 = geometry.vault_crest_points[0]
+            var ceiling_floor: float = game.height_at(crest.z)
+            assert(absf(crest.y-ceiling_floor-(
+                GEOMETRY.VAULT_CLEARANCE+0.57+
+                sin(roof_pitch)*GEOMETRY.VAULT_HALF_WIDTH*0.5)) < 0.001,
+                "Arch crown must follow actual mountain roof pitch and terrain")
+            assert(crest.y-ceiling_floor > 5.6,
+                "A high 3D passage must never obscure or block a jumping marble")
             assert(geometry.bank_surfaces.multimesh.instance_count == 8 and
                 geometry.apex_inlays.multimesh.instance_count == 4)
             assert(geometry.vault_posts.multimesh.instance_count == 18 and
