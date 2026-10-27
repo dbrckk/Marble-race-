@@ -1196,6 +1196,12 @@ func _process(delta: float) -> void:
         if race_moments != null:
             race_moments.tick(delta)
         ui.update_hud()
+    # Audio tension reads the local HUD's existing 10Hz physics snapshot.
+    # No extra 40-racer scans, AI updates or online rewards.
+    if is_instance_valid(audio):
+        audio.set_pack_pressure(race_moments.pack_pressure if (
+            race_state == "RACING" and race_moments != null and
+            net.role != "server") else 0.0)
 
 func _physics_process(delta: float) -> void:
     steer = move_toward(steer,steer_target,delta*8.5)
@@ -1285,7 +1291,9 @@ func _update_camera(delta: float, force := false) -> void:
     var distance: float = float(next_gate.get("distance",-1.0))
     var pose: Dictionary = RaceFeedback.camera_pose(
         player.global_position,player.linear_velocity,
-        ahead_x,cam_mode,boosting,distance)
+        ahead_x,cam_mode,boosting,distance,
+        race_moments != null and race_state == "RACING" and
+        race_moments.side_by_side_active)
     var desired: Vector3 = pose["position"]
     var focus: Vector3 = pose["focus"]
     # Match the camera to the real 3D grade, not the old flat slope.
