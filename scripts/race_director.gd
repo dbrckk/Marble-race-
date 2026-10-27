@@ -319,6 +319,18 @@ func clean_pass_count(racer_id: int) -> int:
             total += 1
     return total
 
+func precision_pass_count(racer_id: int) -> int:
+    # Only authenticated/authoritative physics can populate these keys.
+    # The lifetime career asks for the player's real gate events after
+    # the actual finish, never a HUD score or network message.
+    var total := 0
+    for index in range(EVENT_Z.size()):
+        var key := "%d:%d" % [index,racer_id]
+        if awarded.has(key) and float(last_award_grade.get(key,0.0)) >= (
+            PRECISION_THRESHOLD):
+            total += 1
+    return total
+
 func _feedback(marble: RigidBody3D, net: Node, kind: String = "near_miss") -> void:
     if net.role == "server":
         if marble.network_controlled and net.joined_slots.values().has(marble.racer_id):
