@@ -125,12 +125,11 @@ static func precision_grade(lateral: float, forward_speed: float) -> float:
     return proximity*pace
 
 static func earned_impulse(grade: float, streak: int) -> float:
-    # 1.64..2.96 m/s for an ideal 3rd precise pass, not a free turbo.
-    # A clean but distant pass still gets meaningful momentum; skilled
-    # precision earns a bounded, explicit physical advantage for AI/humans.
-    var base: float = NEAR_MISS_IMPULSE*(
-        0.80+0.44*clampf(grade,0.0,1.0))
-    return base+0.14*float(clampi(streak,1,PRECISION_MAX_CHAIN)-1)
+    # Preserve the proven 2.05m/s baseline for ordinary clean passes.
+    # Precision adds up to 0.50m/s, and a legitimate three-gate streak
+    # at most another 0.28m/s: no reduction to normal AI progression.
+    return NEAR_MISS_IMPULSE+0.50*clampf(grade,0.0,1.0)+(
+        0.14*float(clampi(streak,1,PRECISION_MAX_CHAIN)-1))
 
 func flash_local_near_miss(z: float, strength: float = 1.0) -> bool:
     # Called for a real local/offline award or a signed server event only.
