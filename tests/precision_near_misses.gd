@@ -103,8 +103,11 @@ func _run() -> void:
                 assert(game.ui.checkpoint_label.text.contains(expected_label),
                     "Actual skill must have readable immediate Android feedback")
                 director.animate(t+0.06)
-                assert(director.warning_rings[gate].scale.x > 1.38,
-                    "The real moving-gate ring must visibly bloom when earned")
+                var ordinary_scale: float = 1.10+0.13*sin(
+                    (t+0.06)*TAU/director.period()+float(gate)*1.7)
+                assert(director.warning_rings[gate].scale.x >
+                    ordinary_scale+0.25,
+                    "A real earned event must visibly enlarge its animated ring above its biome baseline")
                 var count: int = director.awarded.size()
                 director.tick(game.racers,game.net)
                 assert(director.awarded.size() == count,
