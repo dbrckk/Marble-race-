@@ -545,7 +545,8 @@ func _receive_snapshot(floats: PackedFloat32Array, timestamp: float, energies: P
         game.boost_energy = clampf(energies[local_slot-36],0.0,1.0)
 
 func notify_course_event(slot: int, kind: String) -> void:
-    if role != "server" or not match_running or kind not in ["speed","ice","vent","shortcut","jump","near_miss"]:
+    if role != "server" or not match_running or kind not in ["speed","ice","vent","shortcut","jump",
+            "near_miss","near_miss_precision","near_miss_chain"]:
         return
     for peer_id in joined_slots.keys():
         if int(joined_slots[peer_id]) == slot and _can_send(int(peer_id)):
@@ -556,10 +557,17 @@ func notify_course_event(slot: int, kind: String) -> void:
 func _course_event_notice(kind: String) -> void:
     if role != "client" or not match_running or game.race_state != "RACING":
         return
-    if kind not in ["speed","ice","vent","shortcut","jump","near_miss"]:
+    if kind not in ["speed","ice","vent","shortcut","jump",
+            "near_miss","near_miss_precision","near_miss_chain"]:
         return
     game.audio.course_event(kind)
     game.ui.show_course_event(kind)
+    if kind.begins_with("near_miss") and is_instance_valid(game.race_director) and (
+        is_instance_valid(game.player)):
+        # Draw only a validated server-awarded local skill event; online
+        # clients never calculate impulses, streaks or trusted rewards.
+        game.race_director.flash_local_near_miss(
+            game.player.global_position.z,1.0 if kind != "near_miss" else 0.40)
 
 func notify_item_collected(slot: int, pickup_id: int, kind: String) -> void:
     # Triggered only by the authoritative human-only pickup detector.
