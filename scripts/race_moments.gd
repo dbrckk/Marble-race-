@@ -18,6 +18,13 @@ const SIDE_DUEL_X_MAX := 2.35
 const SIDE_DUEL_Y_LIMIT := 1.25
 const SIDE_DUEL_MIN_SPEED := 8.0
 const SIDE_DUEL_HOLD := 0.34
+# One cheap same-deck proximity count piggybacks on the existing 10 Hz
+# local race-direction scan. Its only consumers are camera and audio.
+const PACK_Z_RANGE := 9.0
+const PACK_X_RANGE := 3.8
+const PACK_Y_RANGE := 1.45
+const PACK_MIN_SPEED := 3.0
+const PACK_SATURATION := 4
 
 var game: Node3D
 var elapsed := 0.0
@@ -42,6 +49,22 @@ var side_by_side_seconds := 0.0
 var side_by_side_active := false
 var side_by_side_events := 0
 var duel_announced: Dictionary = {}
+var nearby_pack_count := 0
+var pack_pressure := 0.0
+
+static func genuine_pack_rival(gap_z: float, side_gap: float,
+        height_gap: float, own_speed: float, rival_speed: float) -> bool:
+    # Never use screen-space overlap: a marble on the elevated bypass or
+    # stopped behind a wall is not part of the same rolling competition.
+    return is_finite(gap_z) and is_finite(side_gap) and (
+        is_finite(height_gap) and is_finite(own_speed) and
+        is_finite(rival_speed) and absf(gap_z) <= PACK_Z_RANGE and
+        absf(side_gap) <= PACK_X_RANGE and
+        absf(height_gap) <= PACK_Y_RANGE and
+        own_speed >= PACK_MIN_SPEED and rival_speed >= PACK_MIN_SPEED)
+
+static func pack_intensity(rivals: int) -> float:
+    return clampf(float(maxi(0,rivals))/float(PACK_SATURATION),0.0,1.0)
 
 func configure(owner: Node3D) -> void:
     game = owner
@@ -70,6 +93,8 @@ func reset_round() -> void:
     side_by_side_active = false
     side_by_side_events = 0
     duel_announced.clear()
+    nearby_pack_count = 0
+    pack_pressure = 0.0
 
 static func genuine_side_duel(gap_z: float, lateral: float,
     vertical: float, own_forward: float, rival_forward: float) -> bool:
@@ -142,10 +167,14 @@ func tick(delta: float) -> void:
         side_by_side_id = -1
         side_by_side_seconds = 0.0
         side_by_side_active = false
+        nearby_pack_count = 0
+        pack_pressure = 0.0
         sampled_once = false
         return
     sampled_once = true
     var passes_now := 0
+    var pack_count := 0
+    var own_forward: float = -game.player.linear_velocity.z
     var closest_duel_id := -1
     var closest_duel_gap := INF
     closest_rival_gap = 999.0
@@ -158,6 +187,9 @@ func tick(delta: float) -> void:
         var id: int = marble.racer_id
         var opponent: Vector3 = marble.global_position
         var gap: float = opponent.z-p.z
+        if genuine_pack_rival(gap,opponent.x-p.x,opponent.y-p.y,
+                own_forward,-marble.linear_velocity.z):
+            pack_count += 1
         if genuine_side_duel(gap,opponent.x-p.x,opponent.y-p.y,
                 -game.player.linear_velocity.z,-marble.linear_velocity.z):
             if absf(gap) < closest_duel_gap:
@@ -188,6 +220,8 @@ func tick(delta: float) -> void:
                 passes_now += 1
         previous_gap[id] = gap
         previous_rival_z[id] = opponent.z
+    nearby_pack_count = pack_count
+    pack_pressure = pack_intensity(pack_count)
     if closest_duel_id < 0:
         side_by_side_id = -1
         side_by_side_seconds = 0.0
