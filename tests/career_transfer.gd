@@ -30,6 +30,9 @@ func _run() -> void:
     original.league_runs[0] = 11
     original.league_clean_passes[0] = 7
     original.league_shortcuts[0] = 4
+    original.precision_best = [3,2,1]
+    original.precision_total = 20
+    original.precision_perfect_runs = 3
     var data: Dictionary = Transfer.export_career(original)
     assert(bool(data["ok"]),"Existing career must export without any user account")
     var code: String = str(data["code"])
@@ -59,6 +62,9 @@ func _run() -> void:
     assert(fresh.mastery_count() == 5 and fresh.selected_style == 2)
     assert(fresh.league_points == 453 and fresh.league_clean_passes[0] == 7)
     assert(fresh.sector_best[1] == 12.15 and fresh.track_best[0] == 3)
+    assert(fresh.precision_best == [3,2,1] and
+        fresh.precision_total == 20 and fresh.precision_perfect_runs == 3,
+        "Portable Android career codes must include legitimate precision medals")
     var earlier: Dictionary = Transfer.preview_previous_career(fresh)
     assert(bool(earlier["ok"]) and int(earlier["starts"]) == 3,
         "A preceding career must be previewable without risky blind rollback")
@@ -72,7 +78,9 @@ func _run() -> void:
     after_restart.load_save()
     assert(after_restart.track_best == fresh.track_best and
         after_restart.mastery_flags == fresh.mastery_flags and
-        after_restart.league_points == fresh.league_points,
+        after_restart.league_points == fresh.league_points and
+        after_restart.precision_best == fresh.precision_best and
+        after_restart.precision_total == 20,
         "Restored progress must survive a full game restart")
     # Invalid-but-checksummed config is still rejected before any disk write.
     var impossible := ConfigFile.new()
@@ -87,6 +95,25 @@ func _run() -> void:
         "Checksum alone must not validate impossible career statistics")
     assert(not bool(Transfer.restore_career(fresh,forged)["ok"]))
     assert(fresh.starts == 14, "Invalid import must leave live career unchanged")
+    var impossible_medal := ConfigFile.new()
+    impossible_medal.set_value("career","starts",11)
+    impossible_medal.set_value("career","finishes",8)
+    impossible_medal.set_value("career","victories",1)
+    impossible_medal.set_value("career","podiums",3)
+    impossible_medal.set_value("precision","best_0",7)
+    var raw_medal: String = impossible_medal.encode_to_text()
+    var forged_medal: String = "MARBLE-CAREER-V1.%s.%s" % [
+        raw_medal.sha256_text(),Marshalls.utf8_to_base64(raw_medal)]
+    assert(not bool(Transfer.preview_code(forged_medal)["ok"]),
+        "Correctly checksummed fake medal level cannot bypass Android restore validation")
+    impossible_medal.set_value("precision","best_0",3)
+    impossible_medal.set_value("precision","total",25)
+    raw_medal = impossible_medal.encode_to_text()
+    forged_medal = "MARBLE-CAREER-V1.%s.%s" % [
+        raw_medal.sha256_text(),Marshalls.utf8_to_base64(raw_medal)]
+    assert(not bool(Transfer.preview_code(forged_medal)["ok"]),
+        "Lifetime precision count cannot exceed three times finished races")
+
 
     # Corrupt existing progress must never be silently overwritten.
     # Even a valid imported code must refuse a dangerous replacement if
