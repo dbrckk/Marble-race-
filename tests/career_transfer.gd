@@ -30,7 +30,9 @@ func _run() -> void:
     original.league_runs[0] = 11
     original.league_clean_passes[0] = 7
     original.league_shortcuts[0] = 4
-    original.precision_best = [3,2,1]
+    original.precision_best[0] = 3
+    original.precision_best[1] = 2
+    original.precision_best[2] = 1
     original.precision_total = 20
     original.precision_perfect_runs = 3
     var data: Dictionary = Transfer.export_career(original)
