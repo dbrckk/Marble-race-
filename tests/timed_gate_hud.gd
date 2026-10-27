@@ -72,14 +72,33 @@ func _verify() -> void:
                 "Every physical gate retains its world-specific name")
             if biome == 2:
                 var expected_now: String = DIRECTOR.hazard_phase_cue(
-                    biome,director.piston_extension(gate_index,blocked_clock),0.0)
+                    biome,director.piston_extension(gate_index,blocked_clock),
+                    director.piston_extension(gate_index,blocked_clock+0.08)-
+                    director.piston_extension(gate_index,blocked_clock))
                 assert(sign.text.contains(expected_now),
                     "Forge signs must reflect the CURRENT physical piston state")
                 director.animate(clear_clock)
                 var clear_now: String = DIRECTOR.hazard_phase_cue(
-                    biome,director.piston_extension(gate_index,clear_clock),0.0)
+                    biome,director.piston_extension(gate_index,clear_clock),
+                    director.piston_extension(gate_index,clear_clock+0.08)-
+                    director.piston_extension(gate_index,clear_clock))
                 assert(director.signs[gate_index].text.contains(clear_now),
                     "Forge world sign reports current piston, HUD forecasts arrival")
+                # Receding metal must never show a fake RISING warning.
+                var descending_found := false
+                for sample in range(130):
+                    var t: float = float(sample)*0.05
+                    var extension: float = director.piston_extension(gate_index,t)
+                    if extension > 0.15 and extension < 0.57 and (
+                        director.piston_extension(gate_index,t+0.08) <
+                        extension-0.001):
+                        director.animate(t)
+                        assert(director.signs[gate_index].text.contains("FALLING"),
+                            "Lowering Forge pistons must telegraph FALLING, not RISING")
+                        descending_found = true
+                        break
+                assert(descending_found,
+                    "Every real Forge gate needs a visible descending window")
                 director.animate(blocked_clock)
             else:
                 assert(sign.text.contains("SWEEP"),
