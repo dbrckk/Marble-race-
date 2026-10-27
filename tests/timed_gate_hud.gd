@@ -68,9 +68,10 @@ func _verify() -> void:
             assert(sign.text.contains(DIRECTOR.EVENT_NAMES[biome]),
                 "Every physical gate retains its world-specific name")
             if biome == 2:
-                assert(sign.text.contains("BLOCKED") or
-                    sign.text.contains("RISING"),
-                    "Forge signs must communicate actual piston danger")
+                var expected_now: String = DIRECTOR.hazard_phase_cue(
+                    biome,director.piston_extension(gate_index,blocked_clock),0.0)
+                assert(sign.text.contains(expected_now),
+                    "Forge signs must reflect the CURRENT physical piston state")
                 director.animate(clear_clock)
                 assert(director.signs[gate_index].text.contains("OPEN") or
                     director.signs[gate_index].text.contains("RISING"),
