@@ -70,6 +70,20 @@ static func camera_pose(position: Vector3, velocity: Vector3,
         FOV_MIN,FOV_MAX)
     return {"position":desired,"focus":focus,"fov":fov,"pace":pace,"risk":risk}
 
+# Camera-only lean reveals genuine fast lateral corrections and the
+# shape of the real winding ground. Never changes collision, input, velocity
+# or the two alternative user-selected camera angles. <2.6 degrees on Android.
+const CAMERA_ROLL_LIMIT := 0.045
+
+static func camera_roll(lateral_speed: float, forward_speed: float,
+        bend_delta: float, camera_mode: int) -> float:
+    if camera_mode != 0 or not is_finite(lateral_speed) or (
+        not is_finite(forward_speed) or not is_finite(bend_delta)):
+        return 0.0
+    var pace: float = clampf((forward_speed-3.0)/14.0,0.0,1.0)
+    var lean: float = lateral_speed*0.0025 + bend_delta*0.0050
+    return -clampf(lean*pace,-CAMERA_ROLL_LIMIT,CAMERA_ROLL_LIMIT)
+
 static func collision_kind(other: Node) -> String:
     if other is RigidBody3D:
         return "glass"
