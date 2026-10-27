@@ -62,6 +62,9 @@ func _verify() -> void:
             game.player.global_position = Vector3(
                 collision_x,game.height_at(approach_z)+0.8,approach_z)
             game.player.linear_velocity = Vector3(0,0,-speed)
+            # The world sign displays the CURRENT collider phase; synchronize
+            # its animation to the sampled authoritative clock before reading.
+            director.animate(blocked_clock)
             # World-space timing signs must describe the real collision
             # phase, not a decorative fake animation. No new 3D objects.
             var sign: Label3D = director.signs[gate_index]
