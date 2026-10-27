@@ -149,7 +149,7 @@ func _world_passage_vaults() -> void:
                 var origin := Vector3(
                     center_x+side*VAULT_HALF_WIDTH*0.56,
                     floor_y+VAULT_CLEARANCE+0.57,z)
-                var pitch := -side*0.165
+                var pitch: float = -float(side)*0.165
                 var roof_basis := Basis(Vector3.FORWARD,pitch)
                 roof_segments.append(Transform3D(roof_basis,origin))
                 pillars.append(Transform3D(Basis(),
