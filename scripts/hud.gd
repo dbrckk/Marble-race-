@@ -1505,11 +1505,14 @@ func show_course_event(kind: String) -> void:
         "vent": "FORGE  /  HEAT BLAST!",
         "shortcut": "SHORTCUT  /  PERFECT LINE!",
         "jump": "AIRTIME  /  CLEAN LAUNCH!",
-        "near_miss": "NEAR MISS  /  CLEAN PASS!"
+        "near_miss": "NEAR MISS  /  CLEAN PASS!",
+        "near_miss_precision": "PRECISION PASS  /  EXTRA MOMENTUM!",
+        "near_miss_chain": "PRECISION STREAK  /  MOMENTUM BONUS!"
     }
     checkpoint_label.text = str(labels.get(kind,"COURSE HAZARD"))
     checkpoint_label.add_theme_color_override("font_color",
-        Color("#b6edff") if kind in ["ice","shortcut","jump","near_miss"] else Color("#ffcb8c"))
+        Color("#b6edff") if kind in ["ice","shortcut","jump",
+            "near_miss","near_miss_precision","near_miss_chain"] else Color("#ffcb8c"))
     checkpoint_label.modulate.a = 1.0
     checkpoint_label.visible = true
     toast_remaining = 1.45
