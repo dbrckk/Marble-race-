@@ -218,7 +218,9 @@ static func hazard_phase_cue(track: int, extension: float,
         if extension < 0.15:
             return "OPEN"
         if extension < 0.57:
-            return "RISING"
+            # A retracting piston is FALLING, not RISING. A false upward
+            # cue during the safe window would teach the wrong dodge.
+            return "FALLING" if lateral_speed < -0.001 else "RISING"
         return "BLOCKED"
     return "SWEEP LEFT" if lateral_speed < -0.05 else (
         "SWEEP RIGHT" if lateral_speed > 0.05 else "REVERSING")
@@ -246,7 +248,10 @@ func animate(elapsed: float) -> void:
         # Three existing world-space signs become a timing lesson rather
         # than a static name: players can time the opening at a glance.
         var lateral_speed: float = 0.0
-        if biome != 2:
+        if biome == 2:
+            lateral_speed = piston_extension(i,clock+0.08)-(
+                piston_extension(i,clock))
+        else:
             lateral_speed = (position_at(i,clock+0.08).x-point.x)/0.08
         var cue: String = hazard_phase_cue(
             biome,piston_extension(i,clock),lateral_speed)
