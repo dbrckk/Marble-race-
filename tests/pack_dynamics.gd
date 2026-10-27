@@ -90,7 +90,8 @@ func _verify() -> void:
                 game.race_items.used.is_empty(),
                 "A cosmetic music/camera cue cannot mint race rewards")
             game.audio.set_pack_pressure(game.race_moments.pack_pressure)
-            game.audio._process(0.5)
+            for audio_frame in range(12):
+                game.audio._process(0.12)
             assert(game.audio.pack_pressure_target == 1.0 and
                 game.audio.pack_pressure > 0.80,
                 "Soundtrack tension should respond smoothly to verified traffic")
@@ -104,7 +105,8 @@ func _verify() -> void:
                 game.race_moments.pack_pressure == 0.0,
                 "Elevated roads must not spoof local sound intensity")
             game.audio.set_pack_pressure(game.race_moments.pack_pressure)
-            game.audio._process(1.0)
+            for audio_frame in range(12):
+                game.audio._process(0.12)
             assert(game.audio.pack_pressure < 0.05 and
                 game.audio.percussion.volume_db < loud_pace,
                 "The soundtrack must relax when actual competitors disperse")
