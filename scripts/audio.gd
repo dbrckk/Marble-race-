@@ -302,6 +302,12 @@ func course_event(kind: String) -> void:
         "near_miss":
             _voice(TONES["checkpoint"],-17.0,1.33)
             _voice(TONES["boost"],-20.0,1.09)
+        "near_miss_precision":
+            _voice(TONES["checkpoint"],-17.0,1.46)
+            _voice(TONES["boost"],-22.0,1.20)
+        "near_miss_chain":
+            _voice(TONES["checkpoint"],-16.0,1.60)
+            _voice(TONES["boost"],-19.0,1.30)
 
 func item_pickup(kind: String) -> void:
     # Distinct pitch and voice combination of existing bundled audio.
