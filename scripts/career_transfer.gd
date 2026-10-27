@@ -167,6 +167,12 @@ static func _validate_config(content: String) -> Dictionary:
         if typeof(mask) != TYPE_INT or mask < 0 or mask > 7:
             return {"ok":false,"error":"Invalid mastery stamp in backup."}
         mastery_count += int(bool(mask & 1))+int(bool(mask & 2))+int(bool(mask & 4))
+        # Precision medals are optional for older career versions, but if
+        # present must be bounded permanent solo skill records.
+        var precision: Variant = config.get_value(
+            "precision","best_%d" % index,0)
+        if typeof(precision) != TYPE_INT or precision < 0 or precision > 3:
+            return {"ok":false,"error":"Invalid precision medal in backup."}
         for sector in range(4):
             var split: Variant = config.get_value("sectors",
                 "best_%d_%d" % [index,sector],0.0)
@@ -178,6 +184,17 @@ static func _validate_config(content: String) -> Dictionary:
                 "%s_%d" % [section,index],0)
             if typeof(stat) != TYPE_INT or stat < 0 or stat > 1000000:
                 return {"ok":false,"error":"Invalid league history in backup."}
+    # All newly written precision stats are derived from previously
+    # finished solo races. Keep pre-update backups valid by defaulting
+    # missing keys to zero rather than insisting on a new version prefix.
+    var precision_total: Variant = config.get_value("precision","total",0)
+    var precision_perfect: Variant = config.get_value("precision","perfect",0)
+    if typeof(precision_total) != TYPE_INT or precision_total < 0 or (
+        precision_total > 1000000 or precision_total > finishes*3):
+        return {"ok":false,"error":"Invalid precision history in backup."}
+    if typeof(precision_perfect) != TYPE_INT or precision_perfect < 0 or (
+        precision_perfect > finishes):
+        return {"ok":false,"error":"Invalid perfect race history in backup."}
     var league: Variant = config.get_value("league","score",0)
     var style: Variant = config.get_value("mastery","style",0)
     if typeof(league) != TYPE_INT or league < 0 or league > 2000000:
