@@ -13,6 +13,14 @@ const BODY_WIDTH := 1.65
 const BODY_HEIGHT := 0.82
 const BODY_DEPTH := 0.76
 const NEAR_MISS_IMPULSE := 2.05
+# Risk/reward is measured from REAL bodies, not estimated player input.
+# Only precise passes can start a short streak; all racers are eligible.
+const CLEAN_LATERAL_MIN := 1.36
+const CLEAN_LATERAL_MAX := 2.36
+const PRECISION_THRESHOLD := 0.62
+const PRECISION_CHAIN_WINDOW := 24.0
+const PRECISION_MAX_CHAIN := 3
+const PRECISION_FLASH_SECONDS := 0.56
 const EVENT_LENGTH := 2.1
 const SPEEDS := [5.8,4.65,5.25]
 const VERTICAL_CYCLE := 5.25
@@ -27,6 +35,13 @@ var signs: Array[Label3D] = []
 var awarded: Dictionary = {}
 var clock := 0.0
 var collisions_enabled := true
+var precision_streak: Dictionary = {}
+var last_precision_at: Dictionary = {}
+var last_award_strength: Dictionary = {}
+var last_award_grade: Dictionary = {}
+var ring_flash_end: Array[float] = []
+var ring_flash_strength: Array[float] = []
+var flash_events := 0
 
 func setup(owner: Node3D, track: int, layout: int) -> void:
     game = owner
@@ -95,7 +110,40 @@ func setup(owner: Node3D, track: int, layout: int) -> void:
         notice.position = Vector3(x,game.height_at(z)+2.25,z)
         add_child(notice)
         signs.append(notice)
+    ring_flash_end.resize(obstacles.size())
+    ring_flash_strength.resize(obstacles.size())
     reset_round()
+
+static func precision_grade(lateral: float, forward_speed: float) -> float:
+    if not is_finite(lateral) or not is_finite(forward_speed) or (
+        lateral < CLEAN_LATERAL_MIN or lateral > CLEAN_LATERAL_MAX or
+        forward_speed < 0.85):
+        return 0.0
+    var proximity: float = clampf((CLEAN_LATERAL_MAX-lateral)/(
+        CLEAN_LATERAL_MAX-CLEAN_LATERAL_MIN),0.0,1.0)
+    var pace: float = clampf((forward_speed-4.0)/9.0,0.0,1.0)
+    return proximity*pace
+
+static func earned_impulse(grade: float, streak: int) -> float:
+    # 1.64..2.96 m/s for an ideal 3rd precise pass, not a free turbo.
+    # A clean but distant pass still gets meaningful momentum; skilled
+    # precision earns a bounded, explicit physical advantage for AI/humans.
+    var base: float = NEAR_MISS_IMPULSE*(
+        0.80+0.44*clampf(grade,0.0,1.0))
+    return base+0.14*float(clampi(streak,1,PRECISION_MAX_CHAIN)-1)
+
+func flash_local_near_miss(z: float, strength: float = 1.0) -> bool:
+    # Called for a real local/offline award or a signed server event only.
+    # A delayed RPC outside the gate footprint never lights a wrong ring.
+    if not is_finite(z) or not is_finite(strength):
+        return false
+    for i in range(obstacles.size()):
+        if absf(z-event_z(i)) <= EVENT_LENGTH+0.6:
+            ring_flash_end[i] = clock+PRECISION_FLASH_SECONDS
+            ring_flash_strength[i] = clampf(strength,0.35,1.0)
+            flash_events += 1
+            return true
+    return false
 
 static func event_z_for(track: int, layout: int, index: int) -> float:
     return EVENT_Z[index]+LAYOUT_OFFSETS[posmod(layout,3)][index]+(
@@ -172,14 +220,29 @@ func animate(elapsed: float) -> void:
             game.height_at(event_z(i))+0.10,event_z(i))
         var rising: bool = piston_up(i,clock)
         # Cheap, readable telegraph without realtime lights/shadows.
+        var earned_flash := 0.0
+        if clock < ring_flash_end[i]:
+            earned_flash = ring_flash_strength[i]*(
+                ring_flash_end[i]-clock)/PRECISION_FLASH_SECONDS
+        # The existing three mobile rings briefly bloom after an actually
+        # earned precision pass. No new meshes, lights, materials or drawcalls.
         warning_rings[i].scale = Vector3.ONE*(
-            1.10+0.13*sin(clock*TAU/period()+float(i)*1.7))
+            1.10+0.13*sin(clock*TAU/period()+float(i)*1.7)+
+            0.48*earned_flash)
         warning_rings[i].visible = biome != 2 or rising or (
-            phase_at(i,clock) > 0.78)
+            phase_at(i,clock) > 0.78) or earned_flash > 0.0
         signs[i].modulate.a = 0.86 if rising else 0.35
 
 func reset_round() -> void:
     awarded.clear()
+    precision_streak.clear()
+    last_precision_at.clear()
+    last_award_strength.clear()
+    last_award_grade.clear()
+    flash_events = 0
+    for i in range(ring_flash_end.size()):
+        ring_flash_end[i] = 0.0
+        ring_flash_strength[i] = 0.0
     animate(0.0)
 
 func event_ahead(z: float) -> Dictionary:
@@ -225,9 +288,30 @@ func tick(racers: Array[RigidBody3D], net: Node) -> void:
             if awarded.has(key):
                 continue
             awarded[key] = true
+            var grade: float = precision_grade(lateral,-marble.linear_velocity.z)
+            var precise: bool = grade >= PRECISION_THRESHOLD
+            var streak := 1
+            if precise:
+                var previous: float = float(last_precision_at.get(
+                    marble.racer_id,-100.0))
+                if clock >= previous and clock-previous <= PRECISION_CHAIN_WINDOW:
+                    streak = mini(PRECISION_MAX_CHAIN,
+                        int(precision_streak.get(marble.racer_id,0))+1)
+                precision_streak[marble.racer_id] = streak
+                last_precision_at[marble.racer_id] = clock
+            else:
+                precision_streak.erase(marble.racer_id)
+                last_precision_at.erase(marble.racer_id)
+            var earned: float = earned_impulse(grade,streak)
+            last_award_strength[key] = earned
+            last_award_grade[key] = grade
             marble.apply_central_impulse(
-                Vector3(0.0,0.10,-NEAR_MISS_IMPULSE)*marble.mass)
-            _feedback(marble,net)
+                Vector3(0.0,0.10,-earned)*marble.mass)
+            if net.role == "offline" and marble.is_player:
+                flash_local_near_miss(position.z,grade)
+            var cue := "near_miss_chain" if precise and streak >= 2 else (
+                "near_miss_precision" if precise else "near_miss")
+            _feedback(marble,net,cue)
 
 func clean_pass_count(racer_id: int) -> int:
     var total := 0
@@ -236,10 +320,10 @@ func clean_pass_count(racer_id: int) -> int:
             total += 1
     return total
 
-func _feedback(marble: RigidBody3D, net: Node) -> void:
+func _feedback(marble: RigidBody3D, net: Node, kind: String = "near_miss") -> void:
     if net.role == "server":
         if marble.network_controlled and net.joined_slots.values().has(marble.racer_id):
-            net.notify_course_event(marble.racer_id,"near_miss")
+            net.notify_course_event(marble.racer_id,kind)
     elif net.role == "offline" and marble.is_player:
-        game.audio.course_event("near_miss")
-        game.ui.show_course_event("near_miss")
+        game.audio.course_event(kind)
+        game.ui.show_course_event(kind)
