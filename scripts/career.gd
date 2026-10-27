@@ -15,6 +15,10 @@ const ALL_MASTERY_BITS := 7
 const LEAGUE_TIERS := ["ROOKIE","CHALLENGER","CONTENDER","ELITE","LEGEND"]
 const LEAGUE_LIMITS := [0,120,320,700,1300]
 const LEAGUE_SCORE_CAP := 2000000
+# Three real moving-gate precision passes per finished solo race. These
+# permanent badges reward skill, not ads, purchases or online snapshots.
+const PRECISION_MEDALS := ["UNRANKED","BRONZE","SILVER","GOLD"]
+const PRECISION_REP_PER_GATE := 6
 
 var starts := 0
 var finishes := 0
@@ -27,6 +31,9 @@ var stars: Array[int] = [0,0,0]
 var mastery_flags: Array[int] = [0,0,0]
 var selected_style := 0
 var league_points := 0
+var precision_best: Array[int] = [0,0,0]
+var precision_total := 0
+var precision_perfect_runs := 0
 var league_runs: Array[int] = [0,0,0]
 var league_clean_passes: Array[int] = [0,0,0]
 var league_shortcuts: Array[int] = [0,0,0]
@@ -54,6 +61,13 @@ func load_save() -> void:
             var saved := float(file.get_value("sectors","best_%d_%d" % [index,sector],0.0))
             sector_best[index*SECTORS_PER_TRACK+sector] = saved if is_finite(saved) and saved > 0.0 and saved < 600.0 else 0.0
     league_points = clampi(int(file.get_value("league","score",0)),0,LEAGUE_SCORE_CAP)
+    precision_total = clampi(int(file.get_value("precision","total",0)),
+        0,mini(1000000,finishes*3))
+    precision_perfect_runs = clampi(int(file.get_value("precision","perfect",0)),
+        0,finishes)
+    for index in range(TRACKS.size()):
+        precision_best[index] = clampi(int(file.get_value(
+            "precision","best_%d" % index,0)),0,3)
     for index in range(TRACKS.size()):
         league_runs[index] = clampi(int(file.get_value("league","runs_%d" % index,0)),0,1000000)
         league_clean_passes[index] = clampi(
@@ -87,6 +101,10 @@ func save() -> int:
             file.set_value("sectors","best_%d_%d" % [index,sector],sector_best[index*SECTORS_PER_TRACK+sector])
     file.set_value("mastery","style",selected_style)
     file.set_value("league","score",league_points)
+    file.set_value("precision","total",precision_total)
+    file.set_value("precision","perfect",precision_perfect_runs)
+    for index in range(TRACKS.size()):
+        file.set_value("precision","best_%d" % index,precision_best[index])
     for index in range(TRACKS.size()):
         file.set_value("league","runs_%d" % index,league_runs[index])
         file.set_value("league","passes_%d" % index,league_clean_passes[index])
@@ -219,6 +237,35 @@ func complete_mastery(index: int, finished: bool,
     return result
 
 
+func precision_medal(index: int) -> String:
+    if index < 0 or index >= TRACKS.size():
+        return PRECISION_MEDALS[0]
+    return PRECISION_MEDALS[clampi(precision_best[index],0,3)]
+
+func award_precision(index: int, count: int, finished: bool) -> Dictionary:
+    # Called exactly once during the trusted offline finished-race path.
+    # 1, 2 and 3 genuine near-miss gates correspond to the three medals.
+    var result := {"best":0,"new_record":false,"medal":"UNRANKED",
+        "gates":0,"perfect_runs":precision_perfect_runs}
+    if index < 0 or index >= TRACKS.size():
+        return result
+    result["best"] = precision_best[index]
+    result["medal"] = precision_medal(index)
+    if not finished or count < 0 or count > 3:
+        return result
+    var earned: int = clampi(count,0,3)
+    result["gates"] = earned
+    result["new_record"] = earned > precision_best[index]
+    precision_best[index] = maxi(precision_best[index],earned)
+    precision_total = mini(1000000,precision_total+earned)
+    if earned == 3:
+        precision_perfect_runs = mini(1000000,precision_perfect_runs+1)
+    result["best"] = precision_best[index]
+    result["medal"] = precision_medal(index)
+    result["perfect_runs"] = precision_perfect_runs
+    save()
+    return result
+
 func league_tier() -> int:
     var tier := 0
     for i in range(LEAGUE_LIMITS.size()):
@@ -246,7 +293,8 @@ func league_races() -> int:
     return sum
 
 func award_league(index: int, place: int, finished: bool,
-    clean_passes: int, completed_shortcut: bool) -> Dictionary:
+    clean_passes: int, completed_shortcut: bool,
+    precision_passes: int = 0) -> Dictionary:
     # The game calls this exactly once during trusted offline result finalization.
     # No client-supplied rank, claim IDs or network RPCs can reach this path.
     var result: Dictionary = {
@@ -260,6 +308,9 @@ func award_league(index: int, place: int, finished: bool,
         12 if place <= 10 else (7 if place <= 20 else 4)))
     var clean: int = clampi(clean_passes,0,3)
     var points: int = 10+placement+clean*5+(8 if completed_shortcut else 0)
+    # Purely cosmetic league reputation, only awarded from genuine
+    # authoritative gate events on completed solo races; no speed perks.
+    points += PRECISION_REP_PER_GATE*clampi(precision_passes,0,3)
     if clean == 3 and completed_shortcut:
         points += 5
     var old_tier: int = league_tier()
