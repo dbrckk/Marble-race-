@@ -210,6 +210,19 @@ func threatens_line(index: int, elapsed: float, eta: float,
         minf(eta,LANE_DRIFT_PREVIEW))
     return absf(future_x-obstacle_x) < LANE_THREAT_RADIUS
 
+# Readable physical timing cues use the SAME deterministic clock as the
+# collider and AI predictor. No new nodes, lights, materials or draw calls.
+static func hazard_phase_cue(track: int, extension: float,
+        lateral_speed: float) -> String:
+    if track == 2:
+        if extension < 0.15:
+            return "OPEN"
+        if extension < 0.57:
+            return "RISING"
+        return "BLOCKED"
+    return "SWEEP LEFT" if lateral_speed < -0.05 else (
+        "SWEEP RIGHT" if lateral_speed > 0.05 else "REVERSING")
+
 func animate(elapsed: float) -> void:
     clock = maxf(0.0,elapsed)
     for i in range(obstacles.size()):
@@ -230,7 +243,20 @@ func animate(elapsed: float) -> void:
             0.48*earned_flash)
         warning_rings[i].visible = biome != 2 or rising or (
             phase_at(i,clock) > 0.78) or earned_flash > 0.0
+        # Three existing world-space signs become a timing lesson rather
+        # than a static name: players can time the opening at a glance.
+        var lateral_speed: float = 0.0
+        if biome != 2:
+            lateral_speed = (position_at(i,clock+0.08).x-point.x)/0.08
+        var cue: String = hazard_phase_cue(
+            biome,piston_extension(i,clock),lateral_speed)
+        var sign_text: String = EVENT_NAMES[biome]+" / "+cue
+        if signs[i].text != sign_text:
+            signs[i].text = sign_text
         signs[i].modulate.a = 0.86 if rising else 0.35
+        signs[i].modulate = EVENT_COLORS[biome].lerp(
+            Color("#b7f5cb"),0.36 if cue == "OPEN" else 0.0)
+        signs[i].modulate.a = 0.86 if rising else 0.47
 
 func reset_round() -> void:
     awarded.clear()
