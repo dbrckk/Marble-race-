@@ -89,8 +89,13 @@ func _verify() -> void:
             assert(game.race_director.awarded.is_empty() and
                 game.race_items.used.is_empty(),
                 "A cosmetic music/camera cue cannot mint race rewards")
+            game.audio.enabled = true
+            game.audio.race_active = true
             game.audio.set_pack_pressure(game.race_moments.pack_pressure)
-            for audio_frame in range(12):
+            # Warm the *actual* pooled audio mixer to the playing target.
+            # Otherwise a track still fading in from silence would be
+            # mistakenly judged louder AFTER the pack disperses.
+            for audio_frame in range(55):
                 game.audio._process(0.12)
             assert(game.audio.pack_pressure_target == 1.0 and
                 game.audio.pack_pressure > 0.80,
