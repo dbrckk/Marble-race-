@@ -137,6 +137,12 @@ jobs:
           set -euo pipefail
           timeout 95s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 950 --path . --script res://tests/slipstream.gd 2>&1 | tee slipstream.log
           grep -Fq "SLIPSTREAM_PASS:" slipstream.log
+      - name: True 40-marble proximity mix and cinematic race-duel camera
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 95s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 1100 --path . --script res://tests/pack_dynamics.gd 2>&1 | tee pack-dynamics.log
+          grep -Fq "PACK_DYNAMICS_PASS:" pack-dynamics.log
       - name: Verified overtakes, final sprint and nonblocking Android speed cues
         shell: bash
         run: |
