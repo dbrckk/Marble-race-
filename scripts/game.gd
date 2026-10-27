@@ -36,6 +36,7 @@ const CourseMechanics = preload("res://scripts/course_mechanics.gd")
 const ArcadeBumpers = preload("res://scripts/arcade_bumpers.gd")
 const TrackUniverses = preload("res://scripts/track_universes.gd")
 const BiomeSignature = preload("res://scripts/biome_signature.gd")
+const CourseSculptures = preload("res://scripts/course_sculptures.gd")
 
 const MARBLE_COUNT := 40
 const SLOPE := 0.085
@@ -107,6 +108,7 @@ var obstacle_finish: Node3D
 var race_items: Node3D
 var course_mechanics: Node3D
 var arcade_bumpers: Node3D
+var course_sculptures: Node3D
 var race_director: Node3D
 var shortcut_route: Node3D
 var track_surface: Node3D
@@ -312,6 +314,8 @@ func _apply_graphics_quality() -> void:
         obstacle_finish.visible = graphics_quality > 0
     if is_instance_valid(arcade_bumpers):
         arcade_bumpers.set_quality(graphics_quality)
+    if is_instance_valid(course_sculptures):
+        course_sculptures.set_quality(graphics_quality)
     if is_instance_valid(race_items):
         race_items.set_quality(graphics_quality)
     if is_instance_valid(track_surface):
@@ -553,6 +557,12 @@ func _make_course() -> void:
                 _slalom(section_node, center_z, section)
 
     _connect_winding_sections()
+    # Real banked line options, plus collision-free landmark arches. The
+    # central rolling corridor is still open and both artistic batches
+    # and actual collision pieces share exactly the same transforms.
+    course_sculptures = CourseSculptures.new()
+    board.add_child(course_sculptures)
+    course_sculptures.setup(self,selected_track,built_variation)
     race_director = RaceDirector.new()
     board.add_child(race_director)
     race_director.setup(self,selected_track,built_variation)
