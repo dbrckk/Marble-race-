@@ -478,7 +478,7 @@ func _refresh_career_menu() -> void:
         game.career.mastery_count(),game.career.unlocked_style_count()]
     career_label.text += "\nLEAGUE  %s  ·  SOLO FINISHES %d" % [
         game.career.league_progress_label(),game.career.league_races()]
-    career_label.text += "\nPRECISION  %d / 9 MEDALS  ·  %d PERFECT RUNS" % [
+    career_label.text += "\nPRECISION  %d / 9 SKILL STARS  ·  %d PERFECT RUNS" % [
         game.career.precision_best[0]+game.career.precision_best[1]+(
             game.career.precision_best[2]),game.career.precision_perfect_runs]
     if game.career.unlocked < 3:
