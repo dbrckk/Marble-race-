@@ -464,7 +464,9 @@ func _refresh_career_menu() -> void:
         else:
             info += "BEST #%d  %.1fs  %s" % [best,game.career.track_time[i],"★".repeat(stars)]
         if available:
-            info += "  ·  M%d/3" % game.career.track_mastery_count(i)
+            info += "  ·  M%d/3  ·  P%s" % [
+                game.career.track_mastery_count(i),
+                str(game.career.precision_best[i])+"/3"]
         track_buttons[i].text = info
         track_buttons[i].disabled = not available
         track_buttons[i].add_theme_stylebox_override("normal",
@@ -476,6 +478,9 @@ func _refresh_career_menu() -> void:
         game.career.mastery_count(),game.career.unlocked_style_count()]
     career_label.text += "\nLEAGUE  %s  ·  SOLO FINISHES %d" % [
         game.career.league_progress_label(),game.career.league_races()]
+    career_label.text += "\nPRECISION  %d / 9 MEDALS  ·  %d PERFECT RUNS" % [
+        game.career.precision_best[0]+game.career.precision_best[1]+(
+            game.career.precision_best[2]),game.career.precision_perfect_runs]
     if game.career.unlocked < 3:
         career_label.text += "\n" + game.career.next_locked_requirement()
 
@@ -775,8 +780,10 @@ func _build_perks() -> void:
 
 func _refresh_mastery_preview() -> void:
     if is_instance_valid(mastery_label):
-        mastery_label.text = "MASTER %s:  %s\nLEAGUE: %s" % [
+        mastery_label.text = "MASTER %s:  %s\nPRECISION MEDAL: %s  (%d/3 GATES)\nLEAGUE: %s" % [
             game.track_title(),game.career.mastery_summary(game.selected_track),
+            game.career.precision_medal(game.selected_track),
+            game.career.precision_best[game.selected_track],
             game.career.league_progress_label()]
     if is_instance_valid(style_button):
         var count: int = game.career.unlocked_style_count()
@@ -1259,7 +1266,8 @@ func show_perks() -> void:
             % (game.race_variation+1))
         if not game.net.is_active():
             course_strategy_label.text += (
-                "\nSOLO: FOLLOW A RIVAL TO EARN DRAFT BOOST RECHARGE")
+                "\nSOLO: FOLLOW A RIVAL TO EARN DRAFT BOOST RECHARGE"
+                +"\nPRECISION: CLEANLY SKIM 1 / 2 / 3 MOVING GATES FOR BRONZE / SILVER / GOLD")
     if is_instance_valid(perk_scroll):
         perk_scroll.scroll_vertical = 0
     perks_layer.visible = true
@@ -1568,6 +1576,12 @@ func show_results(place: int, time: float, ranking: Array) -> void:
     var clean_passes: int = clampi(int(status.get("clean_passes",0)),0,3)
     var stars_text := "CAREER STARS: %d / 3" % earned_stars
     var overtakes: int = maxi(0,int(status.get("overtakes",0)))
+    var precision_gates: int = clampi(int(status.get("precision_passes",0)),0,3)
+    var precision_text: String = "PRECISION  %d/3  •  BEST %s" % [
+        precision_gates,str(status.get("precision_medal",
+            game.career.precision_medal(game.selected_track)))]
+    if bool(status.get("precision_new_record",false)):
+        precision_text += "  •  NEW MEDAL!"
     var mastery_text := "MASTERY  %d/3  •  TOTAL %d/9" % [
         int(status.get("mastery_track",game.career.track_mastery_count(game.selected_track))),
         int(status.get("mastery_total",game.career.mastery_count()))]
@@ -1592,8 +1606,9 @@ func show_results(place: int, time: float, ranking: Array) -> void:
                 float(sector_times[sector]),
                 " ★" if sector_records.size() == 4 and bool(sector_records[sector]) else ""]
     if summary:
-        summary.text = "POSITION  #%d / 40   •   %s\nTIME  %.1fs\nCLEAN PASSES  %d / 3  •  OVERTAKES %d\n%s\n%s\n%s\n%s\n%s\n%s\nBEST  #%s\n\nTOP 5\n%s" % [
-            place,"FINISHED" if finished else "TIME OUT",time,clean_passes,overtakes,league_text,mastery_text,stars_text,sector_text,
+        summary.text = "POSITION  #%d / 40   •   %s\nTIME  %.1fs\nCLEAN PASSES  %d / 3  •  OVERTAKES %d\n%s\n%s\n%s\n%s\n%s\n%s\n%s\nBEST  #%s\n\nTOP 5\n%s" % [
+            place,"FINISHED" if finished else "TIME OUT",time,clean_passes,overtakes,
+            precision_text,league_text,mastery_text,stars_text,sector_text,
             record_text,unlock_text,
             str(game.career.track_best[game.selected_track]) if game.career.track_best[game.selected_track] > 0 else "—",
             leaders]
