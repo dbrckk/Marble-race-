@@ -14,6 +14,10 @@ func _verify() -> void:
     DirAccess.remove_absolute(ProjectSettings.globalize_path(SCENE_SAVE))
     var progress = CAREER.new()
     progress.save_path = SAVE
+    # Model five legitimately finished solo races before verifying the
+    # pure medal bookkeeping and its bounded save-load history.
+    progress.starts = 5
+    progress.finishes = 5
     assert(progress.precision_medal(0) == "UNRANKED")
     assert(progress.precision_medal(-1) == "UNRANKED")
     assert(progress.precision_best == [0,0,0])
