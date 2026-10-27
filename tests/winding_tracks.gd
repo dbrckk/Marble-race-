@@ -13,6 +13,23 @@ func _run() -> void:
     assert(is_zero_approx(Path.center_at(12.0,0)))
     assert(absf(Path.center_at(-198.0,2)) < 0.001)
     for course in range(3):
+        # The same relief drives collision modules, visual planks and AI.
+        # Both endpoints must retain the original safe starting/finish grade.
+        assert(absf(Path.height_at(12.0,course)-12.0*Path.BASE_SLOPE) < 0.001)
+        assert(absf(Path.height_at(-198.0,course)+198.0*Path.BASE_SLOPE) < 0.001)
+        var max_grade := 0.0
+        var relief_range := 0.0
+        for sample in range(421):
+            var z: float = 12.0-float(sample)*0.5
+            var grade: float = Path.grade_at(z,course)
+            assert(is_finite(grade) and absf(grade) < 0.58,
+                "Rolling crests must not become near-vertical physical ramps")
+            max_grade = maxf(max_grade,absf(grade))
+            relief_range = maxf(relief_range,absf(
+                Path.height_at(z,course)-z*Path.BASE_SLOPE))
+        assert(relief_range > [0.40,0.80,1.10][course],
+            "All biomes must have real, measurable 3D terrain relief")
+        assert(max_grade > 0.08)
         assert(game.set_track(course))
         assert(game.board.get_meta("track_index") == course)
         var farthest := 0.0
