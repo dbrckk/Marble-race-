@@ -62,6 +62,30 @@ func _verify() -> void:
             game.player.global_position = Vector3(
                 collision_x,game.height_at(approach_z)+0.8,approach_z)
             game.player.linear_velocity = Vector3(0,0,-speed)
+            # World-space timing signs must describe the real collision
+            # phase, not a decorative fake animation. No new 3D objects.
+            var sign: Label3D = director.signs[gate_index]
+            assert(sign.text.contains(DIRECTOR.EVENT_NAMES[biome]),
+                "Every physical gate retains its world-specific name")
+            if biome == 2:
+                assert(sign.text.contains("BLOCKED") or
+                    sign.text.contains("RISING"),
+                    "Forge signs must communicate actual piston danger")
+                director.animate(clear_clock)
+                assert(director.signs[gate_index].text.contains("OPEN") or
+                    director.signs[gate_index].text.contains("RISING"),
+                    "A retracted piston should visually communicate a safe window")
+                director.animate(blocked_clock)
+            else:
+                assert(sign.text.contains("SWEEP"),
+                    "Woodland and Glacier signs must show true movement direction")
+                var first_x: float = director.position_at(
+                    gate_index,blocked_clock).x
+                var next_x: float = director.position_at(
+                    gate_index,blocked_clock+0.08).x
+                if absf(next_x-first_x) > 0.004:
+                    assert(sign.text.contains("LEFT" if next_x < first_x else "RIGHT"),
+                        "Displayed sweep direction must agree with physical motion")
             director.animate(blocked_clock)
             game.race_time = blocked_clock
             var actual: Dictionary = director.event_ahead(approach_z)
