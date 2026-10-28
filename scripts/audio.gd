@@ -321,6 +321,10 @@ func course_event(kind: String) -> void:
         "jump":
             _voice(TONES["boost"],-18.0,1.58)
             _voice(GLASS_HITS[0],-22.0,1.30)
+        "apex":
+            # Two already-bundled cues, no extra player or streaming asset.
+            _voice(TONES["checkpoint"],-17.0,1.52)
+            _voice(TONES["boost"],-21.0,1.25)
         "near_miss":
             _voice(TONES["checkpoint"],-17.0,1.33)
             _voice(TONES["boost"],-20.0,1.09)
