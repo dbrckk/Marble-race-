@@ -63,23 +63,19 @@ func _run() -> void:
             assert(bay.get_child_count() == 0 and
                 bay.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF,
                 "Canopy must not cast costly shadows or create hidden physical traps")
-            for index in range(12):
-                var transform: Transform3D = bay.multimesh.get_instance_transform(index)
-                var actual_clearance: float = transform.origin.y-(
-                    game.height_at(transform.origin.z))
-                if not transform.origin.is_finite() or actual_clearance < (
-                        GEOMETRY.VAULT_CLEARANCE-0.1):
-                    print("CANOPY_HEIGHT_DEBUG biome=",biome,
-                        " layout=",layout," index=",index,
-                        " origin=",transform.origin,
-                        " floor=",game.height_at(transform.origin.z),
-                        " clearance=",actual_clearance,
-                        " selected_track=",game.selected_track)
-                assert(transform.origin.is_finite() and
-                    actual_clearance >= GEOMETRY.VAULT_CLEARANCE-0.1,
+            # RenderingServer does not return GPU instance transforms in
+            # headless mode. Compare the actual CPU source points used by
+            # _instanced() against physical ground and the open sightline.
+            assert(geometry.canopy_roots.size() ==
+                bay.multimesh.instance_count,
+                "Each GPU canopy must be backed by one checked source point")
+            for point in geometry.canopy_roots:
+                var at: Vector3 = point
+                var clearance: float = at.y-game.height_at(at.z)
+                assert(at.is_finite() and
+                    clearance >= GEOMETRY.VAULT_CLEARANCE-0.1,
                     "The open-sky canopy must remain well above physical marble jumps")
-                assert(absf(transform.origin.x-game.track_center_at(
-                    transform.origin.z)) > 4.0,
+                assert(absf(at.x-game.track_center_at(at.z)) > 4.0,
                     "Open center skylight preserves chase-camera visibility")
             var excluded: Array[RID] = []
             var pending: Array[Node] = [game.board]
