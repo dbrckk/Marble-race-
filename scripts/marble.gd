@@ -199,6 +199,22 @@ static func recovery_side(relative_x: float, attempts: int) -> float:
         return signf(relative_x)
     return -signf(relative_x)
 
+# Natural steering release: a moderate amount of counter-drift keeps touch
+# controls predictable without braking forward speed or cancelling actual
+# collisions. Glacier retains more lateral slide; active inputs keep the
+# original full steering authority on both server and local humans.
+static func human_steering_force(axis: float, speed_z: float,
+        sideways_speed: float, biome: int) -> float:
+    if not is_finite(axis) or not is_finite(speed_z) or (
+        not is_finite(sideways_speed)):
+        return 0.0
+    var input: float = clampf(axis,-1.0,1.0)
+    var forward: float = absf(speed_z)
+    var direct: float = input*lerpf(18.5,26.0,clampf(forward/18.0,0.0,1.0))
+    var release: float = 1.0-clampf(absf(input)/0.16,0.0,1.0)
+    var coast_grip: float = [0.42,0.22,0.36][clampi(biome,0,2)]
+    return direct-clampf(sideways_speed,-10.0,10.0)*coast_grip*release
+
 func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> void:
     if finished or eliminated or sleeping:
         return
@@ -220,8 +236,9 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
     var following_bypass := false
     if is_player or network_controlled:
         # Steering retains authority at high speed, without making tiny inputs twitchy.
-        var forward_speed: float = absf(linear_velocity.z)
-        side_force = steering * lerpf(18.5,26.0,clampf(forward_speed/18.0,0.0,1.0))
+        side_force = human_steering_force(steering,linear_velocity.z,
+            linear_velocity.x,course_owner.selected_track if (
+                is_instance_valid(course_owner)) else 0)
     else:
         # Predictable seeded weave prevents the AI from blindly hugging one rail.
         # Other marbles still interact solely through physical collisions.
