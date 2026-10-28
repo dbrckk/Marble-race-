@@ -65,6 +65,12 @@ jobs:
           # Force a bounded run and require the actual completion marker.
           timeout 75s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 240 --path . --script res://tests/smoke.gd 2>&1 | tee smoke.log
           grep -Fq "SMOKE_PASS:" smoke.log
+      - name: Real Android neutral-drift steering and nine-layout physics authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 95s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 1150 --path . --script res://tests/mobile_coast_steering.gd 2>&1 | tee mobile-coast.log
+          grep -Fq "MOBILE_COAST_PASS:" mobile-coast.log
       - name: Multi-touch controls regression
         shell: bash
         run: |
