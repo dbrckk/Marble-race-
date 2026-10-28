@@ -104,6 +104,10 @@ func clear_motion() -> void:
 
 func reset_round() -> void:
     clear_motion()
+    # A rematch must start the pooled ripples at the first instance again.
+    # This also prevents frame and test ordering from affecting which slot
+    # shows the next real touchdown.
+    ripple_head = 0
     physics_probes = 0
     landing_count = 0
     longest_airtime = 0.0
