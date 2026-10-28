@@ -321,6 +321,11 @@ func set_track_theme(track: int) -> void:
         music.volume_db = -78.0
         music_fade = 0.0
         music.play()
+        if is_instance_valid(percussion):
+            # Start the pre-rendered score and the original 112 BPM stem
+            # on the same beat after every biome switch.
+            percussion.stop()
+            percussion.play()
     # All original compositions have the SAME 112 BPM/12-bar musical grid.
     # A retuned percussion stem would drift off the drum hits, so it stays
     # at neutral pitch regardless of track. Wind can remain biome-specific.
