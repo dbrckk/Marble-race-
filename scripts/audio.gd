@@ -97,7 +97,10 @@ func _ready() -> void:
     for score in THEME_SCORES:
         if score is AudioStreamWAV:
             score.loop_begin = 0
-            score.loop_end = score.data.size()/2
+            # Godot imports WAV to QOA on Android by default. Byte size
+            # therefore is NOT the PCM sample count: loop against the
+            # decoded 12-bar frame boundary, or QOA loops at ~5 seconds.
+            score.loop_end = int(round(score.get_length()*score.mix_rate))
             score.loop_mode = AudioStreamWAV.LOOP_FORWARD
     percussion = AudioStreamPlayer.new()
     percussion.name = "AdaptiveRacePercussion"
