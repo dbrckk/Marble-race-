@@ -338,6 +338,13 @@ func _apply_graphics_quality() -> void:
         var signature := board.get_node_or_null("TrackSignatureLandmarks")
         if is_instance_valid(signature):
             signature.set_quality(graphics_quality)
+        # Three original distant landscape layers cull progressively on
+        # slower devices; scenery cannot alter race collisions or AI routes.
+        var world_name: String = "World_%s" % (
+            TrackUniverses.THEMES[selected_track].replace(" ","_"))
+        var world := board.get_node_or_null(world_name)
+        if is_instance_valid(world):
+            world.set_quality(graphics_quality)
     # Compatibility renderer: avoid costly multisample AA outside ULTRA.
     var viewport := get_viewport()
     viewport.msaa_3d = Viewport.MSAA_2X if graphics_quality == 2 else Viewport.MSAA_DISABLED
