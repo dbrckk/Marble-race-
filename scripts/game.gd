@@ -1494,6 +1494,15 @@ func _end_race() -> void:
         last_result["apex_passes"] = course_sculptures.apex_pass_count(
             player.racer_id) if is_instance_valid(course_sculptures) and (
             is_instance_valid(player) and not net.is_active()) else 0
+        # A genuine sequence of three bridge lines is measured on the
+        # authoritative offline physics simulation only. Remote clients
+        # never feed counters into career, medals or store purchases.
+        last_result["bridge_gates"] = shortcut_route.bridge_gate_count(
+            player.racer_id) if is_instance_valid(shortcut_route) and (
+            is_instance_valid(player) and not net.is_active()) else 0
+        last_result["perfect_bridge"] = shortcut_route.precision_complete.has(
+            player.racer_id) if is_instance_valid(shortcut_route) and (
+            is_instance_valid(player) and not net.is_active()) else false
         # Measured client-side feel stats never become trusted league rewards.
         last_result["airtime_landings"] = airtime.landing_count if (
             is_instance_valid(airtime) and not net.is_active()) else 0
