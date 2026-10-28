@@ -1514,6 +1514,9 @@ func show_course_event(kind: String) -> void:
         "shortcut": "SHORTCUT  /  PERFECT LINE!",
         "jump": "AIRTIME  /  CLEAN LAUNCH!",
         "apex": "BANKED APEX  /  PERFECT CREST BOOST!",
+        "bridge_gate_1": "BRIDGE SKILL  /  GATE 1 OF 3!",
+        "bridge_gate_2": "BRIDGE SKILL  /  GATE 2 OF 3!",
+        "bridge_perfect": "PERFECT BRIDGE  /  TRIPLE-GATE BOOST!",
         "near_miss": "NEAR MISS  /  CLEAN PASS!",
         "near_miss_precision": "PRECISION PASS  /  EXTRA MOMENTUM!",
         "near_miss_chain": "PRECISION STREAK  /  MOMENTUM BONUS!"
@@ -1521,7 +1524,8 @@ func show_course_event(kind: String) -> void:
     checkpoint_label.text = str(labels.get(kind,"COURSE HAZARD"))
     checkpoint_label.add_theme_color_override("font_color",
         Color("#b6edff") if kind in ["ice","shortcut","jump","apex",
-            "near_miss","near_miss_precision","near_miss_chain"] else Color("#ffcb8c"))
+            "near_miss","near_miss_precision","near_miss_chain",
+            "bridge_gate_1","bridge_gate_2","bridge_perfect"] else Color("#ffcb8c"))
     checkpoint_label.modulate.a = 1.0
     checkpoint_label.visible = true
     toast_remaining = 1.45
@@ -1576,6 +1580,8 @@ func show_results(place: int, time: float, ranking: Array) -> void:
     var earned_stars: int = int(status.get("stars",0))
     var clean_passes: int = clampi(int(status.get("clean_passes",0)),0,3)
     var apex_passes: int = clampi(int(status.get("apex_passes",0)),0,4)
+    var bridge_gates: int = clampi(int(status.get("bridge_gates",0)),0,3)
+    var perfect_bridge: bool = bool(status.get("perfect_bridge",false))
     var landings: int = maxi(0,int(status.get("airtime_landings",0)))
     var best_air: float = maxf(0.0,float(status.get("airtime_best",0.0)))
     var stars_text := "CAREER STARS: %d / 3" % earned_stars
@@ -1610,8 +1616,9 @@ func show_results(place: int, time: float, ranking: Array) -> void:
                 float(sector_times[sector]),
                 " ★" if sector_records.size() == 4 and bool(sector_records[sector]) else ""]
     if summary:
-        summary.text = "POSITION  #%d / 40   •   %s\nTIME  %.1fs\nCLEAN PASSES  %d / 3  •  OVERTAKES %d\nBANKED APEXES  %d / 4\nREAL LANDINGS  %d  •  BEST AIR %.2fs\n%s\n%s\n%s\n%s\n%s\n%s\n%s\nBEST  #%s\n\nTOP 5\n%s" % [
-            place,"FINISHED" if finished else "TIME OUT",time,clean_passes,overtakes,apex_passes,landings,best_air,
+        summary.text = "POSITION  #%d / 40   •   %s\nTIME  %.1fs\nCLEAN PASSES  %d / 3  •  OVERTAKES %d\nBANKED APEXES  %d / 4\nBRIDGE GATES  %d / 3%s\nREAL LANDINGS  %d  •  BEST AIR %.2fs\n%s\n%s\n%s\n%s\n%s\n%s\n%s\nBEST  #%s\n\nTOP 5\n%s" % [
+            place,"FINISHED" if finished else "TIME OUT",time,clean_passes,overtakes,apex_passes,bridge_gates,
+            "  •  PERFECT!" if perfect_bridge else "",landings,best_air,
             precision_text,league_text,mastery_text,stars_text,sector_text,
             record_text,unlock_text,
             str(game.career.track_best[game.selected_track]) if game.career.track_best[game.selected_track] > 0 else "—",
