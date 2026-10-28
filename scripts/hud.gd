@@ -1575,6 +1575,7 @@ func show_results(place: int, time: float, ranking: Array) -> void:
     var unlock_text := "NEXT CIRCUIT UNLOCKED!" if bool(status.get("unlocked",false)) else ""
     var earned_stars: int = int(status.get("stars",0))
     var clean_passes: int = clampi(int(status.get("clean_passes",0)),0,3)
+    var apex_passes: int = clampi(int(status.get("apex_passes",0)),0,4)
     var stars_text := "CAREER STARS: %d / 3" % earned_stars
     var overtakes: int = maxi(0,int(status.get("overtakes",0)))
     var precision_gates: int = clampi(int(status.get("precision_passes",0)),0,3)
@@ -1607,8 +1608,8 @@ func show_results(place: int, time: float, ranking: Array) -> void:
                 float(sector_times[sector]),
                 " ★" if sector_records.size() == 4 and bool(sector_records[sector]) else ""]
     if summary:
-        summary.text = "POSITION  #%d / 40   •   %s\nTIME  %.1fs\nCLEAN PASSES  %d / 3  •  OVERTAKES %d\n%s\n%s\n%s\n%s\n%s\n%s\n%s\nBEST  #%s\n\nTOP 5\n%s" % [
-            place,"FINISHED" if finished else "TIME OUT",time,clean_passes,overtakes,
+        summary.text = "POSITION  #%d / 40   •   %s\nTIME  %.1fs\nCLEAN PASSES  %d / 3  •  OVERTAKES %d\nBANKED APEXES  %d / 4\n%s\n%s\n%s\n%s\n%s\n%s\n%s\nBEST  #%s\n\nTOP 5\n%s" % [
+            place,"FINISHED" if finished else "TIME OUT",time,clean_passes,overtakes,apex_passes,
             precision_text,league_text,mastery_text,stars_text,sector_text,
             record_text,unlock_text,
             str(game.career.track_best[game.selected_track]) if game.career.track_best[game.selected_track] > 0 else "—",
