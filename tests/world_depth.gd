@@ -26,7 +26,7 @@ func _run() -> void:
             assert(stage.built_variation == layout and stage.racers.size() == 40)
             var name: String = "World_%s" % (
                 WORLDS.THEMES[biome].replace(" ","_"))
-            var world := stage.board.get_node(name)
+            var world: Node3D = stage.board.get_node(name) as Node3D
             assert(world.get_child_count() == 6,
                 "The whole original biome plus three depth layers costs six GPU batches")
             assert(world.depth_ridges.multimesh.instance_count == 12)
