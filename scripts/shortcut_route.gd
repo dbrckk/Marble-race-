@@ -21,11 +21,21 @@ const BRIDGE_POST_OFFSET := 1.76
 const BRIDGE_POST_RADIUS := 0.22
 const BRIDGE_POST_HEIGHT := 0.88
 const BRIDGE_ARCH_HEIGHT := 3.15
-# Only the entry portal, takeoff pads and reward gate can apply effects.
-# All are between -46.5 and -87.5 on every biome; other positions do not
-# need the costly curved point_at() and world-height calculations at 60 Hz.
+# Three real crossing planes embedded in the existing physical bridge.
+# Crossing in order, at speed and near the center of each pair of posts,
+# earns a single bounded skill reward. No decorative trigger volumes.
+const PRECISION_GATE_HALF_WIDTH := 1.03
+const PRECISION_GATE_MIN_HEIGHT := 0.20
+const PRECISION_GATE_MAX_HEIGHT := 2.45
+const PRECISION_GATE_MIN_SPEED := 5.5
+const PRECISION_GATE_MAX_STEP := 1.35
+const PRECISION_BONUS_FORWARD := 2.35
+const PRECISION_BONUS_LIFT := 0.20
+# Only the entry portal, takeoff pads, reward and three precision gates
+# can affect physics; the last skill gate is at z=-90 on each course.
+# The other 120m of road never needs the curved bypass query at 60 Hz.
 const EFFECT_WINDOW_NEAR := ENTRY_Z + 1.5
-const EFFECT_WINDOW_FAR := -88.0
+const EFFECT_WINDOW_FAR := -92.0
 const JUMP_Z := [-71.0,-74.0,-86.0]
 const ENTRY_WINDOW := 12.0
 const MAX_BANK := 0.080
@@ -44,6 +54,12 @@ var guards: Array[StaticBody3D] = []
 var triggered: Dictionary = {}
 var entered: Dictionary = {}
 var jumped: Dictionary = {}
+# Authoritative per-round progress; all three gate crossings must occur in
+# physical order. Clients only receive presentation events.
+var precision_progress: Dictionary = {}
+var precision_last_z: Dictionary = {}
+var precision_failed: Dictionary = {}
+var precision_complete: Dictionary = {}
 var launch_ramps: Array[StaticBody3D] = []
 var precision_posts: Array[StaticBody3D] = []
 var precision_post_positions: Array[Vector3] = []
@@ -231,6 +247,15 @@ func _bridge_precision_corridor(material: Material) -> void:
             center+Vector3(0.0,BRIDGE_ARCH_HEIGHT+0.32,0.0)))
     _batch("BypassPrecisionEdgePosts",post_art,material)
     _batch("BypassPrecisionPortalArches",arch_art,material)
+    # Three lightweight, noncolliding deck stripes identify the EXACT
+    # physical crossing planes. The existing trim material is reused.
+    var marks: Array[Transform3D] = []
+    for station in range(BRIDGE_POST_Z.size()):
+        var center: Vector3 = point_at(BRIDGE_POST_Z[station])
+        marks.append(Transform3D(
+            Basis().scaled(Vector3(2.07,0.013,0.23)),
+            center+Vector3.UP*0.324))
+    _batch("BypassPrecisionSkillStripes",marks,material)
 
 func _racing_line(material: Material) -> void:
     var marks: Array[Transform3D] = []
@@ -367,6 +392,64 @@ func reset_round() -> void:
     triggered.clear()
     entered.clear()
     jumped.clear()
+    precision_progress.clear()
+    precision_last_z.clear()
+    precision_failed.clear()
+    precision_complete.clear()
+
+func bridge_gate_count(racer_id: int) -> int:
+    return clampi(int(precision_progress.get(racer_id,0)),
+        0,BRIDGE_POST_Z.size())
+
+static func valid_precision_line(horizontal: float, vertical: float,
+        forward_speed: float, step: float) -> bool:
+    return is_finite(horizontal) and is_finite(vertical) and (
+        is_finite(forward_speed) and is_finite(step) and
+        absf(horizontal) <= PRECISION_GATE_HALF_WIDTH and
+        vertical >= PRECISION_GATE_MIN_HEIGHT and
+        vertical <= PRECISION_GATE_MAX_HEIGHT and
+        forward_speed >= PRECISION_GATE_MIN_SPEED and
+        step > 0.0 and step <= PRECISION_GATE_MAX_STEP)
+
+func _precision_tick(marble: RigidBody3D, delta: float,
+        net: Node) -> void:
+    # One O(1) state update for a *real entrant* only, no extra raycasts
+    # or 40-marble per-frame gate search. The authority alone can pay out.
+    var id: int = marble.racer_id
+    var at: Vector3 = marble.global_position
+    var previous_z: float = float(precision_last_z.get(id,at.z))
+    precision_last_z[id] = at.z
+    if not entered.has(id) or precision_failed.has(id) or (
+            precision_complete.has(id)):
+        return
+    var next_gate: int = bridge_gate_count(id)
+    if next_gate >= BRIDGE_POST_Z.size():
+        return
+    var target_z: float = float(BRIDGE_POST_Z[next_gate])
+    if at.z > target_z or previous_z <= target_z:
+        return
+    var forward_speed: float = -marble.linear_velocity.z
+    var step: float = previous_z-at.z
+    # Reject teleport/recovery jumps even if the final coordinates happen
+    # to land perfectly on a marker. Ordinary 60Hz physical steps are short.
+    var bounded: bool = step <= maxf(0.65,forward_speed*maxf(
+        0.016,delta)*2.2)
+    var line: Vector3 = point_at(target_z)
+    if not bounded or not valid_precision_line(
+            at.x-line.x,at.y-line.y,forward_speed,step):
+        precision_failed[id] = true
+        return
+    var score: int = next_gate+1
+    precision_progress[id] = score
+    if score == BRIDGE_POST_Z.size():
+        precision_complete[id] = true
+        # Small earned force only, identical for AI, local human and
+        # network-controlled player. No score/velocity originates on clients.
+        marble.apply_central_impulse(Vector3(
+            0.0,PRECISION_BONUS_LIFT,-PRECISION_BONUS_FORWARD)*marble.mass)
+        _feedback(marble,net,"bridge_perfect")
+    else:
+        _feedback(marble,net,"bridge_gate_%d" % score)
 
 func tick(_delta: float, racers: Array[RigidBody3D], net: Node) -> void:
     # Never apply gameplay effects from a rendering-only client replica.
@@ -395,6 +478,7 @@ func tick(_delta: float, racers: Array[RigidBody3D], net: Node) -> void:
             entered[marble.racer_id] = true
         if not entered.has(marble.racer_id):
             continue
+        _precision_tick(marble,_delta,net)
         var jump_z: float = JUMP_Z[course_id]
         if not jumped.has(marble.racer_id) and absf(z-jump_z) <= 1.5 and (
             horizontal_error < 1.38 and vertical_error < 1.65):
