@@ -12,6 +12,17 @@ const BANK_PITCH := 0.065
 const BANK_CANT := 0.055
 const BANK_OFFSET := 2.85
 const BANK_TOP_RISE := 0.20
+# A spare collision-layer bit identifies ONLY true rideable apexes for a
+# bounded physics ray. Marbles still collide normally on the original bit 1.
+const BANK_PROBE_LAYER := 4
+const APEX_MIN_FORWARD_SPEED := 7.5
+const APEX_FORWARD_IMPULSE := 1.10
+const APEX_LIFT_IMPULSE := 0.34
+const APEX_TOUCH_MIN := 0.27
+const APEX_TOUCH_MAX := 0.67
+const APEX_Z_WINDOW := 1.75
+const APEX_LANE_WINDOW := 1.18
+const APEX_FLASH_SECONDS := 0.65
 const VAULT_CLEARANCE := 5.0
 const VAULT_HALF_WIDTH := 7.75
 const VAULT_RIB_OFFSETS := [-3.3,0.0,3.3]
@@ -41,6 +52,11 @@ var vault_crest_points: Array[Vector3] = []
 # headless CI and may return identity transforms on mobile backends.
 var canopy_roots: Array[Vector3] = []
 var quality := 1
+var earned_apex: Dictionary = {}
+var last_ray_queries := 0
+var validated_apex_hits := 0
+var apex_inlay_roots: Array[Transform3D] = []
+var apex_flash: Array[float] = []
 
 static func bank_side(section: int, track: int, layout: int) -> float:
     return -1.0 if (section+clampi(track,0,2)+posmod(layout,3))%2 == 0 else 1.0
@@ -85,6 +101,8 @@ func setup(owner: Node3D, track: int, layout: int) -> void:
     variation = posmod(layout,3)
     _banked_racing_apexes()
     _world_passage_vaults()
+    apex_flash.resize(BANK_SECTIONS.size())
+    reset_round()
     set_quality(game.graphics_quality)
 
 func _banked_racing_apexes() -> void:
@@ -119,6 +137,9 @@ func _banked_racing_apexes() -> void:
                     BANK_PITCH if half == 0 else -BANK_PITCH),
                 0.0,-side*BANK_CANT)
             body.physics_material_override = friction
+            # Only apex road collision shares this extra probe bit. The
+            # original marble contact layer/mask stay unchanged.
+            body.collision_layer = 1 | BANK_PROBE_LAYER
             var collider := CollisionShape3D.new()
             collider.name = "SculptedApexCollision"
             collider.shape = shape
@@ -137,6 +158,7 @@ func _banked_racing_apexes() -> void:
     lip.size = Vector3(BANK_WIDTH-0.3,0.014,0.13)
     apex_inlays = _instanced("ApexCrestInlays_4",lip,
         _material(COLOR_GLOWS[biome],0.54),inlays)
+    apex_inlay_roots = inlays.duplicate()
 
 func _world_passage_vaults() -> void:
     var pillars: Array[Transform3D] = []
@@ -223,6 +245,114 @@ func _world_passage_vaults() -> void:
     canopy_trims = _instanced("TwelveCanopyLuminousGuides",line_mesh,
         _material(COLOR_GLOWS[biome],0.42),trim_transforms)
 
+# The reward is earned ONLY by touching the already-existing bank mesh
+# at racing speed. The authoritative server/offline physics world performs
+# the sole ray query; a multiplayer client cannot forge an apex impulse.
+static func valid_apex_contact(forward_speed: float,
+        surface_clearance: float, lateral: float) -> bool:
+    return is_finite(forward_speed) and is_finite(surface_clearance) and (
+        is_finite(lateral) and forward_speed >= APEX_MIN_FORWARD_SPEED and
+        surface_clearance >= APEX_TOUCH_MIN and
+        surface_clearance <= APEX_TOUCH_MAX and
+        absf(lateral) <= APEX_LANE_WINDOW)
+
+func tick(racers: Array[RigidBody3D], net: Node) -> void:
+    last_ray_queries = 0
+    if net.role == "client":
+        return
+    for marble in racers:
+        if not is_instance_valid(marble) or marble.finished or (
+                marble.eliminated or marble.freeze):
+            continue
+        var position: Vector3 = marble.global_position
+        if not position.is_finite() or (
+                marble.linear_velocity.z > -APEX_MIN_FORWARD_SPEED):
+            continue
+        for index in range(BANK_SECTIONS.size()):
+            var z: float = bank_z(BANK_SECTIONS[index],variation)
+            if absf(position.z-z) > APEX_Z_WINDOW:
+                continue
+            var key: String = "%d:%d" % [index,marble.racer_id]
+            if earned_apex.has(key):
+                continue
+            var x: float = game.track_center_at(position.z)+(
+                bank_side(BANK_SECTIONS[index],biome,variation)*BANK_OFFSET)
+            if absf(position.x-x) > APEX_LANE_WINDOW:
+                continue
+            # Cheap geometric height rejection before querying physics.
+            if position.y < game.height_at(position.z)+0.20 or (
+                    position.y > game.height_at(position.z)+1.1):
+                continue
+            var query := PhysicsRayQueryParameters3D.create(
+                position+Vector3(0.0,0.08,0.0),
+                position-Vector3(0.0,0.9,0.0),BANK_PROBE_LAYER)
+            last_ray_queries += 1
+            var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
+            if hit.is_empty() or not banks.has(hit.get("collider")):
+                continue
+            var clearance: float = position.y-(
+                hit["position"] as Vector3).y
+            if not valid_apex_contact(
+                    -marble.linear_velocity.z,clearance,position.x-x):
+                continue
+            earned_apex[key] = true
+            validated_apex_hits += 1
+            marble.apply_central_impulse(Vector3(
+                0.0,APEX_LIFT_IMPULSE,-APEX_FORWARD_IMPULSE)*marble.mass)
+            if net.role == "offline" and marble.is_player:
+                flash_local_apex(position.z)
+            if net.role == "server":
+                if marble.network_controlled and (
+                        net.joined_slots.values().has(marble.racer_id)):
+                    net.notify_course_event(marble.racer_id,"apex")
+            elif net.role == "offline" and marble.is_player:
+                game.audio.course_event("apex")
+                game.ui.show_course_event("apex")
+            # One verified bank is enough; a marble cannot touch two at once.
+            break
+
+func apex_pass_count(racer_id: int) -> int:
+    var result := 0
+    for i in range(BANK_SECTIONS.size()):
+        if earned_apex.has("%d:%d" % [i,racer_id]):
+            result += 1
+    return result
+
+func flash_local_apex(z: float) -> bool:
+    if not is_finite(z):
+        return false
+    for i in range(BANK_SECTIONS.size()):
+        if absf(z-bank_z(BANK_SECTIONS[i],variation)) <= (
+                APEX_Z_WINDOW+0.55):
+            apex_flash[i] = APEX_FLASH_SECONDS
+            return true
+    return false
+
+func advance_visuals(delta: float) -> void:
+    if not is_finite(delta) or delta <= 0.0:
+        return
+    for i in range(apex_flash.size()):
+        if apex_flash[i] <= 0.0:
+            continue
+        apex_flash[i] = maxf(0.0,apex_flash[i]-delta)
+        if quality == 0 or not is_instance_valid(apex_inlays):
+            continue
+        var pulse: float = apex_flash[i]/APEX_FLASH_SECONDS
+        var original: Transform3D = apex_inlay_roots[i]
+        apex_inlays.multimesh.set_instance_transform(i,Transform3D(
+            original.basis.scaled(Vector3(1.0+0.42*pulse,1.0,
+                1.0+0.42*pulse)),original.origin))
+
+func reset_round() -> void:
+    earned_apex.clear()
+    validated_apex_hits = 0
+    last_ray_queries = 0
+    for i in range(apex_flash.size()):
+        apex_flash[i] = 0.0
+        if is_instance_valid(apex_inlays):
+            apex_inlays.multimesh.set_instance_transform(
+                i,apex_inlay_roots[i])
+
 func set_quality(value: int) -> void:
     quality = clampi(value,0,2)
     # All real 3D bank colliders and their paint remain in ECONOMY.
@@ -235,6 +365,13 @@ func set_quality(value: int) -> void:
         vault_roofs.visible = true
     if is_instance_valid(apex_inlays):
         apex_inlays.visible = quality >= 1
+        if quality >= 1:
+            for i in range(apex_flash.size()):
+                var original: Transform3D = apex_inlay_roots[i]
+                var pulse: float = apex_flash[i]/APEX_FLASH_SECONDS
+                apex_inlays.multimesh.set_instance_transform(i,Transform3D(
+                    original.basis.scaled(Vector3(1.0+0.42*pulse,1.0,
+                        1.0+0.42*pulse)),original.origin))
     if is_instance_valid(vault_highlights):
         vault_highlights.visible = quality >= 1
     if is_instance_valid(canopy_panels):
