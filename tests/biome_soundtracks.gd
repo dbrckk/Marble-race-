@@ -20,6 +20,11 @@ func _run() -> void:
         assert(resource is AudioStreamWAV,
             "Every world needs an original, offline playable PCM score")
         var track := resource as AudioStreamWAV
+        print("BIOME_PCM_DEBUG track=",index,
+            " sample_rate=",track.mix_rate," format=",track.format,
+            " expected_format=",AudioStreamWAV.FORMAT_16_BITS,
+            " payload_bytes=",track.data.size(),
+            " length=",track.get_length())
         assert(track.mix_rate == NOTE_SR and
             track.format == AudioStreamWAV.FORMAT_16_BITS)
         assert(absf(track.get_length()-float(BARS*4)*60.0/float(NOTE_BPM)) < 0.02,
