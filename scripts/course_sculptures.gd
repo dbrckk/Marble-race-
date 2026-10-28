@@ -37,6 +37,9 @@ var canopy_panels: MultiMeshInstance3D
 var canopy_trims: MultiMeshInstance3D
 var arch_rib_count := 0
 var vault_crest_points: Array[Vector3] = []
+# CPU-side source positions: MultiMesh GPU readback is unavailable in
+# headless CI and may return identity transforms on mobile backends.
+var canopy_roots: Array[Vector3] = []
 var quality := 1
 
 static func bank_side(section: int, track: int, layout: int) -> float:
@@ -164,8 +167,10 @@ func _world_passage_vaults() -> void:
                 var shift: float = outboard_x-VAULT_HALF_WIDTH*0.56
                 var y: float = floor_y+VAULT_CLEARANCE+0.57+(
                     sin(roof_pitch)*side*shift)
-                canopy_transforms.append(Transform3D(basis,Vector3(
-                    center_x+side*outboard_x,y,z)))
+                var canopy_point := Vector3(
+                    center_x+side*outboard_x,y,z)
+                canopy_roots.append(canopy_point)
+                canopy_transforms.append(Transform3D(basis,canopy_point))
                 trim_transforms.append(Transform3D(basis,Vector3(
                     center_x+side*(outboard_x-1.40),y+0.055,z)))
         for rib in VAULT_RIB_OFFSETS:
