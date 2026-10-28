@@ -18,6 +18,8 @@ const GLOW_SHOULDER := 19.5
 var depth_ridges: MultiMeshInstance3D
 var near_forms: MultiMeshInstance3D
 var accent_lights: MultiMeshInstance3D
+var signature_landmarks: MultiMeshInstance3D
+var landmark_positions: Array[Vector3] = []
 var distant_positions: Array[Vector3] = []
 var near_positions: Array[Vector3] = []
 var glow_positions: Array[Vector3] = []
@@ -92,6 +94,7 @@ func setup(track: int, stage: Node3D) -> void:
     _batch("SignatureWorldSpires",pillar_mesh,spires)
     _batch("WorldAccentForms",secondary,tops)
     _landscape_depth(theme,stage)
+    _signature_landmarks(theme,stage)
     set_quality(stage.graphics_quality)
 
 func _landscape_depth(theme: int, stage: Node3D) -> void:
@@ -199,6 +202,44 @@ func _landscape_depth(theme: int, stage: Node3D) -> void:
     accent_lights = _batch("BiomeAccentGlints_36",accent,glow_transforms)
     accent_lights.material_override = glass
 
+func _signature_landmarks(theme: int, stage: Node3D) -> void:
+    # Twelve distinctive skyline anchors per biome. The same simple mesh
+    # is GPU-instanced and entirely noncolliding: no additional physics,
+    # shadow maps, animated nodes, or mobile draw calls per landmark.
+    # Far enough from the shortcut for unimpeded aerial landings.
+    var mesh := CylinderMesh.new()
+    mesh.radial_segments = [7,5,8][theme]
+    mesh.top_radius = [0.05,0.0,0.55][theme]
+    mesh.bottom_radius = [0.90,1.0,0.82][theme]
+    mesh.height = 1.0
+    var material := StandardMaterial3D.new()
+    material.albedo_color = [
+        Color("#729c74"),Color("#a9e9f4"),Color("#a25b48")][theme]
+    material.roughness = [0.82,0.20,0.51][theme]
+    material.metallic = [0.0,0.16,0.64][theme]
+    material.emission_enabled = theme == 2
+    if theme == 2:
+        material.emission = Color("#f18a49")
+        material.emission_energy_multiplier = 0.30
+    var instances: Array[Transform3D] = []
+    var variation: int = posmod(int(stage.built_variation),3)
+    for station in RIDGE_STATIONS:
+        var z: float = 8.0-float(station)*LEN
+        for side in [-1.0,1.0]:
+            var offset: float = 24.0+float(station%3)*2.1
+            var x: float = stage.track_center_at(z)+side*offset
+            var floor: float = stage.height_at(z)
+            var height: float = [7.0,10.5,8.7][theme]+float(
+                (station+variation)%3)*1.4
+            var place := Vector3(x,floor+height*0.5-1.0,z)
+            landmark_positions.append(place)
+            instances.append(Transform3D(
+                Basis(Vector3.UP,float(station)*0.41+side*0.2).scaled(
+                    Vector3([2.8,2.5,3.1][theme],height,
+                        [2.8,2.5,3.1][theme])),place))
+    signature_landmarks = _batch("OriginalBiomeLandmarks_12",mesh,instances)
+    signature_landmarks.material_override = material
+
 func set_quality(quality: int) -> void:
     visual_quality = clampi(quality,0,2)
     # Physical route and original primary silhouettes stay on all tiers.
@@ -209,6 +250,8 @@ func set_quality(quality: int) -> void:
         near_forms.visible = true
     if is_instance_valid(accent_lights):
         accent_lights.visible = visual_quality >= 2
+    if is_instance_valid(signature_landmarks):
+        signature_landmarks.visible = visual_quality >= 1
 
 func _batch(label: String, mesh: Mesh, transforms: Array[Transform3D]) -> MultiMeshInstance3D:
     var instances := MultiMesh.new()
