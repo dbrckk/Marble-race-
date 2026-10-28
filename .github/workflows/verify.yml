@@ -125,6 +125,12 @@ jobs:
           set -euo pipefail
           timeout 80s ./Godot_v4.5.1-stable_linux.x86_64 --headless --path . --script res://tests/network_qos.gd 2>&1 | tee network-qos.log
           grep -Fq "NETWORK_QOS_PASS:" network-qos.log
+      - name: Three original biome music scores, rhythm-locked offline audio and Android crossfade voice budgets
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 105s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 1050 --path . --script res://tests/biome_soundtracks.gd 2>&1 | tee biome-scores.log
+          grep -Fq "BIOME_SCORES_PASS:" biome-scores.log
       - name: Predictive camera, realistic contact feedback and obstacle ETA
         shell: bash
         run: |
