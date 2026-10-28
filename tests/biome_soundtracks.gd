@@ -1,7 +1,8 @@
 extends SceneTree
 ## Three genuinely different original soundtrack masters, not the same
-## backing OGG slowed down or sped up. All share the authentic 112 BPM
-## drum grid and have bounded Android memory/decoder/voice costs.
+## backing OGG slowed down or sped up. Godot natively imports the WAV
+## masters as space-efficient QOA, but the loop uses decoded frames.
+## All share the 112 BPM drum grid and bounded decoder/voice costs.
 const AUDIO = preload("res://scripts/audio.gd")
 const NOTE_SR := 22050
 const NOTE_BPM := 112
@@ -20,17 +21,13 @@ func _run() -> void:
         assert(resource is AudioStreamWAV,
             "Every world needs an original, offline playable PCM score")
         var track := resource as AudioStreamWAV
-        print("BIOME_PCM_DEBUG track=",index,
-            " sample_rate=",track.mix_rate," format=",track.format,
-            " expected_format=",AudioStreamWAV.FORMAT_16_BITS,
-            " payload_bytes=",track.data.size(),
-            " length=",track.get_length())
         assert(track.mix_rate == NOTE_SR and
-            track.format == AudioStreamWAV.FORMAT_16_BITS)
+            track.format in [AudioStreamWAV.FORMAT_QOA,AudioStreamWAV.FORMAT_16_BITS],
+            "Godot should import a valid, offline original WAV/QOA master")
         assert(absf(track.get_length()-float(BARS*4)*60.0/float(NOTE_BPM)) < 0.02,
             "Twelve original bars must align with the adaptive 112 BPM rhythm")
-        assert(track.data.size() > 900000 and track.data.size() < 1200000,
-            "Scores should fill the music loop without bloating the Android APK")
+        assert(track.data.size() > 100000 and track.data.size() < 1200000,
+            "Compact WAV/QOA score must remain in the mobile memory budget")
         max_total_bytes += track.data.size()
         var fingerprint: int = 0
         for pos in range(0,track.data.size(),101):
@@ -38,7 +35,7 @@ func _run() -> void:
         assert(not fingerprints.has(fingerprint),
             "The same audio master must never be reused across biomes")
         fingerprints[fingerprint] = true
-    assert(max_total_bytes < 3500000,"Three offline soundtracks should cost under 3.5 MB PCM")
+    assert(max_total_bytes < 3500000,"Three offline soundtracks should cost under 3.5 MB of imported data")
 
     var stage = load("res://scenes/main.tscn").instantiate()
     root.add_child(stage)
@@ -57,7 +54,7 @@ func _run() -> void:
         assert(stage.audio.track_theme == index and player.stream == score)
         assert(score.loop_mode == AudioStreamWAV.LOOP_FORWARD and
             score.loop_begin == 0 and
-            score.loop_end == score.data.size()/2,
+            score.loop_end == int(round(score.get_length()*score.mix_rate)),
             "Seamless original score loop must play to the true sample boundary")
         assert(is_equal_approx(player.pitch_scale,1.0) and
             is_equal_approx(stage.audio.percussion.pitch_scale,1.0),
@@ -86,5 +83,5 @@ func _run() -> void:
         await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_original_music_career.cfg"))
-    print("BIOME_SCORES_PASS: three original 12-bar masters, 112 BPM alignment, sub-3.5 MB PCM, seamless looping, crossfades and 40 marbles")
+    print("BIOME_SCORES_PASS: three original 12-bar masters, 112 BPM alignment, native QOA, decoded-frame looping, crossfades and 40 marbles")
     quit(0)
