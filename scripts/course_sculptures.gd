@@ -33,6 +33,8 @@ var apex_inlays: MultiMeshInstance3D
 var vault_posts: MultiMeshInstance3D
 var vault_roofs: MultiMeshInstance3D
 var vault_highlights: MultiMeshInstance3D
+var canopy_panels: MultiMeshInstance3D
+var canopy_trims: MultiMeshInstance3D
 var arch_rib_count := 0
 var vault_crest_points: Array[Vector3] = []
 var quality := 1
@@ -137,11 +139,35 @@ func _world_passage_vaults() -> void:
     var pillars: Array[Transform3D] = []
     var roof_segments: Array[Transform3D] = []
     var highlights: Array[Transform3D] = []
+    var canopy_transforms: Array[Transform3D] = []
+    var trim_transforms: Array[Transform3D] = []
     # The arch spans the full live course with 5m overhead clearance,
     # and its supports sit outside the guardrail and beyond main racing.
     # They remain noncolliding so a shortcut never hits a decorative post.
     for section in VAULT_SECTIONS:
         var centre_z: float = bank_z(section,variation)
+        # Two partial overhead bays between each set of three landmark
+        # ribs. Open central skylight and clear 5m headroom keep the ball
+        # visible; cosmetic panels NEVER intersect the driveable course.
+        for bay in range(VAULT_RIB_OFFSETS.size()-1):
+            var z: float = centre_z+(
+                float(VAULT_RIB_OFFSETS[bay])+
+                float(VAULT_RIB_OFFSETS[bay+1]))*0.5
+            var center_x: float = game.track_center_at(z)
+            var floor_y: float = game.height_at(z)
+            for side in [-1.0,1.0]:
+                var roof_pitch: float = side*VAULT_PITCHES[biome]
+                var basis := Basis(Vector3.FORWARD,roof_pitch)
+                # The panel hugs only the OUTER half of the existing roof;
+                # the camera and rising marbles still see through the middle.
+                var outboard_x: float = 5.55
+                var shift: float = outboard_x-VAULT_HALF_WIDTH*0.56
+                var y: float = floor_y+VAULT_CLEARANCE+0.57+(
+                    sin(roof_pitch)*side*shift)
+                canopy_transforms.append(Transform3D(basis,Vector3(
+                    center_x+side*outboard_x,y,z)))
+                trim_transforms.append(Transform3D(basis,Vector3(
+                    center_x+side*(outboard_x-1.40),y+0.055,z)))
         for rib in VAULT_RIB_OFFSETS:
             var z: float = centre_z+float(rib)
             var center_x: float = game.track_center_at(z)
@@ -179,6 +205,18 @@ func _world_passage_vaults() -> void:
     neon.size = Vector3(1.4,0.08,0.74)
     vault_highlights = _instanced("NineGatewayCrestLights",neon,
         _material(COLOR_GLOWS[biome],1.15),highlights)
+    # 12 reused meshes in ONE GPU batch instead of separate tunnel roofs.
+    # Timber slats, ice overhangs and metallic foundry awnings share the
+    # identical safe geometry, but differ in material roughness/metallic.
+    var canopy_mesh := BoxMesh.new()
+    canopy_mesh.size = Vector3(2.90,0.10,3.00)
+    canopy_panels = _instanced("TwelveOpenSkyCanopyBays",canopy_mesh,
+        _material(COLOR_BODIES[biome].lightened(
+            0.28 if biome == 1 else 0.12)),canopy_transforms)
+    var line_mesh := BoxMesh.new()
+    line_mesh.size = Vector3(0.09,0.035,3.08)
+    canopy_trims = _instanced("TwelveCanopyLuminousGuides",line_mesh,
+        _material(COLOR_GLOWS[biome],0.42),trim_transforms)
 
 func set_quality(value: int) -> void:
     quality = clampi(value,0,2)
@@ -194,3 +232,7 @@ func set_quality(value: int) -> void:
         apex_inlays.visible = quality >= 1
     if is_instance_valid(vault_highlights):
         vault_highlights.visible = quality >= 1
+    if is_instance_valid(canopy_panels):
+        canopy_panels.visible = quality >= 1
+    if is_instance_valid(canopy_trims):
+        canopy_trims.visible = quality >= 2
