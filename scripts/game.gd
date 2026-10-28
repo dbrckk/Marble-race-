@@ -37,6 +37,7 @@ const ArcadeBumpers = preload("res://scripts/arcade_bumpers.gd")
 const TrackUniverses = preload("res://scripts/track_universes.gd")
 const BiomeSignature = preload("res://scripts/biome_signature.gd")
 const CourseSculptures = preload("res://scripts/course_sculptures.gd")
+const AirtimeDirector = preload("res://scripts/airtime_director.gd")
 
 const MARBLE_COUNT := 40
 const SLOPE := 0.085
@@ -85,6 +86,7 @@ var world_time := 0.0
 var finish_announced := false
 var camera_shake := 0.0
 var race_moments: RefCounted
+var airtime: Node3D
 var slipstream: RefCounted
 var draft_cue_cooldown := 0.0
 var performance_budget: RefCounted
@@ -179,6 +181,10 @@ func _ready() -> void:
     ui.attach_game(self)
     race_moments = RaceMoments.new()
     race_moments.configure(self)
+    airtime = AirtimeDirector.new()
+    airtime.name = "LocalPhysicalAirAndLandings"
+    add_child(airtime)
+    airtime.configure(self)
     slipstream = Slipstream.new()
     performance_budget = PerformanceBudget.new()
     _position_intro_camera(true)
@@ -316,6 +322,8 @@ func _apply_graphics_quality() -> void:
         arcade_bumpers.set_quality(graphics_quality)
     if is_instance_valid(course_sculptures):
         course_sculptures.set_quality(graphics_quality)
+    if is_instance_valid(airtime):
+        airtime.set_quality(graphics_quality)
     if is_instance_valid(race_items):
         race_items.set_quality(graphics_quality)
     if is_instance_valid(track_surface):
@@ -1062,6 +1070,8 @@ func start_race(perk_name: String) -> void:
         arcade_bumpers.reset_pulses()
     if is_instance_valid(course_sculptures):
         course_sculptures.reset_round()
+    if is_instance_valid(airtime):
+        airtime.reset_round()
     if is_instance_valid(race_director):
         race_director.reset_round()
     if is_instance_valid(shortcut_route):
@@ -1079,6 +1089,8 @@ func restart_race() -> void:
     start_race(selected_perk)
 
 func return_to_menu() -> void:
+    if is_instance_valid(airtime):
+        airtime.reset_round()
     if slipstream != null:
         slipstream.reset_round()
     draft_cue_cooldown = 0.0
@@ -1104,6 +1116,8 @@ func _process(delta: float) -> void:
         skins.remaining()
     if race_state == "RACING" and is_instance_valid(arcade_bumpers):
         arcade_bumpers.advance_visuals(delta)
+    if is_instance_valid(airtime):
+        airtime.advance_visuals(delta)
     if race_state == "RACING" and is_instance_valid(course_sculptures):
         course_sculptures.advance_visuals(delta)
     if show_fps and race_state == "RACING" and performance_budget != null:
@@ -1216,6 +1230,8 @@ func _process(delta: float) -> void:
         audio.set_pack_pressure(race_moments.pack_pressure if (
             race_state == "RACING" and race_moments != null and
             net.role != "server") else 0.0)
+        audio.set_flight_intensity(airtime.camera_weight() if (
+            race_state == "RACING" and is_instance_valid(airtime)) else 0.0)
 
 func _physics_process(delta: float) -> void:
     steer = move_toward(steer,steer_target,delta*8.5)
@@ -1231,6 +1247,8 @@ func _physics_process(delta: float) -> void:
         # All clients animate the same scripted hazards; only authority
         # awards gameplay physics when a marble actually makes a near-miss.
         race_director.animate(race_time)
+    if race_state == "RACING" and is_instance_valid(airtime):
+        airtime.tick_physics(delta)
     if race_state != "RACING" or net.is_client():
         return
     if is_instance_valid(race_items):
@@ -1309,7 +1327,8 @@ func _update_camera(delta: float, force := false) -> void:
         player.global_position,player.linear_velocity,
         ahead_x,cam_mode,boosting,distance,
         race_moments != null and race_state == "RACING" and
-        race_moments.side_by_side_active)
+        race_moments.side_by_side_active,
+        airtime.camera_weight() if is_instance_valid(airtime) else 0.0)
     var desired: Vector3 = pose["position"]
     var focus: Vector3 = pose["focus"]
     # Match the camera to the real 3D grade, not the old flat slope.
@@ -1468,6 +1487,11 @@ func _end_race() -> void:
         last_result["apex_passes"] = course_sculptures.apex_pass_count(
             player.racer_id) if is_instance_valid(course_sculptures) and (
             is_instance_valid(player) and not net.is_active()) else 0
+        # Measured client-side feel stats never become trusted league rewards.
+        last_result["airtime_landings"] = airtime.landing_count if (
+            is_instance_valid(airtime) and not net.is_active()) else 0
+        last_result["airtime_best"] = airtime.longest_airtime if (
+            is_instance_valid(airtime) and not net.is_active()) else 0.0
         var real_precision: int = race_director.precision_pass_count(
             player.racer_id) if is_instance_valid(race_director) and (
             is_instance_valid(player)) else 0

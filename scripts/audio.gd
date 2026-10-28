@@ -57,6 +57,8 @@ var boost_delay := 0.0
 var current_channel := 0
 var music_target_db := -22.0
 var track_theme := 0
+var flight_intensity_target := 0.0
+var flight_intensity := 0.0
 var pack_pressure_target := 0.0
 var pack_pressure := 0.0
 var rng := RandomNumberGenerator.new()
@@ -146,7 +148,28 @@ func set_pack_pressure(value: float) -> void:
     # Only one sampled scalar (0-1) is needed, not forty audio players.
     pack_pressure_target = clampf(value,0.0,1.0) if is_finite(value) else 0.0
 
+func set_flight_intensity(weight: float) -> void:
+    flight_intensity_target = clampf(weight,0.0,1.0) if is_finite(weight) else 0.0
+
+func touchdown(grade: String, impact_speed: float) -> void:
+    # Already bundled CC0/original cues; no new concurrent audio channel.
+    if grade == "BIG AIR":
+        _voice(TONES["finish"],-23.0,1.43)
+        _voice(TONES["checkpoint"],-19.0,1.30)
+    elif grade == "PERFECT LANDING":
+        _voice(TONES["checkpoint"],-20.0,1.54)
+        _voice(GLASS_HITS[0],-26.0,1.16)
+    else:
+        _voice(WOOD_HITS[1],-23.0,0.96)
+    collision_delay = maxf(collision_delay,0.12)
+    if enabled and grade == "BIG AIR" and impact_speed >= 3.0 and (
+            haptic_cooldown <= 0.0 and OS.has_feature("mobile")):
+        Input.vibrate_handheld(16)
+        haptic_cooldown = 0.42
+
 func _process(delta: float) -> void:
+    flight_intensity = lerpf(flight_intensity,flight_intensity_target,
+        RaceFeedback.smooth_factor(delta,7.0))
     # Exponential smoothing makes the score breathe smoothly even as 40
     # marbles weave past each other or Android oscillates between 30/60 Hz.
     pack_pressure = lerpf(pack_pressure,pack_pressure_target,
@@ -167,7 +190,8 @@ func _process(delta: float) -> void:
         var energy = clampf((speed_now-3.0)/11.0,0.0,1.0)
         pace_target = -36.0 + energy*14.0 + finish_progress*5.0 + (
             [-1.0,-3.0,2.0][track_theme])+pack_percussion_lift(pack_pressure)
-        air_target = -52.0 + energy*25.0+pack_wind_lift(pack_pressure)
+        air_target = -52.0 + energy*25.0+pack_wind_lift(pack_pressure)+(
+            flight_intensity*6.0)
         air.pitch_scale = lerpf(0.85,1.5,energy) * [1.0,0.94,1.08][track_theme]
     if not enabled:
         pace_target = -80.0
@@ -182,7 +206,9 @@ func _process(delta: float) -> void:
         return
     rolling.global_position = target_marble.global_position
     var speed = target_marble.linear_velocity.length()
-    rolling.volume_db = move_toward(rolling.volume_db,clampf(-37.0+speed*1.45,-46.0,-13.0),delta*26)
+    var rolling_target: float = clampf(-37.0+speed*1.45,-46.0,-13.0)-(
+        flight_intensity*14.0)
+    rolling.volume_db = move_toward(rolling.volume_db,rolling_target,delta*26)
     rolling.pitch_scale = clampf(0.63+speed*0.06,0.73,1.65)
 
 func _update_mechanism_sound() -> void:
@@ -253,6 +279,8 @@ func set_track_theme(track: int) -> void:
         air.pitch_scale = [1.0,0.93,1.10][track_theme]
 
 func begin_race() -> void:
+    flight_intensity = 0.0
+    flight_intensity_target = 0.0
     warned_timed_gates.clear()
     pack_pressure = 0.0
     pack_pressure_target = 0.0
@@ -262,6 +290,8 @@ func begin_race() -> void:
     tone("start")
 
 func menu_music() -> void:
+    flight_intensity = 0.0
+    flight_intensity_target = 0.0
     pack_pressure = 0.0
     pack_pressure_target = 0.0
     music_target_db = -23.0 if enabled else -80.0

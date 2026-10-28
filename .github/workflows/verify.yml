@@ -225,6 +225,12 @@ jobs:
           set -euo pipefail
           timeout 120s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 1550 --path . --script res://tests/apex_rewards.gd 2>&1 | tee apex-rewards.log
           grep -Fq "APEX_REWARDS_PASS:" apex-rewards.log
+      - name: Real nine-layout airborne flight, physical touchdown, audio-camera and Android pooled ripple regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 95s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 1250 --path . --script res://tests/airtime_director.gd 2>&1 | tee airtime-director.log
+          grep -Fq "AIRTIME_PASS:" airtime-director.log
       - name: Physically banked apex corridors and GPU-instanced biome passage geometry
         shell: bash
         run: |

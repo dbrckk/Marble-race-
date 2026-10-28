@@ -30,7 +30,8 @@ static func smooth_factor(delta: float, rate: float) -> float:
 
 static func camera_pose(position: Vector3, velocity: Vector3,
     center_ahead_x: float, camera_mode: int, boosting: bool,
-    hazard_distance: float, close_duel: bool = false) -> Dictionary:
+    hazard_distance: float, close_duel: bool = false,
+    airborne_weight: float = 0.0) -> Dictionary:
     var planar_speed: float = Vector2(velocity.x,velocity.z).length()
     var pace: float = clampf((planar_speed-3.0)/19.0,0.0,1.0)
     # A compact preview pulls the camera up and back before a near-side
@@ -55,6 +56,13 @@ static func camera_pose(position: Vector3, velocity: Vector3,
             focus = position+Vector3(
                 bend*0.72+clampf(velocity.x*0.10,-0.7,0.7),
                 0.25,-5.6-lead*0.70)
+    # Lift the chase framing gently while the REAL marble is airborne.
+    # Overhead/user alternate cameras are immutable; no camera physics.
+    var air: float = clampf(airborne_weight,0.0,1.0) if (
+        is_finite(airborne_weight)) else 0.0
+    if camera_mode == 0 and air > 0.0:
+        desired += Vector3(0.0,1.15*air,0.65*air)
+        focus += Vector3(0.0,0.36*air,-0.35*air)
     # A verified sustained duel gets slightly more framing room to see
     # the competing sphere. Only camera mode 0 changes; overhead/manual
     # modes retain their exact original framing and human control.
@@ -66,7 +74,7 @@ static func camera_pose(position: Vector3, velocity: Vector3,
         focus += Vector3(0.0,0.0,0.65*intensity)
     var fov: float = clampf(
         64.0+pace*9.0+(3.1 if boosting else 0.0)+risk*1.4+
-        duel_lift*2.1,
+        duel_lift*2.1+(1.5*air if camera_mode == 0 else 0.0),
         FOV_MIN,FOV_MAX)
     return {"position":desired,"focus":focus,"fov":fov,"pace":pace,"risk":risk}
 
