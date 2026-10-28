@@ -101,7 +101,8 @@ static func collision_kind(other: Node) -> String:
     if label.begins_with("ToyPeg") or label.begins_with("AntiEdgeBaffle") or (
         label.begins_with("Chicane_") or label.begins_with("SlalomBlock_") or
         label.begins_with("GatePost_") or label.begins_with("BypassGuard_") or
-        label.begins_with("PinballKicker_")):
+        label.begins_with("PinballKicker_") or
+        label.begins_with("BypassPrecisionPost_")):
         return "bumper"
     # Track planks, jump ramps, bridges and seam floors are rolling
     # surfaces; contact against them is not automatically a heavy hit.
