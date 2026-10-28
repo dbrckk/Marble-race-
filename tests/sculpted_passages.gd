@@ -53,9 +53,25 @@ func _run() -> void:
             assert(geometry.vault_posts.multimesh.instance_count == 18 and
                 geometry.vault_roofs.multimesh.instance_count == 18 and
                 geometry.vault_highlights.multimesh.instance_count == 9,
-                "All repeated landmark geometry must use five GPU batches")
-            assert(geometry.get_child_count() == 13,
-                "Only eight physics bodies plus five instancing nodes, not 50 draws")
+                "Original pillars, roofs and accents remain GPU-batched")
+            assert(geometry.canopy_panels.multimesh.instance_count == 12 and
+                geometry.canopy_trims.multimesh.instance_count == 12,
+                "Three vaulted landmarks must include 12 open-sky roof bays")
+            assert(geometry.get_child_count() == 15,
+                "Eight physics banks and seven GPU batches prevent Android draw-call spikes")
+            var bay: MultiMeshInstance3D = geometry.canopy_panels
+            assert(bay.get_child_count() == 0 and
+                bay.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF,
+                "Canopy must not cast costly shadows or create hidden physical traps")
+            for index in range(12):
+                var transform: Transform3D = bay.multimesh.get_instance_transform(index)
+                assert(transform.origin.is_finite() and
+                    transform.origin.y > game.height_at(transform.origin.z)+
+                    GEOMETRY.VAULT_CLEARANCE-0.1,
+                    "The open-sky canopy must remain well above physical marble jumps")
+                assert(absf(transform.origin.x-game.track_center_at(
+                    transform.origin.z)) > 4.0,
+                    "Open center skylight preserves chase-camera visibility")
             var excluded: Array[RID] = []
             var pending: Array[Node] = [game.board]
             while not pending.is_empty():
@@ -112,12 +128,20 @@ func _run() -> void:
                 geometry.vault_roofs.visible and geometry.vault_posts.visible,
                 "Economy must retain road geometry and silhouette landmarks")
             assert(not geometry.apex_inlays.visible and
-                not geometry.vault_highlights.visible,
-                "Economy disables only decorative emissive inlays")
+                not geometry.vault_highlights.visible and
+                not geometry.canopy_panels.visible and
+                not geometry.canopy_trims.visible,
+                "Economy retains only physical banks and core passage landmarks")
             game.set_graphics_quality(2)
             assert(geometry.apex_inlays.visible and
-                geometry.vault_highlights.visible,
-                "Ultra restores the exact same glow geometry without extra physics")
+                geometry.vault_highlights.visible and
+                geometry.canopy_panels.visible and
+                geometry.canopy_trims.visible,
+                "Ultra restores the overhead skylight and luminous roof trim")
+            game.set_graphics_quality(1)
+            assert(geometry.canopy_panels.visible and
+                not geometry.canopy_trims.visible,
+                "Balanced keeps roof silhouette while avoiding extra emissive trim")
             assert(geometry.banks.size() == 8 and game.racers.size() == 40,
                 "Changing Android tier must never remove any track collision")
             game.set_graphics_quality(1)
@@ -128,5 +152,5 @@ func _run() -> void:
         await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_sculpted_course.cfg"))
-    print("SCULPTED_PASSAGES_PASS: 36 physics-probed real banked apexes, 9 portal sets, 5 GPU batches, 9 courses and 40 marbles")
+    print("SCULPTED_PASSAGES_PASS: 36 physics-probed banked apexes, 12 batched open-sky canopy bays, 9 portals, mobile quality budgets and 40 marbles")
     quit(0)
