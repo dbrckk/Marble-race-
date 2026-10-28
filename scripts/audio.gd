@@ -414,6 +414,13 @@ func course_event(kind: String) -> void:
             # Two already-bundled cues, no extra player or streaming asset.
             _voice(TONES["checkpoint"],-17.0,1.52)
             _voice(TONES["boost"],-21.0,1.25)
+        "bridge_gate_1":
+            _voice(TONES["checkpoint"],-19.0,1.05)
+        "bridge_gate_2":
+            _voice(TONES["checkpoint"],-18.0,1.24)
+        "bridge_perfect":
+            _voice(TONES["checkpoint"],-15.0,1.48)
+            _voice(TONES["boost"],-18.0,1.34)
         "near_miss":
             _voice(TONES["checkpoint"],-17.0,1.33)
             _voice(TONES["boost"],-20.0,1.09)
