@@ -255,6 +255,12 @@ jobs:
           set -euo pipefail
           timeout 95s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 620 --path . --script res://tests/terrain_relief.gd 2>&1 | tee terrain-relief.log
           grep -Fq "TERRAIN_RELIEF_PASS:" terrain-relief.log
+      - name: Nine-layout triple-bridge precision skill, real 40-marble physics and online anti-cheat
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 115s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 1800 --path . --script res://tests/bridge_skill.gd 2>&1 | tee bridge-skill.log
+          grep -Fq "BRIDGE_SKILL_PASS:" bridge-skill.log
       - name: Three premium bridge precision corridors with 18 physical posts and nine batched arches
         shell: bash
         run: |
