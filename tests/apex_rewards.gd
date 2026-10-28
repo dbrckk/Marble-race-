@@ -38,6 +38,7 @@ func _verify() -> void:
             var ai: RigidBody3D = game.racers[0]
             human.freeze = false
             ai.freeze = false
+            var latest_apex_contact := Vector3.ZERO
             for i in range(4):
                 var bank: StaticBody3D = feature.banks[i*2]
                 assert(bank.collision_layer & SCULPT.BANK_PROBE_LAYER != 0,
@@ -58,6 +59,7 @@ func _verify() -> void:
                 # Position the real marble one RADIUS above the actual
                 # measured physics surface (not an invented visual height).
                 var contact := Vector3(x,surface.y+RACER.RADIUS,z)
+                latest_apex_contact = contact
                 human.global_position = contact
                 human.linear_velocity = Vector3(0.0,0.0,-14.0)
                 var before_velocity: Vector3 = human.linear_velocity
@@ -129,7 +131,7 @@ func _verify() -> void:
             # Server notification is presentation only on a remote client.
             game.net.role = "client"
             game.net.match_running = true
-            human.global_position = contact
+            human.global_position = latest_apex_contact
             var frozen_velocity: Vector3 = human.linear_velocity
             game.net._course_event_notice("apex")
             assert(human.linear_velocity.is_equal_approx(frozen_velocity) and
