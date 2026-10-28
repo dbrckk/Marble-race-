@@ -1060,6 +1060,8 @@ func start_race(perk_name: String) -> void:
         course_mechanics.reset_round()
     if is_instance_valid(arcade_bumpers):
         arcade_bumpers.reset_pulses()
+    if is_instance_valid(course_sculptures):
+        course_sculptures.reset_round()
     if is_instance_valid(race_director):
         race_director.reset_round()
     if is_instance_valid(shortcut_route):
@@ -1102,6 +1104,8 @@ func _process(delta: float) -> void:
         skins.remaining()
     if race_state == "RACING" and is_instance_valid(arcade_bumpers):
         arcade_bumpers.advance_visuals(delta)
+    if race_state == "RACING" and is_instance_valid(course_sculptures):
+        course_sculptures.advance_visuals(delta)
     if show_fps and race_state == "RACING" and performance_budget != null:
         performance_budget.tick(delta)
     world_time += delta
@@ -1237,6 +1241,8 @@ func _physics_process(delta: float) -> void:
         shortcut_route.tick(delta,racers,net)
     if is_instance_valid(race_director):
         race_director.tick(racers,net)
+    if is_instance_valid(course_sculptures):
+        course_sculptures.tick(racers,net)
     draft_cue_cooldown = maxf(0.0,draft_cue_cooldown-delta)
     # Drafting rewards actually following the same-elevation opponent.
     # Scan at 7Hz; apply only a bounded physical force on the authoritative
@@ -1459,6 +1465,9 @@ func _end_race() -> void:
         last_result["ghost_record"] = ghost_record
         last_result["clean_passes"] = race_director.clean_pass_count(player.racer_id) if (
             is_instance_valid(race_director) and is_instance_valid(player)) else 0
+        last_result["apex_passes"] = course_sculptures.apex_pass_count(
+            player.racer_id) if is_instance_valid(course_sculptures) and (
+            is_instance_valid(player) and not net.is_active()) else 0
         var real_precision: int = race_director.precision_pass_count(
             player.racer_id) if is_instance_valid(race_director) and (
             is_instance_valid(player)) else 0
