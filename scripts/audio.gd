@@ -3,6 +3,16 @@ extends Node3D
 ## Eight pooled voice channels prevent hard-cutting a sound every time a marble collides.
 const RaceFeedback = preload("res://scripts/race_feedback.gd")
 const SCORE = preload("res://assets/audio/music/marble_workshop.ogg")
+# Three separately composed and mastered 12-bar scores, rather than the
+# same backing track retuned for every world. All three resolve to the
+# EXACT tempo/phrase grid of the existing original percussion stem.
+const THEME_SCORES = [
+    preload("res://assets/audio/music/woodland_overture.wav"),
+    preload("res://assets/audio/music/glacier_prism.wav"),
+    preload("res://assets/audio/music/forge_velocity.wav")
+]
+const THEME_TITLES := ["WOODLAND OVERTURE","GLACIER PRISM","FORGE VELOCITY"]
+const MUSIC_FADE_SECONDS := 0.92
 const ROLL = preload("res://assets/audio/sfx/wood_roll.ogg")
 const AIR = preload("res://assets/audio/sfx/airrush.ogg")
 const PERCUSSION = preload("res://assets/audio/music/pace_percussion.ogg")
@@ -35,6 +45,8 @@ const TONES = {
     "boost": preload("res://assets/audio/sfx/boost.ogg")
 }
 var music: AudioStreamPlayer
+var music_previous: AudioStreamPlayer
+var music_fade := 1.0
 var rolling: AudioStreamPlayer3D
 var air: AudioStreamPlayer
 var percussion: AudioStreamPlayer
@@ -76,6 +88,17 @@ func _ready() -> void:
     music.volume_db = -24.0 if enabled else -80.0
     add_child(music)
     music.play()
+    music_previous = AudioStreamPlayer.new()
+    music_previous.name = "CrossfadePreviousTheme"
+    music_previous.volume_db = -80.0
+    add_child(music_previous)
+    # A WAV loops at its EXACT frame boundary, preserving the 112 BPM
+    # percussion phase over long Android play sessions and repeat races.
+    for score in THEME_SCORES:
+        if score is AudioStreamWAV:
+            score.loop_begin = 0
+            score.loop_end = score.data.size()/2
+            score.loop_mode = AudioStreamWAV.LOOP_FORWARD
     percussion = AudioStreamPlayer.new()
     percussion.name = "AdaptiveRacePercussion"
     percussion.stream = PERCUSSION
@@ -178,7 +201,21 @@ func _process(delta: float) -> void:
     boost_delay = maxf(0.0,boost_delay-delta)
     haptic_cooldown = maxf(0.0,haptic_cooldown-delta)
     collision_duck = move_toward(collision_duck,0.0,delta*9.0)
-    music.volume_db = move_toward(music.volume_db,music_target_db + loudness_offset - collision_duck,delta*7.0)
+    var music_mix_db: float = music_target_db + loudness_offset - collision_duck
+    if music_fade < 1.0:
+        music_fade = minf(1.0,music_fade+maxf(0.0,delta)/MUSIC_FADE_SECONDS)
+        # Equal-power fades keep perceived loudness stable even in menu
+        # transitions, without an extra music bus or a CPU audio thread.
+        var incoming: float = sin(music_fade*PI*0.5)
+        var outgoing: float = cos(music_fade*PI*0.5)
+        music.volume_db = music_mix_db+linear_to_db(maxf(0.001,incoming))
+        if music_previous.playing:
+            music_previous.volume_db = music_mix_db+linear_to_db(
+                maxf(0.001,outgoing))
+        if music_fade >= 1.0:
+            music_previous.stop()
+    else:
+        music.volume_db = move_toward(music.volume_db,music_mix_db,delta*7.0)
     mechanism_timer -= delta
     if mechanism_timer <= 0.0:
         mechanism_timer = 0.20
@@ -269,12 +306,26 @@ func tone(key: String) -> void:
 
 func set_track_theme(track: int) -> void:
     track_theme = clampi(track,0,2)
-    # Distinct playback treatment per biome without introducing copyrighted audio.
-    # Keep tempo variance subtle enough to preserve the score's pitch character.
-    if is_instance_valid(music):
-        music.pitch_scale = [1.0,0.94,1.07][track_theme]
+    var next_score: AudioStream = THEME_SCORES[track_theme]
+    if is_instance_valid(music) and music.stream != next_score:
+        # Keep the old composition phase alive just long enough for a
+        # smooth equal-power handover. No per-frame synthesis or downloads.
+        if is_instance_valid(music_previous):
+            music_previous.stop()
+            music_previous.stream = music.stream
+            music_previous.pitch_scale = music.pitch_scale
+            music_previous.volume_db = music.volume_db
+            music_previous.play(music.get_playback_position())
+        music.stream = next_score
+        music.pitch_scale = 1.0
+        music.volume_db = -78.0
+        music_fade = 0.0
+        music.play()
+    # All original compositions have the SAME 112 BPM/12-bar musical grid.
+    # A retuned percussion stem would drift off the drum hits, so it stays
+    # at neutral pitch regardless of track. Wind can remain biome-specific.
     if is_instance_valid(percussion):
-        percussion.pitch_scale = [1.0,0.89,1.13][track_theme]
+        percussion.pitch_scale = 1.0
     if is_instance_valid(air):
         air.pitch_scale = [1.0,0.93,1.10][track_theme]
 
@@ -424,6 +475,9 @@ func toggle_sound() -> bool:
     cfg.save("user://marble_settings.cfg")
     music_target_db = -80 if not enabled else -19
     music.volume_db = music_target_db
+    if is_instance_valid(music_previous):
+        music_previous.volume_db = -80.0 if not enabled else (
+            music_previous.volume_db)
     percussion.volume_db = -80.0 if not enabled else -45.0
     air.volume_db = -80.0 if not enabled else -50.0
     rolling.volume_db = -80 if not enabled else -36
