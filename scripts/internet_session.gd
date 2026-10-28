@@ -546,7 +546,8 @@ func _receive_snapshot(floats: PackedFloat32Array, timestamp: float, energies: P
 
 func notify_course_event(slot: int, kind: String) -> void:
     if role != "server" or not match_running or kind not in ["speed","ice","vent","shortcut","jump",
-            "near_miss","near_miss_precision","near_miss_chain","apex"]:
+            "near_miss","near_miss_precision","near_miss_chain","apex",
+            "bridge_gate_1","bridge_gate_2","bridge_perfect"]:
         return
     for peer_id in joined_slots.keys():
         if int(joined_slots[peer_id]) == slot and _can_send(int(peer_id)):
@@ -558,7 +559,8 @@ func _course_event_notice(kind: String) -> void:
     if role != "client" or not match_running or game.race_state != "RACING":
         return
     if kind not in ["speed","ice","vent","shortcut","jump",
-            "near_miss","near_miss_precision","near_miss_chain","apex"]:
+            "near_miss","near_miss_precision","near_miss_chain","apex",
+            "bridge_gate_1","bridge_gate_2","bridge_perfect"]:
         return
     game.audio.course_event(kind)
     game.ui.show_course_event(kind)
