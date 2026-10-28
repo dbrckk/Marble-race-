@@ -14,6 +14,13 @@ const WIDTH := 3.80
 const SEGMENTS := 28
 const REWARD_Z := -79.0
 const REWARD_RADIUS := 2.15
+# Each elevated route is a deliberate precision corridor: the outer edge
+# catches sloppy lines, while the middle 2.8 metres stay unobstructed for AI.
+const BRIDGE_POST_Z := [-65.0,-80.0,-90.0]
+const BRIDGE_POST_OFFSET := 1.76
+const BRIDGE_POST_RADIUS := 0.22
+const BRIDGE_POST_HEIGHT := 0.88
+const BRIDGE_ARCH_HEIGHT := 3.15
 # Only the entry portal, takeoff pads and reward gate can apply effects.
 # All are between -46.5 and -87.5 on every biome; other positions do not
 # need the costly curved point_at() and world-height calculations at 60 Hz.
@@ -38,6 +45,8 @@ var triggered: Dictionary = {}
 var entered: Dictionary = {}
 var jumped: Dictionary = {}
 var launch_ramps: Array[StaticBody3D] = []
+var precision_posts: Array[StaticBody3D] = []
+var precision_post_positions: Array[Vector3] = []
 var banked_segments := 0
 var physical_distance := 0.0
 var effect_candidates_last_tick := 0
@@ -115,6 +124,7 @@ func setup(owner: Node3D, track: int) -> void:
     _batch("BatchedBypassGuards",guard_art,edge_material)
     _bridge_structure(deck_material,edge_material)
     _launch_ramps(deck_material)
+    _bridge_precision_corridor(edge_material)
     _racing_line(edge_material)
     _signage(edge_material)
     reset_round()
@@ -185,6 +195,42 @@ func _launch_ramps(material: Material) -> void:
     strip.position = at+Vector3.UP*0.60+Vector3(0.0,0.0,-1.08)
     strip.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     add_child(strip)
+
+func _bridge_precision_corridor(material: Material) -> void:
+    # A single shared GPU batch depicts all six physical edge posts.
+    # Three portal arches use the same batch, with no per-frame updates,
+    # extra lights or shadows. They make the elevated road readable from
+    # the chase camera while preserving a safe central racing lane.
+    var post_art: Array[Transform3D] = []
+    var arch_art: Array[Transform3D] = []
+    for station in range(BRIDGE_POST_Z.size()):
+        var z: float = BRIDGE_POST_Z[station]
+        var center: Vector3 = point_at(z)
+        for flank in [-1.0,1.0]:
+            var origin := center+Vector3(
+                flank*BRIDGE_POST_OFFSET,BRIDGE_POST_HEIGHT*0.5+0.32,0.0)
+            var post := _solid("BypassPrecisionPost_%d_%d" % [
+                station,int(flank)],origin,Basis(),Vector3(
+                    BRIDGE_POST_RADIUS*2.0,BRIDGE_POST_HEIGHT,
+                    BRIDGE_POST_RADIUS*2.0),0.82)
+            var bounce := post.physics_material_override
+            bounce.bounce = 0.48
+            precision_posts.append(post)
+            precision_post_positions.append(origin)
+            post_art.append(Transform3D(Basis().scaled(Vector3(
+                BRIDGE_POST_RADIUS*2.0,BRIDGE_POST_HEIGHT,
+                BRIDGE_POST_RADIUS*2.0)),origin))
+            # Arch columns are noncolliding silhouettes, outside the
+            # physical narrow deck and high above any realistic marble jump.
+            arch_art.append(Transform3D(Basis().scaled(
+                Vector3(0.18,BRIDGE_ARCH_HEIGHT,0.22)),
+                center+Vector3(flank*(WIDTH*0.5+0.62),
+                    BRIDGE_ARCH_HEIGHT*0.5+0.32,0.0)))
+        arch_art.append(Transform3D(Basis().scaled(Vector3(
+            WIDTH+1.55,0.19,0.24)),
+            center+Vector3(0.0,BRIDGE_ARCH_HEIGHT+0.32,0.0)))
+    _batch("BypassPrecisionEdgePosts",post_art,material)
+    _batch("BypassPrecisionPortalArches",arch_art,material)
 
 func _racing_line(material: Material) -> void:
     var marks: Array[Transform3D] = []
