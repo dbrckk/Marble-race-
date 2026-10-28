@@ -65,9 +65,18 @@ func _run() -> void:
                 "Canopy must not cast costly shadows or create hidden physical traps")
             for index in range(12):
                 var transform: Transform3D = bay.multimesh.get_instance_transform(index)
+                var actual_clearance: float = transform.origin.y-(
+                    game.height_at(transform.origin.z))
+                if not transform.origin.is_finite() or actual_clearance < (
+                        GEOMETRY.VAULT_CLEARANCE-0.1):
+                    print("CANOPY_HEIGHT_DEBUG biome=",biome,
+                        " layout=",layout," index=",index,
+                        " origin=",transform.origin,
+                        " floor=",game.height_at(transform.origin.z),
+                        " clearance=",actual_clearance,
+                        " selected_track=",game.selected_track)
                 assert(transform.origin.is_finite() and
-                    transform.origin.y > game.height_at(transform.origin.z)+
-                    GEOMETRY.VAULT_CLEARANCE-0.1,
+                    actual_clearance >= GEOMETRY.VAULT_CLEARANCE-0.1,
                     "The open-sky canopy must remain well above physical marble jumps")
                 assert(absf(transform.origin.x-game.track_center_at(
                     transform.origin.z)) > 4.0,
