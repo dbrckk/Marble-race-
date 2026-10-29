@@ -28,6 +28,20 @@ static func smooth_factor(delta: float, rate: float) -> float:
     # from 60 fps to 30 fps in a crowded hazard section.
     return 1.0-exp(-clampf(delta,0.0,0.12)*rate)
 
+const HAZARD_PREVIEW_SECONDS := 1.55
+const HAZARD_MIN_PREVIEW := 9.0
+const HAZARD_MAX_PREVIEW := 37.0
+
+static func hazard_preview_weight(distance: float, forward_speed: float) -> float:
+    if not is_finite(distance) or not is_finite(forward_speed) or (
+            distance < 0.0 or forward_speed <= 0.0):
+        return 0.0
+    var reach: float = clampf(
+        forward_speed*HAZARD_PREVIEW_SECONDS,
+        HAZARD_MIN_PREVIEW,HAZARD_MAX_PREVIEW)
+    # A 3m near-field buffer prevents abrupt framing on a passed gate.
+    return clampf((reach-distance)/maxf(4.0,reach*0.78),0.0,1.0)
+
 static func camera_pose(position: Vector3, velocity: Vector3,
     center_ahead_x: float, camera_mode: int, boosting: bool,
     hazard_distance: float, close_duel: bool = false,
@@ -36,9 +50,11 @@ static func camera_pose(position: Vector3, velocity: Vector3,
     var pace: float = clampf((planar_speed-3.0)/19.0,0.0,1.0)
     # A compact preview pulls the camera up and back before a near-side
     # obstacle, without hiding the marble or exaggerating the speed.
-    var risk: float = 0.0
-    if hazard_distance >= 0.0 and hazard_distance <= 18.0:
-        risk = clampf((18.0-hazard_distance)/14.0,0.0,1.0)
+    # Anticipation follows actual time-to-impact, not an arbitrary fixed
+    # 18m bubble. At 24m/s a gate 24m away is already one second ahead;
+    # at walking pace the same gate must not zoom out prematurely.
+    # Pure presentation math, zero additional physics or network queries.
+    var risk: float = hazard_preview_weight(hazard_distance,-velocity.z)
     var bend: float = clampf(center_ahead_x-position.x,-2.4,2.4)
     var lead: float = clampf(-velocity.z*0.23,0.0,4.2)
     var focus: Vector3
