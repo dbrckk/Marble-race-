@@ -52,6 +52,26 @@ func _run() -> void:
         (1.0-pow(1.0-RaceFeedback.smooth_factor(1.0/60.0,5.0),60.0))-
         (1.0-pow(1.0-RaceFeedback.smooth_factor(1.0/30.0,5.0),30.0))
     ) < 0.001,"Camera damping must be frame-rate independent")
+    # At race pace, the camera must reveal a gate earlier than at slow
+    # speed. The horizon is bounded and invalid network/physics readings
+    # cannot produce NaN camera transforms.
+    assert(RaceFeedback.hazard_preview_weight(24.0,24.0) > 0.0)
+    assert(RaceFeedback.hazard_preview_weight(24.0,4.0) == 0.0)
+    assert(RaceFeedback.hazard_preview_weight(12.0,18.0) >
+        RaceFeedback.hazard_preview_weight(24.0,18.0))
+    assert(RaceFeedback.hazard_preview_weight(100.0,24.0) == 0.0)
+    assert(RaceFeedback.hazard_preview_weight(-1.0,24.0) == 0.0)
+    assert(RaceFeedback.hazard_preview_weight(12.0,NAN) == 0.0)
+    assert(RaceFeedback.hazard_preview_weight(NAN,24.0) == 0.0)
+    var fast_preview: Dictionary = RaceFeedback.camera_pose(
+        Vector3(0,2,-50),Vector3(0,0,-24),0.0,0,false,24.0)
+    var slow_preview: Dictionary = RaceFeedback.camera_pose(
+        Vector3(0,2,-50),Vector3(0,0,-4),0.0,0,false,24.0)
+    assert(float(fast_preview["risk"]) > float(slow_preview["risk"]))
+    assert((fast_preview["position"] as Vector3).y >
+        (RaceFeedback.camera_pose(
+            Vector3(0,2,-50),Vector3(0,0,-24),0.0,0,false,-1.0
+        )["position"] as Vector3).y)
     for mode in range(3):
         var idle: Dictionary = RaceFeedback.camera_pose(
             Vector3(0,2,-60),Vector3.ZERO,0.0,mode,false,-1.0)
