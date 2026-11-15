@@ -23,8 +23,10 @@ func _verify() -> void:
         "The new HUD cannot intercept Android taps or swipes")
     assert(label.anchor_top > game.ui.duel_label.anchor_bottom,
         "The threat predictor must not obscure the live rival prompt")
-    assert(label.anchor_bottom < game.ui.race_moment_label.anchor_top,
-        "The threat predictor must not hide exciting race moments")
+    assert(label.anchor_bottom < game.ui.rare_item_label.anchor_top,
+        "The threat predictor needs its own driving row")
+    assert(game.ui.race_notification_backdrop.anchor_right < game.ui.duel_label.anchor_left,
+        "Sector and overtake notifications must stay beside the driving view")
     for biome in range(3):
         game.return_to_menu()
         assert(game.set_track(biome))
@@ -193,6 +195,7 @@ func _verify() -> void:
                 game.audio.warned_timed_gates.has(gate_index),
                 "Returning to the collision lane must restore the real hazard warning")
             if biome == 2:
+                _verify_forge_feedback(game)
                 # An upward piston *right now* is harmless if it will have
                 # retracted when this marble arrives. Clear the warning log
                 # and verify no false alarm is issued for that safe arrival.
@@ -240,14 +243,49 @@ func _verify() -> void:
         await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_timed_hud_career.cfg"))
-    print("TIMED_HUD_PASS: 9 layouts, speed-aware approaches, four original cues, priority and route-aware warnings")
+    print("TIMED_HUD_PASS: 9 layouts, speed-aware approaches, original cues and nonoverlapping Forge race feedback")
     quit(0)
+
+func _verify_forge_feedback(game: Node3D) -> void:
+    var ui: CanvasLayer = game.ui
+    var card: Panel = ui.race_notification_backdrop
+    var rival: RigidBody3D = game.racers[0]
+    rival.global_position = game.player.global_position+Vector3(1.40,0.0,-0.55)
+    rival.linear_velocity = Vector3(0,0,-12)
+    for i in range(6):
+        game.race_moments.tick(0.12)
+    ui.show_checkpoint(2,13.72,13.88)
+    ui.show_race_moment("TURBO",0.65)
+    assert(card.visible and ui.checkpoint_label.visible and not ui.race_moment_label.visible,
+        "Sector timing has priority over a routine boost toast")
+    ui.show_overtake(2,"")
+    ui.label_timer = 0.25
+    ui.update_hud()
+    assert(ui.timed_gate_backdrop.visible and ui.duel_label.visible and ui.rival_marker.visible,
+        "An urgent piston, the real rival and their marker must survive a race notification")
+    assert(ui.race_moment_label.visible and ui.race_moment_label.text == "DOUBLE PASS!" and
+        not ui.checkpoint_label.visible and not ui.position_feedback.visible,
+        "A confirmed double pass gets the one performance slot")
+    assert(card.mouse_filter == Control.MOUSE_FILTER_IGNORE and
+        ui.race_moment_label.mouse_filter == Control.MOUSE_FILTER_IGNORE,
+        "The performance card cannot swallow a swipe or tap")
+    assert(not card.get_global_rect().intersects(ui.duel_label.get_global_rect()) and
+        not ui.duel_label.get_global_rect().intersects(ui.timed_gate_label.get_global_rect()),
+        "Rendered regions must stay disjoint even when all three are visible")
+    ui.moment_remaining = 0.0
+    ui.update_hud()
+    assert(ui.checkpoint_label.visible and not ui.race_moment_label.visible,
+        "A still-current split can use the slot once the pass expires")
+    ui.toast_remaining = 0.0
+    ui.update_hud()
+    assert(not card.visible, "The slot must clear after notifications expire")
+    game.race_moments.reset_round()
 
 func _verify_biome_lane(game: Node3D, biome: int) -> void:
     var mechanics: Node3D = game.course_mechanics
     var label: Label = game.ui.biome_lane_label
     assert(label.mouse_filter == Control.MOUSE_FILTER_IGNORE)
-    assert(label.anchor_top >= game.ui.race_moment_label.anchor_bottom)
+    assert(label.anchor_top > game.ui.rare_item_label.anchor_bottom)
     var first: Vector3 = mechanics.zones[0].global_position
     var position := first+Vector3(0.0,0.55,12.0)
     var velocity := Vector3(0.0,0.0,-12.0)

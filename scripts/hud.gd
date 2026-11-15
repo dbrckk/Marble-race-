@@ -81,9 +81,9 @@ var woodworks_steered := false
 var woodworks_boosted := false
 var position_feedback: Label
 var race_moment_label: Label
+var race_notification_backdrop: Panel
 var speed_stripes: Array[ColorRect] = []
 var moment_remaining := 0.0
-var moment_duration := 1.0
 var moment_priority := 0
 var overtake_count := 0
 var overtake_chain_seconds := 0.0
@@ -865,13 +865,14 @@ func _build_race_hud() -> void:
     ghost_label = _small_panel_text("",14,Rect2(0.02,0.31,0.265,0.051))
     ghost_label.name = "PersonalBestGhostPace"
     ghost_label.get_parent().visible = false
-    duel_label = _text("",17,Color("#c4f2e7"))
+    duel_label = _text("",19,Color("#c4f2e7"))
     duel_label.name = "ClosestPhysicalRival"
     duel_label.anchor_left = 0.32
     duel_label.anchor_right = 0.68
-    duel_label.anchor_top = 0.308
-    duel_label.anchor_bottom = 0.350
+    duel_label.anchor_top = 0.249
+    duel_label.anchor_bottom = 0.294
     duel_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    duel_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
     duel_label.add_theme_color_override("font_outline_color",Color("#121820"))
     duel_label.add_theme_constant_override("outline_size",5)
     duel_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -881,8 +882,8 @@ func _build_race_hud() -> void:
     rival_marker.name = "LocalRivalMarker"
     rival_marker.text = "◇"
     rival_marker.font_size = 46
-    rival_marker.pixel_size = 0.011
-    rival_marker.outline_size = 12
+    rival_marker.pixel_size = 0.014
+    rival_marker.outline_size = 14
     rival_marker.billboard = BaseMaterial3D.BILLBOARD_ENABLED
     rival_marker.modulate = Color("#83e6ff")
     rival_marker.hide()
@@ -934,19 +935,19 @@ func _build_race_hud() -> void:
     timed_gate_backdrop.name = "UrgentObstacleBackdrop"
     timed_gate_backdrop.anchor_left = 0.237
     timed_gate_backdrop.anchor_right = 0.763
-    timed_gate_backdrop.anchor_top = 0.350
-    timed_gate_backdrop.anchor_bottom = 0.393
+    timed_gate_backdrop.anchor_top = 0.301
+    timed_gate_backdrop.anchor_bottom = 0.351
     timed_gate_backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
     timed_gate_backdrop.add_theme_stylebox_override("panel",
         _surface(Color("#281d24"),Color("#de836b"),8))
     timed_gate_backdrop.hide()
     hud_layer.add_child(timed_gate_backdrop)
-    timed_gate_label = _text("",17,Color("#f6d49b"))
+    timed_gate_label = _text("",19,Color("#f6d49b"))
     timed_gate_label.name = "PredictedTimedGate"
     timed_gate_label.anchor_left = 0.237
     timed_gate_label.anchor_right = 0.763
-    timed_gate_label.anchor_top = 0.354
-    timed_gate_label.anchor_bottom = 0.389
+    timed_gate_label.anchor_top = 0.302
+    timed_gate_label.anchor_bottom = 0.350
     timed_gate_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     timed_gate_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
     timed_gate_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -958,8 +959,8 @@ func _build_race_hud() -> void:
     rare_item_label.name = "UpcomingHumanPowerup"
     rare_item_label.anchor_left = 0.285
     rare_item_label.anchor_right = 0.715
-    rare_item_label.anchor_top = 0.391
-    rare_item_label.anchor_bottom = 0.426
+    rare_item_label.anchor_top = 0.357
+    rare_item_label.anchor_bottom = 0.396
     rare_item_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     rare_item_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
     rare_item_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -967,10 +968,10 @@ func _build_race_hud() -> void:
     hud_layer.add_child(rare_item_label)
     biome_lane_label = _text("",17,Color("#b5eeff"))
     biome_lane_label.name = "SurfaceLanePreview"
-    biome_lane_label.anchor_left = 0.27
-    biome_lane_label.anchor_right = 0.73
-    biome_lane_label.anchor_top = 0.50
-    biome_lane_label.anchor_bottom = 0.548
+    biome_lane_label.anchor_left = 0.285
+    biome_lane_label.anchor_right = 0.715
+    biome_lane_label.anchor_top = 0.402
+    biome_lane_label.anchor_bottom = 0.449
     biome_lane_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     biome_lane_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
     biome_lane_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -979,25 +980,33 @@ func _build_race_hud() -> void:
     for cue in [hazard_label,shortcut_label,timed_gate_label,rare_item_label,biome_lane_label]:
         cue.add_theme_color_override("font_outline_color",Color("#121820"))
         cue.add_theme_constant_override("outline_size",5)
-    position_feedback = _text("",21,Color("#a7f0d8"))
+    # Performance feedback shares a single card beside the driving view.
+    race_notification_backdrop = Panel.new()
+    race_notification_backdrop.name = "RaceNotification"
+    race_notification_backdrop.anchor_left = 0.016
+    race_notification_backdrop.anchor_right = 0.268
+    race_notification_backdrop.anchor_top = 0.367
+    race_notification_backdrop.anchor_bottom = 0.474
+    race_notification_backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    race_notification_backdrop.add_theme_stylebox_override("panel",
+        _surface(PANEL,Color(1,1,1,0.20),10))
+    race_notification_backdrop.hide()
+    hud_layer.add_child(race_notification_backdrop)
+    position_feedback = _text("",22,Color("#a7f0d8"))
     position_feedback.name = "RankFeedback"
-    position_feedback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    position_feedback.anchor_left = 0.38
-    position_feedback.anchor_right = 0.62
-    position_feedback.anchor_top = 0.257
-    position_feedback.anchor_bottom = 0.298
-    position_feedback.visible = false
-    hud_layer.add_child(position_feedback)
-    race_moment_label = _text("",25,Color("#aaf2e5"))
+    race_moment_label = _text("",23,Color("#aaf2e5"))
     race_moment_label.name = "LiveRaceMoment"
-    race_moment_label.anchor_left = 0.31
-    race_moment_label.anchor_right = 0.69
-    race_moment_label.anchor_top = 0.43
-    race_moment_label.anchor_bottom = 0.50
-    race_moment_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    race_moment_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-    race_moment_label.visible = false
-    hud_layer.add_child(race_moment_label)
+    checkpoint_label = _text("",22,ORANGE)
+    checkpoint_label.name = "SectorAndPickupFeedback"
+    for label: Label in [position_feedback,race_moment_label,checkpoint_label]:
+        label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+        label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+        label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+        label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+        label.offset_left = 10.0
+        label.offset_right = -10.0
+        label.hide()
+        race_notification_backdrop.add_child(label)
     woodworks_guide_label = _small_panel_text("",19,
         Rect2(0.328,0.88,0.344,0.047),HORIZONTAL_ALIGNMENT_CENTER)
     woodworks_guide_label.name = "WoodworksDrivingGuide"
@@ -1038,15 +1047,6 @@ func _build_race_hud() -> void:
     countdown_label.anchor_top = 0.27
     countdown_label.anchor_bottom = 0.59
     hud_layer.add_child(countdown_label)
-    checkpoint_label = _text("", 30, ORANGE)
-    checkpoint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    checkpoint_label.anchor_left = 0.25
-    checkpoint_label.anchor_right = 0.75
-    checkpoint_label.anchor_top = 0.30
-    checkpoint_label.anchor_bottom = 0.42
-    checkpoint_label.visible = false
-    hud_layer.add_child(checkpoint_label)
-
     # Floating left joystick + independent right-side boost. Full screen touch
     # pointer IDs protect against releases of unrelated fingers.
     touch_controls = TOUCH_CONTROLS.new()
@@ -1358,6 +1358,7 @@ func show_race_ui() -> void:
     duel_label.hide()
     toast_remaining = 0.0
     checkpoint_label.hide()
+    race_notification_backdrop.hide()
     woodworks_guide_active = game.selected_track == 0 and not game.net.is_active() and (
         not woodworks_guide_seen and game.career.finishes == 0)
     woodworks_steered = false
@@ -1403,10 +1404,8 @@ func show_race_moment(title: String, duration: float = 1.1, priority := 0) -> vo
             Color("#a2f3d8") if title.contains("PASS") or title.contains("OVERTAKE") else
             Color("#b5ecff")))
     moment_priority = priority
-    moment_duration = clampf(duration,0.4,2.2)
-    moment_remaining = moment_duration
-    race_moment_label.modulate.a = 1.0
-    race_moment_label.visible = true
+    moment_remaining = clampf(duration,0.4,2.2)
+    _refresh_race_notification()
 
 func show_overtake(count: int, rival_name: String) -> void:
     overtake_count = count+(overtake_count if overtake_chain_seconds > 0.0 else 0)
@@ -1423,7 +1422,7 @@ func clear_overtake_feedback() -> void:
     overtake_chain_seconds = 0.0
     if moment_priority == 2:
         moment_remaining = 0.0
-        race_moment_label.hide()
+        _refresh_race_notification()
 
 func _update_rival_marker() -> void:
     var moments: RefCounted = game.race_moments
@@ -1466,19 +1465,10 @@ func update_hud() -> void:
     _update_rival_marker()
     if is_instance_valid(race_radar):
         race_radar.sample(elapsed)
-    if moment_remaining > 0.0:
-        moment_remaining = maxf(0.0,moment_remaining-elapsed)
-        race_moment_label.visible = moment_remaining > 0.0
-        race_moment_label.modulate.a = minf(1.0,
-            minf(moment_remaining*3.0,(moment_duration-moment_remaining)*10.0+0.20))
-    if rank_toast_seconds > 0.0:
-        rank_toast_seconds -= get_process_delta_time()
-        position_feedback.visible = rank_toast_seconds > 0.0
-        position_feedback.modulate.a = minf(1.0,rank_toast_seconds * 2.0)
-    if toast_remaining > 0.0:
-        toast_remaining -= get_process_delta_time()
-        checkpoint_label.visible = toast_remaining > 0.0
-        checkpoint_label.modulate.a = minf(1.0, toast_remaining * 1.7)
+    moment_remaining = maxf(0.0,moment_remaining-elapsed)
+    rank_toast_seconds = maxf(0.0,rank_toast_seconds-elapsed)
+    toast_remaining = maxf(0.0,toast_remaining-elapsed)
+    _refresh_race_notification()
     label_timer += get_process_delta_time()
     if label_timer < 0.11:
         return
@@ -1506,8 +1496,7 @@ func update_hud() -> void:
         position_feedback.add_theme_color_override("font_color",
             Color("#9cf2cb") if gain > 0 else Color("#ffb19c"))
         rank_toast_seconds = 0.95
-        position_feedback.visible = true
-        position_feedback.modulate.a = 1.0
+        _refresh_race_notification()
     last_seen_rank = place
     place_label.text = "#%d / 40" % place
     remaining_label.text = "%s  •  %d FINISHED" % [game.track_title(),game.racer_finish_order.size()]
@@ -1712,6 +1701,24 @@ func _update_biome_lane(hint: Dictionary, urgent_gate_eta: float) -> void:
     biome_lane_label.add_theme_color_override("font_color",tint)
     biome_lane_label.show()
 
+func _refresh_race_notification() -> void:
+    # Give confirmed race moments the slot, then checkpoint/pickup updates.
+    # Every timer keeps running so an old notification cannot reappear later.
+    race_moment_label.visible = moment_remaining > 0.0 and (
+        toast_remaining <= 0.0 or moment_priority > 0)
+    checkpoint_label.visible = toast_remaining > 0.0 and not race_moment_label.visible
+    position_feedback.visible = rank_toast_seconds > 0.0 and (
+        not checkpoint_label.visible and not race_moment_label.visible)
+    var opacity := 0.0
+    if race_moment_label.visible:
+        opacity = minf(1.0,moment_remaining*4.0)
+    elif checkpoint_label.visible:
+        opacity = minf(1.0,toast_remaining*3.0)
+    elif position_feedback.visible:
+        opacity = minf(1.0,rank_toast_seconds*3.0)
+    race_notification_backdrop.visible = opacity > 0.0
+    race_notification_backdrop.modulate.a = opacity
+
 func show_course_event(kind: String) -> void:
     var labels := {
         "speed": "WOODLAND  /  SPEED LINE!",
@@ -1732,9 +1739,8 @@ func show_course_event(kind: String) -> void:
         Color("#b6edff") if kind in ["ice","shortcut","jump","apex",
             "near_miss","near_miss_precision","near_miss_chain",
             "bridge_gate_1","bridge_gate_2","bridge_perfect"] else Color("#ffcb8c"))
-    checkpoint_label.modulate.a = 1.0
-    checkpoint_label.visible = true
     toast_remaining = 1.45
+    _refresh_race_notification()
 
 func show_item_pickup(kind: String) -> void:
     var labels := {
@@ -1745,9 +1751,8 @@ func show_item_pickup(kind: String) -> void:
     }
     checkpoint_label.text = str(labels.get(kind,"RARE ITEM!"))
     checkpoint_label.add_theme_color_override("font_color",Color("#9af5e2"))
-    checkpoint_label.modulate.a = 1.0
-    checkpoint_label.visible = true
     toast_remaining = 1.8
+    _refresh_race_notification()
 
 func show_checkpoint(number: int, sector_time: float = 0.0, best_before: float = 0.0) -> void:
     var timing := "  •  %.2fs" % sector_time if sector_time > 0.0 else ""
@@ -1760,9 +1765,8 @@ func show_checkpoint(number: int, sector_time: float = 0.0, best_before: float =
     else:
         checkpoint_label.add_theme_color_override("font_color",ORANGE)
     checkpoint_label.text = "SECTOR %d / 3%s%s" % [number,timing,comparison]
-    checkpoint_label.modulate.a = 1.0
-    checkpoint_label.visible = true
     toast_remaining = 2.15
+    _refresh_race_notification()
 
 func show_results(place: int, time: float, ranking: Array) -> void:
     if get_tree().paused:
