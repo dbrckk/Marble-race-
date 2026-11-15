@@ -317,9 +317,9 @@ func _signage(color: Material) -> void:
     entry.outline_size = 8
     entry.modulate = TINTS[course_id]
     entry.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-    entry.position = Vector3(
-        stage.track_center_at(ENTRY_Z+4.5)+float(side)*4.7,
-        stage.height_at(ENTRY_Z+4.5)+3.1,ENTRY_Z+4.5)
+    var sign_z := ENTRY_Z+(7.6 if course_id == 0 else 4.5)
+    entry.position = Vector3(stage.track_center_at(sign_z)+float(side)*4.7,
+        stage.height_at(sign_z)+3.1,sign_z)
     add_child(entry)
     if course_id == 0:
         var main_sign := entry.duplicate() as Label3D
@@ -400,7 +400,8 @@ func shortcut_hint(location: Vector3) -> Dictionary:
             return {"mode":"merge","side":"RIGHT" if side < 0 else "LEFT",
                 "distance":maxi(0,int(round(z-EXIT_Z)))}
     var turn_z := ENTRY_PORTAL_Z if course_id == 0 else ENTRY_Z
-    if z <= ENTRY_Z+36.0 and z > turn_z:
+    var preview_distance := 29.0 if course_id == 0 else 36.0
+    if z <= turn_z+preview_distance and z > turn_z:
         return {"mode":"fork","side":"LEFT" if side < 0 else "RIGHT",
             "distance":maxi(0,int(round(z-turn_z)))}
     return {}

@@ -936,6 +936,9 @@ func _build_race_hud() -> void:
     rare_item_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
     rare_item_label.visible = false
     hud_layer.add_child(rare_item_label)
+    for cue in [hazard_label,shortcut_label,timed_gate_label,rare_item_label]:
+        cue.add_theme_color_override("font_outline_color",Color("#121820"))
+        cue.add_theme_constant_override("outline_size",5)
     position_feedback = _text("",21,Color("#a7f0d8"))
     position_feedback.name = "RankFeedback"
     position_feedback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -956,7 +959,7 @@ func _build_race_hud() -> void:
     race_moment_label.visible = false
     hud_layer.add_child(race_moment_label)
     woodworks_guide_label = _small_panel_text("",19,
-        Rect2(0.26,0.501,0.48,0.047),HORIZONTAL_ALIGNMENT_CENTER)
+        Rect2(0.328,0.88,0.344,0.047),HORIZONTAL_ALIGNMENT_CENTER)
     woodworks_guide_label.name = "WoodworksDrivingGuide"
     woodworks_guide_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
     var guide_panel := woodworks_guide_label.get_parent() as PanelContainer
@@ -1019,13 +1022,6 @@ func _build_race_hud() -> void:
     boost_label.anchor_top = 0.603
     boost_label.anchor_bottom = 0.636
     hud_layer.add_child(boost_label)
-    var build_label := _text("STEER  ◀  DRAG  ▶     •     HOLD BOOST",13,Color("#c7d4db"))
-    build_label.anchor_left = 0.31
-    build_label.anchor_right = 0.65
-    build_label.anchor_top = 0.931
-    build_label.anchor_bottom = 0.972
-    build_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    hud_layer.add_child(build_label)
     var cam_button = _action("CAMERA", Color("#353944"))
     cam_button.anchor_left = 0.790
     cam_button.anchor_right = 0.900
