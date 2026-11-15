@@ -3,12 +3,28 @@ extends Node3D
 ## Computer-controlled marbles never collect or activate an item.
 const ITEM_Z := [-28.0, -79.0, -128.0, -169.0]
 const ITEM_X := [-2.8, 2.8, -2.0, 2.0]
-# Woodworks solo: opening seam, approach to the banked crest,
-# passing zone between the pinball posts, then the final slalom.
-const WOODWORKS_ITEM_Z := [-21.7, -95.1, -129.4, -166.0]
-const WOODWORKS_ITEM_X := [
-    [-1.65, 1.65, -1.65], [2.20, 2.20, 2.20],
-    [-1.55, 1.85, -1.85], [1.45, -1.45, 1.45]
+# Solo slots in course order. Each row is a layout, and each pair is
+# (distance along the course, lateral offset from its actual centerline).
+const SOLO_LINES := [
+    [
+        [Vector2(-21.7,-1.65), Vector2(-95.1,2.20), Vector2(-129.4,-1.55), Vector2(-166.0,1.45)],
+        [Vector2(-21.7,1.65), Vector2(-95.1,2.20), Vector2(-129.4,1.85), Vector2(-166.0,-1.45)],
+        [Vector2(-21.7,-1.65), Vector2(-95.1,2.20), Vector2(-129.4,-1.85), Vector2(-166.0,1.45)]
+    ],
+    # Glacier: jump near the ice, shockwave on the main route, steady
+    # dash through the late ice section, then boost on the run home.
+    [
+        [Vector2(-21.0,2.55), Vector2(-82.0,1.80), Vector2(-139.0,-1.80), Vector2(-176.0,1.80)],
+        [Vector2(-21.0,-1.80), Vector2(-82.0,-1.80), Vector2(-141.0,1.80), Vector2(-175.0,-1.80)],
+        [Vector2(-20.0,-1.80), Vector2(-83.0,1.80), Vector2(-135.0,-1.80), Vector2(-176.0,1.80)]
+    ],
+    # Forge: shockwave in early traffic, steady dash on the main route,
+    # turbo on the open side of the final piston, jump ahead of the last vent.
+    [
+        [Vector2(-24.0,1.15), Vector2(-83.0,1.80), Vector2(-143.0,1.80), Vector2(-164.0,1.15)],
+        [Vector2(-25.0,-1.80), Vector2(-83.0,-1.80), Vector2(-143.0,-1.80), Vector2(-166.0,-2.55)],
+        [Vector2(-24.0,-1.80), Vector2(-83.0,1.80), Vector2(-143.0,1.80), Vector2(-164.0,-1.80)]
+    ]
 ]
 const PICKUP_RADIUS_SQUARED := 3.1
 # The physical shockwave is a true radial, same-deck interaction. Remote
@@ -45,17 +61,24 @@ static func label_at(index: int, track: int) -> String:
     return ITEM_NAMES[posmod(index+clampi(track,0,2),ITEM_NAMES.size())]
 
 static func lane_offset(index: int, track: int, variation: int, solo := true) -> float:
-    if track == 0 and solo:
-        return WOODWORKS_ITEM_X[index][posmod(variation,3)]
-    return ITEM_X[posmod(index+clampi(track,0,2)+posmod(variation,3),ITEM_X.size())]
+    return _line_at(index,track,variation,solo).y
 
 static func placement_at(index: int, track: int, variation: int, solo := true) -> Vector3:
+    var line := _line_at(index,track,variation,solo)
+    return Vector3(TRACK_PATH.center_at(line.x,track)+line.y,
+        TRACK_PATH.height_at(line.x,track)+1.05,line.x)
+
+static func _line_at(index: int, track: int, variation: int, solo: bool) -> Vector2:
+    var course := clampi(track,0,2)
+    var layout := posmod(variation,3)
+    if solo:
+        return SOLO_LINES[course][layout][index]
     # Keep online coordinates compatible with deployed clients and servers.
-    var z: float = WOODWORKS_ITEM_Z[index] if track == 0 and solo else ITEM_Z[index]
-    return Vector3(TRACK_PATH.center_at(z,track)+lane_offset(index,track,variation,solo),
-        TRACK_PATH.height_at(z,track)+1.05,z)
+    return Vector2(ITEM_Z[index],ITEM_X[posmod(index+course+layout,ITEM_X.size())])
 
 func nearest_available(at: Vector3, racer_id: int, max_distance: float = 28.0) -> Dictionary:
+    if not at.is_finite() or not is_finite(max_distance) or max_distance <= 0.0:
+        return {}
     # Only four candidate pickups. Called by HUD at 9Hz, never the 60Hz
     # racing simulation. A collected client pickup stays hidden until reset.
     # A racer committed to the exterior bridge cannot reach main-road items
@@ -81,18 +104,25 @@ func nearest_available(at: Vector3, racer_id: int, max_distance: float = 28.0) -
 
 func setup(owner: Node3D, track: int, variation: int) -> void:
     game = owner
-    var crystal := SphereMesh.new()
-    crystal.radius = 0.48
-    crystal.height = 0.96
-    crystal.radial_segments = 4 if track == 0 else 16
-    crystal.rings = 1 if track == 0 else 8
+    var halo := TorusMesh.new()
+    halo.inner_radius = 0.57
+    halo.outer_radius = 0.65
+    halo.rings = 16
+    halo.ring_segments = 8
     for i in range(ITEM_Z.size()):
         var pickup := Node3D.new()
         pickup.name = "RarePickup_%02d" % i
+        var effect_index := posmod(i+track,ITEM_KINDS.size())
         var shell := MeshInstance3D.new()
+        shell.name = "EffectCrystal"
+        var crystal := SphereMesh.new()
+        crystal.radius = [0.43,0.36,0.49,0.47][effect_index]
+        crystal.height = [1.03,1.25,0.61,0.78][effect_index]
+        crystal.radial_segments = [4,3,8,6][effect_index]
+        crystal.rings = 1
         shell.mesh = crystal
         var material := StandardMaterial3D.new()
-        material.albedo_color = COLORS[(i + track) % COLORS.size()]
+        material.albedo_color = COLORS[effect_index]
         material.metallic = 0.35
         material.roughness = 0.16
         material.emission_enabled = true
@@ -102,12 +132,8 @@ func setup(owner: Node3D, track: int, variation: int) -> void:
         shell.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
         pickup.add_child(shell)
         var ring := MeshInstance3D.new()
-        var torus := TorusMesh.new()
-        torus.inner_radius = 0.57
-        torus.outer_radius = 0.65
-        torus.rings = 16
-        torus.ring_segments = 8
-        ring.mesh = torus
+        ring.mesh = halo
+        ring.rotation.z = [0.0,0.42,0.0,-0.32][effect_index]
         ring.material_override = material
         ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
         pickup.add_child(ring)

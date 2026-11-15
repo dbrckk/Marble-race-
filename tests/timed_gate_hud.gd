@@ -130,6 +130,20 @@ func _verify() -> void:
                     "Forge should show the clear side of a piston that blocks at arrival")
                 assert(not game.ui.biome_lane_label.visible,
                     "An imminent piston warning has priority over vent advice")
+                if layout == 0:
+                    var pickup: Node3D = game.race_items.items[2]
+                    var saved_position := pickup.position
+                    pickup.position.z = gate_z-1.0
+                    game.ui.label_timer = 0.25
+                    game.ui.update_hud()
+                    assert(not game.ui.rare_item_label.visible,
+                        "A pickup beyond a blocking piston must yield to its warning")
+                    pickup.position.z = approach_z-5.0
+                    game.ui.label_timer = 0.25
+                    game.ui.update_hud()
+                    assert(game.ui.rare_item_label.visible,
+                        "A pickup encountered before the piston still needs a preview")
+                    pickup.position = saved_position
             assert(game.audio.warned_timed_gates.has(gate_index),
                 "One audio danger cue must sound as the moving gate approaches")
             game.ui.label_timer = 0.25

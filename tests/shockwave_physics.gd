@@ -59,8 +59,11 @@ func _run() -> void:
             var bridge_ai: RigidBody3D = game.racers[2]
             for marble in game.racers:
                 marble.freeze = true
-            # Unfreeze targets after the countdown to observe real physics.
-            # Position all other frozen rivals away from this deliberate event.
+            # Isolate the real impulses from unrelated track contacts.
+            # The pickup navigation test separately verifies terrain clearance.
+            for target in [human,near_ai,far_ai,bridge_ai]:
+                target.collision_layer = 0
+                target.collision_mask = 0
             var origin: Vector3 = powerup.global_position
             var inward: float = -signf(
                 ITEMS.lane_offset(pulse_index,track,layout))

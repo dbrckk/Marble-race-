@@ -1559,10 +1559,14 @@ func update_hud() -> void:
     _update_biome_lane(downstream_limit,urgent_gate_eta)
     # Predict the next still-available, immediate-effect item. Clients
     # consult their local server-confirmed visibility; AI never receive UI.
+    var forward_speed := maxf(0.0,-game.player.linear_velocity.z)
+    var item_reach := clampf(forward_speed*1.55,20.0,36.0)
     var next_item: Dictionary = game.race_items.nearest_available(
-        game.player.global_position,game.player.racer_id) if (
-        is_instance_valid(game.race_items) and game.race_state == "RACING") else {}
-    rare_item_label.visible = not next_item.is_empty()
+        game.player.global_position,game.player.racer_id,item_reach) if (
+        is_instance_valid(game.race_items) and game.race_state == "RACING" and
+        not game.player.finished and not game.player.eliminated) else {}
+    var pickup_eta := float(next_item.get("distance",INF))/maxf(2.0,forward_speed)
+    rare_item_label.visible = not next_item.is_empty() and pickup_eta < urgent_gate_eta
     if rare_item_label.visible:
         rare_item_label.text = "RARE %s  •  %s  •  %dm" % [
             str(next_item["label"]),str(next_item["side"]),

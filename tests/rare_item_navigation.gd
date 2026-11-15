@@ -2,6 +2,7 @@ extends SceneTree
 ## Rare instant powerup HUD / map parity for all nine REAL course layouts.
 ## Only authoritative human pickup collection may hide an item.
 const ITEMS = preload("res://scripts/race_items.gd")
+const RACER = preload("res://scripts/marble.gd")
 
 func _initialize() -> void:
     call_deferred("_verify")
@@ -39,6 +40,8 @@ func _verify() -> void:
             assert(game.built_variation == variation)
             assert(game.race_items.items.size() == 4)
             assert(game.racers.size() == 40)
+            var crystal_shapes: Array[Vector3] = []
+            var next_z := INF
             for i in range(ITEMS.ITEM_Z.size()):
                 var marker: Node3D = game.race_items.items[i]
                 var expected: Vector3 = ITEMS.placement_at(i,track,variation)
@@ -49,6 +52,12 @@ func _verify() -> void:
                 assert(is_instance_valid(title) and
                     title.text == ITEMS.label_at(i,track))
                 assert(ITEMS.kind_at(i,track) in ITEMS.ITEM_KINDS)
+                var crystal := marker.get_node("EffectCrystal").mesh as SphereMesh
+                var proportions := Vector3(crystal.radius,crystal.height,crystal.radial_segments)
+                assert(not crystal_shapes.has(proportions),"Every effect has a distinct silhouette")
+                crystal_shapes.append(proportions)
+                assert(marker.position.z < next_z,"Pickup previews must follow course order")
+                next_z = marker.position.z
             # A raised detour cannot reach the rare item on the physically
             # separated main road. Warning about it would mislead the player.
             var approach_z: float = ITEMS.placement_at(1,track,variation).z+3.0
@@ -82,6 +91,21 @@ func _verify() -> void:
             assert(label.visible and label.text.contains(ITEMS.label_at(0,track)),
                 "An upcoming rare effect must have an actual Android HUD cue")
             assert(label.text.contains("18m"))
+            if track > 0:
+                # Same physical item, with a preview that reaches farther as
+                # forward speed increases. Keep the timed gate out of range.
+                human.global_position.z = first.z+30.0
+                human.linear_velocity = Vector3(0,0,-3)
+                hud.label_timer = 1.0
+                hud.update_hud()
+                assert(not label.visible,"Slow racers should not see distant pickups")
+                human.linear_velocity.z = -23.0
+                hud.label_timer = 1.0
+                hud.update_hud()
+                assert(label.visible and label.text.contains("30m"),
+                    "Fast racers need time to choose the pickup line")
+                human.linear_velocity = Vector3.ZERO
+                human.global_position.z = first.z+18.0
             game.race_items.tick(0.016,game.racers,game.net)
             assert(game.race_items.used.is_empty(),
                 "AI contact must not collect or erase a human-only pickup")
@@ -96,11 +120,59 @@ func _verify() -> void:
             hud.update_hud()
             assert(not label.visible,
                 "Immediately hide the prompt after authentic collection")
+            if track > 0:
+                await _verify_grounded_collection(game)
+            _verify_online_layout(game,track,variation)
             game.return_to_menu()
             assert(not label.visible or not hud.hud_layer.visible)
     game.queue_free()
     await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_item_route_preview.cfg"))
-    print("RARE_ITEM_NAVIGATION_PASS: 9 real layouts, 36 exact map points, human-only effects, touch HUD")
+    print("RARE_ITEM_NAVIGATION_PASS: 36 map points, 24 grounded pickup lines, distinct crystals, speed-aware HUD and online parity")
     quit(0)
+
+func _verify_grounded_collection(game: Node3D) -> void:
+    game.race_items.reset_round()
+    var excludes: Array[RID] = []
+    for racer in game.racers:
+        excludes.append(racer.get_rid())
+    var ball := SphereShape3D.new()
+    ball.radius = RACER.RADIUS
+    var query := PhysicsShapeQueryParameters3D.new()
+    query.shape = ball
+    query.exclude = excludes
+    var ray := PhysicsRayQueryParameters3D.new()
+    ray.exclude = excludes
+    await physics_frame
+    await physics_frame
+    var space: PhysicsDirectSpaceState3D = game.get_world_3d().direct_space_state
+    for item in game.race_items.items:
+        for dz in [-1.0,0.0,1.0,1.5,2.0]:
+            var probe: Vector3 = item.position+Vector3.BACK*dz
+            probe.y = game.height_at(probe.z)
+            ray.from = probe+Vector3.UP*1.8
+            ray.to = probe-Vector3.UP*0.5
+            var support := space.intersect_ray(ray)
+            assert(not support.is_empty() and support.normal.y > 0.8 and
+                support.position.y < probe.y+0.27,
+                "A pickup approach must run along the real deck")
+            query.transform = Transform3D(Basis.IDENTITY,
+                support.position+Vector3.UP*(RACER.RADIUS+0.03))
+            assert(space.intersect_shape(query,1).is_empty(),
+                "A real obstacle blocks "+str(item.name)+" on "+game.track_title())
+            if dz == 0.0:
+                game.player.global_position = support.position+Vector3.UP*RACER.RADIUS
+                game.race_items.tick(1.0/60.0,game.racers,game.net)
+                assert(not item.visible,"A grounded marble must collect every item")
+
+func _verify_online_layout(game: Node3D, track: int, layout: int) -> void:
+    game.net.role = "client"
+    game.race_items.reset_round()
+    for i in range(ITEMS.ITEM_Z.size()):
+        var online: Vector3 = game.race_items.items[i].position
+        var expected_offset: float = ITEMS.ITEM_X[(i+track+layout)%ITEMS.ITEM_X.size()]
+        assert(online.z == ITEMS.ITEM_Z[i])
+        assert(is_equal_approx(online.x,game.track_center_at(online.z)+expected_offset),
+            "Existing clients and the live server still share the original coordinates")
+    game.net.role = "offline"
