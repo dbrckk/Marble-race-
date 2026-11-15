@@ -32,6 +32,10 @@ const HAZARD_PREVIEW_SECONDS := 1.55
 const HAZARD_MIN_PREVIEW := 9.0
 const HAZARD_MAX_PREVIEW := 37.0
 
+static func projected_lane_x(current_x: float, lateral_speed: float, eta: float) -> float:
+    # Predict short-term drift while leaving room for the player's next input.
+    return current_x+clampf(lateral_speed,-5.0,5.0)*minf(eta,0.40)
+
 static func hazard_preview_weight(distance: float, forward_speed: float) -> float:
     if not is_finite(distance) or not is_finite(forward_speed) or (
             distance < 0.0 or forward_speed <= 0.0):

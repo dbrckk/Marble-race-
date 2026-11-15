@@ -6,6 +6,7 @@ extends Node3D
 # All offsets are bounded away from shortcut entry and exit portals.
 const EVENT_Z := [-34.0,-118.0,-154.0]
 const VISUALS = preload("res://scripts/visuals.gd")
+const FEEDBACK = preload("res://scripts/race_feedback.gd")
 const LAYOUT_OFFSETS := [[0.0,0.0,0.0],[-4.0,5.0,-4.0],[4.0,-5.0,4.0]]
 const BIOME_OFFSETS := [[0.0,0.0,0.0],[2.0,-2.0,3.0],[-2.0,3.0,-2.0]]
 const EVENT_NAMES := ["SWEEPING ARM","ICE SHUTTER","FORGE PISTON"]
@@ -68,6 +69,17 @@ func setup(owner: Node3D, track: int, layout: int) -> void:
     caution_paint.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
     var band_mesh := BoxMesh.new()
     band_mesh.size = Vector3(0.18,0.018,0.53)
+    var steel := StandardMaterial3D.new()
+    steel.albedo_color = Color("#535b60")
+    steel.metallic = 0.68
+    steel.roughness = 0.32
+    var piston_cap := BoxMesh.new()
+    piston_cap.size = Vector3(BODY_WIDTH-0.17,0.035,BODY_DEPTH-0.12)
+    var piston_socket := TorusMesh.new()
+    piston_socket.inner_radius = 0.83
+    piston_socket.outer_radius = 0.96
+    piston_socket.rings = 16
+    piston_socket.ring_segments = 6
     var ring_mesh := TorusMesh.new()
     ring_mesh.inner_radius = 0.88
     ring_mesh.outer_radius = 1.04
@@ -112,6 +124,22 @@ func setup(owner: Node3D, track: int, layout: int) -> void:
             inlays.material_override = caution_paint
             inlays.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
             body.add_child(inlays)
+        elif biome == 2:
+            var cap := MeshInstance3D.new()
+            cap.name = "PistonSteelCap"
+            cap.mesh = piston_cap
+            cap.material_override = steel
+            cap.position.y = BODY_HEIGHT*0.5+0.01
+            cap.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+            body.add_child(cap)
+            var socket := MeshInstance3D.new()
+            socket.name = "PistonSocket_%02d" % i
+            socket.mesh = piston_socket
+            socket.material_override = steel
+            socket.position = Vector3(game.track_center_at(z)+side*3.26,game.height_at(z)+0.04,z)
+            socket.rotation.x = -atan(game.track_grade_at(z))
+            socket.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+            add_child(socket)
         add_child(body)
         obstacles.append(body)
         var marker := MeshInstance3D.new()
@@ -217,7 +245,6 @@ func position_at(index: int, elapsed: float) -> Vector3:
 # the centre line. The 0.40s lateral extrapolation is intentionally bounded:
 # it accounts for ongoing drift without pretending to predict future taps.
 const LANE_THREAT_RADIUS := BODY_WIDTH*0.5+0.39+0.18
-const LANE_DRIFT_PREVIEW := 0.40
 
 func threatens_line(index: int, elapsed: float, eta: float,
         current_x: float, lateral_speed: float) -> bool:
@@ -229,8 +256,7 @@ func threatens_line(index: int, elapsed: float, eta: float,
     if biome == 2 and not piston_up(index,arrival):
         return false
     var obstacle_x: float = position_at(index,arrival).x
-    var future_x: float = current_x+clampf(lateral_speed,-5.0,5.0)*(
-        minf(eta,LANE_DRIFT_PREVIEW))
+    var future_x: float = FEEDBACK.projected_lane_x(current_x,lateral_speed,eta)
     return absf(future_x-obstacle_x) < LANE_THREAT_RADIUS
 
 # Readable physical timing cues use the SAME deterministic clock as the
@@ -281,9 +307,8 @@ func animate(elapsed: float) -> void:
         var sign_text: String = EVENT_NAMES[biome]+" / "+cue
         if signs[i].text != sign_text:
             signs[i].text = sign_text
-        signs[i].modulate = EVENT_COLORS[biome].lerp(
-            Color("#b7f5cb"),0.36 if cue == "OPEN" else 0.0)
-        signs[i].modulate.a = 0.86 if rising else 0.47
+        signs[i].modulate = Color("#b7f5cb") if cue == "OPEN" else EVENT_COLORS[biome]
+        signs[i].modulate.a = 0.92 if biome == 2 else (0.86 if rising else 0.47)
 
 func reset_round() -> void:
     awarded.clear()
@@ -297,18 +322,19 @@ func reset_round() -> void:
         ring_flash_strength[i] = 0.0
     animate(0.0)
 
-func event_ahead(z: float) -> Dictionary:
+func event_ahead(z: float, downstream_limit := INF) -> Dictionary:
     var nearest: float = 24.0
     var result: Dictionary = {}
     for i in range(EVENT_Z.size()):
-        var distance: float = z-event_z(i)
-        if distance <= 0.0 or distance >= nearest:
+        var gate_z: float = event_z(i)
+        var distance := z-gate_z
+        if gate_z > downstream_limit or distance <= 0.0 or distance >= nearest:
             continue
         nearest = distance
         result = {"distance":maxi(0,int(round(distance))),
             "side":"LEFT" if side_at(i) < 0 else "RIGHT",
             "kind":EVENT_NAMES[biome],
-            "index":i, "z":event_z(i),
+            "index":i, "z":gate_z,
             "active":piston_up(i,clock),
             "phase":phase_at(i,clock)}
     return result

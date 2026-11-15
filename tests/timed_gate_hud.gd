@@ -2,6 +2,7 @@ extends SceneTree
 ## Phone-safe forecasts for all nine moving-gate layouts. Warnings use
 ## the real physical piston's future state and sound at most once per gate.
 const DIRECTOR = preload("res://scripts/race_director.gd")
+const ROUTE = preload("res://scripts/shortcut_route.gd")
 
 func _initialize() -> void:
     call_deferred("_verify")
@@ -124,8 +125,11 @@ func _verify() -> void:
             assert(label.text.contains("1.1s"),
                 "Arrival forecast should use measured speed and distance")
             if biome == 2:
-                assert(label.text.contains("EST. BLOCKED"),
-                    "Forge should warn about future piston height, not current phase")
+                var bypass := "LEFT" if actual["side"] == "RIGHT" else "RIGHT"
+                assert(label.text.contains("EST. BLOCKED") and label.text.contains("GO "+bypass),
+                    "Forge should show the clear side of a piston that blocks at arrival")
+                assert(not game.ui.biome_lane_label.visible,
+                    "An imminent piston warning has priority over vent advice")
             assert(game.audio.warned_timed_gates.has(gate_index),
                 "One audio danger cue must sound as the moving gate approaches")
             game.ui.label_timer = 0.25
@@ -195,6 +199,8 @@ func _verify() -> void:
             game.ui.update_hud()
             assert(not label.visible,
                 "Do not clutter the HUD with hazards beyond the lookahead")
+            if biome != 0:
+                _verify_biome_lane(game,biome)
             game.return_to_menu()
             assert(not game.ui.hud_layer.visible)
     game.queue_free()
@@ -202,5 +208,71 @@ func _verify() -> void:
         await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_timed_hud_career.cfg"))
-    print("TIMED_HUD_PASS: 9 layouts, actual lane intersections, quiet safe lines, future Forge timing and bounded drift")
+    print("TIMED_HUD_PASS: 9 layouts, directional piston warnings, Glacier grip, Forge vents and route-aware bridge cues")
     quit(0)
+
+func _verify_biome_lane(game: Node3D, biome: int) -> void:
+    var mechanics: Node3D = game.course_mechanics
+    var label: Label = game.ui.biome_lane_label
+    assert(label.mouse_filter == Control.MOUSE_FILTER_IGNORE)
+    assert(label.anchor_top >= game.ui.race_moment_label.anchor_bottom)
+    var first: Vector3 = mechanics.zones[0].global_position
+    var position := first+Vector3(0.0,0.55,12.0)
+    var velocity := Vector3(0.0,0.0,-12.0)
+    var zone_side := "LEFT" if mechanics.lane_offset(0,biome,mechanics.variation) < 0.0 else "RIGHT"
+    var alternate := "LEFT" if zone_side == "RIGHT" else "RIGHT"
+    if biome == 1:
+        assert(mechanics.zones[0].has_node("IceLaneEdgesAndChevrons"))
+        _update_at(game,position,velocity)
+        assert(label.visible and label.text.contains("ICE "+zone_side) and
+            label.text.contains("STEER GENTLY"))
+        position.x = game.track_center_at(first.z)
+        _update_at(game,position,velocity)
+        assert(label.visible and label.text.contains("GRIP "+alternate))
+        position.x = first.x-2.0
+        assert(mechanics.upcoming_lane(position,Vector3(5,0,-12),INF)["on_line"],
+            "Lateral drift must forecast ice contact")
+    else:
+        assert(mechanics.zones[0].has_node("VentFootprint"))
+        assert(game.race_director.obstacles[0].has_node("PistonSteelCap"))
+        # The vent is cool on approach, then ignites before the marble
+        # reaches the edge of its circular collision footprint.
+        mechanics.race_clock = 4.25
+        game.race_time = 1.45
+        _update_at(game,position,velocity)
+        assert(label.visible and label.text.contains("DODGE "+alternate))
+        game.net.role = "client"
+        _update_at(game,position,velocity)
+        assert(label.visible and label.text.contains("EST. COOL"),
+            "Clients forecast from the replicated race time")
+        game.net.role = "offline"
+        mechanics.race_clock = 1.45
+        _update_at(game,position,velocity)
+        assert(label.visible and label.text.contains("EST. COOL"))
+        mechanics.race_clock = 3.83
+        _update_at(game,position,velocity)
+        assert(label.visible and label.text.contains("DODGE "+alternate),
+            "Warn when a cool vent ignites during the crossing")
+        position.x = game.track_center_at(first.z)
+        _update_at(game,position,velocity)
+        assert(label.visible and label.text.contains("LINE CLEAR"))
+    var second: Vector3 = mechanics.zones[1].global_position
+    var bypass: Vector3 = game.shortcut_route.point_at(second.z+3.0)
+    _update_at(game,bypass+Vector3.UP,velocity)
+    assert(game.ui.shortcut_label.text.contains("MERGE") and not label.visible,
+        "The deck bypasses ice and vents on the main track")
+    assert(mechanics.upcoming_lane(bypass,velocity,ROUTE.EXIT_Z).is_empty())
+    var next_gate_z: float = game.race_director.event_z(1)
+    if next_gate_z > ROUTE.EXIT_Z-24.0:
+        var merge: Vector3 = game.shortcut_route.point_at(ROUTE.EXIT_Z+2.0)
+        _update_at(game,merge+Vector3.UP,velocity)
+        assert(game.ui.timed_gate_label.visible,
+            "A warning after the merge remains relevant while still on the bridge")
+    _update_at(game,Vector3(0,0,2),velocity)
+    assert(not label.visible,"No surface cue outside the speed-scaled lookahead")
+
+func _update_at(game: Node3D, position: Vector3, velocity: Vector3) -> void:
+    game.player.global_position = position
+    game.player.linear_velocity = velocity
+    game.ui.label_timer = 0.25
+    game.ui.update_hud()

@@ -4,9 +4,11 @@ Original **3D Android marble-racing game** inspired by the look and mechanics sh
 
 Independent implementation in **Godot 4.5.1**, focused on real mobile playability, physics, and stylized toy-table graphics. No proprietary material from the reference game is redistributed.
 
-## Current state: Android QA build (v1.42.0-rc, versionCode 56)
+## Current state: Android QA build (v1.43.0-rc, versionCode 57)
 
 **Playable scope (October 2026):** three visually differentiated 3D worlds with physical elevation changes, nine repeatable obstacle layouts, forty individually simulated glass marbles, real banked and elevated side-route shortcuts, six player perks, progression, ghost comparisons and optional online races. Autonomous opponents use deterministic physical steering, real route choices, anticipatory passing and forecasts of moving hazards; human steering stays entirely manual. The phone HUD previews real course geometry and estimates when Forge pistons will be open or blocked on arrival, with a nonrepeating audio danger cue.
+
+Glacier marks the real low-friction strips and previews the grippy side of the lane. Forge forecasts physical vent crossings and gives the direction to pass a piston when it will block the chosen line. All three circuits now mark the actual bridge opening, and bypassed main-track hazards are filtered from the HUD.
 
 Woodworks opens with **first-race steering and boost guidance** that follows the real race. A faceted turbo pickup, distinct signs for the main track and precision bridge, and high-contrast sweeping-arm inlays mark the opening decisions. Solo Woodworks pickups are positioned for the local track geometry. Online pickup locations remain compatible with prior builds.
 

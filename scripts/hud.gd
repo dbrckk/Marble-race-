@@ -70,6 +70,7 @@ var checkpoint_label: Label
 var hazard_label: Label
 var timed_gate_label: Label
 var rare_item_label: Label
+var biome_lane_label: Label
 var shortcut_label: Label
 var woodworks_guide_label: Label
 var woodworks_guide_seen := false
@@ -936,7 +937,18 @@ func _build_race_hud() -> void:
     rare_item_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
     rare_item_label.visible = false
     hud_layer.add_child(rare_item_label)
-    for cue in [hazard_label,shortcut_label,timed_gate_label,rare_item_label]:
+    biome_lane_label = _text("",17,Color("#b5eeff"))
+    biome_lane_label.name = "SurfaceLanePreview"
+    biome_lane_label.anchor_left = 0.27
+    biome_lane_label.anchor_right = 0.73
+    biome_lane_label.anchor_top = 0.50
+    biome_lane_label.anchor_bottom = 0.548
+    biome_lane_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    biome_lane_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+    biome_lane_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    biome_lane_label.hide()
+    hud_layer.add_child(biome_lane_label)
+    for cue in [hazard_label,shortcut_label,timed_gate_label,rare_item_label,biome_lane_label]:
         cue.add_theme_color_override("font_outline_color",Color("#121820"))
         cue.add_theme_constant_override("outline_size",5)
     position_feedback = _text("",21,Color("#a7f0d8"))
@@ -1148,9 +1160,14 @@ PERK: %s   ·   BOOST %d%%" % [
         game.track_title(),game.player_rank(),seconds/60,seconds%60,percentage,
         game.selected_perk.to_upper(),int(game.boost_energy*100.0)]
     pause_progress.value = percentage
-    var upcoming: Dictionary = game.upcoming_hazard(game.player.global_position.z) if is_instance_valid(game.player) else {}
+    var upcoming: Dictionary = {}
+    if is_instance_valid(game.player):
+        var at: Vector3 = game.player.global_position
+        var route: Dictionary = game.shortcut_route.shortcut_hint(at)
+        var downstream_limit: float = SHORTCUT_ROUTE.EXIT_Z if route.get("mode","") == "merge" else INF
+        upcoming = game.upcoming_hazard(at.z,downstream_limit)
     pause_obstacle_hint.text = (
-        "NEXT: %s EDGE CLOSES IN %d m" % [upcoming["side"],upcoming["distance"]]
+        "NEXT: %s %s  ·  %d m" % [upcoming.get("kind","EDGE"),upcoming["side"],upcoming["distance"]]
         if not upcoming.is_empty() else "READ THE COURSE  ·  CHOOSE YOUR LINE"
     )
     pause_layer.visible = true
@@ -1288,6 +1305,14 @@ func show_perks() -> void:
             course_strategy_label.text += (
                 "\nSTAY ON THE MAIN TRACK OR TAKE THE RIGHT BRIDGE."
                 + " CENTER ALL THREE BRIDGE GATES FOR A DASH.")
+        elif game.selected_track == 1:
+            course_strategy_label.text += (
+                "\nBLUE STRIPS ARE SLIPPERY. KEEP TO THE OPEN LANE FOR GRIP"
+                + " OR HOLD YOUR LINE THROUGH THE ICE. THE BRIDGE FORKS LEFT.")
+        else:
+            course_strategy_label.text += (
+                "\nTAKE THE PISTON LANE WHEN OPEN OR PASS ON ITS OTHER SIDE."
+                + " WATCH THE VENT FORECAST. THE BRIDGE FORKS RIGHT.")
     if is_instance_valid(perk_scroll):
         perk_scroll.scroll_vertical = 0
     perks_layer.visible = true
@@ -1317,6 +1342,7 @@ func show_race_ui() -> void:
         timed_gate_label.visible = false
     if is_instance_valid(rare_item_label):
         rare_item_label.visible = false
+    biome_lane_label.hide()
     if get_tree().paused:
         get_tree().paused = false
     _hide_all()
@@ -1470,12 +1496,11 @@ func update_hud() -> void:
     boost_progress.value = game.boost_energy*100.0
     var route_hint: Dictionary = game.shortcut_route.shortcut_hint(
         game.player.global_position) if is_instance_valid(game.shortcut_route) else {}
-    var on_woodworks_bridge: bool = game.selected_track == 0 and route_hint.get("mode","") == "merge"
-    var hazard: Dictionary = game.upcoming_hazard(game.player.global_position.z)
+    var downstream_limit: float = SHORTCUT_ROUTE.EXIT_Z if route_hint.get("mode","") == "merge" else INF
+    var hazard: Dictionary = game.upcoming_hazard(game.player.global_position.z,downstream_limit)
     # Timed events have their own forecast, so do not show two duplicate
     # hazard banners while also preserving warnings for physical edge gates.
-    hazard_label.visible = not hazard.is_empty() and not hazard.has("index") and (
-        not on_woodworks_bridge or float(hazard["z"]) <= SHORTCUT_ROUTE.EXIT_Z)
+    hazard_label.visible = not hazard.is_empty() and not hazard.has("index")
     if hazard_label.visible:
         var metres: float = float(hazard["distance"])
         var approach: float = maxf(1.25,-game.player.linear_velocity.z)
@@ -1493,13 +1518,12 @@ func update_hud() -> void:
     # Predicted *arrival* timing uses the same deterministic physical hazard
     # timeline as the server, never the piston's misleading current state.
     var moving_event: Dictionary = game.race_director.event_ahead(
-        game.player.global_position.z) if is_instance_valid(
+        game.player.global_position.z,downstream_limit) if is_instance_valid(
         game.race_director) else {}
-    timed_gate_label.visible = game.race_state == "RACING" and not moving_event.is_empty() and (
-        not on_woodworks_bridge or float(moving_event["z"]) <= SHORTCUT_ROUTE.EXIT_Z) and (
-        float(moving_event.get("distance",999.0)) <= (24.0 if game.selected_track == 0 else 21.0))
+    timed_gate_label.visible = game.race_state == "RACING" and not moving_event.is_empty()
+    var urgent_gate_eta := INF
     if timed_gate_label.visible:
-        var gate_distance: float = float(moving_event["distance"])
+        var gate_distance: float = game.player.global_position.z-float(moving_event["z"])
         var gate_eta: float = gate_distance/maxf(
             2.0,-game.player.linear_velocity.z)
         var gate_id: int = int(moving_event["index"])
@@ -1516,10 +1540,13 @@ func update_hud() -> void:
                 game.player.global_position.x,game.player.linear_velocity.x))
         var gate_side: String = str(moving_event["side"])
         var lane_verdict: String = "DODGE!" if player_threatened else "LINE CLEAR"
+        if player_threatened and gate_eta <= 1.45:
+            urgent_gate_eta = gate_eta
         if game.selected_track == 2:
+            var bypass := "LEFT" if gate_side == "RIGHT" else "RIGHT"
+            var action := "DODGE! GO "+bypass if player_threatened else lane_verdict
             timed_gate_label.text = "FORGE PISTON %s  •  EST. %s  •  %s  •  %.1fs" % [
-                gate_side,"BLOCKED" if projected_blocking else "OPEN",
-                lane_verdict,gate_eta]
+                gate_side,"BLOCKED" if projected_blocking else "OPEN",action,gate_eta]
         else:
             timed_gate_label.text = "%s %s  •  %s  •  %dm / %.1fs" % [
                 str(moving_event["kind"]),gate_side,lane_verdict,
@@ -1529,6 +1556,7 @@ func update_hud() -> void:
                 Color("#a1edcc") if not player_threatened else Color("#f6d49b")))
         if gate_eta <= 2.20 and gate_eta >= 0.25:
             game.audio.warn_timed_gate(gate_id,player_threatened)
+    _update_biome_lane(downstream_limit,urgent_gate_eta)
     # Predict the next still-available, immediate-effect item. Clients
     # consult their local server-confirmed visibility; AI never receive UI.
     var next_item: Dictionary = game.race_items.nearest_available(
@@ -1550,11 +1578,10 @@ func update_hud() -> void:
     shortcut_label.visible = not route_hint.is_empty()
     if not route_hint.is_empty():
         if str(route_hint["mode"]) == "fork":
-            if game.selected_track == 0:
-                shortcut_label.text = "MAIN TRACK ↑   /   SHORTCUT BRIDGE →  •  %dm" % int(route_hint["distance"])
-            else:
-                shortcut_label.text = "%s FOR SHORTCUT  •  %dm" % [
-                    str(route_hint["side"]),int(route_hint["distance"])]
+            var bridge_text := "← ICE SHORTCUT" if route_hint["side"] == "LEFT" else (
+                "FORGE SHORTCUT →" if game.selected_track == 2 else "SHORTCUT BRIDGE →")
+            shortcut_label.text = "MAIN TRACK ↑   /   %s  •  %dm" % [
+                bridge_text,int(route_hint["distance"])]
             shortcut_label.add_theme_color_override("font_color",Color("#ffdda0"))
         else:
             shortcut_label.text = "MERGE %s  •  %dm" % [
@@ -1567,6 +1594,31 @@ func update_hud() -> void:
     if place > 3:
         table += "%02d  YOU ★" % place
     leaderboard.text = table
+
+func _update_biome_lane(downstream_limit: float, urgent_gate_eta: float) -> void:
+    biome_lane_label.hide()
+    if game.race_state != "RACING" or not is_instance_valid(game.course_mechanics):
+        return
+    var hint: Dictionary = game.course_mechanics.upcoming_lane(
+        game.player.global_position,game.player.linear_velocity,downstream_limit)
+    if hint.is_empty() or (is_finite(urgent_gate_eta) and (
+        not hint["on_line"] or float(hint["eta"]) >= urgent_gate_eta)):
+        return
+    var cue: String
+    var tint := Color("#b8ecff")
+    if game.selected_track == 1:
+        cue = "STEER GENTLY" if hint["on_line"] else "GRIP %s" % hint["other"]
+        biome_lane_label.text = "ICE %s  •  %s  •  %dm" % [hint["side"],cue,hint["distance"]]
+    else:
+        tint = Color("#ffc39a")
+        if hint["on_line"]:
+            cue = "DODGE %s" % hint["other"]
+            tint = Color("#ff9b85")
+        else:
+            cue = "LINE CLEAR" if hint["active"] else "EST. COOL"
+        biome_lane_label.text = "VENT %s  •  %s  •  %dm" % [hint["side"],cue,hint["distance"]]
+    biome_lane_label.add_theme_color_override("font_color",tint)
+    biome_lane_label.show()
 
 func show_course_event(kind: String) -> void:
     var labels := {

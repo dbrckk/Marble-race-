@@ -373,18 +373,19 @@ func set_track(index: int) -> bool:
     _apply_graphics_quality()
     return true
 
-func upcoming_hazard(at_z: float) -> Dictionary:
-    # Cached tiny index; UI polls at 9 Hz. Only genuine physical rail gates.
+func upcoming_hazard(at_z: float, downstream_limit := INF) -> Dictionary:
+    # An exterior bridge bypasses main-track hazards upstream of its merge.
     var nearest := 25.0
     var notice: Dictionary = {}
     for hazard in hazard_beacons:
-        var distance: float = at_z - float(hazard["z"])
-        if distance >= -1.0 and distance < nearest:
+        var hazard_z := float(hazard["z"])
+        var distance := at_z-hazard_z
+        if hazard_z <= downstream_limit and distance >= -1.0 and distance < nearest:
             nearest = distance
             notice = {"side":hazard["side"],"distance":maxi(0,int(round(distance))),
                 "z":hazard["z"]}
     if is_instance_valid(race_director):
-        var event: Dictionary = race_director.event_ahead(at_z)
+        var event: Dictionary = race_director.event_ahead(at_z,downstream_limit)
         if not event.is_empty() and float(event["distance"]) < nearest:
             notice = event
     return notice

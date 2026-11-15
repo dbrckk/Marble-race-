@@ -110,7 +110,7 @@ func _run() -> void:
         var fork_hint: Dictionary = road.shortcut_hint(Vector3(
             game.track_center_at(-32.0),game.height_at(-32.0),-32.0))
         assert(fork_hint.get("mode","") == "fork" and
-            fork_hint.get("distance",-1) == (20 if course == 0 else 16) and
+            fork_hint.get("distance",-1) == 20 and
             fork_hint.get("side","") == ("RIGHT" if side > 0 else "LEFT"),
             "Fork hint needs reliable direction and distance")
         var merge_hint: Dictionary = road.shortcut_hint(middle)

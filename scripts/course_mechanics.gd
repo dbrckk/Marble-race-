@@ -12,9 +12,11 @@ const LANE_PATTERNS := [
     [-3.3,-3.3,3.3,3.3,-3.3]
 ]
 const TRACK_PATH = preload("res://scripts/track_path.gd")
+const FEEDBACK = preload("res://scripts/race_feedback.gd")
 const TRACK_COLORS := [Color("#e6b56e"), Color("#8beaff"), Color("#ff8759")]
 const ZONE_WIDTH := 3.4
 const ZONE_LENGTH := 6.5
+const VENT_RADIUS_SQUARED := 2.45
 const LAVA_CYCLE := 4.8
 const LAVA_ACTIVE := 1.35
 const VENT_WINDUP := 0.78
@@ -54,7 +56,7 @@ func setup(owner: Node3D, course_id: int, next_layout: int = 0) -> void:
         if track_id == 2:
             _vent_visual(zone,i)
         else:
-            _ribbon_visual(zone,i)
+            _ribbon_visual(zone)
             if track_id == 1:
                 _ice_collision(zone)
     reset_round()
@@ -62,7 +64,43 @@ func setup(owner: Node3D, course_id: int, next_layout: int = 0) -> void:
 func _kind() -> String:
     return ["speed","ice","vent"][track_id]
 
-func _ribbon_visual(zone: Node3D, index: int) -> void:
+func upcoming_lane(at: Vector3, velocity: Vector3, downstream_limit: float) -> Dictionary:
+    if track_id == 0 or not at.is_finite() or not velocity.is_finite():
+        return {}
+    var speed := maxf(2.0,-velocity.z)
+    var reach := clampf(speed*1.6,12.0,27.0)
+    var half_depth: float = sqrt(VENT_RADIUS_SQUARED) if track_id == 2 else ZONE_LENGTH*0.5
+    for index in range(zones.size()):
+        var center := zones[index].global_position
+        # Use the leading edge for the display and the center for lateral drift.
+        var distance := at.z-center.z
+        var entry := maxf(0.0,distance-half_depth)
+        if center.z > downstream_limit or distance < -half_depth or entry > reach:
+            continue
+        var lane_x := FEEDBACK.projected_lane_x(at.x,velocity.x,maxf(0.0,distance)/speed)
+        var left := lane_offset(index,track_id,variation) < 0.0
+        var hint := {"side":"LEFT" if left else "RIGHT", "other":"RIGHT" if left else "LEFT",
+            "distance":ceili(entry), "eta":entry/speed}
+        if track_id == 1:
+            hint["on_line"] = absf(lane_x-center.x) < ZONE_WIDTH*0.5
+        else:
+            var clock: float = game.race_time if game.net.role == "client" else race_clock
+            var lateral := absf(lane_x-center.x)
+            var crossing: float = sqrt(maxf(0.0,VENT_RADIUS_SQUARED-lateral*lateral))
+            hint["active"] = _vent_crossing_active(index,clock,speed,distance,half_depth)
+            hint["on_line"] = crossing > 0.0 and distance >= -crossing and (
+                _vent_crossing_active(index,clock,speed,distance,crossing))
+        return hint
+    return {}
+
+func _vent_crossing_active(index: int, clock: float, speed: float,
+        distance: float, half_depth: float) -> bool:
+    var enter := maxf(0.0,(distance-half_depth)/speed)
+    var leave := maxf(enter,(distance+half_depth)/speed)
+    var phase := fposmod(clock+enter+float(index)*1.19,LAVA_CYCLE)
+    return phase < LAVA_ACTIVE or leave-enter >= LAVA_CYCLE-phase
+
+func _ribbon_visual(zone: Node3D) -> void:
     var art := MeshInstance3D.new()
     var mesh := BoxMesh.new()
     mesh.size = Vector3(ZONE_WIDTH,0.055,ZONE_LENGTH)
@@ -79,6 +117,9 @@ func _ribbon_visual(zone: Node3D, index: int) -> void:
     art.material_override = material
     art.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     zone.add_child(art)
+    if track_id == 1:
+        _ice_markings(zone,art.rotation.x)
+        return
     for stripe in range(3):
         var stripe_art := MeshInstance3D.new()
         var line := BoxMesh.new()
@@ -87,13 +128,41 @@ func _ribbon_visual(zone: Node3D, index: int) -> void:
         stripe_art.position = Vector3(0.0,0.09,2.15-float(stripe)*2.12)
         stripe_art.rotation.x = -atan(game.track_grade_at(zone.position.z+stripe_art.position.z))
         var detail := StandardMaterial3D.new()
-        detail.albedo_color = Color("#f5faf0") if track_id == 1 else Color("#fff2b6")
+        detail.albedo_color = Color("#fff2b6")
         detail.emission_enabled = true
         detail.emission = detail.albedo_color
         detail.emission_energy_multiplier = 0.28
         stripe_art.material_override = detail
         stripe_art.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
         zone.add_child(stripe_art)
+
+func _ice_markings(zone: Node3D, pitch: float) -> void:
+    var ink := StandardMaterial3D.new()
+    ink.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    ink.albedo_color = Color("#183b61")
+    var strip := BoxMesh.new()
+    strip.size = Vector3.ONE
+    var batch := MultiMesh.new()
+    batch.transform_format = MultiMesh.TRANSFORM_3D
+    batch.mesh = strip
+    batch.instance_count = 8
+    for i in range(2):
+        var side := -1.0 if i == 0 else 1.0
+        var basis := Basis().scaled(Vector3(0.095,0.018,ZONE_LENGTH-0.16))
+        batch.set_instance_transform(i,Transform3D(basis,
+            Vector3(side*(ZONE_WIDTH*0.5-0.13),0.0,0.0)))
+        for row in range(3):
+            var arm := Basis(Vector3.UP,side*0.68).scaled(Vector3(0.68,0.019,0.08))
+            batch.set_instance_transform(2+i*3+row,Transform3D(arm,
+                Vector3(side*0.23,0.0,2.1-float(row)*2.1)))
+    var marks := MultiMeshInstance3D.new()
+    marks.name = "IceLaneEdgesAndChevrons"
+    marks.multimesh = batch
+    marks.material_override = ink
+    marks.position.y = 0.085
+    marks.rotation.x = pitch
+    marks.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    zone.add_child(marks)
 
 func _ice_collision(zone: Node3D) -> void:
     # A very shallow, low-friction physical slab; no tall edge blocking 40 racers.
@@ -128,6 +197,19 @@ func _vent_visual(zone: Node3D, index: int) -> void:
     rim.material_override = metal
     rim.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     zone.add_child(rim)
+    var grate := CylinderMesh.new()
+    grate.top_radius = sqrt(VENT_RADIUS_SQUARED)
+    grate.bottom_radius = grate.top_radius
+    grate.height = 0.055
+    grate.radial_segments = 24
+    var surround := MeshInstance3D.new()
+    surround.name = "VentFootprint"
+    surround.mesh = grate
+    surround.material_override = metal
+    surround.rotation.x = -atan(game.track_grade_at(zone.position.z))
+    surround.position.y = 0.045
+    surround.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    zone.add_child(surround)
     var flame := MeshInstance3D.new()
     flame.name = "FlameWarning"
     var cone := CylinderMesh.new()
@@ -206,7 +288,7 @@ func tick(delta: float, racers: Array[RigidBody3D], net: Node) -> void:
         var zone_position: Vector3 = zone.global_position
         # The long ribbons and circular forge vents are bounded in Z. Most
         # of the forty racers are nowhere near any of the five zones.
-        var extent_z: float = sqrt(2.45) if track_id == 2 else ZONE_LENGTH*0.5
+        var extent_z: float = sqrt(VENT_RADIUS_SQUARED) if track_id == 2 else ZONE_LENGTH*0.5
         for marble in racers:
             if not is_instance_valid(marble) or marble.finished or marble.eliminated or marble.freeze:
                 continue
@@ -218,7 +300,7 @@ func tick(delta: float, racers: Array[RigidBody3D], net: Node) -> void:
                 continue
             var within := absf(offset.x) < ZONE_WIDTH*0.5
             if track_id == 2:
-                within = offset.x*offset.x+offset.z*offset.z < 2.45
+                within = offset.x*offset.x+offset.z*offset.z < VENT_RADIUS_SQUARED
             if not within:
                 continue
             var key := "%d:%d" % [i,marble.racer_id]
