@@ -23,12 +23,20 @@ func _run() -> void:
             assert(chokepoints >= 4,"Advanced courses require inward chicanes")
         game.start_race("Grip Tape")
         game.countdown = 0.01
+        # This check measures course traversability. A single human DNF
+        # must not stop the other 39 racers before they reach the line.
+        # The separate end-to-end test covers actual result-screen timing.
         var elapsed := 0
-        for frame in range(6300):
+        while game.race_state == "COUNTDOWN":
             await physics_frame
+        game.set_process(false)
+        for frame in range(7200):
+            game.race_time = float(frame)/60.0
+            await physics_frame
+            elapsed = frame+1
             if game.race_state == "RESULTS":
-                elapsed=frame
                 break
+        game.set_process(true)
         var finished=game.racer_finish_order.size()
         var candidates: int = 0
         for racer in game.racers:
@@ -43,7 +51,7 @@ func _run() -> void:
         all_results.append(finished)
         print("COURSE",level,"finished",finished,"player_z",game.player.position.z,"seconds",game.race_time,
             "result",game.race_state,"elapsed_frames",elapsed)
-        assert(finished > 0,"Circuit must remain physically finishable")
+        assert(finished >= 30,"Most of the 40-marble field must physically finish each circuit")
         game.return_to_menu()
     print("COURSE_PASS:",all_results)
     DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_course_career.cfg"))
