@@ -21,9 +21,8 @@ func _go() -> void:
             await physics_frame
         assert(game.race_state=="RESULTS","Race must reach results")
         assert(game.result_saved,"Race result not stored")
-        if track == 1:
-            assert(game.player.finished,
-                "The unattended Glacier racer must escape the repeated crest wedge and finish")
+        assert(game.player.finished,
+            "The unattended racer must escape repeated wedges and finish "+game.track_title())
         assert(game.career.starts==track+1)
         print("END",track,"time",game.race_time,"rank",game.player_rank(),"finish",game.player.finished,
             "player_z",game.player.position.z,"finishers",game.racer_finish_order.size())

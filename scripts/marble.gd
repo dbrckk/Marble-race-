@@ -369,12 +369,13 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
         var effort := minf(2.8,1.0+float(recovery_count)*0.35)
         var impulse := Vector3(side_direction*3.6*effort,1.4*effort,-6.5*effort)
         if recovery_count >= 3 and is_player and absf(steering) < 0.22 and not network_controlled and (
-            is_instance_valid(course_owner) and course_owner.selected_track == 1 and
+            is_instance_valid(course_owner) and course_owner.selected_track > 0 and
             not course_owner.net.is_active() and absf(relative_x) > 2.4):
-            # Repeated forward kicks can keep a solo marble wedged between
-            # Glacier's closing bridge, a crest and the outer baffle.
-            # Unload the forward contact first and push toward the deck center.
-            impulse = Vector3(-signf(relative_x)*6.3,2.1,0.0)
+            # Repeated forward kicks can pin a marble against a rail and baffle.
+            # Forge's staggered blocks also need a brief backward release.
+            var release_z := 4.0 if course_owner.selected_track == 2 else 0.0
+            var lift := 5.8 if course_owner.selected_track == 2 else 2.1
+            impulse = Vector3(-signf(relative_x)*6.3,lift,release_z)
         apply_central_impulse(impulse*mass)
         stuck_seconds = 0.0
         recovery_count += 1

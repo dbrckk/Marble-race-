@@ -10,7 +10,7 @@ Independent implementation in **Godot 4.5.1**, focused on real mobile playabilit
 
 Glacier marks the real low-friction strips and previews the grippy side of the lane. In solo, a marble repeatedly wedged near the edge now gets a physical inward recovery impulse after the usual attempts have failed. Forge forecasts physical vent crossings and gives the direction to pass a piston when it will block the chosen line. All three circuits now mark the actual bridge opening, and bypassed main-track hazards are filtered from the HUD.
 
-In solo races, the four instant human-only pickups now have authored lines on Glacier and Forge. Their distinct silhouettes, shared pre-race map positions and speed-scaled previews help distinguish the four effects. The forecast yields to urgent moving-gate warnings.
+In solo races, the four instant human-only pickups now have authored lines on Glacier and Forge. Their distinct silhouettes, shared pre-race map positions and speed-scaled previews help distinguish the four effects. The forecast yields to earlier urgent moving-gate warnings. A repeatedly wedged solo marble on Forge can now back away from the rail and slalom with a physical recovery impulse.
 
 Woodworks opens with **first-race steering and boost guidance** that follows the real race. A faceted turbo pickup, distinct signs for the main track and precision bridge, and high-contrast sweeping-arm inlays mark the opening decisions. Solo Woodworks pickups are positioned for the local track geometry. Online pickup locations remain compatible with prior builds.
 
