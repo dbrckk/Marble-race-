@@ -381,7 +381,8 @@ func upcoming_hazard(at_z: float) -> Dictionary:
         var distance: float = at_z - float(hazard["z"])
         if distance >= -1.0 and distance < nearest:
             nearest = distance
-            notice = {"side":hazard["side"],"distance":maxi(0,int(round(distance)))}
+            notice = {"side":hazard["side"],"distance":maxi(0,int(round(distance))),
+                "z":hazard["z"]}
     if is_instance_valid(race_director):
         var event: Dictionary = race_director.event_ahead(at_z)
         if not event.is_empty() and float(event["distance"]) < nearest:

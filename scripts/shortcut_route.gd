@@ -5,6 +5,7 @@ extends Node3D
 const ENTRY_SECTION := 5
 const EXIT_SECTION := 9
 const ENTRY_Z := -48.0
+const ENTRY_PORTAL_Z := -52.0
 const EXIT_Z := -104.0
 const OUTER_START := -60.0
 const OUTER_END := -92.0
@@ -309,6 +310,8 @@ func _signage(color: Material) -> void:
     var entry := Label3D.new()
     entry.name = "ShortcutEntranceArrow"
     entry.text = "LEFT  /  SHORTCUT" if side < 0 else "RIGHT  /  SHORTCUT"
+    if course_id == 0:
+        entry.text = "PRECISION BRIDGE  →"
     entry.font_size = 48
     entry.pixel_size = 0.013
     entry.outline_size = 8
@@ -318,6 +321,13 @@ func _signage(color: Material) -> void:
         stage.track_center_at(ENTRY_Z+4.5)+float(side)*4.7,
         stage.height_at(ENTRY_Z+4.5)+3.1,ENTRY_Z+4.5)
     add_child(entry)
+    if course_id == 0:
+        var main_sign := entry.duplicate() as Label3D
+        main_sign.name = "WoodworksMainTrackSign"
+        main_sign.text = "MAIN TRACK  ↑"
+        main_sign.modulate = Color("#e4edf0")
+        main_sign.position.x = stage.track_center_at(entry.position.z)-1.9
+        add_child(main_sign)
     # Two readable overhead banners, visible before steering into a fork.
     var banner_marks: Array[Transform3D] = []
     for at_z in [ENTRY_Z+7.0,EXIT_Z+5.0]:
@@ -340,7 +350,13 @@ func _signage(color: Material) -> void:
     var boxes: Array[Transform3D] = []
     for i in range(4):
         var z: float = ENTRY_Z+5.4-float(i)*2.1
-        var x: float = stage.track_center_at(z)+float(side)*(4.4+float(i)*0.62)
+        var offset := 4.4+float(i)*0.62
+        if course_id == 0:
+            # Start inside the preceding edge shutter and reach the
+            # physical rail opening after that shutter is behind the racer.
+            z = ENTRY_PORTAL_Z+8.0-float(i)*2.0
+            offset = 2.1+float(i)*1.13
+        var x: float = stage.track_center_at(z)+float(side)*offset
         var shape := Basis().scaled(Vector3(0.78,0.06,0.24))
         boxes.append(Transform3D(shape,Vector3(x,stage.height_at(z)+0.09,z)))
     _batch("EntranceGuideStripes",boxes,color)
@@ -378,14 +394,15 @@ func recovery_center_at(location: Vector3) -> float:
 func shortcut_hint(location: Vector3) -> Dictionary:
     # HUD query; never changes gameplay state and requires no network traffic.
     var z: float = location.z
-    if z <= ENTRY_Z+36.0 and z > ENTRY_Z:
-        return {"mode":"fork","side":"LEFT" if side < 0 else "RIGHT",
-            "distance":maxi(0,int(round(z-ENTRY_Z)))}
     if z <= ENTRY_Z and z >= EXIT_Z:
         var relative_x: float = float(side)*(location.x-stage.track_center_at(z))
         if relative_x > 5.65 and absf(location.x-point_at(z).x) < WIDTH*0.5+1.7:
             return {"mode":"merge","side":"RIGHT" if side < 0 else "LEFT",
                 "distance":maxi(0,int(round(z-EXIT_Z)))}
+    var turn_z := ENTRY_PORTAL_Z if course_id == 0 else ENTRY_Z
+    if z <= ENTRY_Z+36.0 and z > turn_z:
+        return {"mode":"fork","side":"LEFT" if side < 0 else "RIGHT",
+            "distance":maxi(0,int(round(z-turn_z)))}
     return {}
 
 func reset_round() -> void:

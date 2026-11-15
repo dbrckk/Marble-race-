@@ -53,7 +53,8 @@ func kicker_marker(station: int, side: int) -> Vector2:
 func item_marker(index: int) -> Vector2:
     # Exactly the same absolute world-space placement as the collectible
     # mesh and its 3D pickup check in every one of the nine race layouts.
-    var position: Vector3 = RARE_ITEMS.placement_at(index,course,variation)
+    var solo: bool = not is_instance_valid(stage) or not stage.net.is_active()
+    var position: Vector3 = RARE_ITEMS.placement_at(index,course,variation,solo)
     return project(position.z,position.x)
 
 func zone_marker(index: int) -> Vector2:

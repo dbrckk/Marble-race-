@@ -3,6 +3,13 @@ extends Node3D
 ## Computer-controlled marbles never collect or activate an item.
 const ITEM_Z := [-28.0, -79.0, -128.0, -169.0]
 const ITEM_X := [-2.8, 2.8, -2.0, 2.0]
+# Woodworks solo: opening seam, approach to the banked crest,
+# passing zone between the pinball posts, then the final slalom.
+const WOODWORKS_ITEM_Z := [-21.7, -95.1, -129.4, -166.0]
+const WOODWORKS_ITEM_X := [
+    [-1.65, 1.65, -1.65], [2.20, 2.20, 2.20],
+    [-1.55, 1.85, -1.85], [1.45, -1.45, 1.45]
+]
 const PICKUP_RADIUS_SQUARED := 3.1
 # The physical shockwave is a true radial, same-deck interaction. Remote
 # clients only render the confirmed result; no client can apply its impulse.
@@ -37,13 +44,15 @@ static func kind_at(index: int, track: int) -> String:
 static func label_at(index: int, track: int) -> String:
     return ITEM_NAMES[posmod(index+clampi(track,0,2),ITEM_NAMES.size())]
 
-static func lane_offset(index: int, track: int, variation: int) -> float:
+static func lane_offset(index: int, track: int, variation: int, solo := true) -> float:
+    if track == 0 and solo:
+        return WOODWORKS_ITEM_X[index][posmod(variation,3)]
     return ITEM_X[posmod(index+clampi(track,0,2)+posmod(variation,3),ITEM_X.size())]
 
-static func placement_at(index: int, track: int, variation: int) -> Vector3:
-    # Pure geometry shared by physical world and Android pre-race map.
-    var z: float = ITEM_Z[index]
-    return Vector3(TRACK_PATH.center_at(z,track)+lane_offset(index,track,variation),
+static func placement_at(index: int, track: int, variation: int, solo := true) -> Vector3:
+    # Keep online coordinates compatible with deployed clients and servers.
+    var z: float = WOODWORKS_ITEM_Z[index] if track == 0 and solo else ITEM_Z[index]
+    return Vector3(TRACK_PATH.center_at(z,track)+lane_offset(index,track,variation,solo),
         TRACK_PATH.height_at(z,track)+1.05,z)
 
 func nearest_available(at: Vector3, racer_id: int, max_distance: float = 28.0) -> Dictionary:
@@ -64,8 +73,7 @@ func nearest_available(at: Vector3, racer_id: int, max_distance: float = 28.0) -
         var distance: float = at.z-pickup.position.z
         if distance < 0.0 or distance > max_distance:
             continue
-        var side: String = "LEFT" if lane_offset(i,game.selected_track,
-            game.built_variation) < 0.0 else "RIGHT"
+        var side := "LEFT" if pickup.position.x < game.track_center_at(pickup.position.z) else "RIGHT"
         return {"index":i, "distance":distance, "side":side,
             "kind":kind_at(i,game.selected_track),
             "label":label_at(i,game.selected_track)}
@@ -73,16 +81,16 @@ func nearest_available(at: Vector3, racer_id: int, max_distance: float = 28.0) -
 
 func setup(owner: Node3D, track: int, variation: int) -> void:
     game = owner
+    var crystal := SphereMesh.new()
+    crystal.radius = 0.48
+    crystal.height = 0.96
+    crystal.radial_segments = 4 if track == 0 else 16
+    crystal.rings = 1 if track == 0 else 8
     for i in range(ITEM_Z.size()):
         var pickup := Node3D.new()
         pickup.name = "RarePickup_%02d" % i
         var shell := MeshInstance3D.new()
-        var sphere := SphereMesh.new()
-        sphere.radius = 0.48
-        sphere.height = 0.96
-        sphere.radial_segments = 16
-        sphere.rings = 8
-        shell.mesh = sphere
+        shell.mesh = crystal
         var material := StandardMaterial3D.new()
         material.albedo_color = COLORS[(i + track) % COLORS.size()]
         material.metallic = 0.35
@@ -202,9 +210,11 @@ func reset_round() -> void:
     confirmed_pulses = 0
     if is_instance_valid(pulse_ring):
         pulse_ring.visible = false
-    for item in items:
-        if is_instance_valid(item):
-            item.visible = true
+    for i in range(items.size()):
+        var item := items[i]
+        item.position = placement_at(i,game.selected_track,game.built_variation,
+            not game.net.is_active())
+        item.visible = true
 
 func _is_human(marble: RigidBody3D, net: Node) -> bool:
     if net.role == "server":
@@ -223,7 +233,7 @@ func tick(delta: float, racers: Array[RigidBody3D], net: Node) -> void:
         if not is_instance_valid(pickup):
             continue
         pickup.rotation.y += delta * 1.8
-        pickup.position.y = game.height_at(ITEM_Z[i])+1.05+sin(clock*2.5+i)*0.16
+        pickup.position.y = game.height_at(pickup.position.z)+1.05+sin(clock*2.5+i)*0.16
         for marble in eligible_collectors:
             var key := "%d:%d" % [i,marble.racer_id]
             if used.has(key):

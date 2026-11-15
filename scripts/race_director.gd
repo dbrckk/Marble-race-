@@ -5,6 +5,7 @@ extends Node3D
 # Three physical gates remain; their placement varies by biome and layout.
 # All offsets are bounded away from shortcut entry and exit portals.
 const EVENT_Z := [-34.0,-118.0,-154.0]
+const VISUALS = preload("res://scripts/visuals.gd")
 const LAYOUT_OFFSETS := [[0.0,0.0,0.0],[-4.0,5.0,-4.0],[4.0,-5.0,4.0]]
 const BIOME_OFFSETS := [[0.0,0.0,0.0],[2.0,-2.0,3.0],[-2.0,3.0,-2.0]]
 const EVENT_NAMES := ["SWEEPING ARM","ICE SHUTTER","FORGE PISTON"]
@@ -58,8 +59,15 @@ func setup(owner: Node3D, track: int, layout: int) -> void:
     glow.emission_enabled = true
     glow.emission = EVENT_COLORS[biome]
     glow.emission_energy_multiplier = 0.65
-    var mesh := BoxMesh.new()
-    mesh.size = Vector3(BODY_WIDTH,BODY_HEIGHT,BODY_DEPTH)
+    var dimensions := Vector3(BODY_WIDTH,BODY_HEIGHT,BODY_DEPTH)
+    var box := BoxMesh.new()
+    box.size = dimensions
+    var mesh: Mesh = VISUALS.rounded_box(dimensions,0.11) if biome == 0 else box
+    var caution_paint := StandardMaterial3D.new()
+    caution_paint.albedo_color = Color("#f3c36b")
+    caution_paint.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    var band_mesh := BoxMesh.new()
+    band_mesh.size = Vector3(0.18,0.018,0.53)
     var ring_mesh := TorusMesh.new()
     ring_mesh.inner_radius = 0.88
     ring_mesh.outer_radius = 1.04
@@ -80,7 +88,7 @@ func setup(owner: Node3D, track: int, layout: int) -> void:
         var collider := CollisionShape3D.new()
         collider.name = "ActiveObstacleCollider"
         var shape := BoxShape3D.new()
-        shape.size = Vector3(BODY_WIDTH,BODY_HEIGHT,BODY_DEPTH)
+        shape.size = dimensions
         collider.shape = shape
         body.add_child(collider)
         var art := MeshInstance3D.new()
@@ -89,6 +97,21 @@ func setup(owner: Node3D, track: int, layout: int) -> void:
         art.material_override = metal
         art.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
         body.add_child(art)
+        if biome == 0:
+            var bands := MultiMesh.new()
+            bands.transform_format = MultiMesh.TRANSFORM_3D
+            bands.mesh = band_mesh
+            bands.instance_count = 3
+            for stripe in range(bands.instance_count):
+                var turn := Basis(Vector3.UP,0.38)
+                bands.set_instance_transform(stripe,Transform3D(turn,Vector3(
+                    (float(stripe)-1.0)*0.35,BODY_HEIGHT*0.5+0.006,0.0)))
+            var inlays := MultiMeshInstance3D.new()
+            inlays.name = "SweepingArmCautionBands"
+            inlays.multimesh = bands
+            inlays.material_override = caution_paint
+            inlays.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+            body.add_child(inlays)
         add_child(body)
         obstacles.append(body)
         var marker := MeshInstance3D.new()

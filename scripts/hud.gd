@@ -7,6 +7,8 @@ const RACE_MOMENTS = preload("res://scripts/race_moments.gd")
 const COURSE_BRIEFING = preload("res://scripts/course_briefing.gd")
 const PROGRESS_RADAR = preload("res://scripts/race_progress_radar.gd")
 const RARE_ITEMS = preload("res://scripts/race_items.gd")
+const SHORTCUT_ROUTE = preload("res://scripts/shortcut_route.gd")
+const WOODWORKS_GUIDE_LIMIT := 30.0
 const FONT_HEAVY = preload("res://assets/fonts/Rajdhani-Bold.ttf")
 const FONT_REGULAR = preload("res://assets/fonts/Rajdhani-Medium.ttf")
 const TEXT := Color("#fff1dc")
@@ -69,6 +71,11 @@ var hazard_label: Label
 var timed_gate_label: Label
 var rare_item_label: Label
 var shortcut_label: Label
+var woodworks_guide_label: Label
+var woodworks_guide_seen := false
+var woodworks_guide_active := false
+var woodworks_steered := false
+var woodworks_boosted := false
 var position_feedback: Label
 var race_moment_label: Label
 var speed_stripes: Array[ColorRect] = []
@@ -948,6 +955,17 @@ func _build_race_hud() -> void:
     race_moment_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
     race_moment_label.visible = false
     hud_layer.add_child(race_moment_label)
+    woodworks_guide_label = _small_panel_text("",19,
+        Rect2(0.26,0.501,0.48,0.047),HORIZONTAL_ALIGNMENT_CENTER)
+    woodworks_guide_label.name = "WoodworksDrivingGuide"
+    woodworks_guide_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    var guide_panel := woodworks_guide_label.get_parent() as PanelContainer
+    guide_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    var guide_style := _surface(Color("#19232f"),Color("#dbb478"),8)
+    guide_style.content_margin_top = 3
+    guide_style.content_margin_bottom = 3
+    guide_panel.add_theme_stylebox_override("panel",guide_style)
+    guide_panel.hide()
     # Four noninteractive screen streaks cost only four UI rectangles,
     # keep joystick/boost touch targets clear, and disappear in ECONOMY.
     var streak_x := [0.225,0.250,0.745,0.770]
@@ -1029,6 +1047,7 @@ func _load_controls_config() -> void:
     if settings.load("user://marble_settings.cfg") == OK:
         sensitivity_index = clampi(int(settings.get_value("controls","sensitivity",1)),0,2)
         left_handed = bool(settings.get_value("controls","left_handed",false))
+        woodworks_guide_seen = bool(settings.get_value("controls","woodworks_guide_seen",false))
     touch_controls.sensitivity = SENSITIVITIES[sensitivity_index]
     touch_controls.left_handed = left_handed
     sensitivity_button.text = "STEERING: " + ["SOFT","NORMAL","SHARP"][sensitivity_index]
@@ -1039,6 +1058,7 @@ func _save_controls_config() -> void:
     settings.load("user://marble_settings.cfg")
     settings.set_value("controls","sensitivity",sensitivity_index)
     settings.set_value("controls","left_handed",left_handed)
+    settings.set_value("controls","woodworks_guide_seen",woodworks_guide_seen)
     settings.save("user://marble_settings.cfg")
 
 func _sensitivity_pressed() -> void:
@@ -1268,6 +1288,10 @@ func show_perks() -> void:
             course_strategy_label.text += (
                 "\nSOLO: FOLLOW A RIVAL TO EARN DRAFT BOOST RECHARGE"
                 +"\nPRECISION: CLEANLY SKIM 1 / 2 / 3 MOVING GATES FOR BRONZE / SILVER / GOLD")
+        if game.selected_track == 0:
+            course_strategy_label.text += (
+                "\nSTAY ON THE MAIN TRACK OR TAKE THE RIGHT BRIDGE."
+                + " CENTER ALL THREE BRIDGE GATES FOR A DASH.")
     if is_instance_valid(perk_scroll):
         perk_scroll.scroll_vertical = 0
     perks_layer.visible = true
@@ -1276,6 +1300,13 @@ func show_race_ui() -> void:
     last_seen_rank = -1
     rank_toast_seconds = 0.0
     moment_remaining = 0.0
+    toast_remaining = 0.0
+    checkpoint_label.hide()
+    woodworks_guide_active = game.selected_track == 0 and not game.net.is_active() and (
+        not woodworks_guide_seen and game.career.finishes == 0)
+    woodworks_steered = false
+    woodworks_boosted = false
+    woodworks_guide_label.get_parent().hide()
     if is_instance_valid(race_radar):
         race_radar.reset()
     if is_instance_valid(race_moment_label):
@@ -1318,6 +1349,31 @@ func show_race_moment(title: String, duration: float = 1.1) -> void:
     race_moment_label.modulate.a = 1.0
     race_moment_label.visible = true
 
+func _update_woodworks_guide() -> void:
+    if not woodworks_guide_active or game.race_state != "RACING":
+        return
+    var panel := woodworks_guide_label.get_parent() as PanelContainer
+    if game.net.is_active() or game.player.finished or game.player.eliminated:
+        woodworks_guide_active = false
+        panel.hide()
+        return
+    if game.player.global_position.z <= SHORTCUT_ROUTE.ENTRY_PORTAL_Z:
+        woodworks_guide_active = false
+        panel.hide()
+        woodworks_guide_seen = true
+        _save_controls_config()
+        return
+    woodworks_steered = woodworks_steered or absf(game.steer) >= 0.22
+    woodworks_boosted = woodworks_boosted or game.boosting
+    var prompt := ""
+    if game.race_time < 3.4 and not woodworks_steered:
+        prompt = "DRAG LEFT OR RIGHT TO STEER" if OS.has_feature("mobile") else "A / D OR DRAG TO STEER"
+    elif game.race_time < 6.5 and not woodworks_boosted:
+        prompt = "HOLD BOOST WITH YOUR OTHER THUMB" if OS.has_feature("mobile") else "HOLD SPACE OR BOOST TO ACCELERATE"
+    if woodworks_guide_label.text != prompt:
+        woodworks_guide_label.text = prompt
+    panel.visible = not prompt.is_empty()
+
 func update_hud() -> void:
     var elapsed: float = get_process_delta_time()
     if is_instance_valid(race_radar):
@@ -1341,6 +1397,7 @@ func update_hud() -> void:
     label_timer = 0.0
     if not is_instance_valid(game.player):
         return
+    _update_woodworks_guide()
     var speed_intensity: float = RACE_MOMENTS.edge_intensity(
         game.race_moments.local_speed,game.boosting,game.graphics_quality) if (
         game.race_moments != null and game.race_state == "RACING") else 0.0
@@ -1415,10 +1472,14 @@ func update_hud() -> void:
     else:
         place_label.add_theme_color_override("font_color",TEXT)
     boost_progress.value = game.boost_energy*100.0
+    var route_hint: Dictionary = game.shortcut_route.shortcut_hint(
+        game.player.global_position) if is_instance_valid(game.shortcut_route) else {}
+    var on_woodworks_bridge: bool = game.selected_track == 0 and route_hint.get("mode","") == "merge"
     var hazard: Dictionary = game.upcoming_hazard(game.player.global_position.z)
     # Timed events have their own forecast, so do not show two duplicate
     # hazard banners while also preserving warnings for physical edge gates.
-    hazard_label.visible = not hazard.is_empty() and not hazard.has("index")
+    hazard_label.visible = not hazard.is_empty() and not hazard.has("index") and (
+        not on_woodworks_bridge or float(hazard["z"]) <= SHORTCUT_ROUTE.EXIT_Z)
     if hazard_label.visible:
         var metres: float = float(hazard["distance"])
         var approach: float = maxf(1.25,-game.player.linear_velocity.z)
@@ -1438,9 +1499,9 @@ func update_hud() -> void:
     var moving_event: Dictionary = game.race_director.event_ahead(
         game.player.global_position.z) if is_instance_valid(
         game.race_director) else {}
-    timed_gate_label.visible = game.race_state == "RACING" and (
-        not moving_event.is_empty()) and (
-        float(moving_event.get("distance",999.0)) <= 21.0)
+    timed_gate_label.visible = game.race_state == "RACING" and not moving_event.is_empty() and (
+        not on_woodworks_bridge or float(moving_event["z"]) <= SHORTCUT_ROUTE.EXIT_Z) and (
+        float(moving_event.get("distance",999.0)) <= (24.0 if game.selected_track == 0 else 21.0))
     if timed_gate_label.visible:
         var gate_distance: float = float(moving_event["distance"])
         var gate_eta: float = gate_distance/maxf(
@@ -1482,17 +1543,22 @@ func update_hud() -> void:
         rare_item_label.text = "RARE %s  •  %s  •  %dm" % [
             str(next_item["label"]),str(next_item["side"]),
             int(ceil(float(next_item["distance"])))]
+        if woodworks_guide_active and game.race_time < WOODWORKS_GUIDE_LIMIT and (
+            int(next_item["index"]) == 0):
+            rare_item_label.text = "INSTANT TURBO DIAMOND  •  %s  •  %dm" % [
+                str(next_item["side"]),int(ceil(float(next_item["distance"])))]
         var color_index: int = posmod(int(next_item["index"])+game.selected_track,
             RARE_ITEMS.COLORS.size())
         rare_item_label.add_theme_color_override("font_color",
             RARE_ITEMS.COLORS[color_index].lightened(0.20))
-    var route_hint: Dictionary = game.shortcut_route.shortcut_hint(
-        game.player.global_position) if is_instance_valid(game.shortcut_route) else {}
     shortcut_label.visible = not route_hint.is_empty()
     if not route_hint.is_empty():
         if str(route_hint["mode"]) == "fork":
-            shortcut_label.text = "%s FOR SHORTCUT  •  %dm" % [
-                str(route_hint["side"]),int(route_hint["distance"])]
+            if game.selected_track == 0:
+                shortcut_label.text = "MAIN TRACK ↑   /   SHORTCUT BRIDGE →  •  %dm" % int(route_hint["distance"])
+            else:
+                shortcut_label.text = "%s FOR SHORTCUT  •  %dm" % [
+                    str(route_hint["side"]),int(route_hint["distance"])]
             shortcut_label.add_theme_color_override("font_color",Color("#ffdda0"))
         else:
             shortcut_label.text = "MERGE %s  •  %dm" % [
