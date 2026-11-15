@@ -1098,6 +1098,8 @@ func restart_race() -> void:
     start_race(selected_perk)
 
 func return_to_menu() -> void:
+    if race_moments != null:
+        race_moments.reset_round()
     if is_instance_valid(airtime):
         airtime.reset_round()
     if slipstream != null:
@@ -1337,7 +1339,8 @@ func _update_camera(delta: float, force := false) -> void:
         ahead_x,cam_mode,boosting,distance,
         race_moments != null and race_state == "RACING" and
         race_moments.side_by_side_active,
-        airtime.camera_weight() if is_instance_valid(airtime) else 0.0)
+        airtime.camera_weight() if is_instance_valid(airtime) else 0.0,
+        float(race_moments.closest_rival_side) if race_moments != null else 0.0)
     var desired: Vector3 = pose["position"]
     var focus: Vector3 = pose["focus"]
     # Match the camera to the real 3D grade, not the old flat slope.

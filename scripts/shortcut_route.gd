@@ -385,6 +385,14 @@ func recovery_center_at(location: Vector3) -> float:
         return alternate
     return main
 
+func on_separate_deck(location: Vector3) -> bool:
+    # At either merge the roads are connected. Along the detached span,
+    # nearby marbles on the two paths are distinct competitors.
+    if location.z < OUTER_END or location.z > OUTER_START:
+        return false
+    var deck := point_at(location.z)
+    return absf(location.x-deck.x) < WIDTH*0.5+0.65 and location.y >= deck.y-0.25
+
 func shortcut_hint(location: Vector3) -> Dictionary:
     # HUD query; never changes gameplay state and requires no network traffic.
     var z: float = location.z

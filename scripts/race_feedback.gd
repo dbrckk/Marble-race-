@@ -49,7 +49,7 @@ static func hazard_preview_weight(distance: float, forward_speed: float) -> floa
 static func camera_pose(position: Vector3, velocity: Vector3,
     center_ahead_x: float, camera_mode: int, boosting: bool,
     hazard_distance: float, close_duel: bool = false,
-    airborne_weight: float = 0.0) -> Dictionary:
+    airborne_weight: float = 0.0, duel_side: float = 0.0) -> Dictionary:
     var planar_speed: float = Vector2(velocity.x,velocity.z).length()
     var pace: float = clampf((planar_speed-3.0)/19.0,0.0,1.0)
     # A compact preview pulls the camera up and back before a near-side
@@ -91,7 +91,8 @@ static func camera_pose(position: Vector3, velocity: Vector3,
         var intensity: float = clampf((planar_speed-7.0)/13.0,0.0,1.0)
         duel_lift = 0.9*intensity
         desired += Vector3(0.0,duel_lift,1.3*intensity)
-        focus += Vector3(0.0,0.0,0.65*intensity)
+        var framing_side := clampf(duel_side,-1.0,1.0) if is_finite(duel_side) else 0.0
+        focus += Vector3(0.72*framing_side*intensity,0.0,0.65*intensity)
     var fov: float = clampf(
         64.0+pace*9.0+(3.1 if boosting else 0.0)+risk*1.4+
         duel_lift*2.1+(1.5*air if camera_mode == 0 else 0.0),

@@ -61,6 +61,7 @@ var performance_label: Label
 var network_quality_label: Label
 var ghost_label: Label
 var duel_label: Label
+var rival_marker: Label3D
 var quality_button: Button
 var fps_button: Button
 var course_progress: ProgressBar
@@ -83,6 +84,9 @@ var race_moment_label: Label
 var speed_stripes: Array[ColorRect] = []
 var moment_remaining := 0.0
 var moment_duration := 1.0
+var moment_priority := 0
+var overtake_count := 0
+var overtake_chain_seconds := 0.0
 var last_seen_rank := -1
 var rank_toast_seconds := 0.0
 var toast_remaining := 0.0
@@ -861,16 +865,28 @@ func _build_race_hud() -> void:
     ghost_label = _small_panel_text("",14,Rect2(0.02,0.31,0.265,0.051))
     ghost_label.name = "PersonalBestGhostPace"
     ghost_label.get_parent().visible = false
-    duel_label = _text("",15,Color("#c4f2e7"))
+    duel_label = _text("",17,Color("#c4f2e7"))
     duel_label.name = "ClosestPhysicalRival"
     duel_label.anchor_left = 0.32
     duel_label.anchor_right = 0.68
     duel_label.anchor_top = 0.308
     duel_label.anchor_bottom = 0.350
     duel_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    duel_label.add_theme_color_override("font_outline_color",Color("#121820"))
+    duel_label.add_theme_constant_override("outline_size",5)
     duel_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
     duel_label.visible = false
     hud_layer.add_child(duel_label)
+    rival_marker = Label3D.new()
+    rival_marker.name = "LocalRivalMarker"
+    rival_marker.text = "◇"
+    rival_marker.font_size = 46
+    rival_marker.pixel_size = 0.011
+    rival_marker.outline_size = 12
+    rival_marker.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+    rival_marker.modulate = Color("#83e6ff")
+    rival_marker.hide()
+    add_child(rival_marker)
     fps_label = _small_panel_text("FPS --",16,Rect2(0.865,0.43,0.119,0.060))
     fps_label.get_parent().visible = game.show_fps
     performance_label = _small_panel_text(
@@ -1182,6 +1198,7 @@ PERK: %s   ·   BOOST %d%%" % [
         "NEXT: %s %s  ·  %d m" % [upcoming.get("kind","EDGE"),upcoming["side"],upcoming["distance"]]
         if not upcoming.is_empty() else "READ THE COURSE  ·  CHOOSE YOUR LINE"
     )
+    rival_marker.hide()
     pause_layer.visible = true
     get_tree().paused = true
 
@@ -1279,6 +1296,7 @@ func _continue_championship() -> void:
     show_perks()
 
 func _hide_all() -> void:
+    rival_marker.hide()
     if is_instance_valid(touch_controls):
         touch_controls.release_all()
     menu_layer.visible = false
@@ -1333,6 +1351,11 @@ func show_race_ui() -> void:
     last_seen_rank = -1
     rank_toast_seconds = 0.0
     moment_remaining = 0.0
+    moment_priority = 0
+    overtake_count = 0
+    overtake_chain_seconds = 0.0
+    rival_marker.hide()
+    duel_label.hide()
     toast_remaining = 0.0
     checkpoint_label.hide()
     woodworks_guide_active = game.selected_track == 0 and not game.net.is_active() and (
@@ -1371,18 +1394,46 @@ func show_countdown(value: String) -> void:
 func hide_countdown() -> void:
     countdown_label.visible = false
 
-func show_race_moment(title: String, duration: float = 1.1) -> void:
-    if not is_instance_valid(race_moment_label):
+func show_race_moment(title: String, duration: float = 1.1, priority := 0) -> void:
+    if not is_instance_valid(race_moment_label) or (moment_remaining > 0.0 and priority < moment_priority):
         return
     race_moment_label.text = title
     race_moment_label.add_theme_color_override("font_color",
         Color("#f6e8b6") if title.contains("FINISH") or title.contains("STRAIGHT") else (
             Color("#a2f3d8") if title.contains("PASS") or title.contains("OVERTAKE") else
             Color("#b5ecff")))
+    moment_priority = priority
     moment_duration = clampf(duration,0.4,2.2)
     moment_remaining = moment_duration
     race_moment_label.modulate.a = 1.0
     race_moment_label.visible = true
+
+func show_overtake(count: int, rival_name: String) -> void:
+    overtake_count = count+(overtake_count if overtake_chain_seconds > 0.0 else 0)
+    overtake_chain_seconds = 0.38
+    rank_toast_seconds = 0.0
+    position_feedback.hide()
+    var title := "CLEAN OVERTAKE!  •  "+rival_name
+    if overtake_count > 1:
+        title = "DOUBLE PASS!" if overtake_count == 2 else "%d OVERTAKES!" % overtake_count
+    show_race_moment(title,1.18,2)
+
+func clear_overtake_feedback() -> void:
+    overtake_count = 0
+    overtake_chain_seconds = 0.0
+    if moment_priority == 2:
+        moment_remaining = 0.0
+        race_moment_label.hide()
+
+func _update_rival_marker() -> void:
+    var moments: RefCounted = game.race_moments
+    var rival: RigidBody3D = moments.closest_rival if moments != null else null
+    rival_marker.visible = game.race_state == "RACING" and not game.net.is_active() and (
+        is_instance_valid(game.player) and not game.player.finished and not game.player.eliminated and
+        is_instance_valid(rival) and not rival.finished and not rival.eliminated)
+    if rival_marker.visible:
+        rival_marker.global_position = rival.global_position+Vector3.UP*0.88
+        rival_marker.modulate = Color("#ffd78d") if moments.side_by_side_active else Color("#83e6ff")
 
 func _update_woodworks_guide() -> void:
     if not woodworks_guide_active or game.race_state != "RACING":
@@ -1411,6 +1462,8 @@ func _update_woodworks_guide() -> void:
 
 func update_hud() -> void:
     var elapsed: float = get_process_delta_time()
+    overtake_chain_seconds = maxf(0.0,overtake_chain_seconds-elapsed)
+    _update_rival_marker()
     if is_instance_valid(race_radar):
         race_radar.sample(elapsed)
     if moment_remaining > 0.0:
@@ -1446,7 +1499,8 @@ func update_hud() -> void:
     # instead of sorting forty bodies twice every UI update.
     var ranking: Array = game.get_rankings()
     var place: int = ranking.find(game.player)+1
-    if game.race_state == "RACING" and last_seen_rank > 0 and abs(place-last_seen_rank) >= 2:
+    if game.race_state == "RACING" and last_seen_rank > 0 and abs(place-last_seen_rank) >= 2 and (
+        moment_priority != 2 or moment_remaining <= 0.0):
         var gain := last_seen_rank - place
         position_feedback.text = "+%d PLACES" % gain if gain > 0 else "-%d PLACES" % abs(gain)
         position_feedback.add_theme_color_override("font_color",
@@ -1470,16 +1524,18 @@ func update_hud() -> void:
         if game.best_ghost.replay_available:
             ghost_label.text = game.best_ghost.gap_text(game.player.global_position)
     # Solo duel indicator: sampled from real 3D positions by RaceMoments
-    # (10Hz); no extra physics queries or per-frame allocation.
+    # (10Hz), with no extra physics queries.
     var duel: RefCounted = game.race_moments
-    duel_label.visible = not game.net.is_active() and (
-        game.race_state == "RACING") and duel != null and (
-        duel.closest_rival_gap < 12.0)
+    duel_label.visible = rival_marker.visible
     if duel_label.visible:
-        duel_label.text = "%s  %s  %.1fm" % [
+        var side: String = ["LEFT","","RIGHT"][duel.closest_rival_side+1]
+        var gap_text := ("  •  "+side) if not side.is_empty() else ""
+        if not duel.side_by_side_active:
+            gap_text += "  •  %.1fm" % duel.closest_rival_gap
+        duel_label.text = "%s  %s%s" % [
             "SIDE BY SIDE" if duel.side_by_side_active else (
                 "CHASE" if duel.closest_rival_ahead else "DEFEND"),
-            duel.closest_rival_name.left(16),duel.closest_rival_gap]
+            duel.closest_rival_name.left(16),gap_text]
         duel_label.add_theme_color_override("font_color",
             Color("#fbdaa4") if duel.side_by_side_active else (
                 Color("#f6d8a3") if duel.closest_rival_ahead else Color("#a5e6e2")))
