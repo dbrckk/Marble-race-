@@ -11,6 +11,10 @@ const LAYOUT_OFFSETS := [[0.0,0.0,0.0],[-4.0,5.0,-4.0],[4.0,-5.0,4.0]]
 const BIOME_OFFSETS := [[0.0,0.0,0.0],[2.0,-2.0,3.0],[-2.0,3.0,-2.0]]
 const EVENT_NAMES := ["SWEEPING ARM","ICE SHUTTER","FORGE PISTON"]
 const EVENT_COLORS := [Color("#edbe72"),Color("#a5ecf4"),Color("#ff9c63")]
+const OPEN_COLOR := Color("#91f4cd")
+const MOVING_COLOR := Color("#ffcf79")
+const BLOCKED_COLOR := Color("#ff775d")
+const HAZARD_LOOKAHEAD := 24.0
 const BODY_WIDTH := 1.65
 const BODY_HEIGHT := 0.82
 const BODY_DEPTH := 0.76
@@ -61,14 +65,17 @@ func setup(owner: Node3D, track: int, layout: int) -> void:
     glow.emission = EVENT_COLORS[biome]
     glow.emission_energy_multiplier = 0.65
     var dimensions := Vector3(BODY_WIDTH,BODY_HEIGHT,BODY_DEPTH)
-    var box := BoxMesh.new()
-    box.size = dimensions
-    var mesh: Mesh = VISUALS.rounded_box(dimensions,0.11) if biome == 0 else box
+    var mesh: Mesh = VISUALS.rounded_box(dimensions,0.10)
     var caution_paint := StandardMaterial3D.new()
-    caution_paint.albedo_color = Color("#f3c36b")
+    caution_paint.albedo_color = Color("#f3c36b") if biome == 0 else Color("#dafbff")
     caution_paint.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
     var band_mesh := BoxMesh.new()
     band_mesh.size = Vector3(0.18,0.018,0.53)
+    var floor_plate := BoxMesh.new()
+    floor_plate.size = Vector3.ONE
+    var floor_paint := StandardMaterial3D.new()
+    floor_paint.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    floor_paint.vertex_color_use_as_albedo = true
     var steel := StandardMaterial3D.new()
     steel.albedo_color = Color("#535b60")
     steel.metallic = 0.68
@@ -109,17 +116,17 @@ func setup(owner: Node3D, track: int, layout: int) -> void:
         art.material_override = metal
         art.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
         body.add_child(art)
-        if biome == 0:
+        if biome != 2:
             var bands := MultiMesh.new()
             bands.transform_format = MultiMesh.TRANSFORM_3D
             bands.mesh = band_mesh
             bands.instance_count = 3
             for stripe in range(bands.instance_count):
-                var turn := Basis(Vector3.UP,0.38)
+                var turn := Basis(Vector3.UP,0.38 if biome == 0 else -0.56)
                 bands.set_instance_transform(stripe,Transform3D(turn,Vector3(
                     (float(stripe)-1.0)*0.35,BODY_HEIGHT*0.5+0.006,0.0)))
             var inlays := MultiMeshInstance3D.new()
-            inlays.name = "SweepingArmCautionBands"
+            inlays.name = "SweepingArmCautionBands" if biome == 0 else "IceShutterFrostInlays"
             inlays.multimesh = bands
             inlays.material_override = caution_paint
             inlays.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -145,11 +152,12 @@ func setup(owner: Node3D, track: int, layout: int) -> void:
         var marker := MeshInstance3D.new()
         marker.name = "WarningHalo_%02d" % i
         marker.mesh = ring_mesh
-        marker.material_override = glow
+        marker.material_override = glow.duplicate() if biome == 2 else glow
         marker.position = Vector3(x,game.height_at(z)+0.10,z)
         marker.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
         add_child(marker)
         warning_rings.append(marker)
+        _mark_gate_approach(i,floor_plate,floor_paint)
         var notice := Label3D.new()
         notice.name = "TimedHazardSign_%02d" % i
         notice.text = EVENT_NAMES[biome]
@@ -164,6 +172,39 @@ func setup(owner: Node3D, track: int, layout: int) -> void:
     ring_flash_end.resize(obstacles.size())
     ring_flash_strength.resize(obstacles.size())
     reset_round()
+
+func _mark_gate_approach(index: int, mesh: Mesh, paint: Material) -> void:
+    # Mark the entry to the real hazard lane with three pairs of strips.
+    # One colored mesh batch per gate, with no collisions or dynamic lights.
+    var batch := MultiMesh.new()
+    batch.transform_format = MultiMesh.TRANSFORM_3D
+    batch.use_colors = true
+    batch.mesh = mesh
+    batch.instance_count = 12
+    var z: float = event_z(index)
+    var side: float = side_at(index)
+    for row in range(3):
+        var at_z := z+2.0+float(row)*0.95
+        var x: float = game.track_center_at(at_z)+side*3.22
+        var y: float = game.height_at(at_z)+0.07
+        var pitch: float = -atan(game.track_grade_at(at_z))
+        for arm in range(2):
+            var direction := -1.0 if arm == 0 else 1.0
+            var tilt := Basis(Vector3.RIGHT,pitch)*Basis(Vector3.UP,direction*0.39)
+            var mark := Transform3D(tilt.scaled_local(Vector3(0.95,0.025,0.18)),
+                Vector3(x+direction*0.39,y,at_z))
+            var slot := row*4+arm*2
+            batch.set_instance_transform(slot,mark.scaled_local(Vector3(1.11,0.8,1.9)))
+            batch.set_instance_color(slot,Color("#15202b"))
+            mark.origin.y += 0.019
+            batch.set_instance_transform(slot+1,mark)
+            batch.set_instance_color(slot,EVENT_COLORS[biome].lightened(0.20))
+    var marks := MultiMeshInstance3D.new()
+    marks.name = "GateApproachMarkings_%02d" % index
+    marks.multimesh = batch
+    marks.material_override = paint
+    marks.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    add_child(marks)
 
 static func precision_grade(lateral: float, forward_speed: float) -> float:
     if not is_finite(lateral) or not is_finite(forward_speed) or (
@@ -281,7 +322,8 @@ func animate(elapsed: float) -> void:
         obstacles[i].position = point
         warning_rings[i].position = Vector3(point.x,
             game.height_at(event_z(i))+0.10,event_z(i))
-        var rising: bool = piston_up(i,clock)
+        var extension := piston_extension(i,clock)
+        var tint: Color = EVENT_COLORS[biome]
         # Cheap, readable telegraph without realtime lights/shadows.
         var earned_flash := 0.0
         if clock < ring_flash_end[i]:
@@ -292,23 +334,29 @@ func animate(elapsed: float) -> void:
         warning_rings[i].scale = Vector3.ONE*(
             1.10+0.13*sin(clock*TAU/period()+float(i)*1.7)+
             0.48*earned_flash)
-        warning_rings[i].visible = biome != 2 or rising or (
-            phase_at(i,clock) > 0.78) or earned_flash > 0.0
+        if biome == 2:
+            var phase := phase_at(i,clock)
+            var ring_color := OPEN_COLOR
+            if extension > 0.43:
+                ring_color = BLOCKED_COLOR
+            elif phase > 0.78 or extension >= 0.15:
+                ring_color = MOVING_COLOR
+            var ring_material := warning_rings[i].material_override as StandardMaterial3D
+            tint = ring_color
+            ring_material.albedo_color = ring_color.lerp(Color.WHITE,0.50*earned_flash)
+            ring_material.emission = ring_material.albedo_color
         # Three existing world-space signs become a timing lesson rather
         # than a static name: players can time the opening at a glance.
         var lateral_speed: float = 0.0
         if biome == 2:
-            lateral_speed = piston_extension(i,clock+0.08)-(
-                piston_extension(i,clock))
+            lateral_speed = piston_extension(i,clock+0.08)-extension
         else:
             lateral_speed = (position_at(i,clock+0.08).x-point.x)/0.08
-        var cue: String = hazard_phase_cue(
-            biome,piston_extension(i,clock),lateral_speed)
+        var cue := hazard_phase_cue(biome,extension,lateral_speed)
         var sign_text: String = EVENT_NAMES[biome]+" / "+cue
         if signs[i].text != sign_text:
             signs[i].text = sign_text
-        signs[i].modulate = Color("#b7f5cb") if cue == "OPEN" else EVENT_COLORS[biome]
-        signs[i].modulate.a = 0.92 if biome == 2 else (0.86 if rising else 0.47)
+        signs[i].modulate = tint
 
 func reset_round() -> void:
     awarded.clear()
@@ -322,8 +370,8 @@ func reset_round() -> void:
         ring_flash_strength[i] = 0.0
     animate(0.0)
 
-func event_ahead(z: float, downstream_limit := INF) -> Dictionary:
-    var nearest: float = 24.0
+func event_ahead(z: float, downstream_limit := INF, reach := HAZARD_LOOKAHEAD) -> Dictionary:
+    var nearest: float = reach
     var result: Dictionary = {}
     for i in range(EVENT_Z.size()):
         var gate_z: float = event_z(i)

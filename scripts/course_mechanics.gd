@@ -25,6 +25,7 @@ var track_id := 0
 var variation := 0
 var zones: Array[Node3D] = []
 var active_marks: Array[MeshInstance3D] = []
+var vent_rims: Array[MeshInstance3D] = []
 var collected: Dictionary = {}
 var last_burst: Dictionary = {}
 var race_clock := 0.0
@@ -79,8 +80,8 @@ func upcoming_lane(at: Vector3, velocity: Vector3, downstream_limit: float) -> D
             continue
         var lane_x := FEEDBACK.projected_lane_x(at.x,velocity.x,maxf(0.0,distance)/speed)
         var left := lane_offset(index,track_id,variation) < 0.0
-        var hint := {"side":"LEFT" if left else "RIGHT", "other":"RIGHT" if left else "LEFT",
-            "distance":ceili(entry), "eta":entry/speed}
+        var hint := {"index":index, "side":"LEFT" if left else "RIGHT",
+            "other":"RIGHT" if left else "LEFT", "distance":ceili(entry), "eta":entry/speed}
         if track_id == 1:
             hint["on_line"] = absf(lane_x-center.x) < ZONE_WIDTH*0.5
         else:
@@ -185,8 +186,8 @@ func _ice_collision(zone: Node3D) -> void:
 func _vent_visual(zone: Node3D, index: int) -> void:
     var rim := MeshInstance3D.new()
     var torus := TorusMesh.new()
-    torus.inner_radius = 1.0
-    torus.outer_radius = 1.22
+    torus.outer_radius = sqrt(VENT_RADIUS_SQUARED)
+    torus.inner_radius = torus.outer_radius-0.12
     torus.rings = 24
     torus.ring_segments = 8
     rim.mesh = torus
@@ -194,9 +195,15 @@ func _vent_visual(zone: Node3D, index: int) -> void:
     metal.albedo_color = Color("#4b4045")
     metal.metallic = 0.72
     metal.roughness = 0.38
-    rim.material_override = metal
+    var rim_material := StandardMaterial3D.new()
+    rim_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    rim_material.albedo_color = Color("#46545c")
+    rim.material_override = rim_material
+    rim.rotation.x = -atan(game.track_grade_at(zone.position.z))
+    rim.position.y = 0.095
     rim.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     zone.add_child(rim)
+    vent_rims.append(rim)
     var grate := CylinderMesh.new()
     grate.top_radius = sqrt(VENT_RADIUS_SQUARED)
     grate.bottom_radius = grate.top_radius
@@ -212,12 +219,12 @@ func _vent_visual(zone: Node3D, index: int) -> void:
     zone.add_child(surround)
     var flame := MeshInstance3D.new()
     flame.name = "FlameWarning"
-    var cone := CylinderMesh.new()
-    cone.top_radius = 0.12
-    cone.bottom_radius = 0.82
-    cone.height = 1.1
-    cone.radial_segments = 9
-    flame.mesh = cone
+    var plume := SphereMesh.new()
+    plume.radius = 0.75
+    plume.height = 1.1
+    plume.radial_segments = 10
+    plume.rings = 4
+    flame.mesh = plume
     flame.position.y = 0.56
     var molten := StandardMaterial3D.new()
     molten.albedo_color = Color("#ff9752")
@@ -264,6 +271,9 @@ func _process(_delta: float) -> void:
             continue
         var intensity: float = vent_charge(i,t)
         var active: bool = t >= 0.0 and vent_active(i,t)
+        var rim_material := vent_rims[i].material_override as StandardMaterial3D
+        rim_material.albedo_color = Color("#ff7549") if active else (
+            Color("#46545c").lerp(Color("#ffd278"),intensity))
         flame.visible = intensity > 0.02
         if not flame.visible:
             continue

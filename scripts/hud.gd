@@ -69,6 +69,7 @@ var boost_progress: ProgressBar
 var checkpoint_label: Label
 var hazard_label: Label
 var timed_gate_label: Label
+var timed_gate_backdrop: Panel
 var rare_item_label: Label
 var biome_lane_label: Label
 var shortcut_label: Label
@@ -913,10 +914,21 @@ func _build_race_hud() -> void:
     hud_layer.add_child(shortcut_label)
     # Dedicated kinetic-hazard predictor: the regular banner may still need
     # to warn about a closer edge shutter in the same physical section.
-    timed_gate_label = _text("",15,Color("#f6d49b"))
+    timed_gate_backdrop = Panel.new()
+    timed_gate_backdrop.name = "UrgentObstacleBackdrop"
+    timed_gate_backdrop.anchor_left = 0.237
+    timed_gate_backdrop.anchor_right = 0.763
+    timed_gate_backdrop.anchor_top = 0.350
+    timed_gate_backdrop.anchor_bottom = 0.393
+    timed_gate_backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    timed_gate_backdrop.add_theme_stylebox_override("panel",
+        _surface(Color("#281d24"),Color("#de836b"),8))
+    timed_gate_backdrop.hide()
+    hud_layer.add_child(timed_gate_backdrop)
+    timed_gate_label = _text("",17,Color("#f6d49b"))
     timed_gate_label.name = "PredictedTimedGate"
-    timed_gate_label.anchor_left = 0.285
-    timed_gate_label.anchor_right = 0.715
+    timed_gate_label.anchor_left = 0.237
+    timed_gate_label.anchor_right = 0.763
     timed_gate_label.anchor_top = 0.354
     timed_gate_label.anchor_bottom = 0.389
     timed_gate_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1340,6 +1352,7 @@ func show_race_ui() -> void:
         shortcut_label.visible = false
     if is_instance_valid(timed_gate_label):
         timed_gate_label.visible = false
+    timed_gate_backdrop.hide()
     if is_instance_valid(rare_item_label):
         rare_item_label.visible = false
     biome_lane_label.hide()
@@ -1517,16 +1530,21 @@ func update_hud() -> void:
             Color("#ff9a85") if seconds_until < 1.1 else Color("#f9d49d"))
     # Predicted *arrival* timing uses the same deterministic physical hazard
     # timeline as the server, never the piston's misleading current state.
+    var forward_speed := maxf(0.0,-game.player.linear_velocity.z)
+    var gate_reach := clampf(forward_speed*2.0,18.0,38.0)
     var moving_event: Dictionary = game.race_director.event_ahead(
-        game.player.global_position.z,downstream_limit) if is_instance_valid(
+        game.player.global_position.z,downstream_limit,gate_reach) if is_instance_valid(
         game.race_director) else {}
-    timed_gate_label.visible = game.race_state == "RACING" and not moving_event.is_empty()
+    var still_racing: bool = game.race_state == "RACING" and not game.player.finished and not game.player.eliminated
+    timed_gate_label.visible = still_racing and not moving_event.is_empty()
     var urgent_gate_eta := INF
+    var audible_gate_eta := INF
+    var gate_id := -1
     if timed_gate_label.visible:
         var gate_distance: float = game.player.global_position.z-float(moving_event["z"])
         var gate_eta: float = gate_distance/maxf(
             2.0,-game.player.linear_velocity.z)
-        var gate_id: int = int(moving_event["index"])
+        gate_id = int(moving_event["index"])
         var projected_blocking: bool = game.selected_track != 2 or (
             game.race_director.piston_up(gate_id,
                 game.race_director.clock+gate_eta))
@@ -1548,18 +1566,36 @@ func update_hud() -> void:
             timed_gate_label.text = "FORGE PISTON %s  •  EST. %s  •  %s  •  %.1fs" % [
                 gate_side,"BLOCKED" if projected_blocking else "OPEN",action,gate_eta]
         else:
-            timed_gate_label.text = "%s %s  •  %s  •  %dm / %.1fs" % [
-                str(moving_event["kind"]),gate_side,lane_verdict,
-                int(gate_distance),gate_eta]
+            if player_threatened:
+                lane_verdict = "DODGE! GO "+("LEFT" if gate_side == "RIGHT" else "RIGHT")
+            timed_gate_label.text = "%s %s  •  %s  •  %.1fs" % [
+                str(moving_event["kind"]),gate_side,lane_verdict,gate_eta]
         timed_gate_label.add_theme_color_override("font_color",
             Color("#ffae91") if player_threatened and gate_eta < 1.45 else (
                 Color("#a1edcc") if not player_threatened else Color("#f6d49b")))
-        if gate_eta <= 2.20 and gate_eta >= 0.25:
-            game.audio.warn_timed_gate(gate_id,player_threatened)
-    _update_biome_lane(downstream_limit,urgent_gate_eta)
+        if player_threatened and gate_eta <= 2.20 and gate_eta >= 0.20:
+            audible_gate_eta = gate_eta
+    timed_gate_backdrop.visible = is_finite(urgent_gate_eta)
+    var lane_hint: Dictionary = game.course_mechanics.upcoming_lane(
+        game.player.global_position,game.player.linear_velocity,downstream_limit) if (
+        still_racing and is_instance_valid(game.course_mechanics)) else {}
+    _update_biome_lane(lane_hint,urgent_gate_eta)
+    var vent_eta := INF
+    if game.selected_track == 2 and not lane_hint.is_empty() and lane_hint["on_line"]:
+        var approach: float = float(lane_hint["eta"])
+        if approach >= 0.20 and approach <= 1.55:
+            vent_eta = approach
+    var vent_index := int(lane_hint.get("index",-1))
+    if game.audio.warned_vents.has(vent_index):
+        vent_eta = INF
+    if game.audio.warned_timed_gates.has(gate_id):
+        audible_gate_eta = INF
+    if vent_eta < audible_gate_eta:
+        game.audio.warn_vent(vent_index)
+    elif is_finite(audible_gate_eta):
+        game.audio.warn_timed_gate(gate_id,true)
     # Predict the next still-available, immediate-effect item. Clients
     # consult their local server-confirmed visibility; AI never receive UI.
-    var forward_speed := maxf(0.0,-game.player.linear_velocity.z)
     var item_reach := clampf(forward_speed*1.55,20.0,36.0)
     var next_item: Dictionary = game.race_items.nearest_available(
         game.player.global_position,game.player.racer_id,item_reach) if (
@@ -1599,12 +1635,8 @@ func update_hud() -> void:
         table += "%02d  YOU ★" % place
     leaderboard.text = table
 
-func _update_biome_lane(downstream_limit: float, urgent_gate_eta: float) -> void:
+func _update_biome_lane(hint: Dictionary, urgent_gate_eta: float) -> void:
     biome_lane_label.hide()
-    if game.race_state != "RACING" or not is_instance_valid(game.course_mechanics):
-        return
-    var hint: Dictionary = game.course_mechanics.upcoming_lane(
-        game.player.global_position,game.player.linear_velocity,downstream_limit)
     if hint.is_empty() or (is_finite(urgent_gate_eta) and (
         not hint["on_line"] or float(hint["eta"]) >= urgent_gate_eta)):
         return

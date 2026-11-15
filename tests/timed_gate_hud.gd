@@ -36,6 +36,10 @@ func _verify() -> void:
             var director: Node3D = game.race_director
             assert(director.variation == layout and director.biome == biome)
             var gate_index := 1
+            var marking: MultiMeshInstance3D = director.get_node("GateApproachMarkings_01")
+            assert(marking.multimesh.instance_count == 12 and marking.get_child_count() == 0)
+            if biome == 1:
+                assert(director.obstacles[gate_index].has_node("IceShutterFrostInlays"))
             var gate_z: float = director.event_z(gate_index)
             var approach_z := gate_z+13.0
             var speed := 12.0
@@ -117,11 +121,14 @@ func _verify() -> void:
             assert(int(actual["index"]) == gate_index)
             assert(is_equal_approx(float(actual["z"]),gate_z))
             assert(str(actual["side"]) != "")
+            var cue_channel: int = game.audio.current_channel
             game.ui.label_timer = 0.25
             game.ui.update_hud()
             assert(label.visible,"A timed hazard must be independently visible on phone")
             assert(label.text.contains(DIRECTOR.EVENT_NAMES[biome]),
                 "The HUD must identify the actual physical moving gate")
+            assert(game.ui.timed_gate_backdrop.visible,
+                "An imminent collision warning should have a readable background")
             assert(label.text.contains("1.1s"),
                 "Arrival forecast should use measured speed and distance")
             if biome == 2:
@@ -146,9 +153,12 @@ func _verify() -> void:
                     pickup.position = saved_position
             assert(game.audio.warned_timed_gates.has(gate_index),
                 "One audio danger cue must sound as the moving gate approaches")
+            assert(game.audio.channels[cue_channel].stream == game.audio.hazard_cues[biome])
+            assert(game.audio.hazard_duck > 0.0,"A warning must be audible over the race mix")
             game.ui.label_timer = 0.25
             game.ui.update_hud()
-            assert(game.audio.warned_timed_gates.size() == 1,
+            assert(game.audio.warned_timed_gates.size() == 1 and
+                game.audio.current_channel == (cue_channel+1)%game.audio.channels.size(),
                 "The warning cannot spam ten overlapping sounds per second")
             assert(label.text.contains("DODGE!"),
                 "A real future lane intersection should clearly demand evasive action")
@@ -163,10 +173,11 @@ func _verify() -> void:
                 gate_index,blocked_clock,eta,clear_x,0.0),
                 "Opposite-side lanes must remain safe and playable")
             game.audio.warned_timed_gates.clear()
+            game.audio.hazard_cooldown = 0.0
             game.player.global_position.x = clear_x
             game.ui.label_timer = 0.25
             game.ui.update_hud()
-            assert(label.text.contains("LINE CLEAR"),
+            assert(label.text.contains("LINE CLEAR") and not game.ui.timed_gate_backdrop.visible,
                 "The phone HUD must distinguish a safe racing line")
             assert(game.audio.warned_timed_gates.is_empty(),
                 "Do not sound a dangerous-gate siren for a safe line")
@@ -186,6 +197,7 @@ func _verify() -> void:
                 # retracted when this marble arrives. Clear the warning log
                 # and verify no false alarm is issued for that safe arrival.
                 game.audio.warned_timed_gates.clear()
+                game.audio.hazard_cooldown = 0.0
                 director.animate(clear_clock)
                 game.race_time = clear_clock
                 assert(director.piston_up(gate_index,clear_clock))
@@ -209,6 +221,11 @@ func _verify() -> void:
                 assert(game.audio.warned_timed_gates.has(gate_index),
                     "The audio must warn when a currently down piston WILL rise")
             game.player.global_position.z = gate_z+35.0
+            game.player.linear_velocity.z = -23.0
+            game.ui.label_timer = 0.25
+            game.ui.update_hud()
+            assert(label.visible,"Full speed gives the player more distance to react")
+            game.player.linear_velocity.z = -12.0
             game.ui.label_timer = 0.25
             game.ui.update_hud()
             assert(not label.visible,
@@ -217,12 +234,13 @@ func _verify() -> void:
                 _verify_biome_lane(game,biome)
             game.return_to_menu()
             assert(not game.ui.hud_layer.visible)
+    _verify_audio_cues(game.audio)
     game.queue_free()
     for i in range(3):
         await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_timed_hud_career.cfg"))
-    print("TIMED_HUD_PASS: 9 layouts, directional piston warnings, Glacier grip, Forge vents and route-aware bridge cues")
+    print("TIMED_HUD_PASS: 9 layouts, speed-aware approaches, four original cues, priority and route-aware warnings")
     quit(0)
 
 func _verify_biome_lane(game: Node3D, biome: int) -> void:
@@ -248,13 +266,30 @@ func _verify_biome_lane(game: Node3D, biome: int) -> void:
             "Lateral drift must forecast ice contact")
     else:
         assert(mechanics.zones[0].has_node("VentFootprint"))
+        var rim := mechanics.vent_rims[0].material_override as StandardMaterial3D
+        mechanics.race_clock = 2.75
+        mechanics._process(0.016)
+        var cool_tint := rim.albedo_color
+        mechanics.race_clock = 4.45
+        mechanics._process(0.016)
+        assert(rim.albedo_color != cool_tint)
+        mechanics.race_clock = 0.10
+        mechanics._process(0.016)
+        assert(rim.albedo_color.is_equal_approx(Color("#ff7549")))
         assert(game.race_director.obstacles[0].has_node("PistonSteelCap"))
         # The vent is cool on approach, then ignites before the marble
         # reaches the edge of its circular collision footprint.
         mechanics.race_clock = 4.25
         game.race_time = 1.45
+        game.audio.hazard_cooldown = 0.0
+        var vent_channel: int = game.audio.current_channel
         _update_at(game,position,velocity)
         assert(label.visible and label.text.contains("DODGE "+alternate))
+        assert(game.audio.warned_vents.has(0) and
+            game.audio.channels[vent_channel].stream == game.audio.hazard_cues[3])
+        _update_at(game,position,velocity)
+        assert(game.audio.current_channel == (vent_channel+1)%game.audio.channels.size(),
+            "Repeated updates must not replay the vent warning")
         game.net.role = "client"
         _update_at(game,position,velocity)
         assert(label.visible and label.text.contains("EST. COOL"),
@@ -290,3 +325,26 @@ func _update_at(game: Node3D, position: Vector3, velocity: Vector3) -> void:
     game.player.linear_velocity = velocity
     game.ui.label_timer = 0.25
     game.ui.update_hud()
+
+func _verify_audio_cues(audio: Node3D) -> void:
+    var fingerprints: Array[int] = []
+    for cue in audio.hazard_cues:
+        assert(cue is AudioStreamWAV and cue.get_length() < 0.4)
+        var fingerprint: int = hash(cue.data)
+        assert(not fingerprints.has(fingerprint),"Use four distinct warning sounds")
+        fingerprints.append(fingerprint)
+    assert(fingerprints.size() == 4 and audio.channels.size() == 10)
+    audio.enabled = false
+    audio.begin_race()
+    audio.warn_timed_gate(0,true)
+    audio.warn_vent(0)
+    assert(audio.warned_timed_gates.is_empty() and audio.warned_vents.is_empty())
+    audio.enabled = true
+    audio.warn_vent(0)
+    audio.warn_timed_gate(1,true)
+    assert(audio.warned_timed_gates.is_empty(),"A nearby second warning must not overlap")
+    audio._process(0.40)
+    audio.warn_timed_gate(1,true)
+    assert(audio.warned_timed_gates.has(1),"A delayed gate warning may still play")
+    audio.begin_race()
+    assert(audio.warned_vents.is_empty() and audio.warned_timed_gates.is_empty())

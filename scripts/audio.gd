@@ -2,6 +2,7 @@ extends Node3D
 ## Offline CC0 Foley (Kenney), plus original composed loop and tonal race cues.
 ## Eight pooled voice channels prevent hard-cutting a sound every time a marble collides.
 const RaceFeedback = preload("res://scripts/race_feedback.gd")
+const HazardAudio = preload("res://scripts/hazard_audio.gd")
 const SCORE = preload("res://assets/audio/music/marble_workshop.ogg")
 # Three separately composed and mastered 12-bar scores, rather than the
 # same backing track retuned for every world. All three resolve to the
@@ -62,6 +63,10 @@ var mechanism_timer := 0.0
 var collision_duck := 0.0
 # Play at most one predictive danger cue for each real timed gate per race.
 var warned_timed_gates: Dictionary = {}
+var warned_vents: Dictionary = {}
+var hazard_cues: Array[AudioStreamWAV] = []
+var hazard_duck := 0.0
+var hazard_cooldown := 0.0
 var target_marble: RigidBody3D
 var enabled := true
 var collision_delay := 0.0
@@ -204,7 +209,9 @@ func _process(delta: float) -> void:
     boost_delay = maxf(0.0,boost_delay-delta)
     haptic_cooldown = maxf(0.0,haptic_cooldown-delta)
     collision_duck = move_toward(collision_duck,0.0,delta*9.0)
-    var music_mix_db: float = music_target_db + loudness_offset - collision_duck
+    hazard_cooldown = maxf(0.0,hazard_cooldown-delta)
+    hazard_duck = move_toward(hazard_duck,0.0,delta*13.0)
+    var music_mix_db: float = music_target_db + loudness_offset - maxf(collision_duck,hazard_duck)
     if music_fade < 1.0:
         music_fade = minf(1.0,music_fade+maxf(0.0,delta)/MUSIC_FADE_SECONDS)
         # Equal-power fades keep perceived loudness stable even in menu
@@ -232,6 +239,8 @@ func _process(delta: float) -> void:
             [-1.0,-3.0,2.0][track_theme])+pack_percussion_lift(pack_pressure)
         air_target = -52.0 + energy*25.0+pack_wind_lift(pack_pressure)+(
             flight_intensity*6.0)
+        pace_target -= hazard_duck
+        air_target -= hazard_duck*0.6
         air.pitch_scale = lerpf(0.85,1.5,energy) * [1.0,0.94,1.08][track_theme]
     if not enabled:
         pace_target = -80.0
@@ -341,6 +350,11 @@ func begin_race() -> void:
     flight_intensity = 0.0
     flight_intensity_target = 0.0
     warned_timed_gates.clear()
+    warned_vents.clear()
+    if hazard_cues.is_empty() and enabled:
+        hazard_cues = HazardAudio.build()
+    hazard_duck = 0.0
+    hazard_cooldown = 0.0
     pack_pressure = 0.0
     pack_pressure_target = 0.0
     music_target_db = ([-20.0,-22.5,-18.5][track_theme]) if enabled else -80.0
@@ -387,14 +401,22 @@ func race_moment(kind: String) -> void:
             _voice(TONES["boost"],-24.0,0.84)
 
 func warn_timed_gate(index: int, blocking: bool) -> void:
-    # A short original countdown tone makes a single danger cue per gate,
-    # avoiding irritating warning loops or adding any audio mixer voices.
-    # Open Forge pistons are deliberately silent: never warn of false danger.
-    if not enabled or not race_active or not blocking or index < 0 or (
-        warned_timed_gates.has(index)):
+    if blocking:
+        _warn_hazard(warned_timed_gates,index,track_theme)
+
+func warn_vent(index: int) -> void:
+    if track_theme == 2:
+        _warn_hazard(warned_vents,index,3)
+
+func _warn_hazard(played: Dictionary, index: int, cue: int) -> void:
+    if not enabled or not race_active or index < 0 or played.has(index) or hazard_cooldown > 0.0:
         return
-    warned_timed_gates[index] = true
-    _voice(TONES["count"],-20.0,[1.26,1.03,0.84][track_theme])
+    if hazard_cues.is_empty():
+        hazard_cues = HazardAudio.build()
+    played[index] = true
+    hazard_cooldown = 0.36
+    hazard_duck = 4.5
+    _voice(hazard_cues[cue],-15.0)
 
 func course_event(kind: String) -> void:
     match kind:
@@ -498,6 +520,8 @@ func toggle_sound() -> bool:
     rolling.volume_db = -80 if not enabled else -36
     mechanism.volume_db = -80 if not enabled else -30
     if not enabled:
+        for speaker in channels:
+            speaker.stop()
         for speaker in spatial_channels:
             speaker.stop()
     return enabled
