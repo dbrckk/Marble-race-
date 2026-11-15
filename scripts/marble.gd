@@ -367,7 +367,15 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
     if stuck_seconds > 1.65:
         var side_direction: float = recovery_side(relative_x,recovery_count)
         var effort := minf(2.8,1.0+float(recovery_count)*0.35)
-        apply_central_impulse(Vector3(side_direction*3.6*effort,1.4*effort,-6.5*effort)*mass)
+        var impulse := Vector3(side_direction*3.6*effort,1.4*effort,-6.5*effort)
+        if recovery_count >= 3 and is_player and absf(steering) < 0.22 and not network_controlled and (
+            is_instance_valid(course_owner) and course_owner.selected_track == 1 and
+            not course_owner.net.is_active() and absf(relative_x) > 2.4):
+            # Repeated forward kicks can keep a solo marble wedged between
+            # Glacier's closing bridge, a crest and the outer baffle.
+            # Unload the forward contact first and push toward the deck center.
+            impulse = Vector3(-signf(relative_x)*6.3,2.1,0.0)
+        apply_central_impulse(impulse*mass)
         stuck_seconds = 0.0
         recovery_count += 1
     apply_central_force(Vector3(side_force, 0.0, -drive_force) * mass)
