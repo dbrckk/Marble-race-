@@ -105,9 +105,16 @@ func _run() -> void:
                 director.animate(t+0.06)
                 var ordinary_scale: float = 1.10+0.13*sin(
                     (t+0.06)*TAU/director.period()+float(gate)*1.7)
-                assert(director.warning_rings[gate].scale.x >
-                    ordinary_scale+0.25,
-                    "A real earned event must visibly enlarge its animated ring above its biome baseline")
+                var marker: MeshInstance3D = director.warning_rings[gate]
+                if biome == 2:
+                    var material := marker.material_override as StandardMaterial3D
+                    var phase_tint: Color = director.signs[gate].modulate
+                    assert(marker.scale.is_equal_approx(Vector3.ONE) and
+                        material.albedo_color.b > phase_tint.b+0.10,
+                        "Forge rewards a real pass with a flash at the fixed deck footprint")
+                else:
+                    assert(marker.scale.x > ordinary_scale+0.25,
+                        "A real earned pass enlarges the sweeping gate ring")
                 var count: int = director.awarded.size()
                 director.tick(game.racers,game.net)
                 assert(director.awarded.size() == count,

@@ -179,6 +179,14 @@ Base de comparaison GitHub `812ec7b814dfbbe76747d6338c617776f175d15e`.
 - Le guide explique le diamant turbo et les flèches ambrées du pont lorsqu’ils deviennent pertinents. Il se termine après le choix de route et la validation des deux commandes. Le diamant reste facultatif. Le panneau laisse la priorité aux alertes de danger.
 - Vérification Godot 4.5.1 avec deux doigts, boost bref entre deux rafraîchissements du HUD, diamant collecté ou dépassé, pont et piste principale, sauvegarde du parcours et isolation multijoueur.
 
+### 2026-11-16 — Signal des pistons de Forge (1.82.0-rc)
+
+Base de comparaison GitHub `61e7064f8f97039b8488d0d646722929275bcb02`.
+
+- Les trois pistons gagnent une tête d’acier nervurée, un socle et un feu d’accotement. Le contour au sol reste fixe autour du piston. Le feu, le marquage et le texte suivent l’horloge du mécanisme, du préavis ambre à la phase rouge puis à la réouverture. La lueur d’un évitement de précision reste sur le contour du piston.
+- Le signal décrit l’état actuel du mécanisme. Le HUD continue à prévoir son état au moment du passage du joueur. Les réglages de collision et les règles solo et réseau gardent les trajectoires existantes.
+- Godot 4.5.1 vérifie les phases des neuf pistons sur les trois variantes, y compris le passage du préavis à la montée. Les 12 paires de vues en OpenGL Compatibility, caméra de poursuite à une vitesse affichée de 82 km/h, ont chacune le même nombre d’appels de rendu avant et après. [Comparatif du piston au retour du pont](screenshots/v1.82-forge-piston.jpg). Mesures de fluidité sur Redmi en attente.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Traiter les rapports de fluidité du Redmi dès qu’ils sont disponibles. Renforcer ensuite l’identité de Forge autour du piston avec des signaux synchronisés à sa phase physique.
+Comparer les temps d’image en Economy et Balanced sur Redmi. Utiliser les rapports par phase pour isoler les saccades du départ à 40 billes et du retour de pont.

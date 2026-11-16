@@ -32,7 +32,8 @@ const PRECISION_MAX_CHAIN := 3
 const PRECISION_FLASH_SECONDS := 0.56
 const EVENT_LENGTH := 2.1
 const SPEEDS := [5.8,4.65,5.25]
-const VERTICAL_CYCLE := 5.25
+const PISTON_BLOCKING_EXTENSION := 0.43
+const PISTON_PREPARE_PHASE := 0.78
 const VERTICAL_DUTY := 0.47
 
 var game: Node3D
@@ -41,7 +42,7 @@ var variation := 0
 var obstacles: Array[AnimatableBody3D] = []
 var warning_rings: Array[MeshInstance3D] = []
 var signs: Array[Label3D] = []
-var forge_exit_paint: MultiMeshInstance3D
+var forge_approach_paint: Array[MultiMeshInstance3D] = []
 var awarded: Dictionary = {}
 var clock := 0.0
 var collisions_enabled := true
@@ -84,22 +85,27 @@ func setup(owner: Node3D, track: int, layout: int) -> void:
     steel.albedo_color = Color("#535b60")
     steel.metallic = 0.68
     steel.roughness = 0.32
-    var piston_cap := BoxMesh.new()
-    piston_cap.size = Vector3(BODY_WIDTH-0.17,0.035,BODY_DEPTH-0.12)
-    var piston_socket := TorusMesh.new()
-    piston_socket.inner_radius = 0.83
-    piston_socket.outer_radius = 0.96
-    piston_socket.rings = 16
-    piston_socket.ring_segments = 6
     var ring_mesh := TorusMesh.new()
     ring_mesh.inner_radius = 0.88
     ring_mesh.outer_radius = 1.04
     ring_mesh.rings = 18
     ring_mesh.ring_segments = 7
+    var piston_cap: Mesh
+    var piston_sockets: Array[Mesh] = []
+    var piston_signals: Array[Mesh] = []
+    if biome == 2:
+        piston_cap = _forge_piston_cap(floor_plate)
+        for side in [-1.0,1.0]:
+            piston_sockets.append(_forge_piston_frame(floor_plate,false,side))
+            piston_signals.append(_forge_piston_frame(floor_plate,true,side))
+        metal.albedo_color = Color("#9d5541")
+        steel.albedo_color = Color("#797d80")
+        steel.metallic = 0.54
     for i in range(EVENT_Z.size()):
         var z: float = event_z(i)
         var side: float = side_at(i)
-        var x: float = game.track_center_at(z)+side*3.22
+        var x: float = game.track_center_at(z)+side*(3.26 if biome == 2 else 3.22)
+        var flank := int(side > 0.0)
         var body := AnimatableBody3D.new()
         body.name = "ReactiveHazard_%02d" % i
         body.sync_to_physics = true
@@ -135,7 +141,7 @@ func setup(owner: Node3D, track: int, layout: int) -> void:
             inlays.material_override = caution_paint
             inlays.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
             body.add_child(inlays)
-        elif biome == 2:
+        else:
             var cap := MeshInstance3D.new()
             cap.name = "PistonSteelCap"
             cap.mesh = piston_cap
@@ -145,23 +151,27 @@ func setup(owner: Node3D, track: int, layout: int) -> void:
             body.add_child(cap)
             var socket := MeshInstance3D.new()
             socket.name = "PistonSocket_%02d" % i
-            socket.mesh = piston_socket
+            socket.mesh = piston_sockets[flank]
             socket.material_override = steel
-            socket.position = Vector3(game.track_center_at(z)+side*3.26,game.height_at(z)+0.04,z)
-            socket.rotation.x = -atan(game.track_grade_at(z))
+            socket.transform = _forge_deck_frame(z,x)
             socket.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
             add_child(socket)
         add_child(body)
         obstacles.append(body)
         var marker := MeshInstance3D.new()
         marker.name = "WarningHalo_%02d" % i
-        marker.mesh = ring_mesh
+        marker.mesh = piston_signals[flank] if biome == 2 else ring_mesh
         marker.material_override = glow.duplicate() if biome == 2 else glow
-        marker.position = Vector3(x,game.height_at(z)+0.10,z)
+        if biome == 2:
+            marker.transform = _forge_deck_frame(z,x)
+        else:
+            marker.position = Vector3(x,game.height_at(z)+0.10,z)
         marker.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
         add_child(marker)
         warning_rings.append(marker)
-        if biome != 2 or i != FORGE_EXIT_GATE:
+        if biome == 2:
+            _mark_forge_approach(i,x,side,floor_plate,floor_paint)
+        else:
             _mark_gate_approach(i,floor_plate,floor_paint)
         var notice := Label3D.new()
         notice.name = "TimedHazardSign_%02d" % i
@@ -173,12 +183,53 @@ func setup(owner: Node3D, track: int, layout: int) -> void:
         notice.billboard = BaseMaterial3D.BILLBOARD_ENABLED
         notice.position = Vector3(x,game.height_at(z)+2.25,z)
         if biome == 2 and i == FORGE_EXIT_GATE:
-            _forge_exit_telegraph(notice,x,z,side,floor_plate,floor_paint,steel)
+            _forge_exit_telegraph(notice,z,side,steel)
         add_child(notice)
         signs.append(notice)
     ring_flash_end.resize(obstacles.size())
     ring_flash_strength.resize(obstacles.size())
     reset_round()
+
+func _forge_piston_cap(unit: Mesh) -> Mesh:
+    var crown := SurfaceTool.new()
+    crown.append_from(VISUALS.rounded_box(Vector3(1.57,0.068,0.70),0.025),0,Transform3D.IDENTITY)
+    for side in [-1.0,1.0]:
+        crown.append_from(unit,0,Transform3D(Basis.from_scale(Vector3(0.15,0.036,0.52)),
+            Vector3(side*0.60,0.047,0.0)))
+    for rib in range(3):
+        crown.append_from(unit,0,Transform3D(Basis.from_scale(Vector3(0.13,0.024,0.37)),
+            Vector3((rib-1)*0.26,0.04,0.0)))
+    return crown.commit()
+
+func _forge_piston_frame(unit: Mesh, illuminated: bool, shoulder: float) -> Mesh:
+    # The deck brackets and shoulder beacon share a surface and phase.
+    # The beacon is visible over the approach paint from the chase camera.
+    var frame := SurfaceTool.new()
+    for side in [-1.0,1.0]:
+        var rail := Vector3(0.15,0.026,0.98) if illuminated else Vector3(0.21,0.052,1.21)
+        var x := 1.12 if illuminated else 0.98
+        frame.append_from(unit,0,Transform3D(Basis.from_scale(rail),Vector3(side*x,0.052,0)))
+        for end in [-1.0,1.0]:
+            var lug := Vector3(0.39,0.026,0.14) if illuminated else Vector3(0.48,0.048,0.23)
+            var z := 0.47 if illuminated else 0.58
+            frame.append_from(unit,0,Transform3D(Basis.from_scale(lug),
+                Vector3(side*(x-0.12),0.052,end*z)))
+    var post_x := shoulder*2.44
+    if illuminated:
+        frame.append_from(unit,0,Transform3D(Basis.from_scale(Vector3(0.31,0.34,0.19)),
+            Vector3(post_x,0.83,0.0)))
+    else:
+        frame.append_from(unit,0,Transform3D(Basis.from_scale(Vector3(0.20,0.72,0.25)),
+            Vector3(post_x,0.36,0.0)))
+        frame.append_from(unit,0,Transform3D(Basis.from_scale(Vector3(0.44,0.46,0.26)),
+            Vector3(post_x,0.84,-0.085)))
+    return frame.commit()
+
+func _forge_deck_frame(z: float, x: float) -> Transform3D:
+    var section_z: float = 8.0-roundf((8.0-z)/game.SEGMENT_LENGTH)*game.SEGMENT_LENGTH
+    var pitch: float = -atan(game.track_grade_at(section_z))
+    var y: float = game.height_at(section_z)-0.34+0.325/cos(pitch)-tan(pitch)*(z-section_z)
+    return Transform3D(Basis(Vector3.RIGHT,pitch),Vector3(x,y,z))
 
 func _mark_gate_approach(index: int, mesh: Mesh, paint: Material) -> void:
     # Mark the entry to the real hazard lane with three pairs of strips.
@@ -213,8 +264,7 @@ func _mark_gate_approach(index: int, mesh: Mesh, paint: Material) -> void:
     marks.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     add_child(marks)
 
-func _forge_exit_telegraph(notice: Label3D, x: float, z: float, side: float,
-        unit_mesh: Mesh, paint: Material, steel: Material) -> void:
+func _forge_exit_telegraph(notice: Label3D, z: float, side: float, steel: Material) -> void:
     # The shoulder sign and floor stripes point to the same physical lane.
     var sign_x: float = game.track_center_at(z)+side*5.68
     var sign_y: float = game.height_at(z)+1.91
@@ -231,32 +281,31 @@ func _forge_exit_telegraph(notice: Label3D, x: float, z: float, side: float,
     notice.font_size = 37
     notice.line_spacing = -4.0
 
+func _mark_forge_approach(index: int, x: float, side: float,
+        unit_mesh: Mesh, paint: Material) -> void:
     var batch := MultiMesh.new()
     batch.transform_format = MultiMesh.TRANSFORM_3D
     batch.use_colors = true
     batch.mesh = unit_mesh
     batch.instance_count = 12
     for row in range(3):
-        var at_z := z+1.45+1.42*row
-        var section_z: float = 8.0-roundf((8.0-at_z)/game.SEGMENT_LENGTH)*game.SEGMENT_LENGTH
-        var pitch: float = -atan(game.track_grade_at(section_z))
-        var y: float = game.height_at(section_z)-0.34+0.325/cos(pitch)-tan(pitch)*(at_z-section_z)
-        var tilt := Basis(Vector3.RIGHT,pitch)
-        batch.set_instance_transform(row*4,Transform3D(
-            tilt.scaled_local(Vector3(2.36,0.018,0.51)),Vector3(x,y+0.062,at_z)))
+        var at_z := event_z(index)+1.52+1.51*row
+        var deck := _forge_deck_frame(at_z,x)
+        batch.set_instance_transform(row*4,deck*Transform3D(
+            Basis.from_scale(Vector3(2.58,0.018,0.61)),Vector3(0,0.052,0)))
         batch.set_instance_color(row*4,Color("#26212b"))
         for stripe in range(3):
-            var angle := tilt*Basis(Vector3.UP,side*0.30)
-            batch.set_instance_transform(row*4+stripe+1,Transform3D(
-                angle.scaled_local(Vector3(0.43,0.018,0.34)),
-                Vector3(x+(float(stripe)-1.0)*0.69,y+0.079,at_z)))
-            batch.set_instance_color(row*4+stripe+1,EVENT_COLORS[biome])
-    forge_exit_paint = MultiMeshInstance3D.new()
-    forge_exit_paint.name = "GateApproachMarkings_%02d" % FORGE_EXIT_GATE
-    forge_exit_paint.multimesh = batch
-    forge_exit_paint.material_override = paint
-    forge_exit_paint.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-    add_child(forge_exit_paint)
+            var angle := Basis(Vector3.UP,side*0.45)
+            batch.set_instance_transform(row*4+stripe+1,deck*Transform3D(
+                angle.scaled_local(Vector3(0.51,0.018,0.37)),
+                Vector3((stripe-1)*0.75,0.069,0)))
+    var marks := MultiMeshInstance3D.new()
+    marks.name = "GateApproachMarkings_%02d" % index
+    marks.multimesh = batch
+    marks.material_override = paint
+    marks.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    add_child(marks)
+    forge_approach_paint.append(marks)
 
 static func precision_grade(lateral: float, forward_speed: float) -> float:
     if not is_finite(lateral) or not is_finite(forward_speed) or (
@@ -317,7 +366,7 @@ func piston_extension(index: int, elapsed: float) -> float:
     return 0.0
 
 func piston_up(index: int, elapsed: float) -> bool:
-    return piston_extension(index,elapsed) > 0.43
+    return piston_extension(index,elapsed) > PISTON_BLOCKING_EXTENSION
 
 func position_at(index: int, elapsed: float) -> Vector3:
     var z: float = event_z(index)
@@ -381,8 +430,7 @@ func forge_exit_blocks_during_crossing(eta: float, speed: float) -> bool:
     var seconds_to_crest := fposmod(0.10-phase,1.0)*period()
     return seconds_to_crest <= last-first
 
-# Readable physical timing cues use the SAME deterministic clock as the
-# collider and AI predictor. No new nodes, lights, materials or draw calls.
+# Physical timing cues share the deterministic clock of the collider.
 static func hazard_phase_cue(track: int, extension: float,
         lateral_speed: float) -> String:
     if track == 2:
@@ -401,46 +449,43 @@ func animate(elapsed: float) -> void:
     for i in range(obstacles.size()):
         var point: Vector3 = position_at(i,clock)
         obstacles[i].position = point
-        warning_rings[i].position = Vector3(point.x,
-            game.height_at(event_z(i))+0.10,event_z(i))
         var extension := piston_extension(i,clock)
         var tint: Color = EVENT_COLORS[biome]
-        # Cheap, readable telegraph without realtime lights/shadows.
         var earned_flash := 0.0
         if clock < ring_flash_end[i]:
             earned_flash = ring_flash_strength[i]*(
                 ring_flash_end[i]-clock)/PRECISION_FLASH_SECONDS
-        # The existing three mobile rings briefly bloom after an actually
-        # earned precision pass. No new meshes, lights, materials or drawcalls.
-        warning_rings[i].scale = Vector3.ONE*(
-            1.10+0.13*sin(clock*TAU/period()+float(i)*1.7)+
-            0.48*earned_flash)
+        var motion: float
+        var preparing := false
         if biome == 2:
             var phase := phase_at(i,clock)
-            var ring_color := OPEN_COLOR
-            if extension > 0.43:
-                ring_color = BLOCKED_COLOR
-            elif phase > 0.78 or extension >= 0.15:
-                ring_color = MOVING_COLOR
-            var ring_material := warning_rings[i].material_override as StandardMaterial3D
-            tint = ring_color
-            ring_material.albedo_color = ring_color.lerp(Color.WHITE,0.50*earned_flash)
-            ring_material.emission = ring_material.albedo_color
-        # Three existing world-space signs become a timing lesson rather
-        # than a static name: players can time the opening at a glance.
-        var lateral_speed: float = 0.0
-        if biome == 2:
-            lateral_speed = piston_extension(i,clock+0.08)-extension
-        else:
-            lateral_speed = (position_at(i,clock+0.08).x-point.x)/0.08
-        var cue := hazard_phase_cue(biome,extension,lateral_speed)
-        var sign_text: String = EVENT_NAMES[biome]+" / "+cue
-        if biome == 2 and i == FORGE_EXIT_GATE:
-            sign_text = "FORGE PISTON\n"+cue
+            preparing = phase > PISTON_PREPARE_PHASE or (phase < 0.10 and extension < 0.15)
+            motion = piston_extension(i,clock+0.08)-extension
+            if extension > PISTON_BLOCKING_EXTENSION:
+                tint = BLOCKED_COLOR
+            elif preparing or extension >= 0.15:
+                tint = MOVING_COLOR
+            else:
+                tint = OPEN_COLOR
+            var signal_material := warning_rings[i].material_override as StandardMaterial3D
+            var signal_tint := tint.lerp(Color.WHITE,0.50*earned_flash)
+            if signal_material.albedo_color != signal_tint:
+                signal_material.albedo_color = signal_tint
+                signal_material.emission = signal_tint
             if signs[i].modulate != tint:
+                var markings := forge_approach_paint[i].multimesh
                 for row in range(3):
                     for stripe in range(1,4):
-                        forge_exit_paint.multimesh.set_instance_color(row*4+stripe,tint)
+                        markings.set_instance_color(row*4+stripe,tint)
+        else:
+            warning_rings[i].position = Vector3(point.x,
+                game.height_at(event_z(i))+0.10,event_z(i))
+            warning_rings[i].scale = Vector3.ONE*(
+                1.10+0.13*sin(clock*TAU/period()+float(i)*1.7)+0.48*earned_flash)
+            motion = (position_at(i,clock+0.08).x-point.x)/0.08
+        var cue := "GET READY" if preparing else hazard_phase_cue(biome,extension,motion)
+        var separator := "\n" if biome == 2 and i == FORGE_EXIT_GATE else " / "
+        var sign_text: String = EVENT_NAMES[biome]+separator+cue
         if signs[i].text != sign_text:
             signs[i].text = sign_text
         signs[i].modulate = tint

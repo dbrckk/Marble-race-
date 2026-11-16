@@ -78,19 +78,12 @@ func _verify() -> void:
             assert(sign.text.contains(DIRECTOR.EVENT_NAMES[biome]),
                 "Every physical gate retains its world-specific name")
             if biome == 2:
-                var expected_now: String = DIRECTOR.hazard_phase_cue(
-                    biome,director.piston_extension(gate_index,blocked_clock),
-                    director.piston_extension(gate_index,blocked_clock+0.08)-
-                    director.piston_extension(gate_index,blocked_clock))
-                assert(sign.text.contains(expected_now),
-                    "Forge signs must reflect the CURRENT physical piston state")
+                assert(await _verify_forge_signals(director))
                 director.animate(clear_clock)
-                var clear_now: String = DIRECTOR.hazard_phase_cue(
-                    biome,director.piston_extension(gate_index,clear_clock),
-                    director.piston_extension(gate_index,clear_clock+0.08)-
-                    director.piston_extension(gate_index,clear_clock))
-                assert(director.signs[gate_index].text.contains(clear_now),
-                    "Forge world sign reports current piston, HUD forecasts arrival")
+                assert(director.signs[gate_index].text.contains("BLOCKED") or
+                    director.signs[gate_index].text.contains("RISING") or
+                    director.signs[gate_index].text.contains("FALLING"),
+                    "The raised world piston can be open on arrival in the HUD forecast")
                 # Receding metal must never show a fake RISING warning.
                 var descending_found := false
                 for sample in range(130):
@@ -257,7 +250,7 @@ func _verify() -> void:
         await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_timed_hud_career.cfg"))
-    print("TIMED_HUD_PASS: 9 layouts, speed-aware approaches, original cues, Glacier ice and bridge handoffs, Forge encounter order, piston crossing windows and final obstacle priority")
+    print("TIMED_HUD_PASS: 9 layouts, speed-aware approaches, original cues, Glacier ice and bridge handoffs, Forge signals, encounter order, piston crossing windows and final obstacle priority")
     quit(0)
 
 func _verify_final_approach(game: Node3D) -> bool:
@@ -617,6 +610,50 @@ func _verify_glacier_crossing_window(game: Node3D, director: Node3D, gate: int) 
     assert(game.audio.warned_timed_gates.has(gate))
     return true
 
+func _verify_forge_signals(director: Node3D) -> bool:
+    for gate in range(3):
+        var rail: MeshInstance3D = director.warning_rings[gate]
+        var contact: AnimatableBody3D = director.obstacles[gate]
+        var deck_placement := rail.transform
+        var markings: MultiMeshInstance3D = director.forge_approach_paint[gate]
+        assert(rail.mesh.get_surface_count() == 1 and
+            rail.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
+        assert(markings.multimesh.instance_count == 12 and
+            markings.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
+        var cases := [
+            [0.60,"OPEN",DIRECTOR.OPEN_COLOR,false],
+            [0.91,"GET READY",DIRECTOR.MOVING_COLOR,false],
+            [0.01,"GET READY",DIRECTOR.MOVING_COLOR,false],
+            [0.04,"RISING",DIRECTOR.MOVING_COLOR,false],
+            [0.20,"BLOCKED",DIRECTOR.BLOCKED_COLOR,true],
+            [0.42,"FALLING",DIRECTOR.MOVING_COLOR,false],
+        ]
+        for state in cases:
+            var t := fposmod(float(state[0])*director.period()-
+                float(gate)*1.71-float(director.variation)*1.29,director.period())
+            director.animate(t)
+            await physics_frame
+            await physics_frame
+            var notice: Label3D = director.signs[gate]
+            var material := rail.material_override as StandardMaterial3D
+            var tint: Color = state[2]
+            assert(director.piston_up(gate,t) == state[3] and
+                contact.position.is_equal_approx(director.position_at(gate,t)))
+            assert(notice.text.ends_with(state[1]) and notice.modulate == tint)
+            assert(material.albedo_color == tint and material.emission == tint)
+            assert(rail.transform.is_equal_approx(deck_placement) and
+                is_equal_approx(rail.position.x,contact.position.x),
+                "Piston signals are fixed around the collision lane through the entire cycle")
+            # The headless dummy renderer does not retain MultiMesh colors.
+            if DisplayServer.get_name() != "headless":
+                for row in range(3):
+                    for stripe in range(1,4):
+                        var error := markings.multimesh.get_instance_color(row*4+stripe)-tint
+                        assert(Vector3(error.r,error.g,error.b).length() < 0.007)
+        assert(rail.mesh.get_aabb().size.y > 0.85,
+            "The shoulder light must rise above the deck brackets")
+    return true
+
 func _verify_forge_exit(game: Node3D) -> void:
     var director: Node3D = game.race_director
     var gate := DIRECTOR.FORGE_EXIT_GATE
@@ -662,9 +699,10 @@ func _verify_forge_exit(game: Node3D) -> void:
             break
     assert(window_found,"The crossing window must include the front and rear of the marble")
     assert(director.has_node("ForgeExitPistonPlaque") and
-        director.forge_exit_paint.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
+        director.forge_approach_paint[gate].cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
     director.animate(playhead)
     assert(director.signs[gate].text.contains("OPEN") or
+        director.signs[gate].text.contains("GET READY") or
         director.signs[gate].text.contains("RISING") or director.signs[gate].text.contains("FALLING"))
     var passed_z := ROUTE.EXIT_Z-0.5
     var gate_x: float = director.position_at(gate,playhead).x
