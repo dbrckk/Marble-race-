@@ -704,9 +704,11 @@ func _edge_baffles(parent: Node3D, center_z: float, section: int, glacier_return
     for side in [-1.0, 1.0]:
         var z: float = center_z + (3.75 if side < 0.0 else -3.75)
         var material_color: Color = TRACK_COLORS[selected_track].darkened(0.13)
+        # At Glacier's return, leave a shoulder for racers nudged sideways
+        # as both lines merge. Keep the baffle visible and collidable by the rail.
         var merge_side: bool = glacier_return and section == ShortcutRoute.EXIT_SECTION+1 and side < 0.0
-        var size := Vector3(1.40 if merge_side else 2.72,1.05,1.32)
-        var edge_offset := 5.78 if merge_side else 5.17
+        var size := Vector3(0.94 if merge_side else 2.72,1.05,1.32)
+        var edge_offset := 6.04 if merge_side else 5.17
         var node := _box(parent,Vector3(side*edge_offset,height_at(z)+0.49,z),
             size,_lacquer(material_color),true,true)
         node.name = "AntiEdgeBaffle_%02d_%s" % [section, "L" if side < 0.0 else "R"]
