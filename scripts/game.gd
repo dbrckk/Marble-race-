@@ -839,24 +839,29 @@ func _finish_arch() -> void:
             Vector3(1.02, 0.045, 0.63), _mat(Color("#f2e5d0") if i%2==0 else Color("#342a28")), false)
 
 func _checkpoint_arches() -> void:
-    if selected_track == 2:
-        _forge_checkpoint_markers()
-        return
-    for n in [4,9,14]:
-        var z = 8.0 - float(n) * SEGMENT_LENGTH
+    var edge_sectors: Array[int] = []
+    for sector in range(CHECKPOINT_Z.size()):
+        if CourseSculptures.uses_edge_checkpoint(selected_track,sector):
+            edge_sectors.append(sector)
+            continue
+        var z = 8.0 - float(CourseSculptures.VAULT_SECTIONS[sector]) * SEGMENT_LENGTH
         var y = height_at(z)
         for side in [-1.0,1.0]:
             _box(board,Vector3(side*6.28+track_center_at(z),y+2.4,z),Vector3(0.21,4.7,0.28),
                 _mat(Color("#e6c488"),0.3,0.28),false)
         _box(board,Vector3(track_center_at(z),y+4.65,z),Vector3(12.7,0.32,0.38),
             _mat(Color("#dfb66c"),0.35,0.2),false)
-        _floating_sign("CHECKPOINT %d" % int(n/5+1),Vector3(track_center_at(z),y+5.22,z))
+        _floating_sign("CHECKPOINT %d" % (sector+1),Vector3(track_center_at(z),y+5.22,z))
+    if not edge_sectors.is_empty():
+        _edge_checkpoint_markers(edge_sectors)
 
-func _forge_checkpoint_markers() -> void:
-    var steel := _mat(Color("#51383b"),0.34,0.62)
-    var enamel := _mat(Color("#f0b56a"),0.41,0.18)
-    var post_x := CourseSculptures.FORGE_SECTOR_POST_OFFSET
-    var sign_y := CourseSculptures.FORGE_SECTOR_SIGN_HEIGHT
+func _edge_checkpoint_markers(sectors: Array[int]) -> void:
+    var forge := selected_track == 2
+    var biome_name := "Forge" if forge else "Glacier"
+    var shell := _mat(Color("#51383b") if forge else Color("#315266"),0.34,0.62)
+    var enamel := _mat(Color("#f0b56a") if forge else Color("#a8efff"),0.41,0.18)
+    var post_x := CourseSculptures.EDGE_SECTOR_POST_OFFSET
+    var sign_y := CourseSculptures.EDGE_SECTOR_SIGN_HEIGHT
     var pillar := BoxMesh.new()
     pillar.size = Vector3(0.28,2.2,0.42)
     var plaque := BoxMesh.new()
@@ -871,24 +876,25 @@ func _forge_checkpoint_markers() -> void:
     var posts := MultiMesh.new()
     posts.transform_format = MultiMesh.TRANSFORM_3D
     posts.mesh = mesh
-    posts.instance_count = CHECKPOINT_Z.size()*2
+    posts.instance_count = sectors.size()*2
     var post_art := MultiMeshInstance3D.new()
-    post_art.name = "ForgeSectorPostBatch"
+    post_art.name = biome_name+"SectorPostBatch"
     post_art.multimesh = posts
-    post_art.material_override = steel
+    post_art.material_override = shell
     post_art.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     board.add_child(post_art)
-    for sector in range(CHECKPOINT_Z.size()):
+    for index in range(sectors.size()):
+        var sector := sectors[index]
         var z: float = CHECKPOINT_Z[sector]
         var floor_y: float = height_at(z)
         var center_x: float = track_center_at(z)
         var marker := Node3D.new()
-        marker.name = "ForgeSectorMarker%d" % (sector+1)
+        marker.name = "%sSectorMarker%d" % [biome_name,sector+1]
         marker.position = Vector3(center_x,floor_y,z)
         board.add_child(marker)
         for flank in range(2):
             var side := -1.0 if flank == 0 else 1.0
-            posts.set_instance_transform(sector*2+flank,Transform3D(
+            posts.set_instance_transform(index*2+flank,Transform3D(
                 Basis(),marker.position+Vector3(side*post_x,0,0)))
             var number := _floating_sign("SECTOR %02d" % (sector+1),
                 Vector3(side*post_x,sign_y,0.148),marker)

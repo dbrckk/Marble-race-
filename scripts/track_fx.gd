@@ -128,11 +128,12 @@ func _road_markings() -> void:
 func _waypoint_lanterns() -> void:
     # Metallic brass-ringed checkpoint light, glowing but not adding per-pixel light sources.
     var stage := get_parent().get_parent() as Node3D
-    var forge: bool = stage.selected_track == 2
-    var pole_offset := SCULPTURES.FORGE_SECTOR_POST_OFFSET if forge else 6.28
-    var beacon_height := SCULPTURES.FORGE_SECTOR_BEACON_HEIGHT if forge else 4.7
-    for n in range(3):
-        var z: float = stage.CHECKPOINT_Z[n] if forge else 8.0-[4,9,14][n]*12.0
+    for n in range(stage.CHECKPOINT_Z.size()):
+        var edge := SCULPTURES.uses_edge_checkpoint(stage.selected_track,n)
+        var pole_offset := SCULPTURES.EDGE_SECTOR_POST_OFFSET if edge else 6.28
+        var beacon_height := SCULPTURES.EDGE_SECTOR_BEACON_HEIGHT if edge else 4.7
+        var z: float = stage.CHECKPOINT_Z[n] if edge else (
+            8.0-float(SCULPTURES.VAULT_SECTIONS[n])*stage.SEGMENT_LENGTH)
         for side in [-1.0,1.0]:
             var pole_x: float = side*pole_offset
             var y: float = _height(z)+beacon_height
@@ -147,7 +148,7 @@ func _waypoint_lanterns() -> void:
             var bulb=MeshInstance3D.new()
             bulb.name="CheckpointBeacon_%d" % n
             var sphere=SphereMesh.new()
-            sphere.radius=0.15 if forge else 0.25
+            sphere.radius=0.15 if edge else 0.25
             sphere.height=sphere.radius*2.0
             sphere.radial_segments=14
             sphere.rings=6

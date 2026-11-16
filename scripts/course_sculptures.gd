@@ -5,6 +5,8 @@ extends Node3D
 ## No impulses, speed cheats, animated collision or hidden client authority.
 const BANK_SECTIONS := [2,7,12,15]
 const VAULT_SECTIONS := [4,9,14]
+const GLACIER_RETURN_SECTOR := 1
+const GLACIER_RETURN_VAULT := VAULT_SECTIONS[GLACIER_RETURN_SECTOR]
 const BANK_HALF_LENGTH := 2.44
 const BANK_WIDTH := 3.1
 const BANK_THICKNESS := 0.11
@@ -35,9 +37,9 @@ const FORGE_CANOPY_OFFSET := 6.55
 const FORGE_CANOPY_WIDTH := 2.50
 const FORGE_LIGHT_OFFSET := 5.54
 const FORGE_LIGHT_WIDTH := 0.72
-const FORGE_SECTOR_POST_OFFSET := 6.67
-const FORGE_SECTOR_SIGN_HEIGHT := 2.38
-const FORGE_SECTOR_BEACON_HEIGHT := 2.97
+const EDGE_SECTOR_POST_OFFSET := 6.67
+const EDGE_SECTOR_SIGN_HEIGHT := 2.38
+const EDGE_SECTOR_BEACON_HEIGHT := 2.97
 const COLOR_BODIES := [
     Color("#98704e"),Color("#719ab0"),Color("#77504a")]
 const COLOR_GLOWS := [
@@ -61,13 +63,16 @@ var vault_crest_points: Array[Vector3] = []
 var vault_rib_roots: Array[Transform3D] = []
 # CPU-side source positions: MultiMesh GPU readback is unavailable in
 # headless CI and may return identity transforms on mobile backends.
-var canopy_roots: Array[Vector3] = []
+var canopy_roots: Array[Transform3D] = []
 var quality := 1
 var earned_apex: Dictionary = {}
 var last_ray_queries := 0
 var validated_apex_hits := 0
 var apex_inlay_roots: Array[Transform3D] = []
 var apex_flash: Array[float] = []
+
+static func uses_edge_checkpoint(track: int, sector: int) -> bool:
+    return track == 2 or (track == 1 and sector == GLACIER_RETURN_SECTOR)
 
 static func bank_side(section: int, track: int, layout: int) -> float:
     return -1.0 if (section+clampi(track,0,2)+posmod(layout,3))%2 == 0 else 1.0
@@ -174,14 +179,13 @@ func _banked_racing_apexes() -> void:
 func _world_passage_vaults() -> void:
     var pillars: Array[Transform3D] = []
     var highlights: Array[Transform3D] = []
-    var canopy_transforms: Array[Transform3D] = []
     var trim_transforms: Array[Transform3D] = []
     var forge := biome == 2
     var roof_pitch: float = VAULT_PITCHES[biome]
-    # Forge uses open-top steel ribs, with all solid-looking art above the
-    # side rails. The timber and ice vaults retain their continuous profiles.
-    # Every support is visual, including those adjacent to the bypass.
+    # The Glacier return opens both lanes under one passage. The exterior
+    # glacier rib sits farther out on the bridge side than on the main road.
     for section in VAULT_SECTIONS:
+        var glacier_return: bool = biome == 1 and section == GLACIER_RETURN_VAULT
         var centre_z: float = bank_z(section,variation)
         # Two partial overhead bays between each set of three landmark
         # ribs. Open central skylight and clear 5m headroom keep the ball
@@ -197,18 +201,23 @@ func _world_passage_vaults() -> void:
                 var outboard_x := FORGE_CANOPY_OFFSET if forge else 5.55
                 var rib_x := FORGE_RIB_OFFSET if forge else VAULT_HALF_WIDTH*0.56
                 var y := floor_y+VAULT_CLEARANCE+0.57
-                if forge:
+                if glacier_return:
+                    outboard_x = _glacier_return_rib_offset(side)
+                    basis = basis.scaled_local(Vector3(0.64,1.0,1.0))
+                    y = floor_y+VAULT_CLEARANCE+0.32
+                elif forge:
                     y -= tan(roof_pitch)*(outboard_x-rib_x)
                 else:
                     y += sin(roof_pitch)*(outboard_x-rib_x)
                 var canopy_point := Vector3(
                     center_x+side*outboard_x,y,z)
-                canopy_roots.append(canopy_point)
-                canopy_transforms.append(Transform3D(basis,canopy_point))
+                canopy_roots.append(Transform3D(basis,canopy_point))
                 var trim_offset := (FORGE_CANOPY_WIDTH*0.5-0.08)*cos(roof_pitch) if forge else 1.40
-                trim_transforms.append(Transform3D(basis,Vector3(
+                if glacier_return:
+                    trim_offset = 0.83
+                trim_transforms.append(Transform3D(basis.orthonormalized(),Vector3(
                     center_x+side*(outboard_x-trim_offset),
-                    y+0.055+(tan(roof_pitch)*trim_offset if forge else 0.0),z)))
+                    y+0.055+(tan(roof_pitch)*trim_offset if forge or glacier_return else 0.0),z)))
         for rib in VAULT_RIB_OFFSETS:
             var z: float = centre_z+float(rib)
             var center_x: float = game.track_center_at(z)
@@ -219,21 +228,35 @@ func _world_passage_vaults() -> void:
             var crest_x := FORGE_LIGHT_OFFSET if forge else 0.0
             var crest_y := rib_y+(tan(roof_pitch)*(rib_x-crest_x) if forge else (
                 sin(roof_pitch)*VAULT_HALF_WIDTH*0.5))
+            if glacier_return:
+                rib_y = floor_y+VAULT_CLEARANCE+0.32
+                crest_x = _glacier_return_rib_offset(1.0)-0.64
+                crest_y = rib_y+tan(roof_pitch)*0.64
             vault_crest_points.append(Vector3(center_x+crest_x,crest_y,z))
             for side in [-1.0,1.0]:
-                var origin := Vector3(center_x+side*rib_x,rib_y,z)
+                var post_x := VAULT_HALF_WIDTH
+                var flank_rib_x := rib_x
                 var roof_basis := Basis(Vector3.FORWARD,side*roof_pitch)
-                vault_rib_roots.append(Transform3D(roof_basis,origin))
+                var roof_scale := Vector3.ONE
                 var support_height := VAULT_CLEARANCE
-                if forge:
-                    support_height += 0.57-tan(roof_pitch)*(VAULT_HALF_WIDTH-rib_x)
+                if glacier_return:
+                    flank_rib_x = _glacier_return_rib_offset(side)
+                    roof_scale.x = 0.30
+                    post_x = flank_rib_x+0.90
+                    support_height = rib_y-floor_y-tan(roof_pitch)*0.90
+                    highlights.append(Transform3D(roof_basis.scaled_local(Vector3(0.58,1.0,1.0)),
+                        Vector3(center_x+side*(flank_rib_x-0.64),crest_y+0.14,z)))
+                elif forge:
+                    support_height += 0.57-tan(roof_pitch)*(post_x-rib_x)
                     highlights.append(Transform3D(roof_basis,
                         Vector3(center_x+side*crest_x,crest_y+0.14,z)))
+                var origin := Vector3(center_x+side*flank_rib_x,rib_y,z)
+                vault_rib_roots.append(Transform3D(roof_basis.scaled_local(roof_scale),origin))
                 pillars.append(Transform3D(Basis().scaled(
                     Vector3(1.0,support_height/VAULT_CLEARANCE,1.0)),
-                    Vector3(center_x+side*VAULT_HALF_WIDTH,
+                    Vector3(center_x+side*post_x,
                     floor_y+support_height*0.5,z)))
-            if not forge:
+            if not forge and not glacier_return:
                 highlights.append(Transform3D(Basis(),
                     Vector3(center_x,crest_y+0.08,z)))
     var column_mesh := BoxMesh.new()
@@ -255,11 +278,14 @@ func _world_passage_vaults() -> void:
     canopy_mesh.size = Vector3(FORGE_CANOPY_WIDTH if forge else 2.90,0.10,3.00)
     canopy_panels = _instanced("TwelveOpenSkyCanopyBays",canopy_mesh,
         _material(COLOR_BODIES[biome].lightened(
-            0.28 if biome == 1 else 0.12)),canopy_transforms)
+            0.28 if biome == 1 else 0.12)),canopy_roots)
     var line_mesh := BoxMesh.new()
     line_mesh.size = Vector3(0.09,0.035,3.08)
     canopy_trims = _instanced("TwelveCanopyLuminousGuides",line_mesh,
         _material(COLOR_GLOWS[biome],0.42),trim_transforms)
+
+static func _glacier_return_rib_offset(side: float) -> float:
+    return 13.5 if side < 0.0 else VAULT_HALF_WIDTH
 
 # The reward is earned ONLY by touching the already-existing bank mesh
 # at racing speed. The authoritative server/offline physics world performs

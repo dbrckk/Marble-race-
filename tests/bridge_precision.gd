@@ -23,7 +23,8 @@ func _check() -> void:
         var art := route.get_node("BypassPrecisionEdgePosts") as MultiMeshInstance3D
         var arches := route.get_node("BypassPrecisionPortalArches") as MultiMeshInstance3D
         assert(art.multimesh.instance_count == 6)
-        assert(arches.multimesh.instance_count == (12 if biome == 2 else 9))
+        var arch_pieces: int = [9,10,12][biome]
+        assert(arches.multimesh.instance_count == arch_pieces)
         assert(art.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
         assert(arches.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
         for station in range(BYPASS.BRIDGE_POST_Z.size()):

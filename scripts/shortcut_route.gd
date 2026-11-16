@@ -255,7 +255,8 @@ func _bridge_precision_corridor(material: Material) -> void:
                 Vector3(0.18,BRIDGE_ARCH_HEIGHT,0.22)),
                 center+Vector3(flank*(WIDTH*0.5+0.62),
                     BRIDGE_ARCH_HEIGHT*0.5+0.32,0.0)))
-        if course_id == 2:
+        var glacier_exit := course_id == 1 and station == BRIDGE_POST_Z.size()-1
+        if course_id == 2 or glacier_exit:
             for flank in [-1.0,1.0]:
                 var cap := Basis(Vector3.FORWARD,-flank*0.20)
                 arch_art.append(Transform3D(cap.scaled_local(Vector3(1.36,0.19,0.24)),
