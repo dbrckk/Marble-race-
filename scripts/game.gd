@@ -1407,6 +1407,9 @@ func _physics_process(delta: float) -> void:
         airtime.tick_physics(delta)
     if race_state != "RACING" or net.is_client():
         return
+    if is_instance_valid(ui) and ui.woodworks_guide_active and not net.is_active() and (
+        is_instance_valid(player) and not player.freeze and not player.finished and not player.eliminated):
+        ui.record_woodworks_controls(steer,boosting and boost_energy > 0.0)
     if is_instance_valid(race_items):
         race_items.tick(delta,racers,net)
     if is_instance_valid(course_mechanics):

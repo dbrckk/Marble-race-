@@ -23,8 +23,10 @@ func _run() -> void:
     assert(game.racers.size() == 40 and hud.woodworks_guide_active)
     assert(not hud.woodworks_guide_label.is_visible_in_tree(), "Countdown stays clear")
     game.race_state = "RACING"
+    game.player.freeze = false
+    game.race_time = 15.0
     _refresh(game)
-    assert(hud.woodworks_guide_label.is_visible_in_tree())
+    assert(hud.woodworks_guide_label.is_visible_in_tree(),"Steering stays visible after the old timeout")
     assert(hud.woodworks_guide_label.text.contains("STEER"))
     var pad = hud.touch_controls
     pad.left_handed = false
@@ -38,15 +40,18 @@ func _run() -> void:
     _refresh(game)
     assert(game.steer > 0.22 and hud.woodworks_guide_label.text.contains("BOOST"))
     pad._finger_event(2,boost,true)
-    _refresh(game)
     assert(game.boosting and pad.joystick_finger == 1)
-    assert(not hud.woodworks_guide_label.is_visible_in_tree())
+    game._physics_process(1.0/60.0)
     pad.release_all()
+    _refresh(game)
+    assert(hud.woodworks_boosted,"A boost applied between HUD refreshes is remembered")
 
     var pickup: Node3D = game.race_items.items[0]
     game.player.global_position = pickup.global_position+Vector3.BACK*12.0
+    game.race_time = 35.0
     _refresh(game)
     assert(hud.rare_item_label.visible and hud.rare_item_label.text.contains("TURBO DIAMOND"))
+    assert(hud.woodworks_guide_label.text.contains("ACTIVATE") and hud.woodworks_guide_label.is_visible_in_tree())
     game.player.global_position = pickup.global_position
     game.race_items.tick(1.0/60.0,game.racers,game.net)
     assert(not pickup.visible and hud.checkpoint_label.text.contains("INSTANT TURBO"))
@@ -56,6 +61,7 @@ func _run() -> void:
     _refresh(game)
     assert(hud.shortcut_label.text.contains("MAIN TRACK") and
         hud.shortcut_label.text.contains("BRIDGE RIGHT NOW"))
+    assert(hud.woodworks_guide_label.text.contains("AMBER") and hud.woodworks_guide_label.is_visible_in_tree())
     assert(hud.woodworks_guide_active, "Keep the choice visible through the entrance")
     var bridge: Vector3 = game.shortcut_route.point_at(-72.0)
     game.player.global_position = bridge+Vector3.UP
@@ -90,16 +96,44 @@ func _run() -> void:
     assert(game.race_items.items[0].position.is_equal_approx(
         ITEMS.placement_at(0,0,game.built_variation)))
 
+    _verify_main_track(game)
     await _verify_pickup_approaches(game)
     game.queue_free()
     await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path("user://qa_woodworks_opening.cfg"))
-    print("WOODWORKS_OPENING_PASS: two fingers, real pickup, fork, persistent guidance, one-tap replay, network parity")
+    print("WOODWORKS_OPENING_PASS: untimed controls, brief boost, real and skipped pickup, both routes, persistence, replay, network parity")
     quit()
 
 func _refresh(game: Node3D) -> void:
     game.ui.label_timer = 1.0
     game.ui.update_hud()
+
+func _verify_main_track(game: Node3D) -> void:
+    var hud = game.ui
+    hud.woodworks_guide_seen = false
+    game.start_race("Grip Tape")
+    game.race_state = "RACING"
+    game.player.freeze = false
+    game.change_boost(true)
+    game._physics_process(1.0/60.0)
+    game.change_boost(false)
+    _refresh(game)
+    assert(hud.woodworks_guide_label.text.contains("STEER"),"Boosting first still leaves the steering step")
+    game.change_steer(1.0)
+    game._physics_process(1.0/60.0)
+    game._physics_process(1.0/60.0)
+    game.change_steer(0.0)
+    var z := ROUTE.ENTRY_PORTAL_Z
+    game.player.position = Vector3(game.track_center_at(z),game.height_at(z)+0.4,z)
+    _refresh(game)
+    assert(game.race_items.items[0].visible and hud.woodworks_guide_label.text.contains("AMBER"),
+        "A missed diamond must hand off to the fork")
+    assert(hud.woodworks_guide_active and not hud.woodworks_guide_seen)
+    z -= ROUTE.PORTAL_HALF_LENGTH+1.0
+    game.player.position = Vector3(game.track_center_at(z),game.height_at(z)+0.4,z)
+    _refresh(game)
+    assert(hud.woodworks_guide_seen and not hud.woodworks_guide_active,
+        "Taking the main road completes the guide too")
 
 func _verify_pickup_approaches(game: Node3D) -> void:
     var marble := SphereShape3D.new()

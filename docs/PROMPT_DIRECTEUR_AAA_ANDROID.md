@@ -171,6 +171,14 @@ Base de comparaison GitHub `a9557b001be60c2e47af53b0b8d11d983cd21bb4`.
 - L’écran de résultats permet de copier le rapport ou de rejouer le même tracé avec le même atout dans l’autre profil. Le changement de profil est conservé dans les réglages. Le chronométrage saute l’intervalle de pause et compte les saccades en jeu.
 - Godot 4.5.1 vérifie la séparation des phases, les pauses, les saccades et la relance de comparaison depuis les résultats. Les mesures sur Redmi restent à faire.
 
+### 2026-11-16 — Première course guidée par les gestes (1.81.0-rc)
+
+Base de comparaison GitHub `812ec7b814dfbbe76747d6338c617776f175d15e`.
+
+- La première course solo sur Woodworks enregistre la direction et le boost au moment où ils sont appliqués à la bille. Les consignes suivent les actions du joueur, même si elles arrivent après les anciennes limites de temps ou dans l’ordre inverse.
+- Le guide explique le diamant turbo et les flèches ambrées du pont lorsqu’ils deviennent pertinents. Il se termine après le choix de route et la validation des deux commandes. Le diamant reste facultatif. Le panneau laisse la priorité aux alertes de danger.
+- Vérification Godot 4.5.1 avec deux doigts, boost bref entre deux rafraîchissements du HUD, diamant collecté ou dépassé, pont et piste principale, sauvegarde du parcours et isolation multijoueur.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Relever les rapports Équilibré et Économie sur Redmi et corriger la cause dominante des images lentes observées, puis comparer les deux profils dans les mêmes conditions.
+Traiter les rapports de fluidité du Redmi dès qu’ils sont disponibles. Renforcer ensuite l’identité de Forge autour du piston avec des signaux synchronisés à sa phase physique.

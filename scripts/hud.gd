@@ -8,7 +8,6 @@ const COURSE_BRIEFING = preload("res://scripts/course_briefing.gd")
 const PROGRESS_RADAR = preload("res://scripts/race_progress_radar.gd")
 const RARE_ITEMS = preload("res://scripts/race_items.gd")
 const SHORTCUT_ROUTE = preload("res://scripts/shortcut_route.gd")
-const WOODWORKS_GUIDE_LIMIT := 30.0
 const VENT_WARNING_SECONDS := 1.55
 const FINAL_OBSTACLE_WARNING_SECONDS := 1.40
 const SURFACE_CUE_TOP := 0.402
@@ -1484,7 +1483,11 @@ func _update_rival_marker() -> void:
         rival_marker.global_position = rival.global_position+Vector3.UP*0.88
         rival_marker.modulate = Color("#ffd78d") if moments.side_by_side_active else Color("#83e6ff")
 
-func _update_woodworks_guide() -> void:
+func record_woodworks_controls(steer: float, boosting: bool) -> void:
+    woodworks_steered = woodworks_steered or absf(steer) >= 0.22
+    woodworks_boosted = woodworks_boosted or boosting
+
+func _update_woodworks_guide(route_mode: String, turbo_ahead: bool, urgent: bool) -> void:
     if not woodworks_guide_active or game.race_state != "RACING":
         return
     var panel := woodworks_guide_label.get_parent() as PanelContainer
@@ -1492,22 +1495,28 @@ func _update_woodworks_guide() -> void:
         woodworks_guide_active = false
         panel.hide()
         return
-    if game.player.global_position.z <= SHORTCUT_ROUTE.ENTRY_PORTAL_Z:
+    var at: Vector3 = game.player.global_position
+    var fork_cleared: bool = route_mode == "merge" or (
+        at.z <= SHORTCUT_ROUTE.ENTRY_PORTAL_Z-SHORTCUT_ROUTE.PORTAL_HALF_LENGTH and
+        absf(at.x-game.track_center_at(at.z)) < 6.52 and at.y >= game.height_at(at.z)-0.35)
+    if woodworks_steered and woodworks_boosted and fork_cleared:
         woodworks_guide_active = false
         panel.hide()
         woodworks_guide_seen = true
         _save_controls_config()
         return
-    woodworks_steered = woodworks_steered or absf(game.steer) >= 0.22
-    woodworks_boosted = woodworks_boosted or game.boosting
     var prompt := ""
-    if game.race_time < 3.4 and not woodworks_steered:
+    if not woodworks_steered:
         prompt = "DRAG LEFT OR RIGHT TO STEER" if OS.has_feature("mobile") else "A / D OR DRAG TO STEER"
-    elif game.race_time < 6.5 and not woodworks_boosted:
+    elif not woodworks_boosted:
         prompt = "HOLD BOOST WITH YOUR OTHER THUMB" if OS.has_feature("mobile") else "HOLD SPACE OR BOOST TO ACCELERATE"
+    elif turbo_ahead:
+        prompt = "ROLL THROUGH THE DIAMOND TO ACTIVATE IT"
+    elif route_mode == "fork":
+        prompt = "AMBER ARROWS LEAD TO THE BRIDGE"
     if woodworks_guide_label.text != prompt:
         woodworks_guide_label.text = prompt
-    panel.visible = not prompt.is_empty()
+    panel.visible = not urgent and not prompt.is_empty()
 
 func update_hud() -> void:
     var elapsed: float = get_process_delta_time()
@@ -1525,7 +1534,6 @@ func update_hud() -> void:
     label_timer = 0.0
     if not is_instance_valid(game.player):
         return
-    _update_woodworks_guide()
     var speed_intensity: float = RACE_MOMENTS.edge_intensity(
         game.race_moments.local_speed,game.boosting,game.graphics_quality) if (
         game.race_moments != null and game.race_state == "RACING") else 0.0
@@ -1768,8 +1776,7 @@ func update_hud() -> void:
         rare_item_label.text = "RARE %s  •  %s  •  %dm" % [
             str(next_item["label"]),str(next_item["side"]),
             int(ceil(float(next_item["distance"])))]
-        if woodworks_guide_active and game.race_time < WOODWORKS_GUIDE_LIMIT and (
-            int(next_item["index"]) == 0):
+        if woodworks_guide_active and int(next_item["index"]) == 0:
             rare_item_label.text = "INSTANT TURBO DIAMOND  •  %s  •  %dm" % [
                 str(next_item["side"]),int(ceil(float(next_item["distance"])))]
         var color_index: int = posmod(int(next_item["index"])+game.selected_track,
@@ -1787,6 +1794,9 @@ func update_hud() -> void:
         elif game.selected_track == 1:
             route_tint = SHORTCUT_ROUTE.GLACIER_RETURN_COLOR
         shortcut_label.add_theme_color_override("font_color",route_tint)
+    _update_woodworks_guide(str(route_hint.get("mode","")),
+        rare_item_label.visible and int(next_item.get("index",-1)) == 0,
+        final_danger_active or is_finite(urgent_gate_eta))
     var table = "TOP RACERS\n"
     for i in range(min(3,ranking.size())):
         var r = ranking[i]

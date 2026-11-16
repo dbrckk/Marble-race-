@@ -4,7 +4,7 @@ Original **3D Android marble-racing game** inspired by the look and mechanics sh
 
 Independent implementation in **Godot 4.5.1**, focused on real mobile playability, physics, and stylized toy-table graphics. No proprietary material from the reference game is redistributed.
 
-## Current state: Android QA build (v1.80.0-rc, versionCode 94)
+## Current state: Android QA build (v1.81.0-rc, versionCode 95)
 
 **Playable scope (October 2026):** three visually differentiated 3D worlds with physical elevation changes, nine repeatable obstacle layouts, forty individually simulated glass marbles, real banked and elevated side-route shortcuts, six player perks, progression, ghost comparisons and optional online races. Autonomous opponents use deterministic physical steering, real route choices, anticipatory passing and forecasts of moving hazards; human steering stays entirely manual. The phone HUD previews real course geometry and estimates when Forge pistons will be open or blocked on arrival, with a nonrepeating audio danger cue.
 
@@ -82,7 +82,7 @@ Glacier marks the real low-friction strips and previews the grippy side of the l
 
 In solo races, the four instant human-only pickups now have authored lines on Glacier and Forge. Their distinct silhouettes, shared pre-race map positions and speed-scaled previews help distinguish the four effects. The forecast yields to earlier urgent moving-gate warnings. A repeatedly wedged solo marble on Forge can now back away from the rail and slalom with a physical recovery impulse.
 
-Woodworks opens with **first-race steering and boost guidance** that follows the real race. A faceted turbo pickup, distinct signs for the main track and precision bridge, and high-contrast sweeping-arm inlays mark the opening decisions. Solo Woodworks pickups are positioned for the local track geometry. Online pickup locations remain compatible with prior builds.
+The first solo Woodworks race teaches steering and boost as soon as each control takes effect. The guide explains how to collect the instant turbo diamond and where the amber bridge arrows lead. Either route completes the guide once both controls have been used. Urgent hazard warnings take priority.
 
 A **genuine solo slipstream**: follow a moving rival on the same physical level to earn a modest, gradual turbo recharge and force-driven acceleration, with a readable DRAFT cue. It scans nearby opponents at ~7 Hz, resets on every rematch and cannot grant unauthoritative boosts in network sessions. See [v1.41 slipstream mechanics and constraints](docs/SLIPSTREAM_SOLO.md).
 
