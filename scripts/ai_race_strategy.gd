@@ -10,6 +10,7 @@ const TRAFFIC_AHEAD := 8.0
 const TRAFFIC_WIDTH := 1.25
 const TRAFFIC_HEIGHT := 1.45
 const TRAFFIC_SAFE_LANE := 3.15
+const GLACIER_PASS_OFFSET := 1.75
 const ZONE_MECHANICS = preload("res://scripts/course_mechanics.gd")
 
 static func temperament(racer_id: int, track: int, variation: int) -> int:
@@ -197,6 +198,27 @@ static func biome_zone_safe_lane(mechanics: Node3D, own_z: float,
                     -TRAFFIC_SAFE_LANE,TRAFFIC_SAFE_LANE)
     return preferred
 
+
+# The return shutter always sweeps one side of Glacier. Use the other
+# side only for a substantial closing-speed difference on the main road.
+static func glacier_return_pass_is_clear(own: RigidBody3D, rivals: Array[RigidBody3D],
+        center_x: float, shutter_side: float, passing: bool) -> bool:
+    var target_x := center_x-shutter_side*GLACIER_PASS_OFFSET
+    if passing:
+        return _lane_occupancy(target_x,own,rivals) < 0.72
+    for other in rivals:
+        if other == own or not is_instance_valid(other) or (
+            other.finished or other.eliminated or other.freeze):
+            continue
+        var ahead: float = own.position.z-other.position.z
+        if ahead < 0.65 or ahead > 10.0 or (
+            absf(other.position.y-own.position.y) > TRAFFIC_HEIGHT):
+            continue
+        var closing_speed: float = other.linear_velocity.z-own.linear_velocity.z
+        if closing_speed >= 5.0 and absf(other.position.x-own.position.x) < 1.15 and (
+            absf(other.position.x-target_x) >= 1.30):
+            return _lane_occupancy(target_x,own,rivals) < 0.72
+    return false
 
 # The timed gate moves during a marble's approach. Evaluate where the *real
 # collidable body* will be at arrival, rather than dodging its current mesh.

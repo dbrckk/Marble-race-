@@ -72,6 +72,8 @@ var ai_lane_goal := 0.0
 var ai_lane_timer := 0.0
 var ai_traffic_timer := 0.0
 var ai_traffic_goal := 0.0
+var glacier_pass_remaining := 0.0
+var glacier_pass_scan := 0.0
 var ai_traffic_offset := 0.0
 var last_boosting := false
 
@@ -268,7 +270,8 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
             # Safety-first line selection: specialist shortcuts always keep
             # their previously verified physics, while ordinary marbles only
             # attempt an overtake from the central open part of the road.
-            # No lateral passing decision is made at a genuine hazard gate.
+            # General passing yields to hazards. Glacier's return has a
+            # dedicated passing line wholly beyond its shutter's sweep.
             var traffic_center: float = course_owner.track_center_at(position.z)
             var next_hazard: Dictionary = course_owner.upcoming_hazard(position.z)
             var hazard_near: bool = not next_hazard.is_empty() and (
@@ -330,6 +333,11 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
                     side_force = clampf((
                         center_ahead+safe_offset-position.x)*2.25-
                         linear_velocity.x*0.55,-9.5,9.5)
+            var glacier_lane := _glacier_return_pass(delta,traffic_center)
+            if glacier_lane != INF:
+                side_force = clampf(
+                    (traffic_center+glacier_lane-position.x)*13.0-linear_velocity.x*4.2,
+                    -19.0,19.0)
             side_force += AIPath.baffle_dodge(position,traffic_center)
         elif following_bypass:
             # Real shortcut steering retains full priority over crowd
@@ -386,6 +394,31 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
         eliminated = true
         fell_off.emit(self)
 
+func _glacier_return_pass(delta: float, center_x: float) -> float:
+    if course_owner.selected_track != 1 or not is_instance_valid(course_owner.race_director) or (
+        not is_instance_valid(course_owner.shortcut_route)):
+        return INF
+    var director: Node3D = course_owner.race_director
+    var gate: int = director.GLACIER_RETURN_GATE
+    var distance: float = position.z-director.event_z(gate)
+    if position.z > course_owner.shortcut_route.EXIT_Z-0.5 or distance < -1.25 or distance > 12.0:
+        glacier_pass_remaining = 0.0
+        glacier_pass_scan = 0.0
+        return INF
+    glacier_pass_remaining = maxf(0.0,glacier_pass_remaining-delta)
+    glacier_pass_scan -= delta
+    var side: float = director.side_at(gate)
+    var passing := glacier_pass_remaining > 0.0
+    if glacier_pass_scan <= 0.0 and absf(position.x-center_x) <= 2.7:
+        glacier_pass_scan = AIPath.TRAFFIC_SCAN_PERIOD+float(racer_id%4)*0.05
+        var clear := AIPath.glacier_return_pass_is_clear(
+            self,course_owner.racers,center_x,side,passing)
+        if not clear:
+            glacier_pass_remaining = 0.0
+        elif not passing:
+            glacier_pass_remaining = 0.85
+    return -side*AIPath.GLACIER_PASS_OFFSET if glacier_pass_remaining > 0.0 else INF
+
 func teleport_to_start(new_position: Vector3) -> void:
     freeze = true
     global_position = new_position
@@ -405,5 +438,7 @@ func teleport_to_start(new_position: Vector3) -> void:
     ai_traffic_timer = 0.0
     ai_traffic_goal = 0.0
     ai_traffic_offset = 0.0
+    glacier_pass_remaining = 0.0
+    glacier_pass_scan = 0.0
     network_controlled = false
     freeze = false
