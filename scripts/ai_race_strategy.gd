@@ -204,6 +204,43 @@ static func biome_zone_safe_lane(mechanics: Node3D, own_z: float,
     return preferred
 
 
+# The returning deck is already close to track height before the rider is
+# in the bot's lane. Forecast when those paths first come within one lane.
+static func glacier_merge_drive(own: RigidBody3D, rivals: Array[RigidBody3D],
+        route: Node3D, drive_force: float) -> float:
+    var entries: Dictionary = route.entered
+    var bridge_side: float = route.side
+    var exit_z: float = route.EXIT_Z
+    var speed := -own.linear_velocity.z
+    # Racers are indexed by slot in the authoritative race roster.
+    for slot: int in entries:
+        if slot < 0 or slot >= rivals.size():
+            continue
+        var other := rivals[slot]
+        if not is_instance_valid(other) or other.freeze or other.finished or other.eliminated or (
+                not other.is_player and not other.network_controlled):
+            continue
+        if other.position.z > exit_z+2.0 or absf(other.position.y-own.position.y) > TRAFFIC_HEIGHT:
+            continue
+        var lateral_gap := (other.position.x-own.position.x)*bridge_side
+        var inward_speed := (own.linear_velocity.x-other.linear_velocity.x)*bridge_side
+        if lateral_gap <= 0.0 or inward_speed < 1.6:
+            continue
+        var time_to_merge := maxf(0.0,(lateral_gap-1.0)/inward_speed)
+        if time_to_merge > 0.48:
+            continue
+        var gap := own.position.z-other.position.z
+        var other_speed := -other.linear_velocity.z
+        var closing := speed-other_speed
+        var merge_gap := gap-closing*time_to_merge
+        # Do not brake a bot that will already be through the crossing.
+        if gap <= 0.65 or closing <= 0.75 or merge_gap < -0.70 or merge_gap > 2.4:
+            continue
+        # Leave room as the second line converges, with a bounded force.
+        var safe_speed := maxf(1.0,other_speed+(gap-2.0)/maxf(0.24,time_to_merge))
+        drive_force = minf(drive_force,maxf(-22.0,(safe_speed-speed)*10.0))
+    return drive_force
+
 # Track the nearest same-level rival in the bot's current line. The
 # caller scans at the ordinary traffic cadence and keeps the body reference
 # so closing distance and relative speed can be checked every physics tick.

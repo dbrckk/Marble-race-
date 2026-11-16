@@ -353,6 +353,12 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
                     side_force = clampf(lateral_error*22.0-linear_velocity.x*6.0,-26.0,26.0)
             var return_x := traffic_center+glacier_return_offset if glacier_abort_remaining > 0.0 else INF
             drive_force = _glacier_follow_force(drive_force,glacier_passing,return_x)
+            if course_owner.selected_track == 1 and is_instance_valid(course_owner.shortcut_route):
+                var route: Node3D = course_owner.shortcut_route
+                var past_exit: float = route.EXIT_Z-position.z
+                if past_exit >= -0.5 and past_exit <= 16.0 and not route.entered.is_empty() and (
+                        not route.entered.has(racer_id)):
+                    drive_force = AIPath.glacier_merge_drive(self,course_owner.racers,route,drive_force)
             side_force += AIPath.baffle_dodge(position,traffic_center)
         elif following_bypass:
             # Real shortcut steering retains full priority over crowd

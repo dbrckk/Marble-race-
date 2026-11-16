@@ -47,10 +47,25 @@ func _run() -> void:
                 passes_after_impact += 1
             game.return_to_menu()
     assert(passes_after_impact > 0,"A real shutter impact must leave passing room for following racers")
+    for layout in range(3):
+        # The middle layout has an earlier shutter. Start its faster pack
+        # slightly nearer the join to exercise the merge before that sweep.
+        var faster_gap := 2.6 if layout == 1 else 2.8
+        for approach in [Vector2(2.5,14.0),Vector2(faster_gap,15.0)]:
+            game.race_variation = layout
+            game.start_race("Grip Tape")
+            game.countdown = 0.02
+            for frame in range(8):
+                await physics_frame
+            assert(game.race_state == "RACING" and game.built_variation == layout)
+            assert(await _player_merges_into_pack(game,approach.x,approach.y),
+                "Glacier layout %d at %.0f m/s must let the player merge without contact" % [
+                    layout,approach.y])
+            game.return_to_menu()
     game.queue_free()
     for frame in range(4):
         await process_frame
-    print("GLACIER_BRIDGE_RETURN_PASS: 27 approach trials, 36 shutter-phase trials, %d passes after a real shutter impact" % passes_after_impact)
+    print("GLACIER_BRIDGE_RETURN_PASS: 27 approach trials, 36 shutter-phase trials, %d passes after a real shutter impact, 6 player merges without contact" % passes_after_impact)
     quit()
 
 func _cross_return(game: Node3D, speed: float, traffic: Traffic,
@@ -210,3 +225,52 @@ func _place_main_rival(game: Node3D, rival: RigidBody3D, distance: float,
     rival.ai_lane_goal = lateral
     rival.ai_lane_timer = 4.0
     rival.freeze = false
+
+
+func _player_merges_into_pack(game: Node3D, gap: float, pace: float) -> bool:
+    var route: Node3D = game.shortcut_route
+    var player: RigidBody3D = game.player
+    var rivals: Array[RigidBody3D] = []
+    for marble: RigidBody3D in game.racers:
+        if marble == player:
+            continue
+        marble.freeze = true
+        if not marble.wants_shortcut() and rivals.size() < 3:
+            rivals.append(marble)
+    # Begin on the return deck with the same entry state as a bridge rider.
+    var launch_z := ROUTE.EXIT_Z+5.0
+    var tangent: Vector3 = (route.point_at(launch_z-0.7)-route.point_at(launch_z+0.7)).normalized()
+    player.position = route.point_at(launch_z)+Vector3.UP*0.63
+    player.linear_velocity = tangent*10.0
+    route.entered[player.racer_id] = true
+    var lane: float = route.side
+    for index in range(rivals.size()):
+        _place_main_rival(game,rivals[index],5.0+gap+index*3.6,lane,-(pace+index*1.5))
+    var player_contacts: Array[Node] = []
+    player.body_entered.connect(func(body: Node):
+        if body is RigidBody3D and body in rivals:
+            player_contacts.append(body)
+    )
+    var pad: Control = game.ui.touch_controls
+    var finger := pad.get_viewport_rect().size*Vector2(0.20,0.83)
+    pad._finger_event(1,finger,true)
+    var clear_z: float = game.race_director.event_z(game.race_director.GLACIER_RETURN_GATE)-2.0
+    var crossed: Dictionary = {}
+    for frame in range(230):
+        var ahead := player.position.z-4.0
+        var target_x: float = route.point_at(ahead).x
+        if ahead <= ROUTE.EXIT_Z:
+            var blend := smoothstep(0.0,1.0,(ROUTE.EXIT_Z-ahead)/10.0)
+            target_x = lerpf(route.point_at(ROUTE.EXIT_Z).x,game.track_center_at(ahead)+lane,blend)
+        var axis := clampf((target_x-player.position.x)*0.25-player.linear_velocity.x*0.075,-1.0,1.0)
+        pad._move_finger(1,finger+Vector2(axis*105.0,0))
+        await physics_frame
+        for marble in [player]+rivals:
+            if marble.position.z < clear_z:
+                crossed[marble.racer_id] = true
+        if not player_contacts.is_empty() or player.eliminated or crossed.size() == 4:
+            break
+    pad._finger_event(1,finger,false)
+    return player_contacts.is_empty() and crossed.size() == 4 and (
+        game.last_checkpoint >= EXIT_CHECKPOINT and not player.eliminated and
+        rivals.all(func(marble: RigidBody3D): return not marble.eliminated))
