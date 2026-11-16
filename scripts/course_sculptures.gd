@@ -72,7 +72,7 @@ var apex_inlay_roots: Array[Transform3D] = []
 var apex_flash: Array[float] = []
 
 static func uses_edge_checkpoint(track: int, sector: int) -> bool:
-    return sector == 0 or track == 2 or (track == 1 and sector == GLACIER_RETURN_SECTOR)
+    return sector <= GLACIER_RETURN_SECTOR or track == 2
 
 static func bank_side(section: int, track: int, layout: int) -> float:
     return -1.0 if (section+clampi(track,0,2)+posmod(layout,3))%2 == 0 else 1.0
@@ -186,9 +186,10 @@ func _world_passage_vaults() -> void:
     # glacier rib sits farther out on the bridge side than on the main road.
     for section in VAULT_SECTIONS:
         var glacier_return: bool = biome == 1 and section == GLACIER_RETURN_VAULT
-        # The first bridge choice needs the same open chase-camera corridor
-        # as Forge. Keep the biome's timber or ice silhouette at the edges.
-        var open_fork: bool = section == VAULT_SECTIONS[0] and not forge
+        # Keep the chase-camera corridor open at both junctions. Glacier's
+        # return also extends its outer wing past the detached ice deck.
+        var open_junction: bool = not forge and not glacier_return and (
+            section == VAULT_SECTIONS[0] or section == GLACIER_RETURN_VAULT)
         var centre_z: float = bank_z(section,variation)
         # Two partial overhead bays between each set of three landmark
         # ribs. Open central skylight and clear 5m headroom keep the ball
@@ -208,7 +209,7 @@ func _world_passage_vaults() -> void:
                     outboard_x = _glacier_return_rib_offset(side)
                     basis = basis.scaled_local(Vector3(0.64,1.0,1.0))
                     y = floor_y+VAULT_CLEARANCE+0.32
-                elif open_fork:
+                elif open_junction:
                     outboard_x = FORGE_CANOPY_OFFSET
                     basis = basis.scaled_local(Vector3(0.70,1.0,1.0))
                     y -= tan(roof_pitch)*(outboard_x-FORGE_RIB_OFFSET)
@@ -222,11 +223,11 @@ func _world_passage_vaults() -> void:
                 var trim_offset := (FORGE_CANOPY_WIDTH*0.5-0.08)*cos(roof_pitch) if forge else 1.40
                 if glacier_return:
                     trim_offset = 0.83
-                elif open_fork:
+                elif open_junction:
                     trim_offset = 0.96
                 trim_transforms.append(Transform3D(basis.orthonormalized(),Vector3(
                     center_x+side*(outboard_x-trim_offset),
-                    y+0.055+(tan(roof_pitch)*trim_offset if forge or glacier_return or open_fork else 0.0),z)))
+                    y+0.055+(tan(roof_pitch)*trim_offset if forge or glacier_return or open_junction else 0.0),z)))
         for rib in VAULT_RIB_OFFSETS:
             var z: float = centre_z+float(rib)
             var center_x: float = game.track_center_at(z)
@@ -241,7 +242,7 @@ func _world_passage_vaults() -> void:
                 rib_y = floor_y+VAULT_CLEARANCE+0.32
                 crest_x = _glacier_return_rib_offset(1.0)-0.64
                 crest_y = rib_y+tan(roof_pitch)*0.64
-            elif open_fork:
+            elif open_junction:
                 crest_x = FORGE_LIGHT_OFFSET
                 crest_y = rib_y+tan(roof_pitch)*(FORGE_RIB_OFFSET-crest_x)
             vault_crest_points.append(Vector3(center_x+crest_x,crest_y,z))
@@ -262,7 +263,7 @@ func _world_passage_vaults() -> void:
                     support_height += 0.57-tan(roof_pitch)*(post_x-rib_x)
                     highlights.append(Transform3D(roof_basis,
                         Vector3(center_x+side*crest_x,crest_y+0.14,z)))
-                elif open_fork:
+                elif open_junction:
                     flank_rib_x = FORGE_RIB_OFFSET
                     roof_scale.x = 0.32
                     support_height += 0.57-tan(roof_pitch)*(post_x-flank_rib_x)
@@ -274,7 +275,7 @@ func _world_passage_vaults() -> void:
                     Vector3(1.0,support_height/VAULT_CLEARANCE,1.0)),
                     Vector3(center_x+side*post_x,
                     floor_y+support_height*0.5,z)))
-            if not forge and not glacier_return and not open_fork:
+            if not forge and not glacier_return and not open_junction:
                 highlights.append(Transform3D(Basis(),
                     Vector3(center_x,crest_y+0.08,z)))
     var column_mesh := BoxMesh.new()

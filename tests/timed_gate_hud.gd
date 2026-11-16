@@ -481,8 +481,8 @@ func _verify_glacier_bridge_return(game: Node3D) -> bool:
     var gate_z: float = director.event_z(gate)
     var speed := 23.0
     var velocity := Vector3(0,0,-speed)
-    var arrows := road.get_node("GlacierReturnArrows") as MultiMeshInstance3D
-    assert(arrows.multimesh.instance_count == 8 and
+    var arrows := road.get_node("RouteDirectionArrows") as MultiMeshInstance3D
+    assert(road.glacier_return_arrows.size() == 8 and arrows.multimesh.instance_count == 18 and
         arrows.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
     var previous := INF
     var ice: Node3D = game.course_mechanics.zones[2]
@@ -512,15 +512,19 @@ func _verify_glacier_bridge_return(game: Node3D) -> bool:
         not hud.timed_gate_label.visible)
     _update_at(game,road.point_at(ROUTE.EXIT_Z+16.0)+Vector3.UP*0.73,velocity)
     var preview: String = hud.timed_gate_label.text
-    assert(hud.shortcut_label.text.contains("16m  /  0.7s") and
-        hud.timed_gate_label.visible and preview.contains("AFTER BRIDGE") and
-        preview.contains("AIM CENTER") and not hud.biome_lane_label.visible)
+    assert(hud.timed_gate_label.visible and preview.contains("MERGE RIGHT") and
+        preview.contains("16m  /  0.7s") and not hud.biome_lane_label.visible and
+        not hud.shortcut_label.visible and not hud.hazard_label.visible)
     assert(not game.audio.warned_timed_gates.has(gate))
     var lip: Vector3 = road.point_at(ROUTE.EXIT_Z+1.1)+Vector3.UP*0.73
     assert(road.shortcut_hint(lip).is_empty(),"The shared lip alone does not establish bridge context")
     _update_at(game,lip,velocity)
-    assert(hud.bridge_approach_active and hud.shortcut_label.visible and
-        hud.shortcut_label.text.contains("MERGE RIGHT NOW") and hud.timed_gate_label.visible)
+    assert(hud.bridge_approach_active and not hud.shortcut_label.visible and
+        hud.timed_gate_label.visible and hud.timed_gate_label.text.contains("AIM CENTER") and
+        hud.timed_gate_label.text.contains("MERGE RIGHT") and
+        hud.timed_gate_label.text.contains("SHUTTER") and not hud.hazard_label.visible)
+    assert(not game.audio.warned_timed_gates.has(gate),
+        "A bridge preview must leave the immediate collision sound available")
 
     var z := ROUTE.EXIT_Z-1.0
     var eta := (z-gate_z)/speed
@@ -535,7 +539,7 @@ func _verify_glacier_bridge_return(game: Node3D) -> bool:
     var main_z := ROUTE.EXIT_Z+1.1
     _update_at(game,Vector3(game.track_center_at(main_z),game.height_at(main_z)+0.64,main_z),velocity)
     assert(not hud.bridge_approach_active and not hud.shortcut_label.visible and
-        not hud.timed_gate_label.text.contains("AFTER BRIDGE"),
+        not hud.timed_gate_label.text.contains("MERGE"),
         "Main-track racers never get bridge-specific instructions")
     return true
 

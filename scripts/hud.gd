@@ -1606,6 +1606,7 @@ func update_hud() -> void:
     var gate_eta := INF
     var piston_contact_eta := INF
     var bridge_piston_warning := false
+    var glacier_return_panel := false
     var audible_gate_eta := INF
     var shutter_side := ""
     var gate_id := -1
@@ -1634,7 +1635,8 @@ func update_hud() -> void:
             shutter_side = gate_side
         var bridge_exit_preview: bool = game.selected_track == 2 and bridge_approach_active and (
             gate_id == game.race_director.FORGE_EXIT_GATE)
-        var glacier_exit_preview: bool = game.selected_track == 1 and bridge_approach_active
+        var glacier_exit_preview: bool = game.selected_track == 1 and bridge_approach_active and (
+            gate_id == game.race_director.GLACIER_RETURN_GATE)
         var lane_verdict: String = "DODGE!" if player_threatened else "LINE CLEAR"
         if not bridge_exit_preview and not glacier_exit_preview and player_threatened and gate_eta <= 1.45:
             urgent_gate_eta = gate_eta
@@ -1651,8 +1653,14 @@ func update_hud() -> void:
         elif glacier_exit_preview:
             var merge_distance: float = game.player.global_position.z-SHORTCUT_ROUTE.EXIT_Z
             timed_gate_label.visible = merge_distance <= SHORTCUT_ROUTE.MERGE_GUIDANCE_REACH
-            timed_gate_label.text = "AFTER BRIDGE  •  SHUTTER %s  •  AIM CENTER  •  %.1fs" % [
-                gate_side,gate_eta]
+            glacier_return_panel = timed_gate_label.visible
+            var merge: String = game.shortcut_route.route_guidance_text(
+                route_hint,game.player.global_position.z,forward_speed)
+            timed_gate_label.text = "%s  •  AIM CENTER" % merge
+            if gate_eta <= 1.3:
+                timed_gate_label.text = "%s  •  SHUTTER %s" % [
+                    "MERGE RIGHT  •  AIM CENTER" if merge_distance <= SHORTCUT_ROUTE.PORTAL_HALF_LENGTH
+                    else merge,gate_side]
         elif game.selected_track == 2:
             var bypass := "LEFT" if gate_side == "RIGHT" else "RIGHT"
             var action := "DODGE! GO "+bypass if player_threatened else lane_verdict
@@ -1689,6 +1697,11 @@ func update_hud() -> void:
         var vent_priority := vent_eta if vent_eta <= VENT_WARNING_SECONDS else INF
         pickup_limit = minf(piston_priority,vent_priority)
         _show_forge_hazard(lane_hint,gate_eta,piston_priority,vent_priority)
+    elif glacier_return_panel:
+        hazard_label.hide()
+        biome_lane_label.hide()
+        timed_gate_backdrop.show()
+        pickup_limit = 0.0
     elif game.selected_track == 1 and gate_id >= 0 and gate_id == int(lane_hint.get("exit_shutter",-1)):
         _show_glacier_sequence(lane_hint,shutter_side)
         # Keep the shutter's one-shot sound available for the exit while
@@ -1729,23 +1742,17 @@ func update_hud() -> void:
             RARE_ITEMS.COLORS.size())
         rare_item_label.add_theme_color_override("font_color",
             RARE_ITEMS.COLORS[color_index].lightened(0.20))
-    shortcut_label.visible = still_racing and not route_hint.is_empty()
+    shortcut_label.visible = still_racing and not route_hint.is_empty() and not glacier_return_panel
     if shortcut_label.visible:
-        if route_hint["mode"] == "fork" or game.selected_track == 2 or (
-                game.selected_track == 1 and bridge_approach_active):
-            shortcut_label.text = game.shortcut_route.route_guidance_text(
-                route_hint,game.player.global_position.z,forward_speed)
-            shortcut_label.visible = not shortcut_label.text.is_empty()
-            var route_tint := SHORTCUT_ROUTE.FORGE_MAIN_COLOR
-            if route_hint["mode"] == "fork":
-                route_tint = SHORTCUT_ROUTE.FORK_BRIDGE_COLOR
-            elif game.selected_track == 1:
-                route_tint = SHORTCUT_ROUTE.GLACIER_RETURN_COLOR
-            shortcut_label.add_theme_color_override("font_color",route_tint)
-        else:
-            shortcut_label.text = "MERGE %s  •  %dm" % [
-                str(route_hint["side"]),int(route_hint["distance"])]
-            shortcut_label.add_theme_color_override("font_color",Color("#a8f6e4"))
+        shortcut_label.text = game.shortcut_route.route_guidance_text(
+            route_hint,game.player.global_position.z,forward_speed)
+        shortcut_label.visible = not shortcut_label.text.is_empty()
+        var route_tint := SHORTCUT_ROUTE.FORK_MAIN_COLOR
+        if route_hint["mode"] == "fork":
+            route_tint = SHORTCUT_ROUTE.FORK_BRIDGE_COLOR
+        elif game.selected_track == 1:
+            route_tint = SHORTCUT_ROUTE.GLACIER_RETURN_COLOR
+        shortcut_label.add_theme_color_override("font_color",route_tint)
     var table = "TOP RACERS\n"
     for i in range(min(3,ranking.size())):
         var r = ranking[i]

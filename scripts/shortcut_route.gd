@@ -15,6 +15,7 @@ const FORGE_EDGE_COLOR := Color("#ffc86e")
 const FORGE_MAIN_COLOR := Color("#b6f6ed")
 const FORK_MAIN_COLOR := FORGE_MAIN_COLOR
 const FORK_BRIDGE_COLOR := FORGE_EDGE_COLOR
+const RETURN_ARROW_Z := [-89.0,-93.0,-97.0,-100.0,-103.0]
 const OUTER_START := -60.0
 const OUTER_END := -92.0
 const INNER_OFFSET := 4.90
@@ -160,12 +161,7 @@ func setup(owner: Node3D, track: int) -> void:
     var paint: Array[Transform3D] = []
     var colors: Array[Color] = []
     _fork_signage(signs,paint,colors)
-    if course_id == 2:
-        _forge_return_markings(signs,paint,colors)
-    elif course_id == 1:
-        _glacier_return_markings()
-    else:
-        _woodworks_return_marking()
+    _return_markings(signs,paint,colors)
     var panel := StandardMaterial3D.new()
     panel.albedo_color = [Color("#493224"),Color("#21374f"),Color("#422b29")][course_id]
     panel.roughness = 0.52
@@ -361,57 +357,26 @@ func _fork_signage(signs: Array[Transform3D], paint: Array[Transform3D], colors:
         paint.append(_deck_arrow(z,0.0))
         colors.append(FORK_BRIDGE_COLOR)
 
-func _woodworks_return_marking() -> void:
-    var return_label := Label3D.new()
-    return_label.name = "ShortcutMergeArrow"
-    return_label.text = "MERGE  LEFT"
-    return_label.font_size = 39
-    return_label.pixel_size = 0.013
-    return_label.modulate = TINTS[course_id]
-    return_label.outline_size = 8
-    return_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-    return_label.position = point_at(EXIT_Z+6.0)+Vector3.UP*3.4
-    add_child(return_label)
-
-func _forge_return_markings(signs: Array[Transform3D], paint: Array[Transform3D],
+func _return_markings(signs: Array[Transform3D], paint: Array[Transform3D],
         colors: Array[Color]) -> void:
-    var exit_z := EXIT_Z+2.4
-    var bridge_end := point_at(exit_z)
-    _route_sign("ShortcutMergeArrow","↖  MERGE",bridge_end+Vector3(1.72,1.48,0),
-        FORGE_MAIN_COLOR,signs)
-    # Merge arrows share the entrance batches and follow the banked deck plane.
-    var merge_rows := [-89.0,-93.0,-97.0,-99.0,-103.0]
-    for i in range(merge_rows.size()):
-        var return_bias := smoothstep(0.0,float(merge_rows.size()-1),float(i))*0.60
-        paint.append(_deck_arrow(merge_rows[i],return_bias))
-        colors.append(FORGE_MAIN_COLOR)
-    paint.append(_road_arrow(EXIT_Z-0.65,4.35,0.52))
-    colors.append(FORGE_MAIN_COLOR)
-
-
-func _glacier_return_markings() -> void:
-    var signs: Array[Transform3D] = []
+    var tint := GLACIER_RETURN_COLOR if course_id == 1 else FORK_MAIN_COLOR
     var sign_z := EXIT_Z+3.1
-    _route_sign("ShortcutMergeArrow","MERGE  ↗",
-        point_at(sign_z)+Vector3(-1.47,1.44,0.0),GLACIER_RETURN_COLOR,signs)
-    var panel := StandardMaterial3D.new()
-    panel.albedo_color = Color("#192f4a")
-    panel.roughness = 0.46
-    _batch("GlacierReturnSign",signs,panel)
-
-    var colors: Array[Color] = []
-    var approach := [-89.0,-93.0,-97.0,-99.0,-103.0]
-    for i in range(approach.size()):
-        var progress := float(i)/float(approach.size()-1)
-        glacier_return_arrows.append(_deck_arrow(approach[i],-0.60*smoothstep(0.0,1.0,progress)))
-        colors.append(GLACIER_RETURN_COLOR)
-    # Lead from the lip to the wider center corridor. The ice slab beside
-    # the bridge ends before the ramp rejoins the main road.
-    for i in range(3):
-        var z := EXIT_Z-0.72-float(i)*2.85
-        glacier_return_arrows.append(_road_arrow(z,[-4.35,-2.65,-1.05][i],-0.51))
-        colors.append(GLACIER_RETURN_COLOR)
-    _arrow_batch("GlacierReturnArrows",glacier_return_arrows,colors)
+    _route_sign("ShortcutMergeArrow","MERGE  ↗" if side < 0 else "↖  MERGE",
+        point_at(sign_z)+Vector3(side*1.58,1.52,0.0),tint,signs)
+    # Follow the deck from its straight portion to the return lip.
+    var returns: Array[Transform3D] = []
+    for i in range(RETURN_ARROW_Z.size()):
+        var progress := float(i)/float(RETURN_ARROW_Z.size()-1)
+        returns.append(_deck_arrow(RETURN_ARROW_Z[i],side*0.60*smoothstep(0.0,1.0,progress)))
+    returns.append(_road_arrow(EXIT_Z-0.72,side*4.35,side*0.51))
+    if course_id == 1:
+        # Point to the dry corridor before the shutter, clear of the ice.
+        returns.append(_road_arrow(EXIT_Z-3.57,side*2.65,side*0.51))
+        returns.append(_road_arrow(EXIT_Z-6.42,side*1.05,side*0.51))
+        glacier_return_arrows.assign(returns)
+    for arrow in returns:
+        paint.append(arrow)
+        colors.append(tint)
 
 func _arrow_batch(batch_name: String, paint: Array[Transform3D], colors: Array[Color]) -> void:
     var surface := SurfaceTool.new()
@@ -518,7 +483,7 @@ func shortcut_hint(location: Vector3, continuing_merge := false) -> Dictionary:
     var fork_end := ENTRY_PORTAL_Z-PORTAL_HALF_LENGTH
     if z <= ENTRY_Z and z >= EXIT_Z:
         var relative_x: float = float(side)*(location.x-stage.track_center_at(z))
-        var following_bridge_exit: bool = course_id != 0 and continuing_merge and (
+        var following_bridge_exit: bool = continuing_merge and (
             z <= OUTER_END and relative_x >= 3.35)
         var bridge_threshold := 6.68 if z > OUTER_START else 5.65
         if relative_x > bridge_threshold or following_bridge_exit:

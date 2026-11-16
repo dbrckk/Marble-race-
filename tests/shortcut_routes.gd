@@ -47,7 +47,7 @@ func _run() -> void:
         assert(road.get_node_or_null("BypassNavigationChevrons") is MultiMeshInstance3D)
         assert(road.get_node_or_null("RouteSignPlates") is MultiMeshInstance3D)
         var arrows := road.get_node("RouteDirectionArrows") as MultiMeshInstance3D
-        assert(arrows.multimesh.instance_count == (16 if course == 2 else 10) and
+        assert(arrows.multimesh.instance_count == (18 if course == 1 else 16) and
             arrows.multimesh.use_colors)
         assert(arrows.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
         assert(road.get_node_or_null("ShortcutEntranceArrow") is Label3D)
@@ -283,8 +283,6 @@ func _verify_fork_cues(game: Node3D, side: int) -> bool:
     marble.global_position = Vector3(game.track_center_at(after_entry)+side*6.1,
         game.height_at(after_entry)+0.6,after_entry)
     assert(road.shortcut_hint(marble.global_position).is_empty())
-    if game.selected_track != 2:
-        return true
     z = BypassScript.EXIT_Z+1.5
     var return_point: Vector3 = road.point_at(z)+Vector3.UP*0.7
     assert(road.shortcut_hint(return_point).is_empty(),
@@ -297,9 +295,13 @@ func _verify_fork_cues(game: Node3D, side: int) -> bool:
     marble.global_position = return_point
     hud.label_timer = 0.25
     hud.update_hud()
-    assert(hud.bridge_approach_active and hud.shortcut_label.visible and
-        hud.shortcut_label.text.contains("MERGE LEFT NOW"),
-        "A confirmed bridge racer keeps the last-meter merge cue")
+    assert(hud.bridge_approach_active,"A confirmed bridge racer keeps the route at the lip")
+    if game.selected_track == 1:
+        assert(hud.timed_gate_label.visible and not hud.shortcut_label.visible and (
+            hud.timed_gate_label.text.contains("AIM CENTER") or
+            hud.timed_gate_label.text.contains("MERGE RIGHT NOW")))
+    else:
+        assert(hud.shortcut_label.visible and hud.shortcut_label.text.contains("MERGE LEFT NOW"))
     marble.global_position.z = BypassScript.EXIT_Z-0.3
     hud.label_timer = 0.25
     hud.update_hud()

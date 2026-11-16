@@ -4,7 +4,7 @@ Original **3D Android marble-racing game** inspired by the look and mechanics sh
 
 Independent implementation in **Godot 4.5.1**, focused on real mobile playability, physics, and stylized toy-table graphics. No proprietary material from the reference game is redistributed.
 
-## Current state: Android QA build (v1.72.0-rc, versionCode 86)
+## Current state: Android QA build (v1.73.0-rc, versionCode 87)
 
 **Playable scope (October 2026):** three visually differentiated 3D worlds with physical elevation changes, nine repeatable obstacle layouts, forty individually simulated glass marbles, real banked and elevated side-route shortcuts, six player perks, progression, ghost comparisons and optional online races. Autonomous opponents use deterministic physical steering, real route choices, anticipatory passing and forecasts of moving hazards; human steering stays entirely manual. The phone HUD previews real course geometry and estimates when Forge pistons will be open or blocked on arrival, with a nonrepeating audio danger cue.
 
@@ -17,6 +17,8 @@ Each circuit opens with its own pair of starting towers. The six lamps count dow
 The first module has biome-specific obstacle finishes, amber hazard bands, and paired chevrons in the actual entry gaps. In kinetic layouts a dashed ring shows the full paddle sweep. The opening art and paint use one mesh and remain visible in Economy.
 
 At the first fork, pale mint arrows trace the main road and amber arrows lead through the physical opening onto the bridge. The HUD gives the direction and time to the turn, then prompts at the opening. Woodworks and Glacier have open checkpoint wings that keep both choices in view from the chase camera.
+
+Bridge exits now share deck-aligned return arrows and a sign at the lip. Woodworks keeps the camera clear at the second checkpoint and keeps the merge cue through the lip. Glacier presents the merge direction and upcoming shutter in one panel, then hands off to the normal collision warning when the marble rejoins the track.
 
 At Glacier’s bridge exit, the race authority checks for a rider cutting across a pass. The bot cancels the move and opens a longitudinal gap while steering back. A dedicated WebSocket server and two clients exercise the maneuver on all three layouts.
 

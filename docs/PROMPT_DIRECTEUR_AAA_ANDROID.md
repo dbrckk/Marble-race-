@@ -105,6 +105,15 @@ Base de comparaison GitHub `2485953106a494e6fc5d8c51f1c47de4a7e8aa9c`, résultat
 - 27 paires de captures à 40 billes en OpenGL Compatibility avec Mesa llvmpipe. Écart médian par circuit de −14 appels de dessin à Woodworks, −15 à Glacier et +6 à Forge. Temps d’image et facilité de lecture à confirmer sur Android physique.
 - Tests Godot sur les neuf tracés, avec visée de la caméra, vrai tablier, signal au HUD, choix du côté et conservation des récompenses sous autorité serveur.
 
+### 2026-11-16 — Retour des ponts et volet de Glacier (1.73.0-rc)
+
+Base de comparaison GitHub `5d03f34d911ee0720511db27c2be18c394367d45`, résultat dans le commit qui introduit cette entrée.
+
+- Les sorties utilisent un panneau et des flèches alignées sur le tablier. À Woodworks, le deuxième passage libère la vue du peloton et le guidage reste présent sur la lèvre. La règle du franchissement du pont et les colliders conservent leurs paramètres.
+- À Glacier, une seule alerte indique la rentrée à droite, le corridor central et le côté du volet à l’approche. Au retour sur piste, le HUD reprend la prévision de collision et le son reste disponible pour le danger réel.
+- 36 paires de vues à 86 km/h avec 40 billes en OpenGL Compatibility. Écart médian des appels de rendu de −1,5 à Woodworks, −4 à Glacier, 0 à Forge. [Comparatif des sorties](screenshots/v1.73-bridge-returns.jpg). Le temps d’image sur Android physique reste à mesurer.
+- Régressions Godot sur neuf tracés et vérification du relais entre l’alerte de rentrée et le volet physique. Tests de caméra, commandes, récompenses de pont et collisions de peloton intégrés au workflow Android.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Rendre le retour des ponts lisible au milieu du peloton. Vérifier la zone de convergence, les repères de rentrée sur la piste et le transfert vers les alertes de danger, en priorité au volet de Glacier.
+Améliorer l’approche de l’arrivée dans les trois univers. Dégager la vue sur la ligne au milieu du peloton, donner à chaque arrivée une silhouette propre et vérifier l’instant du classement et l’accès à la revanche.

@@ -60,7 +60,7 @@ func _run() -> void:
     var bridge: Vector3 = game.shortcut_route.point_at(-72.0)
     game.player.global_position = bridge+Vector3.UP
     _refresh(game)
-    assert(hud.shortcut_label.text.contains("MERGE") and not hud.hazard_label.visible)
+    assert(hud.bridge_approach_active and not hud.shortcut_label.visible and not hud.hazard_label.visible)
     assert(not hud.woodworks_guide_active and hud.woodworks_guide_seen)
     var settings := ConfigFile.new()
     assert(settings.load("user://marble_settings.cfg") == OK)

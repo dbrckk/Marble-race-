@@ -52,12 +52,13 @@ func _run() -> void:
                     "Fork wing lights stay on the outer ribs")
                 _verify_first_fork_sightline(game,geometry,layout)
                 if biome == 0:
-                    _verify_edge_markers(game,"Woodworks",[0])
+                    _verify_first_fork_sightline(game,geometry,layout,1)
+                    _verify_edge_markers(game,"Woodworks",[0,1])
             if biome == 1:
                 _verify_glacier_return(game,geometry,layout)
             assert(geometry.bank_surfaces.multimesh.instance_count == 8 and
                 geometry.apex_inlays.multimesh.instance_count == 4)
-            var highlight_count: int = [12,15,18][biome]
+            var highlight_count: int = [15,15,18][biome]
             assert(geometry.vault_posts.multimesh.instance_count == 18 and
                 geometry.vault_roofs.multimesh.instance_count == 18 and
                 geometry.vault_highlights.multimesh.instance_count == highlight_count,
@@ -187,8 +188,8 @@ func _verify_forge_sightline(game: Node3D, geometry: Node3D) -> void:
         assert(bounds.end.x < center-5.15 or bounds.position.x > center+5.15)
     _verify_edge_markers(game,"Forge",[0,1,2])
 
-func _verify_first_fork_sightline(game: Node3D, geometry: Node3D, layout: int) -> void:
-    var center_z := GEOMETRY.bank_z(GEOMETRY.VAULT_SECTIONS[0],layout)
+func _verify_first_fork_sightline(game: Node3D, geometry: Node3D, layout: int, sector := 0) -> void:
+    var center_z := GEOMETRY.bank_z(GEOMETRY.VAULT_SECTIONS[sector],layout)
     var roof: Mesh = geometry.vault_roofs.multimesh.mesh
     var canopy: Mesh = geometry.canopy_panels.multimesh.mesh
     var checked := 0
