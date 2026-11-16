@@ -16,6 +16,7 @@ const LACQUER_MICRO = preload("res://assets/textures/lacquer_micro.png")
 const MechanismArt = preload("res://scripts/mechanism_art.gd")
 const CourseDressing = preload("res://scripts/course_dressing.gd")
 const ObstacleFinish = preload("res://scripts/obstacle_finish.gd")
+const OpeningObstacles = preload("res://scripts/opening_obstacles.gd")
 const TrackSurface = preload("res://scripts/track_surface.gd")
 const StartGate = preload("res://scripts/start_gate.gd")
 const TrackPath = preload("res://scripts/track_path.gd")
@@ -481,7 +482,8 @@ func _cylinder(parent: Node3D, location: Vector3, radius: float, tall: float, co
     body.name = "ToyPeg"
     body.position = location
     parent.add_child(body)
-    if is_instance_valid(obstacle_finish):
+    var opening := parent.name == &"Course_01"
+    if not opening and is_instance_valid(obstacle_finish):
         obstacle_finish.register_post(body.global_position,radius,tall,color)
     var hitbox = CollisionShape3D.new()
     var cylinder = CylinderShape3D.new()
@@ -489,6 +491,8 @@ func _cylinder(parent: Node3D, location: Vector3, radius: float, tall: float, co
     cylinder.height = tall
     hitbox.shape = cylinder
     body.add_child(hitbox)
+    if opening:
+        return body
     var art = MeshInstance3D.new()
     var mesh = CylinderMesh.new()
     mesh.top_radius = radius
@@ -581,6 +585,12 @@ func _make_course() -> void:
                 _gate_with_posts(section_node, center_z, section)
             else:
                 _slalom(section_node, center_z, section)
+            if section == 1:
+                var opening := OpeningObstacles.new()
+                opening.name = "OpeningObstacleArt"
+                # Add the single assembled mesh after reading the real shapes.
+                opening.build(section_node,self,center_z)
+                section_node.add_child(opening)
 
     _connect_winding_sections()
     # Real banked line options, plus collision-free landmark arches. The
@@ -707,10 +717,11 @@ func _edge_baffles(parent: Node3D, center_z: float, section: int, glacier_return
         var size := Vector3(0.94 if merge_side else 2.72,1.05,1.32)
         var edge_offset := 6.04 if merge_side else 5.17
         var node := _box(parent,Vector3(side*edge_offset,height_at(z)+0.49,z),
-            size,_lacquer(material_color),true,true)
+            size,_lacquer(material_color),true,true,section != 1)
         node.name = "AntiEdgeBaffle_%02d_%s" % [section, "L" if side < 0.0 else "R"]
         hazard_beacons.append({"z":z,"side":"LEFT" if side < 0.0 else "RIGHT"})
-        obstacle_finish.register_block(node.global_transform,size,material_color)
+        if section != 1:
+            obstacle_finish.register_block(node.global_transform,size,material_color)
     if not glacier_return and selected_track >= 1 and section % 3 == 0:
         # This diagonal gate reaches further into the lane but leaves a
         # broad side opening. Alternates its side across modules.
@@ -771,9 +782,10 @@ func _gate_with_posts(parent: Node3D, center_z: float, n: int) -> void:
             var gate_color: Color = BARRIER_COLORS[(n+row+i)%6]
             var size := Vector3(0.91,1.37,1.25)
             var block := _box(parent, Vector3(x,height_at(z)+0.67,z),
-                size,_lacquer(gate_color),true,true)
+                size,_lacquer(gate_color),true,true,n != 1)
             block.name = "GatePost_%02d_%02d_%02d" % [n,row,i]
-            obstacle_finish.register_block(block.global_transform,size,gate_color)
+            if n != 1:
+                obstacle_finish.register_block(block.global_transform,size,gate_color)
     _add_spinner(parent, center_z, n)
     _swing_hammer(parent, center_z - 1.6, n)
 
@@ -811,9 +823,10 @@ func _slalom(parent: Node3D, center_z: float, n: int) -> void:
         var slalom_color: Color = BARRIER_COLORS[(n+i)%6]
         var size := Vector3(3.4,0.75,1.05)
         var block := _box(parent, Vector3(x,height_at(z)+0.36,z),
-            size,_lacquer(slalom_color),true,true)
+            size,_lacquer(slalom_color),true,true,n != 1)
         block.name = "SlalomBlock_%02d_%02d" % [n,i]
-        obstacle_finish.register_block(block.global_transform,size,slalom_color)
+        if n != 1:
+            obstacle_finish.register_block(block.global_transform,size,slalom_color)
     for i in range(3):
         var z = center_z + 2.3 - i * 3.5
         _cylinder(parent, Vector3(0, height_at(z)+0.65, z), 0.34, 1.3, BARRIER_COLORS[(n+2*i)%6])

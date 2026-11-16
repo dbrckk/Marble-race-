@@ -1,5 +1,6 @@
 extends SceneTree
 const TrackSurface = preload("res://scripts/track_surface.gd")
+const OpeningObstacles = preload("res://scripts/opening_obstacles.gd")
 
 func _initialize() -> void:
     call_deferred("_verify")
@@ -67,6 +68,33 @@ func _check_start_gate(game: Node3D) -> Mesh:
     assert(gate.signal_stage == -1 and not signal_label.is_visible_in_tree())
     return mesh
 
+func _check_opening_obstacles(game: Node3D, layout: int) -> bool:
+    var section := game.board.get_node("Course_01") as Node3D
+    var art := section.get_node("OpeningObstacleArt") as OpeningObstacles
+    assert(art.mesh.get_surface_count() == 1 and art.mesh.get_faces().size()/3 < 3200)
+    assert(art.get_child_count() == 0 and
+        art.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
+    var expected: int = 2
+    match layout:
+        0: expected += 8 if game.selected_track == 2 else 7
+        1: expected += 15
+        2: expected += 9 if game.selected_track == 2 else 6
+    assert(art.obstacle_count == expected and not art.entry_gaps.is_empty(),
+        "The first module needs full visual coverage and a marked approach")
+    assert((art.spinner_radius > 3.5) == (layout == 2),
+        "Only the kinetic layout marks a full rotating sweep")
+    var first_edge := art.entry_z-OpeningObstacles.ENTRY_LEAD
+    for gap in art.entry_gaps:
+        for footprint in art.danger_footprints:
+            if footprint.end.y >= first_edge-OpeningObstacles.ENTRY_DEPTH:
+                assert(gap.y <= footprint.position.x-OpeningObstacles.CLEARANCE+0.001 or
+                    gap.x >= footprint.end.x+OpeningObstacles.CLEARANCE-0.001,
+                    "Do not paint an entry gap through geometry or a paddle sweep")
+    game.set_graphics_quality(0)
+    assert(art.is_visible_in_tree(), "Economy must retain approach guidance")
+    game.set_graphics_quality(1)
+    return true
+
 func _verify() -> void:
     var game = load("res://scenes/main.tscn").instantiate()
     root.add_child(game)
@@ -106,10 +134,12 @@ func _verify() -> void:
         assert(game.set_track(biome))
         for layout in range(3):
             game.race_variation = layout
+            var opening_layout: int = game._obstacle_layout(1)
             game.start_race("Grip Tape")
             assert(game.built_variation == layout and game.racers.size() == 40)
             var profile := _check_rail_batch(game,biome)
             var frame := _check_start_gate(game)
+            assert(_check_opening_obstacles(game,opening_layout))
             if layout == 0:
                 assert(profile not in profiles, "Each biome needs its own geometry")
                 assert(frame not in gates_by_biome, "Each biome needs its own starting towers")
@@ -122,6 +152,7 @@ func _verify() -> void:
             await process_frame
     print("RAIL_PROFILE_PASS: 9 layouts, 40 racers, all guards match physics, one rail batch")
     print("START_GATE_PASS: 9 layouts, 40 racers, open sightline, countdown, launch and reset")
+    print("OPENING_ART_PASS: 9 layouts, one mesh, clear first gaps, full paddle sweep, Economy")
     game.queue_free()
     for n in range(4):
         await process_frame

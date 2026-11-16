@@ -87,6 +87,15 @@ Base de comparaison GitHub `ab10cbd7f3305c14fed26602155e49ff34cd6218`, résultat
 - 27 paires de vues OpenGL Compatibility avec Mesa llvmpipe, du compte à rebours au début du roulage. Médiane de 11 appels de dessin et 634 primitives affichées en moins par image pour la scène entière. [Comparatif des trois départs](screenshots/v1.70-start-gates.jpg).
 - Les contrôles tactiles, la pause et la reprise, le cadrage et le HUD passent en local. Le temps d’image sur un Android physique reste à mesurer.
 
+### 2026-11-16 — Premier passage de chaque tracé (1.71.0-rc)
+
+Base de comparaison GitHub `b122be0826748b244a73924736797acb5d417590`, résultat dans le commit qui introduit cette entrée.
+
+- Le premier module reçoit des coques assorties à son univers et des bandes ambre sur les obstacles et au sol. Les chevrons indiquent les ouvertures de l’entrée calculées d’après les colliders. Le cercle discontinu figure le débattement complet de la palette sur les variantes qui en comportent une.
+- Une seule surface regroupe les plots, déflecteurs, blocs et marquages du premier module. Le repérage reste visible en mode Économie. Les dimensions, positions, matériaux physiques et mouvements des obstacles suivent les règles existantes.
+- 27 paires de vues OpenGL Compatibility avec Mesa llvmpipe, 40 billes. La médiane est de 40 appels de dessin et 7 102 primitives affichées en moins par image. [Comparatif des trois univers](screenshots/v1.71-opening-obstacles.jpg).
+- Les neuf variantes passent la vérification des ouvertures et du débattement. Contrôles tactiles, caméra, avertissements de danger et import Godot vérifiés localement. Lisibilité et temps d’image restent à mesurer en jeu sur Android physique.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Retravailler les premiers obstacles de chaque univers. Rendre leur zone de danger et leur trajectoire d’évitement visibles depuis le départ, puis vérifier les franchissements au milieu du peloton et le budget de rendu sur les neuf tracés.
+Clarifier l’approche de la première bifurcation. Distinguer la piste principale et le pont physique à la vitesse de course, puis vérifier l’entrée des trois raccourcis et leurs trois variantes à 40 billes.

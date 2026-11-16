@@ -105,7 +105,7 @@ func _build_line_batches() -> void:
 func _road_markings() -> void:
     # Real-world toy car/slot-race markings: directional speed chevrons and lane markers.
     for section in range(1,TRACK_LENGTH-1):
-        if section%2==0:
+        if section == 1 or section%2==0:
             continue
         var z=8.0-section*12.0
         for stripe in range(4):
