@@ -83,6 +83,7 @@ var glacier_waiting_to_pass := false
 var glacier_resumed_pass := false
 var glacier_abort_remaining := 0.0
 var glacier_return_offset := 0.0
+var glacier_cut_in_rider: RigidBody3D
 var glacier_merge_brake_time := 0.0
 var glacier_merge_recovery := 0.0
 var glacier_merge_scan := 0.0
@@ -359,6 +360,13 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
                     side_force = clampf(lateral_error*22.0-linear_velocity.x*6.0,-26.0,26.0)
             var return_x := traffic_center+glacier_return_offset if glacier_abort_remaining > 0.0 else INF
             drive_force = _glacier_follow_force(drive_force,glacier_passing,return_x)
+            if glacier_abort_remaining > 0.0 and is_instance_valid(glacier_cut_in_rider):
+                # Even a partly alongside bot must yield longitudinal space
+                # while the other marble still has inward momentum.
+                var rider_speed := -glacier_cut_in_rider.linear_velocity.z
+                var gap := position.z-glacier_cut_in_rider.position.z
+                var safe_speed := maxf(1.0,rider_speed+minf(0.0,(gap-1.65)*3.0))
+                drive_force = minf(drive_force,maxf(-35.0,(safe_speed+linear_velocity.z)*10.0))
             drive_force = _glacier_merge_force(delta,drive_force)
             side_force += AIPath.baffle_dodge(position,traffic_center)
         elif following_bypass:
@@ -434,6 +442,7 @@ func _glacier_return_pass(delta: float, center_x: float) -> float:
         glacier_waiting_to_pass = false
         glacier_resumed_pass = false
         glacier_abort_remaining = 0.0
+        glacier_cut_in_rider = null
         return INF
     glacier_abort_remaining = maxf(0.0,glacier_abort_remaining-delta)
     glacier_pass_remaining = maxf(0.0,glacier_pass_remaining-delta)
@@ -441,6 +450,17 @@ func _glacier_return_pass(delta: float, center_x: float) -> float:
     var side: float = director.side_at(gate)
     var passing := glacier_pass_remaining > 0.0
     var merge_recovery := glacier_merge_recovery > 0.0
+    if passing and (distance >= -1.25 or glacier_resumed_pass):
+        var entries: Dictionary = course_owner.shortcut_route.entered
+        if not entries.is_empty():
+            var cut_in := AIPath.glacier_pass_cut_in(self,course_owner.racers,entries,
+                center_x-side*AIPath.GLACIER_PASS_OFFSET)
+            if is_instance_valid(cut_in):
+                glacier_cut_in_rider = cut_in
+                glacier_abort_remaining = GLACIER_ABORT_TIME
+                glacier_pass_scan = 0.0
+    elif glacier_abort_remaining <= 0.0:
+        glacier_cut_in_rider = null
     if glacier_pass_scan <= 0.0 and absf(position.x-center_x) <= 2.7:
         glacier_pass_scan = AIPath.TRAFFIC_SCAN_PERIOD+float(racer_id%4)*0.05
         if passing:
@@ -564,6 +584,7 @@ func teleport_to_start(new_position: Vector3) -> void:
     glacier_resumed_pass = false
     glacier_abort_remaining = 0.0
     glacier_return_offset = 0.0
+    glacier_cut_in_rider = null
     glacier_merge_brake_time = 0.0
     glacier_merge_recovery = 0.0
     glacier_merge_scan = 0.0

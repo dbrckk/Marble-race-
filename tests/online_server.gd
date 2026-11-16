@@ -13,6 +13,10 @@ func _run() -> void:
     var err: Error = game.net.start_dedicated(port)
     assert(err == OK,"Could not open dedicated online test server")
     print("ONLINE_SERVER_TEST_READY ",port)
+    var glacier_layout := OS.get_environment("GLACIER_ONLINE_LAYOUT")
+    if glacier_layout.is_valid_int():
+        await _glacier_cut_in(game,int(glacier_layout))
+        return
     var deadline: int = Time.get_ticks_msec()+40000
     var connected_two := false
     var controls_seen := false
@@ -41,3 +45,94 @@ func _run() -> void:
     game.net.leave_room()
     game.queue_free()
     quit(7)
+
+
+func _glacier_cut_in(game: Node3D, layout: int) -> void:
+    game.net.completed_rounds = 1
+    game.race_variation = layout
+    var deadline := Time.get_ticks_msec()+25000
+    while game.race_state != "RACING" and Time.get_ticks_msec() < deadline:
+        await physics_frame
+    if game.race_state != "RACING" or game.selected_track != 1 or game.built_variation != layout:
+        _finish_glacier(game,false,"Glacier round failed to start")
+        return
+
+    var slots: Array = game.net.joined_slots.values()
+    slots.sort()
+    var rider: RigidBody3D = game.racers[slots.back()]
+    var bots: Array[RigidBody3D] = []
+    for marble: RigidBody3D in game.racers:
+        marble.freeze = true
+        marble.collision_layer = 0
+        marble.collision_mask = 0
+        if not marble.wants_shortcut() and not marble.network_controlled and not marble.is_player and bots.size() < 3:
+            bots.append(marble)
+
+    var follower := bots[0]
+    var director: Node3D = game.race_director
+    var gate: int = director.GLACIER_RETURN_GATE
+    var gate_z: float = director.event_z(gate)
+    var side: float = director.side_at(gate)
+    var start_z := gate_z+11.0
+    _place_glacier_racer(game,bots[1],0.0,start_z-7.5,7.0)
+    _place_glacier_racer(game,follower,0.0,start_z,16.0)
+    _place_glacier_racer(game,bots[2],0.0,start_z+4.6,15.0)
+    # Start at the bridge-to-main-track handoff with real authoritative bodies.
+    _place_glacier_racer(game,rider,-side*3.45,start_z-2.0,11.0)
+    game.shortcut_route.entered[rider.racer_id] = true
+
+    var field: Array[RigidBody3D] = [rider]
+    field.append_array(bots)
+    var contacts: Array[String] = []
+    for marble in field:
+        marble.contact_monitor = true
+        marble.max_contacts_reported = 8
+        marble.body_entered.connect(func(body: Node):
+            if body is RigidBody3D and body in field:
+                contacts.append("%d/%d" % [marble.racer_id,body.racer_id])
+        )
+
+    var committed_at := -1
+    var input_at := -1
+    var aborted_at := -1
+    var crossed: Dictionary = {}
+    for frame in range(140):
+        await physics_frame
+        if committed_at < 0 and follower.glacier_pass_remaining > 0.0:
+            committed_at = frame
+        var input: Vector2 = game.net.input_for_slot(rider.racer_id)
+        if input_at < 0 and input.x*side > 0.3:
+            input_at = frame
+        if aborted_at < 0 and follower.glacier_abort_remaining > 0.0:
+            aborted_at = frame
+        for marble in field:
+            if marble.position.z < gate_z-3.0:
+                crossed[marble.racer_id] = true
+        if crossed.size() == field.size() or not contacts.is_empty() or (
+                field.any(func(marble: RigidBody3D): return marble.eliminated)):
+            break
+    var success: bool = rider.network_controlled and committed_at >= 0 and input_at > committed_at and (
+        aborted_at > input_at and contacts.is_empty() and crossed.size() == field.size())
+    _finish_glacier(game,success,"layout=%d server_ticks pass=%d input=%d abort=%d contacts=%s crossed=%d" % [
+        layout,committed_at,input_at,aborted_at,", ".join(contacts),crossed.size()])
+
+
+func _finish_glacier(game: Node3D, success: bool, details: String) -> void:
+    if success:
+        print("GLACIER_ONLINE_SERVER_PASS: ",details)
+    else:
+        push_error("GLACIER_ONLINE_SERVER_FAILED: "+details)
+    game.net.leave_room()
+    game.queue_free()
+    quit(0 if success else 8)
+
+
+func _place_glacier_racer(game: Node3D, marble: RigidBody3D, lane: float, z: float, speed: float) -> void:
+    marble.global_position = Vector3(game.track_center_at(z)+lane,game.height_at(z)+0.46,z)
+    marble.linear_velocity = Vector3(0,0,-speed)
+    marble.ai_lane_goal = lane
+    marble.ai_lane_timer = 4.0
+    marble.collision_layer = 1
+    marble.collision_mask = 1
+    marble.freeze = false
+    marble.sleeping = false

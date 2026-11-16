@@ -241,6 +241,27 @@ static func glacier_merge_drive(own: RigidBody3D, rivals: Array[RigidBody3D],
         drive_force = minf(drive_force,maxf(-22.0,(safe_speed-speed)*10.0))
     return drive_force
 
+# A late cut-in can leave a passing bot alongside the bridge rider.
+# Detect closing paths before the ordinary lane occupancy scan runs again.
+static func glacier_pass_cut_in(own: RigidBody3D, rivals: Array[RigidBody3D],
+        entries: Dictionary, target_x: float) -> RigidBody3D:
+    for slot: int in entries:
+        if slot < 0 or slot >= rivals.size():
+            continue
+        var rider := rivals[slot]
+        if not is_instance_valid(rider) or rider == own or rider.freeze or rider.finished or (
+                rider.eliminated or (not rider.is_player and not rider.network_controlled)):
+            continue
+        var lateral: float = rider.position.x-target_x
+        var inward_speed := -signf(lateral)*rider.linear_velocity.x
+        var gap: float = own.position.z-rider.position.z
+        if gap < -0.9 or gap > 5.0 or absf(rider.position.y-own.position.y) > TRAFFIC_HEIGHT:
+            continue
+        if absf(lateral) > 0.7 and inward_speed >= 1.0 and absf(lateral)-inward_speed*0.42 < 0.85:
+            return rider
+    return null
+
+
 # Track the nearest same-level rival in the bot's current line. The
 # caller scans at the ordinary traffic cadence and keeps the body reference
 # so closing distance and relative speed can be checked every physics tick.

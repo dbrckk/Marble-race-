@@ -10,9 +10,13 @@ var began := false
 var snapped := false
 var steering_sent := false
 var invite_printed := false
+var glacier_mode := false
+var glacier_cut_in_sent := false
 
 func _initialize() -> void:
     for argument in OS.get_cmdline_user_args():
+        if argument == "--glacier-cut-in":
+            glacier_mode = true
         if argument.begins_with("--url="):
             url = argument.trim_prefix("--url=")
         if argument.begins_with("--mode="):
@@ -31,13 +35,16 @@ func _verify() -> void:
         quit(3)
         return
     var started: int = Time.get_ticks_msec()
-    while Time.get_ticks_msec() - started < 125000:
+    var deadline := 30000 if glacier_mode else 125000
+    var assigned_slot := -1
+    while Time.get_ticks_msec() - started < deadline:
         await process_frame
         if game.net.room_code != "" and not invite_printed:
             invite_printed = true
             print("ONLINE_INVITE_CODE ",game.net.room_code)
         if game.net.match_running and not began:
             began = true
+            assigned_slot = game.net.local_slot
             assert(game.net.local_slot >= 36 and game.net.local_slot <= 39,
                 "Server must assign a playable marble")
             assert(game.player != null and game.player.racer_id == game.net.local_slot,
@@ -46,6 +53,18 @@ func _verify() -> void:
             for marble in game.racers:
                 assert(marble.freeze,"Client must not run duplicate physics")
             print("ONLINE_CLIENT_MATCH_STARTED slot=%d" % game.net.local_slot)
+        if glacier_mode:
+            if began and not game.net.connected:
+                var passed := snapped and (assigned_slot != 39 or glacier_cut_in_sent)
+                if passed:
+                    print("GLACIER_ONLINE_CLIENT_PASS slot=",assigned_slot)
+                game.queue_free()
+                quit(0 if passed else 5)
+                return
+            if began and game.race_state == "RACING" and game.net.targets_received:
+                snapped = true
+                _steer_glacier_rider()
+            continue
         if began and game.race_state == "RACING":
             game.change_steer(0.76)
             game.change_boost(true)
@@ -64,3 +83,19 @@ func _verify() -> void:
     game.net.leave_room()
     game.queue_free()
     quit(4)
+
+
+func _steer_glacier_rider() -> void:
+    if game.net.local_slot != 39:
+        return
+    var director: Node3D = game.race_director
+    var gate: int = director.GLACIER_RETURN_GATE
+    var gate_z: float = director.event_z(gate)
+    var seen: Vector3 = game.net.targets[game.net.local_slot].origin
+    if seen.z >= gate_z+11.0 or seen.z < gate_z-3.5:
+        game.change_steer(0.0)
+        return
+    glacier_cut_in_sent = glacier_cut_in_sent or seen.z < gate_z+7.5
+    var lane: float = -director.side_at(gate)*(1.7 if glacier_cut_in_sent else 3.45)
+    var center: float = game.track_center_at(seen.z)
+    game.change_steer(clampf((center+lane-seen.x)*0.7,-0.8,0.8))
