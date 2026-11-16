@@ -1621,8 +1621,9 @@ func update_hud() -> void:
             shutter_side = gate_side
         var bridge_exit_preview: bool = game.selected_track == 2 and bridge_approach_active and (
             gate_id == game.race_director.FORGE_EXIT_GATE)
+        var glacier_exit_preview: bool = game.selected_track == 1 and bridge_approach_active
         var lane_verdict: String = "DODGE!" if player_threatened else "LINE CLEAR"
-        if not bridge_exit_preview and player_threatened and gate_eta <= 1.45:
+        if not bridge_exit_preview and not glacier_exit_preview and player_threatened and gate_eta <= 1.45:
             urgent_gate_eta = gate_eta
         if bridge_exit_preview:
             bridge_piston_warning = game.race_director.forge_exit_blocks_during_crossing(
@@ -1634,6 +1635,11 @@ func update_hud() -> void:
             else:
                 timed_gate_label.text = "AFTER BRIDGE  •  PISTON %s OPEN  •  %.1fs" % [
                     gate_side,gate_eta]
+        elif glacier_exit_preview:
+            var merge_distance: float = game.player.global_position.z-SHORTCUT_ROUTE.EXIT_Z
+            timed_gate_label.visible = merge_distance <= SHORTCUT_ROUTE.MERGE_GUIDANCE_REACH
+            timed_gate_label.text = "AFTER BRIDGE  •  SHUTTER %s  •  AIM CENTER  •  %.1fs" % [
+                gate_side,gate_eta]
         elif game.selected_track == 2:
             var bypass := "LEFT" if gate_side == "RIGHT" else "RIGHT"
             var action := "DODGE! GO "+bypass if player_threatened else lane_verdict
@@ -1645,11 +1651,11 @@ func update_hud() -> void:
             timed_gate_label.text = "%s %s  •  %s  •  %.1fs" % [
                 str(moving_event["kind"]),gate_side,lane_verdict,gate_eta]
         var tint := Color("#a1edcc")
-        if bridge_piston_warning:
+        if bridge_piston_warning or glacier_exit_preview:
             tint = Color("#ffd494")
         elif player_threatened and not bridge_exit_preview:
             tint = Color("#ffae91") if gate_eta < 1.45 else Color("#f6d49b")
-        if bridge_piston_warning or (player_threatened and not bridge_exit_preview):
+        if bridge_piston_warning or (player_threatened and not bridge_exit_preview and not glacier_exit_preview):
             var entry_distance: float = gate_distance-game.race_director.BODY_DEPTH*0.5-(
                 game.race_director.MARBLE_CLEARANCE)
             piston_contact_eta = maxf(0.0,entry_distance)/maxf(2.0,forward_speed)
@@ -1677,7 +1683,8 @@ func update_hud() -> void:
         if not timed_gate_label.visible:
             audible_gate_eta = INF
     else:
-        timed_gate_backdrop.visible = is_finite(urgent_gate_eta)
+        timed_gate_backdrop.visible = is_finite(urgent_gate_eta) or (
+            game.selected_track == 1 and bridge_approach_active and timed_gate_label.visible)
         _update_biome_lane(lane_hint,urgent_gate_eta)
     if vent_eta < 0.20 or vent_eta > VENT_WARNING_SECONDS:
         vent_eta = INF
@@ -1711,12 +1718,16 @@ func update_hud() -> void:
             RARE_ITEMS.COLORS[color_index].lightened(0.20))
     shortcut_label.visible = still_racing and not route_hint.is_empty()
     if shortcut_label.visible:
-        if game.selected_track == 2:
-            shortcut_label.text = game.shortcut_route.forge_route_text(
+        if game.selected_track == 2 or (game.selected_track == 1 and bridge_approach_active):
+            shortcut_label.text = game.shortcut_route.route_guidance_text(
                 route_hint,game.player.global_position.z,forward_speed)
             shortcut_label.visible = not shortcut_label.text.is_empty()
-            shortcut_label.add_theme_color_override("font_color",
-                SHORTCUT_ROUTE.FORGE_EDGE_COLOR if route_hint["mode"] == "fork" else SHORTCUT_ROUTE.FORGE_MAIN_COLOR)
+            var route_tint := SHORTCUT_ROUTE.FORGE_MAIN_COLOR
+            if game.selected_track == 1:
+                route_tint = SHORTCUT_ROUTE.GLACIER_RETURN_COLOR
+            elif route_hint["mode"] == "fork":
+                route_tint = SHORTCUT_ROUTE.FORGE_EDGE_COLOR
+            shortcut_label.add_theme_color_override("font_color",route_tint)
         elif str(route_hint["mode"]) == "fork":
             var bridge_text := "← ICE SHORTCUT" if route_hint["side"] == "LEFT" else "SHORTCUT BRIDGE →"
             shortcut_label.text = "MAIN TRACK ↑   /   %s  •  %dm" % [

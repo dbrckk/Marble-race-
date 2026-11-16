@@ -244,6 +244,7 @@ func _verify() -> void:
                 _verify_biome_lane(game,biome)
             if biome == 1:
                 assert(_verify_glacier_sequence(game))
+                assert(_verify_glacier_bridge_return(game))
             if biome == 2:
                 _verify_forge_exit(game)
                 _verify_forge_encounter_order(game)
@@ -255,7 +256,7 @@ func _verify() -> void:
         await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_timed_hud_career.cfg"))
-    print("TIMED_HUD_PASS: 9 layouts, speed-aware approaches, original cues, Glacier ice-to-shutter handoff, Forge encounter order and piston crossing windows")
+    print("TIMED_HUD_PASS: 9 layouts, speed-aware approaches, original cues, Glacier ice and bridge handoffs, Forge encounter order and piston crossing windows")
     quit(0)
 
 func _verify_forge_feedback(game: Node3D) -> void:
@@ -470,6 +471,70 @@ func _verify_glacier_sequence(game: Node3D) -> bool:
         "A shutter cue cannot replay each HUD frame")
     _update_at(game,Vector3(x,game.height_at(gate_z-1.0)+0.60,gate_z-1.0),velocity)
     assert(not hud.biome_lane_label.visible or not hud.biome_lane_label.text.contains("AFTER ICE"))
+    return true
+
+func _verify_glacier_bridge_return(game: Node3D) -> bool:
+    var director: Node3D = game.race_director
+    var road: Node3D = game.shortcut_route
+    var hud: CanvasLayer = game.ui
+    var gate := 1
+    var gate_z: float = director.event_z(gate)
+    var speed := 23.0
+    var velocity := Vector3(0,0,-speed)
+    var arrows := road.get_node("GlacierReturnArrows") as MultiMeshInstance3D
+    assert(arrows.multimesh.instance_count == 8 and
+        arrows.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
+    var previous := INF
+    var ice: Node3D = game.course_mechanics.zones[2]
+    var ice_shape := ice.get_node("LowFrictionIce").get_child(0).shape as BoxShape3D
+    for arrow: Transform3D in road.glacier_return_arrows:
+        var at := arrow.origin
+        assert(at.z < previous)
+        previous = at.z
+        var arrow_depth := arrows.multimesh.mesh.get_aabb().size.z*0.5
+        if at.z > ROUTE.EXIT_Z:
+            assert(absf(at.x-road.point_at(at.z).x) <= 0.61,
+                "Approach arrows follow the actual deck")
+        else:
+            assert(at.z+arrow_depth < ice.position.z-ice_shape.size.z*0.5,
+                "Return arrows on the main track stay beyond the ice slab")
+    var last_arrow: Vector3 = road.glacier_return_arrows.back().origin
+    assert(last_arrow.z > gate_z and absf(last_arrow.x-game.track_center_at(gate_z)) < 2.0)
+    var center_x: float = game.track_center_at(gate_z)
+    for i in range(40):
+        assert(not director.threatens_line(gate,float(i)*0.11,0.9,center_x,0.0),
+            "The center avoids the complete sweep of this shutter")
+
+    game.audio.warned_timed_gates.clear()
+    game.audio.hazard_cooldown = 0.0
+    _update_at(game,road.point_at(ROUTE.EXIT_Z+30.0)+Vector3.UP*0.73,velocity)
+    assert(hud.bridge_approach_active and not hud.shortcut_label.visible and
+        not hud.timed_gate_label.visible)
+    _update_at(game,road.point_at(ROUTE.EXIT_Z+16.0)+Vector3.UP*0.73,velocity)
+    var preview: String = hud.timed_gate_label.text
+    assert(hud.shortcut_label.text.contains("16m  /  0.7s") and
+        hud.timed_gate_label.visible and preview.contains("AFTER BRIDGE") and
+        preview.contains("AIM CENTER") and not hud.biome_lane_label.visible)
+    assert(not game.audio.warned_timed_gates.has(gate))
+    var lip: Vector3 = road.point_at(ROUTE.EXIT_Z+1.1)+Vector3.UP*0.73
+    assert(road.shortcut_hint(lip).is_empty(),"The shared lip alone does not establish bridge context")
+    _update_at(game,lip,velocity)
+    assert(hud.bridge_approach_active and hud.shortcut_label.visible and
+        hud.shortcut_label.text.contains("MERGE RIGHT NOW") and hud.timed_gate_label.visible)
+
+    var z := ROUTE.EXIT_Z-1.0
+    var eta := (z-gate_z)/speed
+    var blocked_x: float = director.position_at(gate,director.clock+eta).x
+    _update_at(game,Vector3(blocked_x,game.height_at(z)+0.64,z),velocity)
+    assert(not hud.bridge_approach_active and not hud.shortcut_label.visible and
+        hud.timed_gate_label.visible and hud.timed_gate_label.text.contains("DODGE!"))
+    assert(game.audio.warned_timed_gates.has(gate),
+        "The real collision warning is still available after the join")
+    var main_z := ROUTE.EXIT_Z+1.1
+    _update_at(game,Vector3(game.track_center_at(main_z),game.height_at(main_z)+0.64,main_z),velocity)
+    assert(not hud.bridge_approach_active and not hud.shortcut_label.visible and
+        not hud.timed_gate_label.text.contains("AFTER BRIDGE"),
+        "Main-track racers never get bridge-specific instructions")
     return true
 
 func _verify_forge_exit(game: Node3D) -> void:
