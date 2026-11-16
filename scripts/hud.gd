@@ -1598,6 +1598,7 @@ func update_hud() -> void:
     var piston_contact_eta := INF
     var bridge_piston_warning := false
     var audible_gate_eta := INF
+    var shutter_side := ""
     var gate_id := -1
     if timed_gate_label.visible:
         var gate_distance: float = game.player.global_position.z-float(moving_event["z"])
@@ -1616,6 +1617,8 @@ func update_hud() -> void:
                 gate_id,game.race_director.clock,gate_eta,
                 game.player.global_position.x,game.player.linear_velocity.x))
         var gate_side: String = str(moving_event["side"])
+        if game.selected_track == 1 and player_threatened:
+            shutter_side = gate_side
         var bridge_exit_preview: bool = game.selected_track == 2 and bridge_approach_active and (
             gate_id == game.race_director.FORGE_EXIT_GATE)
         var lane_verdict: String = "DODGE!" if player_threatened else "LINE CLEAR"
@@ -1650,7 +1653,9 @@ func update_hud() -> void:
             var entry_distance: float = gate_distance-game.race_director.BODY_DEPTH*0.5-(
                 game.race_director.MARBLE_CLEARANCE)
             piston_contact_eta = maxf(0.0,entry_distance)/maxf(2.0,forward_speed)
-            if not bridge_exit_preview and piston_contact_eta >= 0.20 and piston_contact_eta <= PISTON_WARNING_SECONDS:
+            var audio_minimum := 0.06 if game.selected_track == 1 else 0.20
+            if not bridge_exit_preview and piston_contact_eta >= audio_minimum and (
+                    piston_contact_eta <= PISTON_WARNING_SECONDS):
                 audible_gate_eta = piston_contact_eta
         timed_gate_label.add_theme_color_override("font_color",tint)
     var lane_hint: Dictionary = game.course_mechanics.upcoming_lane(
@@ -1665,6 +1670,12 @@ func update_hud() -> void:
         var vent_priority := vent_eta if vent_eta <= VENT_WARNING_SECONDS else INF
         pickup_limit = minf(piston_priority,vent_priority)
         _show_forge_hazard(lane_hint,gate_eta,piston_priority,vent_priority)
+    elif game.selected_track == 1 and gate_id >= 0 and gate_id == int(lane_hint.get("exit_shutter",-1)):
+        _show_glacier_sequence(lane_hint,shutter_side)
+        # Keep the shutter's one-shot sound available for the exit while
+        # the combined on-ice message is still the active steering cue.
+        if not timed_gate_label.visible:
+            audible_gate_eta = INF
     else:
         timed_gate_backdrop.visible = is_finite(urgent_gate_eta)
         _update_biome_lane(lane_hint,urgent_gate_eta)
@@ -1741,8 +1752,28 @@ func _show_forge_hazard(vent: Dictionary, gate_eta: float, piston_priority: floa
     timed_gate_backdrop.visible = is_finite(vent_priority) if show_vent else (
         timed_gate_label.visible and is_finite(piston_priority))
 
-func _update_biome_lane(hint: Dictionary, urgent_gate_eta: float) -> void:
+func _show_glacier_sequence(ice: Dictionary, threatened_side: String) -> void:
+    timed_gate_label.hide()
+    var on_ice: bool = ice["on_ice"]
+    var surface_entry: bool = float(ice["eta"]) > 0.0
+    if not on_ice and not surface_entry and not threatened_side.is_empty():
+        timed_gate_label.show()
+        timed_gate_backdrop.show()
+        biome_lane_label.hide()
+        return
+    _update_biome_lane(ice,INF,true)
+    if on_ice and not threatened_side.is_empty():
+        biome_lane_label.text = "STEER GENTLY  •  SHUTTER %s AFTER ICE" % threatened_side
+    timed_gate_backdrop.visible = on_ice or not threatened_side.is_empty()
+
+func _update_biome_lane(hint: Dictionary, urgent_gate_eta: float, primary := false) -> void:
     biome_lane_label.hide()
+    if game.selected_track == 1:
+        biome_lane_label.anchor_left = timed_gate_label.anchor_left if primary else 0.285
+        biome_lane_label.anchor_right = timed_gate_label.anchor_right if primary else 0.715
+        biome_lane_label.anchor_top = timed_gate_label.anchor_top if primary else SURFACE_CUE_TOP
+        biome_lane_label.anchor_bottom = timed_gate_label.anchor_bottom if primary else SURFACE_CUE_BOTTOM
+        biome_lane_label.add_theme_font_size_override("font_size",19 if primary else 17)
     if hint.is_empty():
         return
     # A moving obstacle before the ice takes priority unless the player
@@ -1755,7 +1786,8 @@ func _update_biome_lane(hint: Dictionary, urgent_gate_eta: float) -> void:
     if game.selected_track == 1:
         var on_ice: bool = hint["on_ice"]
         var entering_ice: bool = hint["on_line"] and float(hint["eta"]) < 0.40
-        cue = "STEER GENTLY" if on_ice or entering_ice else "GRIP %s" % hint["other"]
+        var grip := "GRIP CENTER" if hint["grip_center"] else "GRIP %s" % hint["other"]
+        cue = "STEER GENTLY" if on_ice or entering_ice else grip
         var timing := "%.1fs" % float(hint["eta"]) if -game.player.linear_velocity.z >= 9.0 else "%dm" % int(hint["distance"])
         biome_lane_label.text = "ON ICE  •  STEER GENTLY" if on_ice else (
             "ICE %s  •  %s  •  %s" % [hint["side"],cue,timing])

@@ -20,6 +20,7 @@ const ICE_SLAB_Y := 0.024
 const ICE_SLAB_THICKNESS := 0.065
 const ICE_PAINT_Y := ICE_SLAB_Y+ICE_SLAB_THICKNESS*0.5+0.020
 const GRIP_MARK_OFFSETS := [13.0,10.2,7.4,4.6,1.8]
+const ICE_SHUTTER_GAP := 12.0
 const VENT_RADIUS_SQUARED := 2.45
 const LAVA_CYCLE := 4.8
 const LAVA_ACTIVE := 1.35
@@ -31,6 +32,7 @@ var zones: Array[Node3D] = []
 var active_marks: Array[MeshInstance3D] = []
 var vent_rims: Array[MeshInstance3D] = []
 var grip_mark_origins: Array[Vector3] = []
+var ice_exit_shutters: Array[int] = []
 var collected: Dictionary = {}
 var last_burst: Dictionary = {}
 var race_clock := 0.0
@@ -66,6 +68,7 @@ func setup(owner: Node3D, course_id: int, next_layout: int = 0) -> void:
             if track_id == 1:
                 _ice_collision(zone)
     if track_id == 1:
+        _find_ice_exit_shutters()
         _ice_grip_guides()
     reset_round()
 
@@ -95,6 +98,10 @@ func upcoming_lane(at: Vector3, velocity: Vector3, downstream_limit: float) -> D
                 maxf(entry_x,lane_x) > center.x-ZONE_WIDTH*0.5)
             hint["on_ice"] = entry <= 0.0 and absf(at.x-center.x) < ZONE_WIDTH*0.5 and (
                 absf(at.y-center.y) <= 1.7)
+            var shutter := ice_exit_shutters[index]
+            hint["exit_shutter"] = shutter
+            hint["grip_center"] = shutter >= 0 and game.race_director.side_at(shutter) == (
+                -signf(lane_offset(index,track_id,variation)))
         else:
             var clock: float = game.race_time if game.net.role == "client" else race_clock
             var lateral := absf(lane_x-center.x)
@@ -198,6 +205,13 @@ func _ice_markings(zone: Node3D, pitch: float) -> void:
     marks.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     zone.add_child(marks)
 
+func _find_ice_exit_shutters() -> void:
+    var director: Node3D = game.race_director
+    for zone in zones:
+        var exit_z := zone.position.z-ZONE_LENGTH*0.5
+        var next_gate: Dictionary = director.event_ahead(exit_z,INF,ICE_SHUTTER_GAP)
+        ice_exit_shutters.append(int(next_gate.get("index",-1)))
+
 func _ice_grip_guides() -> void:
     # Twin painted arms on the regular road, running into the clear side.
     # Both the black backing and amber paint share one static GPU batch.
@@ -210,6 +224,8 @@ func _ice_grip_guides() -> void:
     for index in range(zones.size()):
         var zone := zones[index]
         var dry_side := -signf(lane_offset(index,track_id,variation))
+        var shutter := ice_exit_shutters[index]
+        var grip_center: bool = shutter >= 0 and game.race_director.side_at(shutter) == dry_side
         for row in range(GRIP_MARK_OFFSETS.size()):
             var z: float = zone.position.z+GRIP_MARK_OFFSETS[row]
             var section_z: float = 8.0-roundf((8.0-z)/game.SEGMENT_LENGTH)*game.SEGMENT_LENGTH
@@ -222,8 +238,9 @@ func _ice_grip_guides() -> void:
                 if seam_y > y:
                     pitch = seam_pitch
                     y = seam_y
-            var x: float = game.track_center_at(section_z)+dry_side*lerpf(
-                1.95,3.10,float(row)/float(GRIP_MARK_OFFSETS.size()-1))
+            var progress := float(row)/float(GRIP_MARK_OFFSETS.size()-1)
+            var end_offset := 0.50 if grip_center else 3.10
+            var x: float = game.track_center_at(section_z)+dry_side*lerpf(1.95,end_offset,progress)
             var center := Vector3(x,y+0.055,z)
             grip_mark_origins.append(center)
             var road_basis := Basis(Vector3.RIGHT,pitch)

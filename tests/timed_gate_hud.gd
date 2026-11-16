@@ -242,6 +242,8 @@ func _verify() -> void:
                 "Do not clutter the HUD with hazards beyond the lookahead")
             if biome != 0:
                 _verify_biome_lane(game,biome)
+            if biome == 1:
+                assert(_verify_glacier_sequence(game))
             if biome == 2:
                 _verify_forge_exit(game)
                 _verify_forge_encounter_order(game)
@@ -253,7 +255,7 @@ func _verify() -> void:
         await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_timed_hud_career.cfg"))
-    print("TIMED_HUD_PASS: 9 layouts, speed-aware approaches, original cues, Glacier grip previews, Forge encounter order and piston crossing windows")
+    print("TIMED_HUD_PASS: 9 layouts, speed-aware approaches, original cues, Glacier ice-to-shutter handoff, Forge encounter order and piston crossing windows")
     quit(0)
 
 func _verify_forge_feedback(game: Node3D) -> void:
@@ -304,20 +306,22 @@ func _verify_biome_lane(game: Node3D, biome: int) -> void:
     var alternate := "LEFT" if zone_side == "RIGHT" else "RIGHT"
     if biome == 1:
         _verify_glacier_markings(game,mechanics)
+        var dry_hint: Dictionary = mechanics.upcoming_lane(position,velocity,INF)
+        var grip := "GRIP CENTER" if dry_hint["grip_center"] else "GRIP "+alternate
         _update_at(game,position,velocity)
         assert(label.visible and label.text.contains("ICE "+zone_side) and
-            label.text.contains("GRIP "+alternate),
+            label.text.contains(grip),
             "Before reaching the slab, the player can still choose the grippy side")
         _update_at(game,first+Vector3(0.0,0.55,6.0),Vector3(0,0,-23))
         assert(label.visible and label.text.contains("STEER GENTLY") and
             label.text.contains("0.1s"),
             "An imminent entry uses a fast readout and gentle steering")
         _update_at(game,first+Vector3.UP*0.55,Vector3(0,0,-23))
-        assert(label.visible and label.text == "ON ICE  •  STEER GENTLY",
+        assert(label.visible and label.text.contains("STEER GENTLY"),
             "The HUD distinguishes actual ice contact from an approach")
         position.x = game.track_center_at(first.z)
         _update_at(game,position,velocity)
-        assert(label.visible and label.text.contains("GRIP "+alternate))
+        assert(label.visible and label.text.contains(grip))
         position.x = first.x-2.0
         assert(mechanics.upcoming_lane(position,Vector3(5,0,-12),INF)["on_line"],
             "Lateral drift must forecast ice contact")
@@ -403,13 +407,70 @@ func _verify_glacier_markings(game: Node3D, mechanics: Node3D) -> void:
         assert(edge.multimesh.instance_count == 12 and
             ice.physics_material_override.friction < 0.10)
         var dry_side: float = -signf(mechanics.lane_offset(index,1,mechanics.variation))
+        var gate: int = mechanics.ice_exit_shutters[index]
+        var to_center: bool = gate >= 0 and game.race_director.side_at(gate) == dry_side
         for row in range(row_count):
             var mark: Vector3 = mechanics.grip_mark_origins[index*row_count+row]
             var offset: float = mark.x-game.track_center_at(mark.z)
-            assert(offset*dry_side > 0.75 and offset*dry_side < 4.35 and
+            var minimum := -0.55 if to_center else 0.75
+            assert(offset*dry_side > minimum and offset*dry_side < 4.35 and
                 absf(mark.x-zone.position.x) > shape.size.x*0.5+0.7,
-                "Approach paint must stay on the dry half and clear the icy lane")
+                "Approach paint must stay clear of the icy lane")
+            if to_center and row == row_count-1:
+                assert(absf(offset) < 1.10,"The final chevron must aim inside the shutter's sweep")
             assert(is_equal_approx(mark.z-zone.position.z,mechanics.GRIP_MARK_OFFSETS[row]))
+
+func _verify_glacier_sequence(game: Node3D) -> bool:
+    var director: Node3D = game.race_director
+    var mechanics: Node3D = game.course_mechanics
+    var hud: CanvasLayer = game.ui
+    var slab: Vector3 = mechanics.zones[0].global_position
+    var speed := 23.0
+    var velocity := Vector3(0,0,-speed)
+    var gate := 0
+    assert(mechanics.ice_exit_shutters[0] == gate)
+    var gate_z: float = director.event_z(gate)
+    var side: String = "LEFT" if director.side_at(gate) < 0.0 else "RIGHT"
+    var before := slab+Vector3(0.0,0.60,13.0)
+    _update_at(game,before,velocity)
+    assert(hud.biome_lane_label.visible and not hud.timed_gate_label.visible,
+        "Approaching the paired obstacles puts ice guidance first")
+    var ice: Dictionary = mechanics.upcoming_lane(before,velocity,INF)
+    var grip := "GRIP CENTER" if ice["grip_center"] else "GRIP "+str(ice["other"])
+    assert(hud.biome_lane_label.text.contains(grip))
+    var dry_x: float = game.track_center_at(gate_z)
+    for sample in range(30):
+        var t := float(sample)*0.17
+        assert(not director.threatens_line(gate,t,0.16,dry_x,0.0),
+            "The painted central option stays outside the moving shutter's full sweep")
+    var clock := 0.65
+    director.animate(clock)
+    game.audio.warned_timed_gates.clear()
+    game.audio.hazard_cooldown = 0.0
+    _update_at(game,slab+Vector3.UP*0.60,velocity)
+    assert(hud.biome_lane_label.text.contains("STEER GENTLY") and
+        hud.biome_lane_label.visible and not hud.timed_gate_label.visible,
+        "While on the slab, movement and shutter advice must share one message")
+    assert(not game.audio.warned_timed_gates.has(gate))
+    if director.threatens_line(gate,clock,(slab.z-gate_z)/speed,slab.x,0.0):
+        assert(hud.biome_lane_label.text.contains("SHUTTER "+side+" AFTER ICE"))
+    var clear_z: float = slab.z-mechanics.ZONE_LENGTH*0.5-0.22
+    var x: float = director.position_at(gate,clock+(clear_z-gate_z)/speed).x
+    _update_at(game,Vector3(x,game.height_at(clear_z)+0.60,clear_z),velocity)
+    assert(hud.timed_gate_label.visible and not hud.biome_lane_label.visible and
+        hud.timed_gate_label.text.contains("ICE SHUTTER "+side),
+        "Crossing the ice exit restores the actual shutter forecast")
+    assert(hud.timed_gate_label.text.contains("DODGE!") and
+        game.audio.warned_timed_gates.has(gate),
+        "The shutter warning sound remains available after leaving the ice")
+    game.audio.hazard_cooldown = 0.0
+    var channel: int = game.audio.current_channel
+    _update_at(game,Vector3(x,game.height_at(clear_z)+0.60,clear_z),velocity)
+    assert(game.audio.current_channel == channel,
+        "A shutter cue cannot replay each HUD frame")
+    _update_at(game,Vector3(x,game.height_at(gate_z-1.0)+0.60,gate_z-1.0),velocity)
+    assert(not hud.biome_lane_label.visible or not hud.biome_lane_label.text.contains("AFTER ICE"))
+    return true
 
 func _verify_forge_exit(game: Node3D) -> void:
     var director: Node3D = game.race_director
