@@ -1276,7 +1276,8 @@ func _process(delta: float) -> void:
         not player.finished and not player.eliminated):
         var z := player.position.z
         var phase := 2 if z <= CHECKPOINT_Z[-1] else int(z <= CHECKPOINT_Z[0])
-        performance_budget.record_frame(Time.get_ticks_usec(),phase)
+        var focus := PerformanceBudget.focus_at(race_time,z,ShortcutRoute.EXIT_Z)
+        performance_budget.record_frame(Time.get_ticks_usec(),phase,focus)
     world_time += delta
     feedback_cooldown = maxf(0.0,feedback_cooldown-delta)
     obstacle_notice = maxf(0.0,obstacle_notice-delta)

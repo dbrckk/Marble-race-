@@ -36,17 +36,27 @@ func _run() -> void:
     assert(model.frame_ms.is_empty() and model.report.is_empty() and model.cursor == 0,
         "Each race needs a clean isolated performance window")
     assert(model.race_summary().is_empty())
-    model.record_frame(0,0)
+    assert(Budget.focus_at(4.99,5.0,-104.0) == Budget.Focus.LAUNCH)
+    assert(Budget.focus_at(5.0,5.0,-104.0) == Budget.Focus.NONE)
+    assert(Budget.focus_at(12.0,-96.0,-104.0) == Budget.Focus.BRIDGE_RETURN)
+    assert(Budget.focus_at(12.0,-112.0,-104.0) == Budget.Focus.BRIDGE_RETURN)
+    assert(Budget.focus_at(12.0,-112.01,-104.0) == Budget.Focus.NONE)
+    model.record_frame(0,0,Budget.Focus.LAUNCH)
     model.record_frame(16667,1)
-    model.record_frame(56667,1)
+    model.record_frame(56667,1,Budget.Focus.BRIDGE_RETURN)
     model.suspend()
-    model.record_frame(10000000,2)
+    model.record_frame(10000000,2,Budget.Focus.BRIDGE_RETURN)
     model.record_frame(10400000,2)
     var measurements: String = model.race_summary()
     assert(measurements.contains("START | 1 frames | P95 17 ms | >33.3 ms 0.0%"))
     assert(measurements.contains("MID-RACE | 1 frames | P95 40 ms | >33.3 ms 100.0%"))
     assert(measurements.contains("FINAL SECTOR | 1 frames | P95 250+ ms | >33.3 ms 100.0%"),
         "A real slow foreground frame counts, while the pause interval is skipped")
+    assert(measurements.contains("FIRST 5s | 1 frames | P95 17 ms"))
+    assert(measurements.contains("BRIDGE RETURN ±8 m | 1 frames | P95 250+ ms"),
+        "Only the preceding frame's window receives the interval")
+    assert(model.focus_windows[Budget.Focus.BRIDGE_RETURN].monitor_samples == 1,
+        "Short windows get a monitor sample even between periodic reports")
 
     var game = load("res://scenes/main.tscn").instantiate()
     root.add_child(game)
@@ -120,7 +130,8 @@ func _run() -> void:
     game._end_race()
     assert(game.ui.performance_actions.is_visible_in_tree() and
         game.ui.performance_text.contains("BALANCED") and
-        game.ui.performance_text.contains("FINAL SECTOR | NO SAMPLES"),
+        game.ui.performance_text.contains("FINAL SECTOR | NO SAMPLES") and
+        game.ui.performance_text.contains("BRIDGE RETURN ±8 m | NO SAMPLES"),
         "Results identify the measured profile and distinguish an unreached phase")
     game.ui.compare_performance.pressed.emit()
     assert(game.race_state == "COUNTDOWN" and game.built_variation == previous_layout and

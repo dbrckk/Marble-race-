@@ -53,11 +53,16 @@ geometry or fidelity.
 
 The report covers the start to checkpoint 1, mid-race to checkpoint 3 and
 the final sector. Recording ends when the player finishes or is eliminated.
-An unreached phase shows **NO SAMPLES**. Frame intervals are measured with a
+Two additional rows isolate the first five seconds after GO and the 16 m
+around the bridge merge. The merge window applies to either route so the
+same stretch can be compared after following the same line. A short window
+takes a monitor sample on its first measured frame. An unreached phase or
+window shows **NO SAMPLES**. Frame intervals are measured with a
 monotonic clock, and the first frame after resuming re-establishes the clock
 without including the pause. The report counts long foreground stalls.
-The live HUD uses a 120-frame window. Race summaries use three fixed-size
-histograms, and Godot monitor values are sampled about once per second.
+The live HUD uses a 120-frame window. Race summaries use five fixed-size
+histograms. Godot monitor values are sampled about once per second, with a
+first sample for each short window.
 The feature is opt-in and copies to the clipboard on request.
 
 **Important:** Automated headless regression establishes that the

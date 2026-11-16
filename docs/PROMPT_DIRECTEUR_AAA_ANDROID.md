@@ -187,6 +187,14 @@ Base de comparaison GitHub `61e7064f8f97039b8488d0d646722929275bcb02`.
 - Le signal décrit l’état actuel du mécanisme. Le HUD continue à prévoir son état au moment du passage du joueur. Les réglages de collision et les règles solo et réseau gardent les trajectoires existantes.
 - Godot 4.5.1 vérifie les phases des neuf pistons sur les trois variantes, y compris le passage du préavis à la montée. Les 12 paires de vues en OpenGL Compatibility, caméra de poursuite à une vitesse affichée de 82 km/h, ont chacune le même nombre d’appels de rendu avant et après. [Comparatif du piston au retour du pont](screenshots/v1.82-forge-piston.jpg). Mesures de fluidité sur Redmi en attente.
 
+### 2026-11-16 — Mesurer le départ et la jonction du pont (1.83.0-rc)
+
+Base de comparaison GitHub `f82157d6712bb0d2509e8434d5e9bcb72ed79cfb`.
+
+- Le rapport copiable distingue les cinq premières secondes après GO et les huit mètres de part et d’autre de la jonction du pont. Les deux lignes complètent les trois secteurs du rapport.
+- La zone de jonction couvre le même tronçon sur les deux routes. Pour comparer les profils, rejouer le même tracé avec le même atout et suivre la même trajectoire. Chaque fenêtre courte relève au moins une fois les compteurs Godot dès qu’elle enregistre un intervalle.
+- Le test du rapport couvre les limites des fenêtres, l’exclusion de la pause, les images lentes et la relance de comparaison. Mesures sur Redmi à effectuer.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Comparer les temps d’image en Economy et Balanced sur Redmi. Utiliser les rapports par phase pour isoler les saccades du départ à 40 billes et du retour de pont.
+Recueillir les rapports Economy et Balanced sur Redmi. Comparer en priorité les deux fenêtres et optimiser le passage où le P95 augmente.

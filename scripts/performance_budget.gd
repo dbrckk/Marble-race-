@@ -6,6 +6,10 @@ const REPORT_PERIOD := 1.0
 const MAX_VALID_FRAME_SECONDS := 0.25
 const PHASE_NAMES := ["START","MID-RACE","FINAL SECTOR"]
 const FRAME_BUCKET_LIMIT_MS := 250
+const LAUNCH_SECONDS := 5.0
+const BRIDGE_RETURN_HALF_LENGTH := 8.0
+const FOCUS_NAMES := ["FIRST 5s","BRIDGE RETURN ±8 m"]
+enum Focus { LAUNCH, BRIDGE_RETURN, NONE }
 
 class PhaseSamples:
     var durations := PackedInt32Array()
@@ -23,6 +27,11 @@ class PhaseSamples:
         durations[ceili(minf(milliseconds,FRAME_BUCKET_LIMIT_MS))] += 1
         frames += 1
         slow_frames += int(milliseconds > 1000.0/30.0)
+
+    func add_monitors(physics_ms: float, draw_calls: int) -> void:
+        monitor_samples += 1
+        physics_sum += physics_ms
+        draw_sum += draw_calls
 
     func summary() -> String:
         if frames == 0:
@@ -47,8 +56,10 @@ var elapsed := 0.0
 var sample_count := 0
 var report: Dictionary = {}
 var phases: Array[PhaseSamples] = []
+var focus_windows: Array[PhaseSamples] = []
 var previous_frame_us := -1
 var current_phase := 0
+var current_focus := Focus.NONE
 
 func reset() -> void:
     frame_ms.clear()
@@ -57,27 +68,46 @@ func reset() -> void:
     sample_count = 0
     report.clear()
     phases.clear()
+    focus_windows.clear()
     current_phase = 0
+    current_focus = Focus.NONE
     suspend()
 
 func suspend() -> void:
     previous_frame_us = -1
 
-func record_frame(now_us: int, phase: int) -> void:
+static func focus_at(race_time: float, z: float, bridge_exit_z: float) -> Focus:
+    if race_time < LAUNCH_SECONDS:
+        return Focus.LAUNCH
+    if absf(z-bridge_exit_z) <= BRIDGE_RETURN_HALF_LENGTH:
+        return Focus.BRIDGE_RETURN
+    return Focus.NONE
+
+func record_frame(now_us: int, phase: int, focus: Focus = Focus.NONE) -> void:
     if phases.is_empty():
         for i in PHASE_NAMES.size():
             phases.append(PhaseSamples.new())
+        for i in FOCUS_NAMES.size():
+            focus_windows.append(PhaseSamples.new())
     var before := previous_frame_us
     previous_frame_us = now_us
     if before >= 0 and now_us > before:
         var seconds := float(now_us-before)/1000000.0
         var samples := phases[current_phase]
         samples.add_frame(seconds)
-        if tick(minf(seconds,MAX_VALID_FRAME_SECONDS)):
-            samples.monitor_samples += 1
-            samples.physics_sum += float(report["physics_ms"])
-            samples.draw_sum += int(report["draw_calls"])
+        var monitor_updated := tick(minf(seconds,MAX_VALID_FRAME_SECONDS))
+        if monitor_updated:
+            samples.add_monitors(float(report["physics_ms"]),int(report["draw_calls"]))
+        if current_focus != Focus.NONE:
+            var window := focus_windows[current_focus]
+            window.add_frame(seconds)
+            if monitor_updated:
+                window.add_monitors(float(report["physics_ms"]),int(report["draw_calls"]))
+            elif window.monitor_samples == 0:
+                # A fast crossing can be shorter than the one-second monitor interval.
+                window.add_monitors(_physics_ms(),_draw_calls())
     current_phase = maxi(current_phase,clampi(phase,0,PHASE_NAMES.size()-1))
+    current_focus = focus
 
 func race_summary() -> String:
     var any_frames := false
@@ -90,7 +120,15 @@ func race_summary() -> String:
     var lines := PackedStringArray()
     for i in PHASE_NAMES.size():
         lines.append("%s | %s" % [PHASE_NAMES[i],phases[i].summary()])
+    for i in FOCUS_NAMES.size():
+        lines.append("%s | %s" % [FOCUS_NAMES[i],focus_windows[i].summary()])
     return "\n".join(lines)
+
+static func _physics_ms() -> float:
+    return maxf(0.0,Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS)*1000.0)
+
+static func _draw_calls() -> int:
+    return maxi(0,int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)))
 
 static func slow_frame_fraction(values: PackedFloat32Array,
     threshold_ms: float = 33.333) -> float:
@@ -133,9 +171,8 @@ func tick(delta: float) -> bool:
         "p95_ms": percentile_95(frame_ms),
         "slow_pct": slow_frame_fraction(frame_ms)*100.0,
         "process_ms": maxf(0.0,Performance.get_monitor(Performance.TIME_PROCESS)*1000.0),
-        "physics_ms": maxf(0.0,Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS)*1000.0),
-        "draw_calls": maxi(0,int(Performance.get_monitor(
-            Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))),
+        "physics_ms": _physics_ms(),
+        "draw_calls": _draw_calls(),
         "frames": frame_ms.size()
     }
     return true
