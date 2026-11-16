@@ -13,6 +13,9 @@ func _go() -> void:
     for track in range(3):
         game.career.unlocked=3
         assert(game.set_track(track))
+        if track > 0:
+            assert(is_zero_approx(game.kinetic_time),
+                "A new circuit must not inherit the previous race's hammer phase")
         game.start_race("Grip Tape")
         game.countdown=0.01
         var frames=0

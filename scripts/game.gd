@@ -522,6 +522,9 @@ func _make_course() -> void:
     built_variation = race_variation
     add_child(board)
     moving_obstacles.clear()
+    # A freshly assembled course must not inherit the previous race's
+    # hammer phase. Finishing faster on another track changes no start phase.
+    kinetic_time = 0.0
     TrackUniverses.apply_atmosphere(world_environment,primary_light,selected_track)
     obstacle_finish = ObstacleFinish.new()
     obstacle_finish.name = "PremiumObstacleFinishes"
