@@ -459,6 +459,12 @@ jobs:
           set -euo pipefail
           timeout 180s ./Godot_v4.5.1-stable_linux.x86_64 --headless --fixed-fps 60 --quit-after 46000 --path . --script res://tests/end_to_end.gd 2>&1 | tee career-end-to-end.log
           grep -Fq "END_TO_END_PASS:" career-end-to-end.log
+      - name: Finish stripe rejects off-course crossings
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 60s ./Godot_v4.5.1-stable_linux.x86_64 --headless --fixed-fps 60 --quit-after 450 --path . --script res://tests/finish_crossing.gd 2>&1 | tee finish-crossing.log
+          grep -Fq "FINISH_CROSSING_PASS:" finish-crossing.log
       - name: Final obstacle recovery with 40 marbles on all nine layouts
         shell: bash
         run: |

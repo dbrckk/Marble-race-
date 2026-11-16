@@ -7,6 +7,7 @@ func _run() -> void:
     game.career.save_path="user://test_course_career.cfg"
     assert(game.selected_track == 0 and not game.set_track(2))
     var all_results: Array[int] = []
+    var forge_deck_breaches := 0
     for level in range(3):
         game.career.unlocked = 3
         assert(game.set_track(level))
@@ -34,6 +35,13 @@ func _run() -> void:
             game.race_time = float(frame)/60.0
             await physics_frame
             elapsed = frame+1
+            if level == 2:
+                for racer in game.racers:
+                    var p: Vector3 = racer.position
+                    if p.z > -141.0 and p.z < -133.0 and (
+                        absf(p.x-game.track_center_at(p.z)) < 5.5 and
+                        p.y < game.height_at(p.z)-0.8):
+                        forge_deck_breaches += 1
             if game.race_state == "RESULTS":
                 break
         game.set_process(true)
@@ -53,6 +61,7 @@ func _run() -> void:
             "result",game.race_state,"elapsed_frames",elapsed)
         assert(finished >= 30,"Most of the 40-marble field must physically finish each circuit")
         game.return_to_menu()
+    assert(forge_deck_breaches == 0,"A Forge racer passed under the deck near the paddle and hammer")
     print("COURSE_PASS:",all_results)
     DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_course_career.cfg"))
     game.queue_free()

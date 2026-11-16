@@ -59,6 +59,7 @@ var network_controlled := false
 var finished := false
 var eliminated := false
 var finish_time := 0.0
+var previous_race_position := Vector3.ZERO
 var perk := ""
 var track_direction := -1.0
 var mesh: MeshInstance3D
@@ -122,6 +123,7 @@ func setup(index: int, player: bool, base_position: Vector3, chosen_perk: String
     seed_value = float(index) * 2.317
     name = "Marble_%02d" % index
     position = base_position
+    previous_race_position = base_position
     progress_anchor_z = base_position.z
     mass = 0.73
     gravity_scale = 1.0
@@ -573,6 +575,7 @@ func _glacier_stopping_force(drive_force: float, leader: RigidBody3D, passing: b
 func teleport_to_start(new_position: Vector3) -> void:
     freeze = true
     global_position = new_position
+    previous_race_position = position
     linear_velocity = Vector3.ZERO
     angular_velocity = Vector3.ZERO
     finished = false

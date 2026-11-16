@@ -49,6 +49,10 @@ const SEGMENTS := 18
 const FINAL_OBSTACLE_SECTION := SEGMENTS-4
 const FINAL_OBSTACLE_Z := 8.0-FINAL_OBSTACLE_SECTION*SEGMENT_LENGTH
 const FINISH_Z := -185.0
+const PLANK_COUNT := 10
+const PLANK_SPACING := 1.34
+const FINISH_HALF_WIDTH := ((PLANK_COUNT-1)*PLANK_SPACING+TrackSurface.PLANK.x)*0.5
+const FINISH_AIR_CLEARANCE := 8.0
 const CHECKPOINT_Z := [-46.0,-106.0,-166.0]
 const RACE_TIMEOUT := 155.0
 const TRACK_NAMES := ["WOODWORKS","SWITCHBACK","GAUNTLET"]
@@ -123,6 +127,7 @@ var race_director: Node3D
 var shortcut_route: Node3D
 var track_surface: Node3D
 var start_gate: Node3D
+var finish_origin := Vector3.ZERO
 var track_physics_material: PhysicsMaterial
 var primary_light: DirectionalLight3D
 var world_environment: Environment
@@ -554,15 +559,15 @@ func _make_course() -> void:
         section_node.name = "Course_%02d" % section
         section_node.position.x = track_center_at(center_z)
         board.add_child(section_node)
-        for lane in range(10):
-            var x := (float(lane) - 4.5) * 1.34
+        for lane in range(PLANK_COUNT):
+            var x := (float(lane) - (PLANK_COUNT-1)*0.5) * PLANK_SPACING
             var material_index := (lane + section * 3) % WOOD_COLORS.size()
             var shade: Color = _themed_wood(WOOD_COLORS[material_index])
             var plank_at := Vector3(x,height_at(center_z)-0.34,center_z)
             # Render-only planks share GPU draw calls by material. Each keeps
             # the exact original independent tilted BoxShape3D collider.
             _box(section_node,plank_at,
-                Vector3(1.315,0.65,SEGMENT_LENGTH+0.08),_wood_mat(shade),true,true,false)
+                TrackSurface.PLANK,_wood_mat(shade),true,true,false)
             track_surface.register_plank(plank_at+section_node.position,material_index,track_grade_at(center_z))
             for j in range(2):
                 var z: float = center_z+(float(j)-0.5)*4.4
@@ -699,7 +704,7 @@ func _themed_wood(base: Color) -> Color:
     return base
 
 func _uses_solo_course_clearance(layout: int) -> bool:
-    return (layout == 0 if selected_track == 1 else layout == 2) and (
+    return (selected_track == 2 or layout == (0 if selected_track == 1 else 2)) and (
         net != null and not net.is_active())
 
 func _terrain_ramp(parent: Node3D, center_z: float, section: int) -> void:
@@ -710,7 +715,8 @@ func _terrain_ramp(parent: Node3D, center_z: float, section: int) -> void:
     var lane := -2.2 if (section+selected_track)%2 == 0 else 2.2
     var z := center_z+1.5
     var size := Vector3(3.55,0.22,2.35)
-    if section == FINAL_OBSTACLE_SECTION and board.get_meta("solo_course_clearance"):
+    if section == FINAL_OBSTACLE_SECTION and board.get_meta("solo_course_clearance") and (
+        selected_track != 2 or built_variation == 2):
         # Give the crest its own stretch past the last bank, clear of the
         # gate posts and the paddle's sweep.
         z = CourseSculptures.bank_z(CourseSculptures.BANK_SECTIONS.back(),built_variation)-5.8
@@ -811,7 +817,10 @@ func _gate_with_posts(parent: Node3D, center_z: float, n: int) -> void:
             if not batched_art:
                 obstacle_finish.register_block(block.global_transform,size,gate_color)
     _add_spinner(parent, center_z, n)
-    _swing_hammer(parent, center_z - 1.6, n)
+    # Reduce overlap with the Forge paddle so a marble can roll out from
+    # between the two mechanisms before reaching the next post.
+    var forge_clearance: bool = selected_track == 2 and board.get_meta("solo_course_clearance")
+    _swing_hammer(parent,center_z-(3.2 if forge_clearance else 1.6),n)
 
 func _swing_hammer(parent: Node3D, z: float, n: int) -> void:
     var hinge = AnimatableBody3D.new()
@@ -910,9 +919,18 @@ func _make_finish_line() -> void:
     var grade := track_grade_at(module_z)
     var pitch := atan(grade)
     var floor_y := height_at(module_z)-0.34+0.325/cos(pitch)+grade*(FINISH_Z-module_z)
-    finish.position = Vector3(track_center_at(module_z),floor_y,FINISH_Z)
+    finish_origin = Vector3(track_center_at(module_z),floor_y,FINISH_Z)
+    finish.position = finish_origin
     finish.setup(selected_track,grade)
     board.add_child(finish)
+
+func _crossed_finish(previous: Vector3, current: Vector3) -> bool:
+    if previous.z < FINISH_Z or current.z >= FINISH_Z:
+        return false
+    var fraction := (previous.z-FINISH_Z)/(previous.z-current.z)
+    var crossing := previous.lerp(current,fraction)-finish_origin
+    return absf(crossing.x) <= FINISH_HALF_WIDTH and (
+        crossing.y >= 0.0 and crossing.y <= FINISH_AIR_CLEARANCE)
 
 func _edge_checkpoint_markers() -> void:
     var forge := selected_track == 2
@@ -1421,7 +1439,10 @@ func _physics_process(delta: float) -> void:
         var axis: float = remote_input.x if m.network_controlled else (steer if m.is_player and not net.is_host() else 0.0)
         var turbo: bool = remote_input.y>0.5 if m.network_controlled else (boosting and boost_energy>0.0 and m.is_player and not net.is_host())
         m.drive(delta,race_time,axis,turbo)
-        if not m.finished and not m.eliminated and m.position.z < FINISH_Z:
+        var current: Vector3 = m.position
+        var crossed := _crossed_finish(m.previous_race_position,current)
+        m.previous_race_position = current
+        if not m.finished and not m.eliminated and crossed:
             m.finished = true
             m.finish_time = race_time
             m.freeze = true

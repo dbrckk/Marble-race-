@@ -155,6 +155,14 @@ Base de comparaison GitHub `3dbca0484f5e402f01160885a5eef2235f06eaab`.
 - Sur le premier tracé de Glacier, le bord de la dernière bosse bloquait une bille entrée dans le peloton. La bosse est déplacée après le virage relevé comme sur Forge. Les trois placements solo sont testés lors des transitions vers le multijoueur puis du retour au même tracé en solo.
 - Le test de peloton couvre les neuf variantes et deux entrées supplémentaires à 51 m de l’arrivée, à 18 m/s. Sur ces deux entrées, les 40 billes passent la ligne. La simulation distincte qui a révélé les blocages classe également les 40 billes sur ces deux tracés. Certaines variantes peuvent toujours éliminer des billes.
 
+### 2026-11-16 — Franchissement de l’arrivée et collisions de Forge (1.79.0-rc)
+
+Base de comparaison GitHub `e4eb3e258c61b596d7695205c3a938b3039d84b0`.
+
+- L’autorité de course interpole la position au franchissement dans le sens de la course. Elle vérifie la largeur réelle du tablier, sa hauteur et une marge de 8 m pour les sauts. La régression Godot 4.5.1 couvre les trois circuits avec des billes au sol, en saut, sous le tablier et hors de la largeur.
+- Dans une course normale à 40, les contacts du marteau, de la palette et d’un plot de Forge pouvaient pousser une bille sous le tablier. Les marteaux solo de Forge sont reculés de 1,60 m dans le sens de la course. Les scénarios depuis la grille n’observent plus de passage sous le tablier à l’intérieur de la piste sur Forge. Deux sorties latérales restent observées sur la troisième variante. Les courses réseau gardent les positions de mécanismes du serveur déployé.
+- Les départs artificiels qui plaçaient des billes dans des obstacles ont été écartés pour diagnostiquer ce défaut. La régression du championnat surveille le passage sous le tablier près de la paire marteau-palette identifiée sur Forge.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Mesurer le temps d’image au 95e percentile sur Redmi en profil Équilibré avec 40 billes pendant le dernier secteur. Rejouer les sorties de piste observées dès les premiers contacts du peloton.
+Mesurer le temps d’image au 95e percentile sur Redmi en profils Équilibré et Économie avec 40 billes au départ, dans le peloton et pendant le dernier secteur.

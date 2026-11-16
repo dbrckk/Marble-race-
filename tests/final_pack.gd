@@ -27,6 +27,7 @@ func _run() -> void:
     assert(_check_clearance_modes(game,1,0,"Course_14/RideableCrest_14",-158.5))
     assert(game.set_track(2))
     assert(_check_clearance_modes(game,2,2,"Course_14/RideableCrest_14",-158.5))
+    assert(_check_clearance_modes(game,2,0,"Course_12/SwingHammer_12",-137.6,1.0))
     DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_final_pack_career.cfg"))
     game.queue_free()
     for frame in range(4):
@@ -35,11 +36,11 @@ func _run() -> void:
     quit()
 
 func _check_clearance_modes(game: Node3D, biome: int, layout: int,
-        obstacle_path: String, online_z: float) -> bool:
+        obstacle_path: String, online_z: float, min_change := 2.0) -> bool:
     game.race_variation = layout
     game.start_race("Grip Tape")
     var solo_z: float = game.board.get_node(obstacle_path).position.z
-    assert(absf(solo_z-online_z) > 2.0,"Solo must space the obstacle away from the jam")
+    assert(absf(solo_z-online_z) > min_change,"Solo must space the obstacle away from the jam")
     game.return_to_menu()
     game.net.role = "client"
     game.net._begin_round(biome,layout,PackedInt32Array())
