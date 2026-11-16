@@ -10,7 +10,7 @@ Independent implementation in **Godot 4.5.1**, focused on real mobile playabilit
 
 In solo races, a single in-world marker and the HUD identify the relevant nearby rival by name and side. A stable side-by-side contest gains slightly wider chase framing. Actual same-level passes show the overtaken racer or combine quickly successive passes into one callout.
 
-Glacier’s bots now compare stopping distances while following traffic. Three bots can slow behind a near-stationary marble and regain speed through the shutter in order.
+Glacier’s bots now compare stopping distances while following traffic. Three bots can slow behind a near-stationary marble and regain speed through the shutter in order. On Forge, a solo marble repeatedly wedged between a slalom block and a baffle can back out before turning inward.
 
 When the Glacier return lane is occupied, a bot eases off and brakes based on the gap and relative speed of the marble ahead. The existing physics carries it back up to speed as space opens.
 

@@ -386,6 +386,10 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
             var release_z := 4.0 if course_owner.selected_track == 2 else 0.0
             var lift := 5.8 if course_owner.selected_track == 2 else 2.1
             impulse = Vector3(-signf(relative_x)*6.3,lift,release_z)
+            if course_owner.selected_track == 2 and recovery_count >= 5 and recovery_count%2 == 1:
+                # A slalom block can also stop an immediate inward nudge.
+                # Back up along the edge on alternating attempts to clear it.
+                impulse = Vector3(-signf(relative_x)*1.3,4.2,8.5)
         apply_central_impulse(impulse*mass)
         stuck_seconds = 0.0
         recovery_count += 1

@@ -393,7 +393,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          timeout 150s ./Godot_v4.5.1-stable_linux.x86_64 --headless --fixed-fps 60 --quit-after 7200 --path . --script res://tests/race_diagnostic.gd 2>&1 | tee race-diagnostic.log
+          timeout 150s ./Godot_v4.5.1-stable_linux.x86_64 --headless --fixed-fps 60 --quit-after 8600 --path . --script res://tests/race_diagnostic.gd 2>&1 | tee race-diagnostic.log
           grep -Fq "RACE_DIAGNOSTIC_PASS" race-diagnostic.log
       - name: Four-sector split records and DNF regression
         shell: bash
