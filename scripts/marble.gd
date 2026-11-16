@@ -406,7 +406,19 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
         var side_direction: float = recovery_side(relative_x,recovery_count)
         var effort := minf(2.8,1.0+float(recovery_count)*0.35)
         var impulse := Vector3(side_direction*3.6*effort,1.4*effort,-6.5*effort)
-        if recovery_count >= 3 and is_player and absf(steering) < 0.22 and not network_controlled and (
+        if recovery_count >= 2 and not network_controlled and (
+            not is_player or absf(steering) < 0.22) and is_instance_valid(course_owner) and (
+            course_owner.net.role == "offline" and
+            position.z < course_owner.FINAL_OBSTACLE_Z+course_owner.SEGMENT_LENGTH+2.0 and
+            position.z > course_owner.CHECKPOINT_Z[-1]):
+            # Release the contact with the front face before trying another
+            # forward recovery between the final modules' posts and ramps.
+            # Alternate sides near the center; keep the usual rail protection.
+            var escape_side := side_direction
+            if absf(relative_x) < 3.2:
+                escape_side = -1.0 if recovery_count%2 == 0 else 1.0
+            impulse = Vector3(escape_side*6.2,4.4,7.2)
+        elif recovery_count >= 3 and is_player and absf(steering) < 0.22 and not network_controlled and (
             is_instance_valid(course_owner) and course_owner.selected_track > 0 and
             not course_owner.net.is_active() and absf(relative_x) > 2.4):
             # Repeated forward kicks can pin a marble against a rail and baffle.

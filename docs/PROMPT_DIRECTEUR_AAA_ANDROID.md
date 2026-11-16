@@ -131,6 +131,14 @@ Base de comparaison GitHub `d4a6ddc38315e40bfe44746974d00eadc855cc23`.
 - 27 paires de vues à 86 km/h avec 40 billes en OpenGL Compatibility sur Mesa llvmpipe. Écarts médians de −44 appels de rendu et −6 986 primitives par image. [Comparatif des trois circuits](screenshots/v1.75-final-approach.jpg). Temps d’image sur Android physique à mesurer.
 - Neuf simulations depuis l’entrée du secteur avec 40 billes. Le joueur termine les neuf courses et retrouve son chrono au résultat. Les nombres de billes déjà arrivées à l'ouverture des résultats et les temps du joueur correspondent à la version précédente. Les tests du HUD couvrent les neuf variantes, la priorité du danger et le retour à l’affichage normal après le passage.
 
+### 2026-11-16 — Récupération des blocages dans le dernier secteur (1.76.0-rc)
+
+Base de comparaison GitHub `9b27b799158c7dc42f17d6d62b487f8ce66056aa`.
+
+- Sur la troisième variante de Glacier, les contacts physiques montrent la bille du joueur coincée devant le plot d’entrée du dernier module. Les reprises vers l’avant la renvoyaient contre la même face. Après deux reprises infructueuses dans cette zone, la récupération solo peut soulever la bille et la faire reculer brièvement vers le côté. La direction du joueur reste prioritaire dès qu’il braque au-delà du seuil de récupération. Les positions des obstacles et les règles en ligne sont conservées.
+- Le test Godot 4.5.1 reproduit une entrée à 18 m/s avec 40 billes. La bille du joueur, encore bloquée au bout de 60 s avant le correctif, franchit maintenant la ligne à 19,80 s sur ce tracé. Elle termine sur les neuf variantes. Six variantes classent 40 billes et trois en classent 39 dans la fenêtre de 60 s. Certaines billes IA peuvent donc encore rester bloquées dans ce scénario.
+- Le test de peloton est intégré à la vérification Android. Les mesures de temps d’image sur téléphone restent à faire.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Profiler sur Android physique les collisions du dernier secteur à 40 billes. Mesurer le temps d’image au 95e percentile et observer les reprises de vitesse des billes coincées entre la palette et les déflecteurs.
+Mesurer le temps d’image au 95e percentile sur Redmi en profil Équilibré pendant le dernier secteur. Vérifier le ressenti de la reprise au toucher sur Glacier et observer les trois cas IA encore sans arrivée après 60 s.
