@@ -36,6 +36,7 @@ const RADIUS := 0.39
 const GLACIER_ACTIVE_SCAN := 0.10
 const GLACIER_ABORT_TIME := 0.35
 const GLACIER_MERGE_BRAKE_HOLD := 0.25
+const GLACIER_MERGE_RECOVERY := 1.0
 const PALETTE := [
     Color("#e98739"), Color("#46adb4"), Color("#e45d88"), Color("#a75ad0"),
     Color("#76bc64"), Color("#f1c353"), Color("#e76850"), Color("#468fdc"),
@@ -83,6 +84,7 @@ var glacier_resumed_pass := false
 var glacier_abort_remaining := 0.0
 var glacier_return_offset := 0.0
 var glacier_merge_brake_time := 0.0
+var glacier_merge_recovery := 0.0
 var glacier_merge_scan := 0.0
 var glacier_merge_leader: RigidBody3D
 var ai_traffic_offset := 0.0
@@ -438,11 +440,12 @@ func _glacier_return_pass(delta: float, center_x: float) -> float:
     glacier_pass_scan -= delta
     var side: float = director.side_at(gate)
     var passing := glacier_pass_remaining > 0.0
+    var merge_recovery := glacier_merge_recovery > 0.0
     if glacier_pass_scan <= 0.0 and absf(position.x-center_x) <= 2.7:
         glacier_pass_scan = AIPath.TRAFFIC_SCAN_PERIOD+float(racer_id%4)*0.05
         if passing:
             glacier_pass_scan = GLACIER_ACTIVE_SCAN
-        elif glacier_waiting_to_pass or glacier_abort_remaining > 0.0:
+        elif glacier_waiting_to_pass or glacier_abort_remaining > 0.0 or merge_recovery:
             glacier_pass_scan = 0.14
         var within_pass_window := distance >= -1.25 or (passing and glacier_resumed_pass)
         # Reacquire traffic across the return path as soon as a pass aborts.
@@ -462,7 +465,12 @@ func _glacier_return_pass(delta: float, center_x: float) -> float:
                 # Hold the open lane through the shutter while the move is safe.
                 glacier_pass_remaining = maxf(glacier_pass_remaining,0.20)
         else:
-            var resuming := glacier_waiting_to_pass and distance >= 2.0
+            # Carry the controller's intent from the merge into the shutter
+            # only when the same bridge traffic is still in front.
+            var following_bridge_rider: bool = merge_recovery and is_instance_valid(glacier_leader) and (
+                glacier_leader.is_player or glacier_leader.network_controlled) and (
+                course_owner.shortcut_route.entered.has(glacier_leader.racer_id))
+            var resuming := (glacier_waiting_to_pass or following_bridge_rider) and distance >= 2.0
             if AIPath.glacier_return_pass_is_clear(
                     self,course_owner.racers,glacier_leader,center_x,side,false,resuming):
                 glacier_resumed_pass = resuming
@@ -482,11 +490,15 @@ func _glacier_merge_force(delta: float, drive_force: float) -> float:
     var past_exit: float = route.EXIT_Z-position.z
     if past_exit < -0.5 or past_exit > 16.0 or route.entered.is_empty() or route.entered.has(racer_id):
         glacier_merge_brake_time = 0.0
+        glacier_merge_recovery = 0.0
         glacier_merge_scan = 0.0
         glacier_merge_leader = null
         return drive_force
     glacier_merge_brake_time = maxf(0.0,glacier_merge_brake_time-delta)
     var limited := AIPath.glacier_merge_drive(self,course_owner.racers,route,drive_force)
+    glacier_merge_recovery = maxf(0.0,glacier_merge_recovery-delta)
+    if limited < 0.0 and limited < drive_force:
+        glacier_merge_recovery = GLACIER_MERGE_RECOVERY
     glacier_merge_scan -= delta
     if glacier_merge_scan <= 0.0:
         glacier_merge_scan = GLACIER_ACTIVE_SCAN
@@ -553,6 +565,7 @@ func teleport_to_start(new_position: Vector3) -> void:
     glacier_abort_remaining = 0.0
     glacier_return_offset = 0.0
     glacier_merge_brake_time = 0.0
+    glacier_merge_recovery = 0.0
     glacier_merge_scan = 0.0
     glacier_merge_leader = null
     network_controlled = false

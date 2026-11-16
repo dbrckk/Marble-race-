@@ -2,6 +2,7 @@ extends SceneTree
 ## Real touch steering across the bridge return, in clean air and with
 ## four- and ten-marble packs converging at the merge.
 const ROUTE = preload("res://scripts/shortcut_route.gd")
+const STRATEGY = preload("res://scripts/ai_race_strategy.gd")
 const EXIT_CHECKPOINT := 1
 const SHUTTER_PHASE_SAMPLES := 12
 enum Traffic { SOLO, DUEL, PACK }
@@ -71,10 +72,22 @@ func _run() -> void:
             assert(await _player_merges_into_pack(game,2.8,15.0,spacing,true),
                 "Glacier layout %d must protect the %.1f m queue behind a yielding bot" % [layout,spacing])
             game.return_to_menu()
+    for layout in range(3):
+        for pace in [15.0,16.0]:
+            game.race_variation = layout
+            game.start_race("Grip Tape")
+            game.countdown = 0.02
+            for frame in range(8):
+                await physics_frame
+            assert(game.race_state == "RACING" and game.built_variation == layout)
+            assert(await _player_merges_into_pack(game,2.8,pace,3.6,true,true),
+                "Glacier layout %d at %.0f m/s must regain pace and respect the passing lane" % [
+                    layout,pace])
+            game.return_to_menu()
     game.queue_free()
     for frame in range(4):
         await process_frame
-    print("GLACIER_BRIDGE_RETURN_PASS: 27 approach trials, 36 shutter-phase trials, %d passes after a real shutter impact, 6 player merges and 6 close queues without contact" % passes_after_impact)
+    print("GLACIER_BRIDGE_RETURN_PASS: 27 approach trials, 36 shutter-phase trials, %d passes after a real shutter impact, 6 player merges, 6 close queues and 6 merge recoveries without contact" % passes_after_impact)
     quit()
 
 func _cross_return(game: Node3D, speed: float, traffic: Traffic,
@@ -237,7 +250,7 @@ func _place_main_rival(game: Node3D, rival: RigidBody3D, distance: float,
 
 
 func _player_merges_into_pack(game: Node3D, gap: float, pace: float,
-        spacing := 3.6, watch_queue := false) -> bool:
+        spacing := 3.6, watch_queue := false, check_recovery := false) -> bool:
     var route: Node3D = game.shortcut_route
     var player: RigidBody3D = game.player
     var rivals: Array[RigidBody3D] = []
@@ -272,23 +285,60 @@ func _player_merges_into_pack(game: Node3D, gap: float, pace: float,
     var pad: Control = game.ui.touch_controls
     var finger := pad.get_viewport_rect().size*Vector2(0.20,0.83)
     pad._finger_event(1,finger,true)
-    var clear_z: float = game.race_director.event_z(game.race_director.GLACIER_RETURN_GATE)-2.0
+    var director: Node3D = game.race_director
+    var gate: int = director.GLACIER_RETURN_GATE
+    var clear_z: float = director.event_z(gate)-2.0
+    var passing_offset: float = -director.side_at(gate)*STRATEGY.GLACIER_PASS_OFFSET
+    var pass_expected := absf(passing_offset-lane) > 1.30
     var crossed: Dictionary = {}
+    var approached_merge_at := -1
+    var yielding_bot := rivals[1]
+    var yielded := false
+    var lowest_speed := INF
+    var regained_speed := false
+    var attempted_pass := false
+    var passed := false
     for frame in range(230):
         var ahead := player.position.z-4.0
         var target_x: float = route.point_at(ahead).x
         if ahead <= ROUTE.EXIT_Z:
             var blend := smoothstep(0.0,1.0,(ROUTE.EXIT_Z-ahead)/10.0)
             target_x = lerpf(route.point_at(ROUTE.EXIT_Z).x,game.track_center_at(ahead)+lane,blend)
-        var axis := clampf((target_x-player.position.x)*0.25-player.linear_velocity.x*0.075,-1.0,1.0)
+        var gain := 0.25
+        var damping := 0.075
+        if approached_merge_at >= 0:
+            target_x = game.track_center_at(player.position.z)+lane
+            gain = 0.50
+            damping = 0.24
+            if frame < approached_merge_at+85:
+                # A prolonged slowdown gives the bots time to choose a line.
+                var brake := clampf((-player.linear_velocity.z-6.5)*20.0+16.0,0.0,28.0)
+                player.apply_central_force(Vector3(0,0,brake)*player.mass)
+        var axis := clampf((target_x-player.position.x)*gain-player.linear_velocity.x*damping,-1.0,1.0)
         pad._move_finger(1,finger+Vector2(axis*105.0,0))
         await physics_frame
+        if check_recovery:
+            var player_offset: float = player.position.x-game.track_center_at(player.position.z)
+            if approached_merge_at < 0 and player.position.z < ROUTE.EXIT_Z and absf(player_offset-lane) < 1.55:
+                approached_merge_at = frame
+            yielded = yielded or yielding_bot.glacier_merge_brake_time > 0.0
+            if yielded:
+                var speed := -yielding_bot.linear_velocity.z
+                lowest_speed = minf(lowest_speed,speed)
+                regained_speed = regained_speed or speed >= lowest_speed+2.0
+                if approached_merge_at >= 0 and frame < approached_merge_at+85:
+                    attempted_pass = attempted_pass or yielding_bot.glacier_pass_remaining > 0.0
+                if attempted_pass and yielding_bot.position.z < player.position.z-0.85:
+                    passed = true
         for marble in [player]+rivals:
             if marble.position.z < clear_z:
                 crossed[marble.racer_id] = true
-        if not contacts.is_empty() or player.eliminated or crossed.size() == 4:
+        if not contacts.is_empty() or player.eliminated or (
+                crossed.size() == 4 and (not check_recovery or frame > 190)):
             break
     pad._finger_event(1,finger,false)
-    return contacts.is_empty() and crossed.size() == 4 and (
+    var recovery_ok := not check_recovery or (yielded and regained_speed and (
+        passed if pass_expected else not attempted_pass))
+    return contacts.is_empty() and crossed.size() == 4 and recovery_ok and (
         game.last_checkpoint >= EXIT_CHECKPOINT and not player.eliminated and
         rivals.all(func(marble: RigidBody3D): return not marble.eliminated))
