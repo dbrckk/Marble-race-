@@ -122,6 +122,10 @@ var backup_confirm_button: Button
 var backup_previous_button: Button
 var pending_backup_code := ""
 var result_header: Label
+var performance_actions: HBoxContainer
+var copy_performance: Button
+var compare_performance: Button
+var performance_text := ""
 var sensitivity_index := 1
 var left_handed := false
 const SENSITIVITIES := [0.70,1.0,1.35]
@@ -1214,6 +1218,7 @@ PERK: %s   ·   BOOST %d%%" % [
     )
     rival_marker.hide()
     pause_layer.visible = true
+    game.performance_budget.suspend()
     get_tree().paused = true
 
 func resume_race() -> void:
@@ -1286,6 +1291,30 @@ func _build_results() -> void:
     summary.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     summary.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     detail_scroll.add_child(summary)
+    performance_actions = HBoxContainer.new()
+    performance_actions.hide()
+    col.add_child(performance_actions)
+    copy_performance = _action("COPY FPS REPORT")
+    copy_performance.name = "CopyPerformanceReport"
+    copy_performance.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    copy_performance.add_theme_font_size_override("font_size",17)
+    copy_performance.pressed.connect(func():
+        DisplayServer.clipboard_set(performance_text)
+        copy_performance.text = "REPORT COPIED"
+    )
+    performance_actions.add_child(copy_performance)
+    compare_performance = _action("TEST ECONOMY")
+    compare_performance.name = "CompareGraphicsProfile"
+    compare_performance.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    compare_performance.add_theme_font_size_override("font_size",17)
+    compare_performance.pressed.connect(func():
+        var quality := int(game.graphics_setting == 0)
+        game.race_variation = game.built_variation
+        game.set_graphics_quality(quality)
+        quality_button.text = "GRAPHICS: " + game.graphics_mode_label()
+        game.restart_race()
+    )
+    performance_actions.add_child(compare_performance)
     var replay = _action("RACE AGAIN", ORANGE, Color("#251b0d"))
     replay.name = "Replay"
     replay.pressed.connect(func():
@@ -1956,6 +1985,17 @@ func show_results(place: int, time: float, ranking: Array) -> void:
         leaders += "%s  %s\n" % [str(i+1).pad_zeros(2), ranking[i].display_name]
     var status: Dictionary = game.last_result
     var finished: bool = bool(status.get("finished",false))
+    var measurements: String = game.performance_budget.race_summary() if game.show_fps else ""
+    performance_text = measurements
+    performance_actions.visible = not measurements.is_empty()
+    if performance_actions.visible:
+        performance_text = "%s | %s | LAYOUT %d | %s | %s | %s | %d MARBLES\n%s" % [
+            OS.get_name(),game.track_title(),game.built_variation+1,
+            game.QUALITY_NAMES[game.graphics_setting],game.selected_perk,"FINISHED" if finished else "DNF",
+            game.racers.size(),measurements]
+        copy_performance.text = "COPY FPS REPORT"
+        compare_performance.visible = not game.net.is_active()
+        compare_performance.text = "TEST BALANCED" if game.graphics_setting == 0 else "TEST ECONOMY"
     var award := "DNF"
     if finished:
         award = "3 STARS" if place <= 3 else ("2 STARS" if place <= 10 else "1 STAR")

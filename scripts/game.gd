@@ -1272,8 +1272,11 @@ func _process(delta: float) -> void:
         airtime.advance_visuals(delta)
     if race_state == "RACING" and is_instance_valid(course_sculptures):
         course_sculptures.advance_visuals(delta)
-    if show_fps and race_state == "RACING" and performance_budget != null:
-        performance_budget.tick(delta)
+    if show_fps and race_state == "RACING" and is_instance_valid(player) and (
+        not player.finished and not player.eliminated):
+        var z := player.position.z
+        var phase := 2 if z <= CHECKPOINT_Z[-1] else int(z <= CHECKPOINT_Z[0])
+        performance_budget.record_frame(Time.get_ticks_usec(),phase)
     world_time += delta
     feedback_cooldown = maxf(0.0,feedback_cooldown-delta)
     obstacle_notice = maxf(0.0,obstacle_notice-delta)

@@ -163,6 +163,14 @@ Base de comparaison GitHub `e4eb3e258c61b596d7695205c3a938b3039d84b0`.
 - Dans une course normale à 40, les contacts du marteau, de la palette et d’un plot de Forge pouvaient pousser une bille sous le tablier. Les marteaux solo de Forge sont reculés de 1,60 m dans le sens de la course. Les scénarios depuis la grille n’observent plus de passage sous le tablier à l’intérieur de la piste sur Forge. Deux sorties latérales restent observées sur la troisième variante. Les courses réseau gardent les positions de mécanismes du serveur déployé.
 - Les départs artificiels qui plaçaient des billes dans des obstacles ont été écartés pour diagnostiquer ce défaut. La régression du championnat surveille le passage sous le tablier près de la paire marteau-palette identifiée sur Forge.
 
+### 2026-11-16 — Mesures Android par phase de course (1.80.0-rc)
+
+Base de comparaison GitHub `a9557b001be60c2e47af53b0b8d11d983cd21bb4`.
+
+- Le réglage FPS active un relevé local par phase. Il couvre le départ, le milieu de course et le dernier secteur. Le rapport associe chaque P95 au tracé, au profil et au nombre d’images. Il inclut les images lentes ainsi que les relevés de physique et de rendu.
+- L’écran de résultats permet de copier le rapport ou de rejouer le même tracé avec le même atout dans l’autre profil. Le changement de profil est conservé dans les réglages. Le chronométrage saute l’intervalle de pause et compte les saccades en jeu.
+- Godot 4.5.1 vérifie la séparation des phases, les pauses, les saccades et la relance de comparaison depuis les résultats. Les mesures sur Redmi restent à faire.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Mesurer le temps d’image au 95e percentile sur Redmi en profils Équilibré et Économie avec 40 billes au départ, dans le peloton et pendant le dernier secteur.
+Relever les rapports Équilibré et Économie sur Redmi et corriger la cause dominante des images lentes observées, puis comparer les deux profils dans les mêmes conditions.

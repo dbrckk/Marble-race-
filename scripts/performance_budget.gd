@@ -4,12 +4,51 @@ extends RefCounted
 const HISTORY_FRAMES := 120
 const REPORT_PERIOD := 1.0
 const MAX_VALID_FRAME_SECONDS := 0.25
+const PHASE_NAMES := ["START","MID-RACE","FINAL SECTOR"]
+const FRAME_BUCKET_LIMIT_MS := 250
+
+class PhaseSamples:
+    var durations := PackedInt32Array()
+    var frames := 0
+    var slow_frames := 0
+    var monitor_samples := 0
+    var physics_sum := 0.0
+    var draw_sum := 0
+
+    func _init() -> void:
+        durations.resize(FRAME_BUCKET_LIMIT_MS+1)
+
+    func add_frame(delta: float) -> void:
+        var milliseconds := delta*1000.0
+        durations[ceili(minf(milliseconds,FRAME_BUCKET_LIMIT_MS))] += 1
+        frames += 1
+        slow_frames += int(milliseconds > 1000.0/30.0)
+
+    func summary() -> String:
+        if frames == 0:
+            return "NO SAMPLES"
+        var target := ceili(frames*0.95)
+        var seen := 0
+        var p95 := FRAME_BUCKET_LIMIT_MS
+        for bucket in range(1,durations.size()):
+            seen += durations[bucket]
+            if seen >= target:
+                p95 = bucket
+                break
+        return "%d frames | P95 %d%s ms | >33.3 ms %.1f%% | PHYS %s | DRAW %s" % [
+            frames,p95,"+" if p95 == FRAME_BUCKET_LIMIT_MS else "",
+            100.0*slow_frames/frames,
+            "%.1f ms" % (physics_sum/monitor_samples) if monitor_samples > 0 else "—",
+            "%.0f" % (float(draw_sum)/monitor_samples) if monitor_samples > 0 else "—"]
 
 var frame_ms := PackedFloat32Array()
 var cursor := 0
 var elapsed := 0.0
 var sample_count := 0
 var report: Dictionary = {}
+var phases: Array[PhaseSamples] = []
+var previous_frame_us := -1
+var current_phase := 0
 
 func reset() -> void:
     frame_ms.clear()
@@ -17,6 +56,41 @@ func reset() -> void:
     elapsed = 0.0
     sample_count = 0
     report.clear()
+    phases.clear()
+    current_phase = 0
+    suspend()
+
+func suspend() -> void:
+    previous_frame_us = -1
+
+func record_frame(now_us: int, phase: int) -> void:
+    if phases.is_empty():
+        for i in PHASE_NAMES.size():
+            phases.append(PhaseSamples.new())
+    var before := previous_frame_us
+    previous_frame_us = now_us
+    if before >= 0 and now_us > before:
+        var seconds := float(now_us-before)/1000000.0
+        var samples := phases[current_phase]
+        samples.add_frame(seconds)
+        if tick(minf(seconds,MAX_VALID_FRAME_SECONDS)):
+            samples.monitor_samples += 1
+            samples.physics_sum += float(report["physics_ms"])
+            samples.draw_sum += int(report["draw_calls"])
+    current_phase = maxi(current_phase,clampi(phase,0,PHASE_NAMES.size()-1))
+
+func race_summary() -> String:
+    var any_frames := false
+    for samples in phases:
+        if samples.frames > 0:
+            any_frames = true
+            break
+    if not any_frames:
+        return ""
+    var lines := PackedStringArray()
+    for i in PHASE_NAMES.size():
+        lines.append("%s | %s" % [PHASE_NAMES[i],phases[i].summary()])
+    return "\n".join(lines)
 
 static func slow_frame_fraction(values: PackedFloat32Array,
     threshold_ms: float = 33.333) -> float:
@@ -36,11 +110,11 @@ static func percentile_95(values: PackedFloat32Array) -> float:
     var index: int = clampi(ceili(float(ordered.size())*0.95)-1,0,ordered.size()-1)
     return ordered[index]
 
-func tick(delta: float) -> void:
+func tick(delta: float) -> bool:
     if not is_finite(delta) or delta <= 0.0 or delta > MAX_VALID_FRAME_SECONDS:
         # Ignore resume/background spikes; do not mislabel a paused device
         # as a slow simulation or poison the first second after unpausing.
-        return
+        return false
     if frame_ms.size() < HISTORY_FRAMES:
         frame_ms.append(delta*1000.0)
     else:
@@ -49,7 +123,7 @@ func tick(delta: float) -> void:
     sample_count += 1
     elapsed += delta
     if elapsed < REPORT_PERIOD:
-        return
+        return false
     elapsed = fmod(elapsed,REPORT_PERIOD)
     # Godot returns TIME_* in seconds. This monitor sampling runs ~1 Hz.
     # Certain monitors are 0 or delayed in release/headless builds: this
@@ -64,6 +138,7 @@ func tick(delta: float) -> void:
             Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))),
         "frames": frame_ms.size()
     }
+    return true
 
 func compact_text() -> String:
     if report.is_empty():

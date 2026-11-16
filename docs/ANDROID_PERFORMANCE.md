@@ -1,4 +1,4 @@
-# Marble Race 1.33 — Android 40-marble performance diagnosis
+# Marble Race — Android 40-marble performance diagnosis
 
 The game simulates **40 real rigid bodies** at the original 60 Hz physics tick.
 The 1.33 update is an **algorithmic reduction** in unnecessary work rather
@@ -30,30 +30,35 @@ geometry or fidelity.
 
 1. Install an APK using the safe update precautions in
    [ANDROID_UPDATES.md](ANDROID_UPDATES.md).
-2. Open the in-game FPS setting and enable the **FPS overlay**.
-3. Start a race with 40 marbles, wait several seconds and examine
-   the performance readout below FPS.
-4. Record readings on **Woodworks**, **Glacier** and **Forge**,
-   including the crowded opening, moving obstacles and the last third
-   of the run. Capture screenshots if performance is uneven.
+2. In the main menu, select **GRAPHICS: BALANCED** and enable **FPS DISPLAY**.
+3. Finish a solo race and tap **COPY FPS REPORT**. Paste the report into a note
+   or message.
+4. Tap **TEST ECONOMY** in the results to replay the same layout with the same
+   perk. Copy the second report. **TEST BALANCED** repeats the comparison in
+   the other direction. The selected profile also becomes your graphics preference.
+5. Repeat on Woodworks, Glacier and Forge. Keep the same camera and follow a
+   similar line on both runs. For sustained performance, repeat after 15 minutes
+   of play and record the phone model.
 
 ### Metrics
 
 - **FPS:** engine-measured rendered frames per second.
-- **P95 ms:** 95th percentile of the latest 120 valid rendered frame
-  intervals. Around 16.7 ms corresponds to 60 fps pacing, and
-  33.3 ms to 30 fps pacing. Large values reveal stutter even if
-  average FPS looks acceptable.
-- **PHYS ms:** Godot's reported cost for the physics step, converted
-  from seconds to milliseconds.
-- **DRAW:** render draw calls reported by Godot. A value of zero can
-  indicate unavailable monitor data, for example in headless builds.
+- **P95 ms:** 95th percentile of frame intervals. The live overlay uses its
+  latest 120 frames. The report uses the whole phase, rounds up to whole
+  milliseconds and displays **250+** for its highest bucket.
+- **>33.3 ms:** share of frames slower than a 30 FPS frame interval.
+- **PHYS / DRAW:** mean of the sampled physics time in milliseconds and render
+  draw calls for the phase. A zero value can indicate an unavailable engine
+  monitor.
 
-Reports sample engine monitors only about once per second, keep no
-more than 120 frame intervals in memory and never send data online.
-Diagnostics are disabled when the FPS overlay is hidden. Paused or
-backgrounded frame intervals longer than 250 ms are excluded to avoid
-mislabeling app-background events as race frame stutter.
+The report covers the start to checkpoint 1, mid-race to checkpoint 3 and
+the final sector. Recording ends when the player finishes or is eliminated.
+An unreached phase shows **NO SAMPLES**. Frame intervals are measured with a
+monotonic clock, and the first frame after resuming re-establishes the clock
+without including the pause. The report counts long foreground stalls.
+The live HUD uses a 120-frame window. Race summaries use three fixed-size
+histograms, and Godot monitor values are sampled about once per second.
+The feature is opt-in and copies to the clipboard on request.
 
 **Important:** Automated headless regression establishes that the
 optimization rejects irrelevant geometry and preserves core behaviors.
@@ -62,4 +67,3 @@ The Android on-device overlay supplies that evidence.
 
 CI runs `tests/performance_budget.gd` plus existing course, full 120-second
 AI navigation, real server network, rare item and Android APK signing tests.
-Release candidate: **1.33.0-rc**, version code **47**.

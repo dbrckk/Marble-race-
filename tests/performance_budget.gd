@@ -35,6 +35,18 @@ func _run() -> void:
     model.reset()
     assert(model.frame_ms.is_empty() and model.report.is_empty() and model.cursor == 0,
         "Each race needs a clean isolated performance window")
+    assert(model.race_summary().is_empty())
+    model.record_frame(0,0)
+    model.record_frame(16667,1)
+    model.record_frame(56667,1)
+    model.suspend()
+    model.record_frame(10000000,2)
+    model.record_frame(10400000,2)
+    var measurements: String = model.race_summary()
+    assert(measurements.contains("START | 1 frames | P95 17 ms | >33.3 ms 0.0%"))
+    assert(measurements.contains("MID-RACE | 1 frames | P95 40 ms | >33.3 ms 100.0%"))
+    assert(measurements.contains("FINAL SECTOR | 1 frames | P95 250+ ms | >33.3 ms 100.0%"),
+        "A real slow foreground frame counts, while the pause interval is skipped")
 
     var game = load("res://scenes/main.tscn").instantiate()
     root.add_child(game)
@@ -100,7 +112,26 @@ func _run() -> void:
     assert(game.race_items.eligible_collectors.is_empty(),
         "Finished players cannot farm arcade items")
     game.player.finished = false
-    if not originally_visible:
+    game.set_graphics_quality(1)
+    var previous_layout: int = game.built_variation
+    var previous_perk: String = game.selected_perk
+    game.performance_budget.record_frame(1000,0)
+    game.performance_budget.record_frame(17667,0)
+    game._end_race()
+    assert(game.ui.performance_actions.is_visible_in_tree() and
+        game.ui.performance_text.contains("BALANCED") and
+        game.ui.performance_text.contains("FINAL SECTOR | NO SAMPLES"),
+        "Results identify the measured profile and distinguish an unreached phase")
+    game.ui.compare_performance.pressed.emit()
+    assert(game.race_state == "COUNTDOWN" and game.built_variation == previous_layout and
+        game.selected_perk == previous_perk and game.graphics_setting == 0 and
+        game.performance_budget.race_summary().is_empty(),
+        "Compare switches profiles and starts a fresh capture on the same layout and perk")
+    game.toggle_fps_overlay()
+    game._end_race()
+    assert(not game.ui.performance_actions.is_visible_in_tree(),
+        "Performance actions must stay hidden when metrics are disabled")
+    if originally_visible:
         game.toggle_fps_overlay()
     game.return_to_menu()
     game.queue_free()
