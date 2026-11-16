@@ -346,8 +346,8 @@ func _verify_biome_lane(game: Node3D, biome: int) -> void:
     var second: Vector3 = mechanics.zones[1].global_position
     var bypass: Vector3 = game.shortcut_route.point_at(second.z+3.0)
     _update_at(game,bypass+Vector3.UP,velocity)
-    assert(game.ui.shortcut_label.text.contains("MERGE") and not label.visible,
-        "The deck bypasses ice and vents on the main track")
+    assert(game.ui.bridge_approach_active and not label.visible,
+        "The detached deck bypasses ice and vents before any merge cue")
     assert(mechanics.upcoming_lane(bypass,velocity,ROUTE.EXIT_Z).is_empty())
     var next_gate_z: float = game.race_director.event_z(1)
     if next_gate_z > ROUTE.EXIT_Z-24.0:

@@ -23,7 +23,7 @@ func _check() -> void:
         var art := route.get_node("BypassPrecisionEdgePosts") as MultiMeshInstance3D
         var arches := route.get_node("BypassPrecisionPortalArches") as MultiMeshInstance3D
         assert(art.multimesh.instance_count == 6)
-        assert(arches.multimesh.instance_count == 9)
+        assert(arches.multimesh.instance_count == (12 if biome == 2 else 9))
         assert(art.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
         assert(arches.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
         for station in range(BYPASS.BRIDGE_POST_Z.size()):
@@ -79,5 +79,5 @@ func _check() -> void:
         await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_bridge_precision.cfg"))
-    print("BRIDGE_PRECISION_PASS: 18 real raised edge colliders, nine GPU arch pieces, three safe racing corridors, 40 marbles")
+    print("BRIDGE_PRECISION_PASS: 18 real raised edge colliders, batched arch pieces, three safe racing corridors, 40 marbles")
     quit(0)

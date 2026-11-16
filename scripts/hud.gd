@@ -74,6 +74,7 @@ var timed_gate_backdrop: Panel
 var rare_item_label: Label
 var biome_lane_label: Label
 var shortcut_label: Label
+var bridge_approach_active := false
 var woodworks_guide_label: Label
 var woodworks_guide_seen := false
 var woodworks_guide_active := false
@@ -920,9 +921,11 @@ func _build_race_hud() -> void:
     hazard_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     hazard_label.visible = false
     hud_layer.add_child(hazard_label)
-    shortcut_label = _text("",17,Color("#f9d79a"))
+    shortcut_label = _text("",19,Color("#f9d79a"))
     shortcut_label.name = "ForkAndMergePreview"
     shortcut_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    shortcut_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+    shortcut_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
     shortcut_label.anchor_left = 0.26
     shortcut_label.anchor_right = 0.74
     shortcut_label.anchor_top = 0.207
@@ -1191,7 +1194,7 @@ PERK: %s   ·   BOOST %d%%" % [
     var upcoming: Dictionary = {}
     if is_instance_valid(game.player):
         var at: Vector3 = game.player.global_position
-        var route: Dictionary = game.shortcut_route.shortcut_hint(at)
+        var route: Dictionary = game.shortcut_route.shortcut_hint(at,bridge_approach_active)
         var downstream_limit: float = SHORTCUT_ROUTE.EXIT_Z if route.get("mode","") == "merge" else INF
         upcoming = game.upcoming_hazard(at.z,downstream_limit)
     pause_obstacle_hint.text = (
@@ -1372,6 +1375,7 @@ func show_race_ui() -> void:
         streak.visible = false
     if is_instance_valid(position_feedback):
         position_feedback.visible = false
+    bridge_approach_active = false
     if is_instance_valid(shortcut_label):
         shortcut_label.visible = false
     if is_instance_valid(timed_gate_label):
@@ -1553,8 +1557,9 @@ func update_hud() -> void:
         place_label.add_theme_color_override("font_color",TEXT)
     boost_progress.value = game.boost_energy*100.0
     var route_hint: Dictionary = game.shortcut_route.shortcut_hint(
-        game.player.global_position) if is_instance_valid(game.shortcut_route) else {}
-    var downstream_limit: float = SHORTCUT_ROUTE.EXIT_Z if route_hint.get("mode","") == "merge" else INF
+        game.player.global_position,bridge_approach_active) if is_instance_valid(game.shortcut_route) else {}
+    bridge_approach_active = game.race_state == "RACING" and route_hint.get("mode","") == "merge"
+    var downstream_limit: float = SHORTCUT_ROUTE.EXIT_Z if bridge_approach_active else INF
     var hazard: Dictionary = game.upcoming_hazard(game.player.global_position.z,downstream_limit)
     # Timed events have their own forecast, so do not show two duplicate
     # hazard banners while also preserving warnings for physical edge gates.
@@ -1660,11 +1665,16 @@ func update_hud() -> void:
             RARE_ITEMS.COLORS.size())
         rare_item_label.add_theme_color_override("font_color",
             RARE_ITEMS.COLORS[color_index].lightened(0.20))
-    shortcut_label.visible = not route_hint.is_empty()
-    if not route_hint.is_empty():
-        if str(route_hint["mode"]) == "fork":
-            var bridge_text := "← ICE SHORTCUT" if route_hint["side"] == "LEFT" else (
-                "FORGE SHORTCUT →" if game.selected_track == 2 else "SHORTCUT BRIDGE →")
+    shortcut_label.visible = still_racing and not route_hint.is_empty()
+    if shortcut_label.visible:
+        if game.selected_track == 2:
+            shortcut_label.text = game.shortcut_route.forge_route_text(
+                route_hint,game.player.global_position.z,forward_speed)
+            shortcut_label.visible = not shortcut_label.text.is_empty()
+            shortcut_label.add_theme_color_override("font_color",
+                SHORTCUT_ROUTE.FORGE_EDGE_COLOR if route_hint["mode"] == "fork" else SHORTCUT_ROUTE.FORGE_MAIN_COLOR)
+        elif str(route_hint["mode"]) == "fork":
+            var bridge_text := "← ICE SHORTCUT" if route_hint["side"] == "LEFT" else "SHORTCUT BRIDGE →"
             shortcut_label.text = "MAIN TRACK ↑   /   %s  •  %dm" % [
                 bridge_text,int(route_hint["distance"])]
             shortcut_label.add_theme_color_override("font_color",Color("#ffdda0"))

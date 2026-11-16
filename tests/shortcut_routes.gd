@@ -45,7 +45,14 @@ func _run() -> void:
         assert(road.get_node_or_null("BatchedBypassGuards") is MultiMeshInstance3D)
         assert(road.get_node_or_null("BatchedJumpTakeoff") is MultiMeshInstance3D)
         assert(road.get_node_or_null("BypassNavigationChevrons") is MultiMeshInstance3D)
-        assert(road.get_node_or_null("ShortcutGatewayBeams") is MultiMeshInstance3D)
+        assert(road.get_node_or_null(
+            "ForgeRouteSignPlates" if course == 2 else "ShortcutGatewayBeams") is MultiMeshInstance3D)
+        if course == 2:
+            var arrows := road.get_node("ForgeJunctionArrows") as MultiMeshInstance3D
+            assert(arrows.multimesh.instance_count == 14 and arrows.multimesh.use_colors)
+            assert(arrows.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
+            assert(road.get_node_or_null("MainTrackSign") == null,
+                "Forge uses the main arrow painted on the road")
         assert(road.get_node_or_null("ShortcutEntranceArrow") is Label3D)
         assert(road.get_node_or_null("ShortcutMergeArrow") is Label3D)
         for section in range(18):
@@ -156,6 +163,8 @@ func _run() -> void:
                 str(floor_hit.name) == "BypassLaunchRamp"),
                 "No gaps or unrelated obstacle colliders along the detour")
         game.start_race("Grip Tape")
+        if course == 2:
+            _verify_forge_cues(game)
         # A minority of AI should attempt the physical bypass, rather
         # than all 39 bots always following the same central racing line.
         var bypass_bots := 0
@@ -186,8 +195,9 @@ func _run() -> void:
             game.height_at(-32.0)+0.78,-32.0)
         game.ui.label_timer = 0.5
         game.ui.update_hud()
+        var fork_word := "BRIDGE RIGHT" if course == 2 else "SHORTCUT"
         assert(game.ui.shortcut_label.visible and
-            game.ui.shortcut_label.text.contains("SHORTCUT"),
+            game.ui.shortcut_label.text.contains(fork_word),
             "Android players should see the upcoming turn-off clearly")
         # The engine grants bonuses only after physically entering the fork.
         var entrance: Vector3 = road.point_at(BypassScript.ENTRY_Z-8.0)
@@ -236,3 +246,43 @@ func _run() -> void:
     game.queue_free()
     await process_frame
     quit()
+
+func _verify_forge_cues(game: Node3D) -> void:
+    var road: Node3D = game.shortcut_route
+    var hud: CanvasLayer = game.ui
+    game.race_state = "RACING"
+    var marble: RigidBody3D = game.player
+    marble.linear_velocity = Vector3(0,0,-23)
+    var z: float = BypassScript.ENTRY_PORTAL_Z+30.0
+    marble.global_position = Vector3(game.track_center_at(z),game.height_at(z)+0.6,z)
+    hud.label_timer = 0.25
+    hud.update_hud()
+    assert(hud.shortcut_label.visible and hud.shortcut_label.text.contains("RIGHT") and
+        hud.shortcut_label.text.contains("1.3s"),
+        "Fast fork guidance shows time and side before the rail opens")
+    z = BypassScript.ENTRY_PORTAL_Z+1.4
+    marble.global_position.z = z
+    hud.label_timer = 0.25
+    hud.update_hud()
+    assert(hud.shortcut_label.text.contains("NOW"))
+    z = BypassScript.EXIT_Z+1.5
+    var return_point: Vector3 = road.point_at(z)+Vector3.UP*0.7
+    assert(road.shortcut_hint(return_point).is_empty(),
+        "Ambiguous shared deck cannot create a merge instruction by itself")
+    marble.global_position = road.point_at(BypassScript.EXIT_Z+28.0)+Vector3.UP*0.7
+    hud.label_timer = 0.25
+    hud.update_hud()
+    assert(hud.bridge_approach_active and not hud.shortcut_label.visible,
+        "The detached deck is recognized before the merge direction is needed")
+    marble.global_position = return_point
+    hud.label_timer = 0.25
+    hud.update_hud()
+    assert(hud.bridge_approach_active and hud.shortcut_label.visible and
+        hud.shortcut_label.text.contains("MERGE LEFT NOW"),
+        "A confirmed bridge racer keeps the last-meter merge cue")
+    marble.global_position.z = BypassScript.EXIT_Z-0.3
+    hud.label_timer = 0.25
+    hud.update_hud()
+    assert(not hud.bridge_approach_active and not hud.shortcut_label.visible)
+    hud.show_race_ui()
+    assert(not hud.bridge_approach_active)

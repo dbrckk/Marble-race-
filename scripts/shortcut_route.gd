@@ -7,6 +7,11 @@ const EXIT_SECTION := 9
 const ENTRY_Z := -48.0
 const ENTRY_PORTAL_Z := -52.0
 const EXIT_Z := -104.0
+const PORTAL_HALF_LENGTH := 2.0
+const FORGE_FORK_REACH := 32.0
+const FORGE_MERGE_REACH := 23.0
+const FORGE_EDGE_COLOR := Color("#ffc86e")
+const FORGE_MAIN_COLOR := Color("#b6f6ed")
 const OUTER_START := -60.0
 const OUTER_END := -92.0
 const INNER_OFFSET := 4.90
@@ -143,7 +148,10 @@ func setup(owner: Node3D, track: int) -> void:
     _launch_ramps(deck_material)
     _bridge_precision_corridor(edge_material)
     _racing_line(edge_material)
-    _signage(edge_material)
+    if course_id == 2:
+        _forge_signage()
+    else:
+        _signage(edge_material)
     reset_round()
 
 func bridge_lift_at(z: float) -> float:
@@ -243,9 +251,15 @@ func _bridge_precision_corridor(material: Material) -> void:
                 Vector3(0.18,BRIDGE_ARCH_HEIGHT,0.22)),
                 center+Vector3(flank*(WIDTH*0.5+0.62),
                     BRIDGE_ARCH_HEIGHT*0.5+0.32,0.0)))
-        arch_art.append(Transform3D(Basis().scaled(Vector3(
-            WIDTH+1.55,0.19,0.24)),
-            center+Vector3(0.0,BRIDGE_ARCH_HEIGHT+0.32,0.0)))
+        if course_id == 2:
+            for flank in [-1.0,1.0]:
+                var cap := Basis(Vector3.FORWARD,-flank*0.20)
+                arch_art.append(Transform3D(cap.scaled_local(Vector3(1.36,0.19,0.24)),
+                    center+Vector3(flank*(WIDTH*0.5+0.18),BRIDGE_ARCH_HEIGHT+0.42,0)))
+        else:
+            arch_art.append(Transform3D(Basis().scaled(Vector3(
+                WIDTH+1.55,0.19,0.24)),
+                center+Vector3(0.0,BRIDGE_ARCH_HEIGHT+0.32,0.0)))
     _batch("BypassPrecisionEdgePosts",post_art,material)
     _batch("BypassPrecisionPortalArches",arch_art,material)
     # Three lightweight, noncolliding deck stripes identify the EXACT
@@ -355,6 +369,100 @@ func _signage(color: Material) -> void:
         boxes.append(Transform3D(shape,Vector3(x,stage.height_at(z)+0.09,z)))
     _batch("EntranceGuideStripes",boxes,color)
 
+func _forge_signage() -> void:
+    var signs: Array[Transform3D] = []
+    var entry_z := ENTRY_PORTAL_Z+0.7
+    var entry_x: float = stage.track_center_at(ENTRY_PORTAL_Z)+6.92
+    _forge_sign("ShortcutEntranceArrow","BRIDGE  ↗",Vector3(
+        entry_x,stage.height_at(entry_z)+1.41,entry_z),FORGE_EDGE_COLOR,signs)
+    var exit_z := EXIT_Z+2.4
+    var bridge_end := point_at(exit_z)
+    _forge_sign("ShortcutMergeArrow","↖  MERGE",bridge_end+Vector3(1.72,1.48,0),
+        FORGE_MAIN_COLOR,signs)
+    var steel := StandardMaterial3D.new()
+    steel.albedo_color = Color("#422b29")
+    steel.roughness = 0.57
+    steel.metallic = 0.30
+    _batch("ForgeRouteSignPlates",signs,steel)
+
+    # Arrow instances follow actual road grade and the banked deck plane.
+    # All three lines share one mesh and one material, with color per arrow.
+    var paint: Array[Transform3D] = []
+    var colors: Array[Color] = []
+    for z in [-36.0,-41.8,-47.3]:
+        paint.append(_forge_road_arrow(z,-1.85,0.0))
+        colors.append(FORGE_MAIN_COLOR)
+    for i in range(5):
+        var z := ENTRY_PORTAL_Z+14.5-float(i)*3.1
+        paint.append(_forge_road_arrow(z,1.7+float(i)*0.82,-0.36))
+        colors.append(FORGE_EDGE_COLOR)
+    var merge_rows := [-89.0,-93.0,-97.0,-99.0,-103.0]
+    for i in range(merge_rows.size()):
+        var return_bias := smoothstep(0.0,float(merge_rows.size()-1),float(i))*0.60
+        paint.append(_forge_deck_arrow(merge_rows[i],return_bias))
+        colors.append(FORGE_MAIN_COLOR)
+    paint.append(_forge_road_arrow(EXIT_Z-0.65,4.35,0.52))
+    colors.append(FORGE_MAIN_COLOR)
+
+    var surface := SurfaceTool.new()
+    surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+    # Arrow head plus shaft, facing downhill in local -Z.
+    surface.add_triangle_fan(PackedVector3Array([
+        Vector3(0,0,-0.85),Vector3(-0.64,0,0.07),Vector3(0.64,0,0.07)]))
+    surface.add_triangle_fan(PackedVector3Array([
+        Vector3(-0.22,0,0.07),Vector3(-0.22,0,0.74),
+        Vector3(0.22,0,0.74),Vector3(0.22,0,0.07)]))
+    var material := StandardMaterial3D.new()
+    material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    material.cull_mode = BaseMaterial3D.CULL_DISABLED
+    material.vertex_color_use_as_albedo = true
+    var batch := MultiMesh.new()
+    batch.transform_format = MultiMesh.TRANSFORM_3D
+    batch.use_colors = true
+    batch.mesh = surface.commit()
+    batch.instance_count = paint.size()
+    for i in range(paint.size()):
+        batch.set_instance_transform(i,paint[i])
+        batch.set_instance_color(i,colors[i])
+    var marks := MultiMeshInstance3D.new()
+    marks.name = "ForgeJunctionArrows"
+    marks.multimesh = batch
+    marks.material_override = material
+    marks.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    add_child(marks)
+
+func _forge_sign(label_name: String, message: String, at: Vector3, color: Color,
+        plates: Array[Transform3D]) -> void:
+    plates.append(Transform3D(Basis().scaled(Vector3(2.18,0.60,0.19)),at))
+    plates.append(Transform3D(Basis().scaled(Vector3(0.17,1.43,0.24)),at-Vector3.UP*0.71))
+    var title := Label3D.new()
+    title.name = label_name
+    title.text = message
+    title.font_size = 44
+    title.pixel_size = 0.010
+    title.outline_size = 9
+    title.modulate = color
+    title.position = at+Vector3(0,0,0.104)
+    add_child(title)
+
+func _forge_road_arrow(z: float, lateral: float, yaw: float) -> Transform3D:
+    # Main-track collision planks are planar within each 12m module.
+    var section_z: float = 8.0-roundf((8.0-z)/stage.SEGMENT_LENGTH)*stage.SEGMENT_LENGTH
+    var pitch: float = -atan(stage.track_grade_at(section_z))
+    var y: float = stage.height_at(section_z)-0.34+0.325/cos(pitch)-tan(pitch)*(z-section_z)
+    var basis := Basis(Vector3.RIGHT,pitch)*Basis(Vector3.UP,yaw)
+    return Transform3D(basis,Vector3(stage.track_center_at(section_z)+lateral,y+0.040,z))
+
+func _forge_deck_arrow(z: float, steer_in: float) -> Transform3D:
+    var index := clampi(int((ENTRY_Z-z)/(ENTRY_Z-EXIT_Z)*SEGMENTS),0,SEGMENTS-1)
+    var deck := decks[index]
+    var up := deck.basis.y
+    var x := point_at(z).x-steer_in
+    var y := deck.position.y+(0.28-up.x*(x-deck.position.x)-up.z*(z-deck.position.z))/up.y
+    # Center samples sit on physical segment centers, clear of deck seams.
+    return Transform3D(deck.basis*Basis(Vector3.UP,steer_in*0.94),
+        Vector3(x,y+0.105,z))
+
 func point_at(z: float) -> Vector3:
     if not is_instance_valid(stage):
         return Vector3.ZERO
@@ -393,20 +501,40 @@ func on_separate_deck(location: Vector3) -> bool:
     var deck := point_at(location.z)
     return absf(location.x-deck.x) < WIDTH*0.5+0.65 and location.y >= deck.y-0.25
 
-func shortcut_hint(location: Vector3) -> Dictionary:
-    # HUD query; never changes gameplay state and requires no network traffic.
+func shortcut_hint(location: Vector3, continuing_merge := false) -> Dictionary:
+    # Presentation only. Once Forge's roads overlap, retain bridge context
+    # for a confirmed approach until the actual exit plane.
     var z: float = location.z
     if z <= ENTRY_Z and z >= EXIT_Z:
         var relative_x: float = float(side)*(location.x-stage.track_center_at(z))
-        if relative_x > 5.65:
+        var following_forge_exit: bool = course_id == 2 and continuing_merge and (
+            z <= OUTER_END and relative_x >= 3.35)
+        if relative_x > 5.65 or following_forge_exit:
             var deck := point_at(z)
             if absf(location.x-deck.x) < WIDTH*0.5+1.7 and location.y >= deck.y-0.25:
                 return {"mode":"merge","side":"RIGHT" if side < 0 else "LEFT",
                     "distance":maxi(0,int(round(z-EXIT_Z)))}
-    if z <= ENTRY_PORTAL_Z+29.0 and z > ENTRY_PORTAL_Z:
+    var fork_reach := FORGE_FORK_REACH if course_id == 2 else 29.0
+    var fork_end := ENTRY_PORTAL_Z-PORTAL_HALF_LENGTH if course_id == 2 else ENTRY_PORTAL_Z
+    if z <= ENTRY_PORTAL_Z+fork_reach and z > fork_end:
         return {"mode":"fork","side":"LEFT" if side < 0 else "RIGHT",
             "distance":maxi(0,int(round(z-ENTRY_PORTAL_Z)))}
     return {}
+
+func forge_route_text(hint: Dictionary, z: float, forward_speed: float) -> String:
+    var distance := int(hint["distance"])
+    var at_fork: bool = hint["mode"] == "fork"
+    var portal_z := ENTRY_PORTAL_Z if at_fork else EXIT_Z
+    var timing := "  /  %.1fs" % (maxf(0.0,z-portal_z)/forward_speed) if forward_speed >= 9.0 else ""
+    if at_fork:
+        if z <= ENTRY_PORTAL_Z+PORTAL_HALF_LENGTH:
+            return "BRIDGE RIGHT NOW  ↗"
+        return "BRIDGE RIGHT  •  %dm%s" % [distance,timing]
+    if distance > FORGE_MERGE_REACH:
+        return ""
+    if z <= EXIT_Z+PORTAL_HALF_LENGTH:
+        return "↖  MERGE LEFT NOW"
+    return "MERGE LEFT  •  %dm%s" % [distance,timing]
 
 func reset_round() -> void:
     triggered.clear()
