@@ -3,6 +3,7 @@ extends Node3D
 ## No extra rigid bodies or expensive realtime shadow maps.
 const GOLD := Color("#d9b67b")
 const TRACK_LENGTH := 18
+const SCULPTURES = preload("res://scripts/course_sculptures.gd")
 var beacons: Array[Node3D] = []
 var pulsing_materials: Array[StandardMaterial3D] = []
 var clock := 0.0
@@ -126,11 +127,15 @@ func _road_markings() -> void:
 
 func _waypoint_lanterns() -> void:
     # Metallic brass-ringed checkpoint light, glowing but not adding per-pixel light sources.
+    var stage := get_parent().get_parent() as Node3D
+    var forge: bool = stage.selected_track == 2
+    var pole_offset := SCULPTURES.FORGE_SECTOR_POST_OFFSET if forge else 6.28
+    var beacon_height := SCULPTURES.FORGE_SECTOR_BEACON_HEIGHT if forge else 4.7
     for n in range(3):
-        var z = 8.0-[4,9,14][n]*12.0
+        var z: float = stage.CHECKPOINT_Z[n] if forge else 8.0-[4,9,14][n]*12.0
         for side in [-1.0,1.0]:
-            var pole_x=side*6.28
-            var y=_height(z)+4.7
+            var pole_x: float = side*pole_offset
+            var y: float = _height(z)+beacon_height
             var m=StandardMaterial3D.new()
             var col=Color("#f5c26e") if n%2==0 else Color("#9feadc")
             m.albedo_color=col
@@ -142,8 +147,8 @@ func _waypoint_lanterns() -> void:
             var bulb=MeshInstance3D.new()
             bulb.name="CheckpointBeacon_%d" % n
             var sphere=SphereMesh.new()
-            sphere.radius=0.25
-            sphere.height=0.50
+            sphere.radius=0.15 if forge else 0.25
+            sphere.height=sphere.radius*2.0
             sphere.radial_segments=14
             sphere.rings=6
             bulb.mesh=sphere

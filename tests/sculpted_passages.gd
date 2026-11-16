@@ -38,22 +38,24 @@ func _run() -> void:
                 geometry.vault_crest_points.size() == 9,
                 "Three biome passages require exactly nine actual elevated ribs")
             var roof_pitch: float = GEOMETRY.VAULT_PITCHES[biome]
-            assert(roof_pitch > 0.10 and roof_pitch < 0.28,
-                "Each world must have a pronounced, traversable-looking roof ridge")
+            assert(roof_pitch > 0.10 and roof_pitch < 0.40)
             var crest: Vector3 = geometry.vault_crest_points[0]
             var ceiling_floor: float = game.height_at(crest.z)
-            assert(absf(crest.y-ceiling_floor-(
-                GEOMETRY.VAULT_CLEARANCE+0.57+
-                sin(roof_pitch)*GEOMETRY.VAULT_HALF_WIDTH*0.5)) < 0.001,
-                "Arch crown must follow actual mountain roof pitch and terrain")
             assert(crest.y-ceiling_floor > 5.6,
-                "A high 3D passage must never obscure or block a jumping marble")
+                "A high 3D passage leaves room above real marble jumps")
+            if biome == 2:
+                _verify_forge_sightline(game,geometry)
+            else:
+                assert(absf(crest.y-ceiling_floor-(
+                    GEOMETRY.VAULT_CLEARANCE+0.57+
+                    sin(roof_pitch)*GEOMETRY.VAULT_HALF_WIDTH*0.5)) < 0.001,
+                    "Continuous timber and ice crowns retain their original height")
             assert(geometry.bank_surfaces.multimesh.instance_count == 8 and
                 geometry.apex_inlays.multimesh.instance_count == 4)
             assert(geometry.vault_posts.multimesh.instance_count == 18 and
                 geometry.vault_roofs.multimesh.instance_count == 18 and
-                geometry.vault_highlights.multimesh.instance_count == 9,
-                "Original pillars, roofs and accents remain GPU-batched")
+                geometry.vault_highlights.multimesh.instance_count == (18 if biome == 2 else 9),
+                "Lateral Forge lighting reuses the existing GPU batch")
             assert(geometry.canopy_panels.multimesh.instance_count == 12 and
                 geometry.canopy_trims.multimesh.instance_count == 12,
                 "Three vaulted landmarks must include 12 open-sky roof bays")
@@ -157,5 +159,37 @@ func _run() -> void:
         await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_sculpted_course.cfg"))
-    print("SCULPTED_PASSAGES_PASS: 36 physics-probed banked apexes, 12 batched open-sky canopy bays, 9 portals, mobile quality budgets and 40 marbles")
+    print("SCULPTED_PASSAGES_PASS: 36 real ramps, open Forge sightlines at 9 passages, exact split markers and mobile GPU budgets")
     quit(0)
+
+func _verify_forge_sightline(game: Node3D, geometry: Node3D) -> void:
+    var mesh: Mesh = geometry.vault_roofs.multimesh.mesh
+    assert(geometry.vault_rib_roots.size() == 18)
+    for transform: Transform3D in geometry.vault_rib_roots:
+        var bounds: AABB = transform*mesh.get_aabb()
+        var center: float = game.track_center_at(transform.origin.z)
+        if transform.origin.x < center:
+            assert(bounds.end.x < center-5.15,
+                "The full left rib must clear the line of sight above the lane")
+        else:
+            assert(bounds.position.x > center+5.15,
+                "The full right rib must clear the line of sight above the lane")
+    for point: Vector3 in geometry.canopy_roots:
+        var cover: Mesh = geometry.canopy_panels.multimesh.mesh
+        assert(absf(point.x-game.track_center_at(point.z))-cover.get_aabb().size.x*0.5 > 5.15)
+    var posts := game.board.get_node("ForgeSectorPostBatch") as MultiMeshInstance3D
+    assert(posts.multimesh.instance_count == 6 and posts.cast_shadow ==
+        GeometryInstance3D.SHADOW_CASTING_SETTING_OFF,
+        "Sector posts use one shadow-free draw batch")
+    var fx: Node3D = game.board.get_node("PolishedToyDetails")
+    for sector in range(game.CHECKPOINT_Z.size()):
+        var marker := game.board.get_node("ForgeSectorMarker%d" % (sector+1)) as Node3D
+        assert(is_equal_approx(marker.position.z,game.CHECKPOINT_Z[sector]))
+        for child in marker.get_children():
+            assert(not child is CollisionObject3D and absf(child.position.x) >= 5.35-0.001,
+                "Number plates and paint must stay off the central driving line")
+        for side in range(2):
+            var beacon: Node3D = fx.beacons[sector*2+side]
+            assert(is_equal_approx(beacon.position.z,marker.position.z) and
+                absf(beacon.position.x-marker.position.x) > 6.5,
+                "Sector pulse follows the sign and the exact timed plane")

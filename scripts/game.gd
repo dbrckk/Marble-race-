@@ -44,6 +44,7 @@ const SLOPE := 0.085
 const SEGMENT_LENGTH := 12.0
 const SEGMENTS := 18
 const FINISH_Z := -185.0
+const CHECKPOINT_Z := [-46.0,-106.0,-166.0]
 const RACE_TIMEOUT := 155.0
 const TRACK_NAMES := ["WOODWORKS","SWITCHBACK","GAUNTLET"]
 const TRACK_SUBTITLES := [
@@ -838,6 +839,9 @@ func _finish_arch() -> void:
             Vector3(1.02, 0.045, 0.63), _mat(Color("#f2e5d0") if i%2==0 else Color("#342a28")), false)
 
 func _checkpoint_arches() -> void:
+    if selected_track == 2:
+        _forge_checkpoint_markers()
+        return
     for n in [4,9,14]:
         var z = 8.0 - float(n) * SEGMENT_LENGTH
         var y = height_at(z)
@@ -848,7 +852,56 @@ func _checkpoint_arches() -> void:
             _mat(Color("#dfb66c"),0.35,0.2),false)
         _floating_sign("CHECKPOINT %d" % int(n/5+1),Vector3(track_center_at(z),y+5.22,z))
 
-func _floating_sign(message: String, location: Vector3) -> void:
+func _forge_checkpoint_markers() -> void:
+    var steel := _mat(Color("#51383b"),0.34,0.62)
+    var enamel := _mat(Color("#f0b56a"),0.41,0.18)
+    var post_x := CourseSculptures.FORGE_SECTOR_POST_OFFSET
+    var sign_y := CourseSculptures.FORGE_SECTOR_SIGN_HEIGHT
+    var pillar := BoxMesh.new()
+    pillar.size = Vector3(0.28,2.2,0.42)
+    var plaque := BoxMesh.new()
+    plaque.size = Vector3(1.28,0.88,0.26)
+    var lip := BoxMesh.new()
+    lip.size = Vector3(1.42,0.095,0.33)
+    var assembly := SurfaceTool.new()
+    assembly.append_from(pillar,0,Transform3D(Basis(),Vector3.UP*1.10))
+    assembly.append_from(plaque,0,Transform3D(Basis(),Vector3.UP*sign_y))
+    assembly.append_from(lip,0,Transform3D(Basis(),Vector3.UP*(sign_y+0.43)))
+    var mesh := assembly.commit()
+    var posts := MultiMesh.new()
+    posts.transform_format = MultiMesh.TRANSFORM_3D
+    posts.mesh = mesh
+    posts.instance_count = CHECKPOINT_Z.size()*2
+    var post_art := MultiMeshInstance3D.new()
+    post_art.name = "ForgeSectorPostBatch"
+    post_art.multimesh = posts
+    post_art.material_override = steel
+    post_art.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    board.add_child(post_art)
+    for sector in range(CHECKPOINT_Z.size()):
+        var z: float = CHECKPOINT_Z[sector]
+        var floor_y: float = height_at(z)
+        var center_x: float = track_center_at(z)
+        var marker := Node3D.new()
+        marker.name = "ForgeSectorMarker%d" % (sector+1)
+        marker.position = Vector3(center_x,floor_y,z)
+        board.add_child(marker)
+        for flank in range(2):
+            var side := -1.0 if flank == 0 else 1.0
+            posts.set_instance_transform(sector*2+flank,Transform3D(
+                Basis(),marker.position+Vector3(side*post_x,0,0)))
+            var number := _floating_sign("SECTOR %02d" % (sector+1),
+                Vector3(side*post_x,sign_y,0.148),marker)
+            number.font_size = 32
+            number.pixel_size = 0.0085
+            number.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+            var stripe := _box(marker,Vector3(side*5.35,0.055,0),
+                Vector3(0.98,0.02,0.32),enamel,false)
+            stripe.rotation.x = -atan(track_grade_at(z))
+            for paint in stripe.get_children():
+                (paint as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+func _floating_sign(message: String, location: Vector3, parent: Node3D = null) -> Label3D:
     var label = Label3D.new()
     label.text = message
     label.font_size = 34
@@ -857,7 +910,9 @@ func _floating_sign(message: String, location: Vector3) -> void:
     label.modulate = Color("#fff5e1")
     label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
     label.position = location
-    board.add_child(label)
+    var holder := board if parent == null else parent
+    holder.add_child(label)
+    return label
 
 func _decorations() -> void:
     # Cleaner studio: keep real structural supports, omit the bright unrelated
@@ -1174,12 +1229,10 @@ func _process(delta: float) -> void:
             trail.initial_velocity_max = 2.6 if boosting else 0.75
             trail.color = PremiumSkinVisuals.trail_tint(self,boosting)
             var cp := -1
-            if player.position.z < -46.0:
-                cp = 0
-            if player.position.z < -106.0:
-                cp = 1
-            if player.position.z < -166.0:
-                cp = 2
+            for sector in range(CHECKPOINT_Z.size()-1,-1,-1):
+                if player.position.z < float(CHECKPOINT_Z[sector]):
+                    cp = sector
+                    break
             # Award split times only when the marble actually passes a sector
             # within the rolling surface; falling out of bounds is not progress.
             if cp > last_checkpoint and absf(player.global_position.x-track_center_at(player.global_position.z)) < 6.75 and (

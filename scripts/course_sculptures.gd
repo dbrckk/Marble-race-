@@ -27,8 +27,17 @@ const VAULT_CLEARANCE := 5.0
 const VAULT_HALF_WIDTH := 7.75
 const VAULT_RIB_OFFSETS := [-3.3,0.0,3.3]
 # Three visibly different profiles: warm timber canopy, pointed Alpine ice
-# passage and lower industrial foundry ribs. Silhouette, not just recolor.
-const VAULT_PITCHES := [0.15,0.245,0.19]
+# passage and open industrial foundry ribs.
+const VAULT_PITCHES := [0.15,0.245,0.36]
+const FORGE_RIB_OFFSET := 6.70
+const FORGE_RIB_LENGTH := 2.80
+const FORGE_CANOPY_OFFSET := 6.55
+const FORGE_CANOPY_WIDTH := 2.50
+const FORGE_LIGHT_OFFSET := 5.54
+const FORGE_LIGHT_WIDTH := 0.72
+const FORGE_SECTOR_POST_OFFSET := 6.67
+const FORGE_SECTOR_SIGN_HEIGHT := 2.38
+const FORGE_SECTOR_BEACON_HEIGHT := 2.97
 const COLOR_BODIES := [
     Color("#98704e"),Color("#719ab0"),Color("#77504a")]
 const COLOR_GLOWS := [
@@ -48,6 +57,8 @@ var canopy_panels: MultiMeshInstance3D
 var canopy_trims: MultiMeshInstance3D
 var arch_rib_count := 0
 var vault_crest_points: Array[Vector3] = []
+# Keep the CPU transforms for the batched roof bounds checked in headless QA.
+var vault_rib_roots: Array[Transform3D] = []
 # CPU-side source positions: MultiMesh GPU readback is unavailable in
 # headless CI and may return identity transforms on mobile backends.
 var canopy_roots: Array[Vector3] = []
@@ -162,13 +173,14 @@ func _banked_racing_apexes() -> void:
 
 func _world_passage_vaults() -> void:
     var pillars: Array[Transform3D] = []
-    var roof_segments: Array[Transform3D] = []
     var highlights: Array[Transform3D] = []
     var canopy_transforms: Array[Transform3D] = []
     var trim_transforms: Array[Transform3D] = []
-    # The arch spans the full live course with 5m overhead clearance,
-    # and its supports sit outside the guardrail and beyond main racing.
-    # They remain noncolliding so a shortcut never hits a decorative post.
+    var forge := biome == 2
+    var roof_pitch: float = VAULT_PITCHES[biome]
+    # Forge uses open-top steel ribs, with all solid-looking art above the
+    # side rails. The timber and ice vaults retain their continuous profiles.
+    # Every support is visual, including those adjacent to the bypass.
     for section in VAULT_SECTIONS:
         var centre_z: float = bank_z(section,variation)
         # Two partial overhead bays between each set of three landmark
@@ -181,62 +193,66 @@ func _world_passage_vaults() -> void:
             var center_x: float = game.track_center_at(z)
             var floor_y: float = game.height_at(z)
             for side in [-1.0,1.0]:
-                var roof_pitch: float = side*VAULT_PITCHES[biome]
-                var basis := Basis(Vector3.FORWARD,roof_pitch)
-                # The panel hugs only the OUTER half of the existing roof;
-                # the camera and rising marbles still see through the middle.
-                var outboard_x: float = 5.55
-                var shift: float = outboard_x-VAULT_HALF_WIDTH*0.56
-                var y: float = floor_y+VAULT_CLEARANCE+0.57+(
-                    sin(roof_pitch)*side*shift)
+                var basis := Basis(Vector3.FORWARD,side*roof_pitch)
+                var outboard_x := FORGE_CANOPY_OFFSET if forge else 5.55
+                var rib_x := FORGE_RIB_OFFSET if forge else VAULT_HALF_WIDTH*0.56
+                var y := floor_y+VAULT_CLEARANCE+0.57
+                if forge:
+                    y -= tan(roof_pitch)*(outboard_x-rib_x)
+                else:
+                    y += sin(roof_pitch)*(outboard_x-rib_x)
                 var canopy_point := Vector3(
                     center_x+side*outboard_x,y,z)
                 canopy_roots.append(canopy_point)
                 canopy_transforms.append(Transform3D(basis,canopy_point))
+                var trim_offset := (FORGE_CANOPY_WIDTH*0.5-0.08)*cos(roof_pitch) if forge else 1.40
                 trim_transforms.append(Transform3D(basis,Vector3(
-                    center_x+side*(outboard_x-1.40),y+0.055,z)))
+                    center_x+side*(outboard_x-trim_offset),
+                    y+0.055+(tan(roof_pitch)*trim_offset if forge else 0.0),z)))
         for rib in VAULT_RIB_OFFSETS:
             var z: float = centre_z+float(rib)
             var center_x: float = game.track_center_at(z)
             var floor_y: float = game.height_at(z)
             arch_rib_count += 1
+            var rib_x := FORGE_RIB_OFFSET if forge else VAULT_HALF_WIDTH*0.56
+            var rib_y := floor_y+VAULT_CLEARANCE+0.57
+            var crest_x := FORGE_LIGHT_OFFSET if forge else 0.0
+            var crest_y := rib_y+(tan(roof_pitch)*(rib_x-crest_x) if forge else (
+                sin(roof_pitch)*VAULT_HALF_WIDTH*0.5))
+            vault_crest_points.append(Vector3(center_x+crest_x,crest_y,z))
             for side in [-1.0,1.0]:
-                # Each sloping roof half makes a triangular mountain/pass
-                # silhouette instead of a flat overhead bar.
-                var origin := Vector3(
-                    center_x+side*VAULT_HALF_WIDTH*0.56,
-                    floor_y+VAULT_CLEARANCE+0.57,z)
-                # Pitch outward-downward: both halves rise toward the
-                # centre, forming a real Alpine/timber ridge, never a V.
-                var pitch: float = float(side)*VAULT_PITCHES[biome]
-                var roof_basis := Basis(Vector3.FORWARD,pitch)
-                roof_segments.append(Transform3D(roof_basis,origin))
-                pillars.append(Transform3D(Basis(),
+                var origin := Vector3(center_x+side*rib_x,rib_y,z)
+                var roof_basis := Basis(Vector3.FORWARD,side*roof_pitch)
+                vault_rib_roots.append(Transform3D(roof_basis,origin))
+                var support_height := VAULT_CLEARANCE
+                if forge:
+                    support_height += 0.57-tan(roof_pitch)*(VAULT_HALF_WIDTH-rib_x)
+                    highlights.append(Transform3D(roof_basis,
+                        Vector3(center_x+side*crest_x,crest_y+0.14,z)))
+                pillars.append(Transform3D(Basis().scaled(
+                    Vector3(1.0,support_height/VAULT_CLEARANCE,1.0)),
                     Vector3(center_x+side*VAULT_HALF_WIDTH,
-                    floor_y+VAULT_CLEARANCE*0.5,z)))
-            var crest_height: float = floor_y+VAULT_CLEARANCE+0.57+(
-                sin(VAULT_PITCHES[biome])*VAULT_HALF_WIDTH*0.5)
-            var ridge := Vector3(center_x,crest_height,z)
-            vault_crest_points.append(ridge)
-            highlights.append(Transform3D(Basis(),
-                ridge+Vector3(0.0,0.08,0.0)))
+                    floor_y+support_height*0.5,z)))
+            if not forge:
+                highlights.append(Transform3D(Basis(),
+                    Vector3(center_x,crest_y+0.08,z)))
     var column_mesh := BoxMesh.new()
     column_mesh.size = Vector3(0.43,VAULT_CLEARANCE,0.62)
     vault_posts = _instanced("NineGatewayPillarPairs",column_mesh,
         _material(COLOR_BODIES[biome].darkened(0.16)),pillars)
     var roof_mesh := BoxMesh.new()
-    roof_mesh.size = Vector3(VAULT_HALF_WIDTH+0.29,0.34,0.62)
+    roof_mesh.size = Vector3(FORGE_RIB_LENGTH if forge else VAULT_HALF_WIDTH+0.29,0.34,0.62)
     vault_roofs = _instanced("NineSculptedGatewayRidges",roof_mesh,
-        _material(COLOR_BODIES[biome].lightened(0.27)),roof_segments)
+        _material(COLOR_BODIES[biome].lightened(0.27)),vault_rib_roots)
     var neon := BoxMesh.new()
-    neon.size = Vector3(1.4,0.08,0.74)
+    neon.size = Vector3(FORGE_LIGHT_WIDTH if forge else 1.4,0.08,0.74)
     vault_highlights = _instanced("NineGatewayCrestLights",neon,
         _material(COLOR_GLOWS[biome],1.15),highlights)
     # 12 reused meshes in ONE GPU batch instead of separate tunnel roofs.
     # Timber slats, ice overhangs and metallic foundry awnings share the
     # identical safe geometry, but differ in material roughness/metallic.
     var canopy_mesh := BoxMesh.new()
-    canopy_mesh.size = Vector3(2.90,0.10,3.00)
+    canopy_mesh.size = Vector3(FORGE_CANOPY_WIDTH if forge else 2.90,0.10,3.00)
     canopy_panels = _instanced("TwelveOpenSkyCanopyBays",canopy_mesh,
         _material(COLOR_BODIES[biome].lightened(
             0.28 if biome == 1 else 0.12)),canopy_transforms)
