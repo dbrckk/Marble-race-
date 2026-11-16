@@ -679,12 +679,19 @@ func _themed_wood(base: Color) -> Color:
 func _terrain_ramp(parent: Node3D, center_z: float, section: int) -> void:
     # Short, low physical crests alter suspension/rolling lines without
     # closing the entire lane or trapping the 40-marble pack.
-    if selected_track == 0 and section != 9:
+    if selected_track == 0 and section != ShortcutRoute.EXIT_SECTION:
         return
     var lane := -2.2 if (section+selected_track)%2 == 0 else 2.2
     var z := center_z+1.5
+    var size := Vector3(3.55,0.22,2.35)
+    if selected_track == 1 and section == ShortcutRoute.EXIT_SECTION:
+        # The raised crest belongs on the opposite shoulder. The main lane
+        # next to the bridge is the passing line for the two converging roads.
+        lane = 3.05
+        z = center_z+2.9
+        size = Vector3(1.75,0.22,2.35)
     var ramp := _box(parent,Vector3(lane,height_at(z)+0.12,z),
-        Vector3(3.55,0.22,2.35),_lacquer(TRACK_COLORS[selected_track].lightened(0.20)),true,true)
+        size,_lacquer(TRACK_COLORS[selected_track].lightened(0.20)),true,true)
     ramp.name = "RideableCrest_%02d" % section
     ramp.rotation.x += -0.09 if selected_track == 1 else -0.16
 

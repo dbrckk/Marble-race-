@@ -4,11 +4,13 @@ Original **3D Android marble-racing game** inspired by the look and mechanics sh
 
 Independent implementation in **Godot 4.5.1**, focused on real mobile playability, physics, and stylized toy-table graphics. No proprietary material from the reference game is redistributed.
 
-## Current state: Android QA build (v1.56.0-rc, versionCode 70)
+## Current state: Android QA build (v1.57.0-rc, versionCode 71)
 
 **Playable scope (October 2026):** three visually differentiated 3D worlds with physical elevation changes, nine repeatable obstacle layouts, forty individually simulated glass marbles, real banked and elevated side-route shortcuts, six player perks, progression, ghost comparisons and optional online races. Autonomous opponents use deterministic physical steering, real route choices, anticipatory passing and forecasts of moving hazards; human steering stays entirely manual. The phone HUD previews real course geometry and estimates when Forge pistons will be open or blocked on arrival, with a nonrepeating audio danger cue.
 
 In solo races, a single in-world marker and the HUD identify the relevant nearby rival by name and side. A stable side-by-side contest gains slightly wider chase framing. Actual same-level passes show the overtaken racer or combine quickly successive passes into one callout.
+
+At Glacier’s bridge return, the raised crest sits on the far shoulder. Marbles on the main track have a clear passing line alongside racers coming off the bridge.
 
 Glacier’s bridge rejoins through a wider opening. Staggered shoulder obstacles leave a usable line from the bridge to the timed shutter on all three layouts. The shutter still varies by layout.
 
