@@ -37,6 +37,36 @@ func _check_rail_batch(game: Node3D, biome: int) -> Mesh:
     game.set_graphics_quality(1)
     return mesh
 
+func _check_start_gate(game: Node3D) -> Mesh:
+    var gate: Node3D = game.start_gate
+    var towers := gate.get_node("StartTowers") as MeshInstance3D
+    var lamps := gate.get_node("SignalLamps") as MultiMeshInstance3D
+    var mesh := towers.mesh
+    assert(gate.get_child_count() == 2 and mesh.get_surface_count() == 1)
+    assert(lamps.multimesh.instance_count == 6 and lamps.multimesh.use_colors)
+    assert(towers.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF and
+        lamps.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
+    for vertex in mesh.get_faces():
+        assert(absf(vertex.x) >= 5.6, "Keep the approach to the first obstacle unobstructed")
+    var signal_label: Label = game.ui.countdown_label
+    var panel := signal_label.get_parent() as Control
+    assert(panel.anchor_right < 0.2 and panel.mouse_filter == Control.MOUSE_FILTER_IGNORE)
+    assert(signal_label.is_visible_in_tree() and signal_label.text == "READY")
+    assert(gate.signal_stage == -1)
+    for count in [3,2,1]:
+        game.countdown = float(count)
+        game._process(1.0/60.0)
+        assert(gate.signal_stage == count and signal_label.text == str(count))
+        assert(game.player.freeze and game.race_state == "COUNTDOWN")
+    game.countdown = 0.01
+    game._process(1.0/60.0)
+    assert(gate.signal_stage == 0 and signal_label.text == "GO!")
+    assert(not game.player.freeze and game.race_state == "RACING")
+    game.race_time = 1.0
+    game._process(1.0/60.0)
+    assert(gate.signal_stage == -1 and not signal_label.is_visible_in_tree())
+    return mesh
+
 func _verify() -> void:
     var game = load("res://scenes/main.tscn").instantiate()
     root.add_child(game)
@@ -68,7 +98,10 @@ func _verify() -> void:
     assert(boards == 1, "Old course was left in the scene and could double physics")
     print("VARIATION_AND_HAZARD_PASS: 0-1-2-0, 28 edge hazards, HUD warning, one course, 40 racers")
     game.career.unlocked = 3
+    game.set_process(false)
+    game.set_physics_process(false)
     var profiles: Array[Mesh] = []
+    var gates_by_biome: Array[Mesh] = []
     for biome in range(3):
         assert(game.set_track(biome))
         for layout in range(3):
@@ -76,14 +109,19 @@ func _verify() -> void:
             game.start_race("Grip Tape")
             assert(game.built_variation == layout and game.racers.size() == 40)
             var profile := _check_rail_batch(game,biome)
+            var frame := _check_start_gate(game)
             if layout == 0:
                 assert(profile not in profiles, "Each biome needs its own geometry")
+                assert(frame not in gates_by_biome, "Each biome needs its own starting towers")
                 profiles.append(profile)
+                gates_by_biome.append(frame)
             else:
                 assert(profile == profiles[biome], "Reuse geometry across layout changes")
+                assert(frame == gates_by_biome[biome], "Reuse tower geometry across layout changes")
             game.return_to_menu()
             await process_frame
     print("RAIL_PROFILE_PASS: 9 layouts, 40 racers, all guards match physics, one rail batch")
+    print("START_GATE_PASS: 9 layouts, 40 racers, open sightline, countdown, launch and reset")
     game.queue_free()
     for n in range(4):
         await process_frame

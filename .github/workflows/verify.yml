@@ -89,12 +89,13 @@ jobs:
           set -euo pipefail
           XDG_DATA_HOME="$(mktemp -d)" timeout 75s ./Godot_v4.5.1-stable_linux.x86_64 --headless --fixed-fps 60 --quit-after 600 --path . --script res://tests/woodworks_opening.gd 2>&1 | tee woodworks-opening.log
           grep -Fq "WOODWORKS_OPENING_PASS:" woodworks-opening.log
-      - name: Race layouts, hazard UI and instanced guardrail regression
+      - name: Nine race layouts, starting signal and instanced guardrail regression
         shell: bash
         run: |
           set -euo pipefail
           timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --path . --script res://tests/replay_variation.gd 2>&1 | tee replay-variation.log
           grep -Fq 'RAIL_PROFILE_PASS' replay-variation.log
+          grep -Fq 'START_GATE_PASS' replay-variation.log
           grep -Fq "VARIATION_AND_HAZARD_PASS:" replay-variation.log
       - name: Scroll-safe Android prerace controls and real course map
         shell: bash

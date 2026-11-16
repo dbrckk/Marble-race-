@@ -1047,13 +1047,18 @@ func _build_race_hud() -> void:
     boost_progress.anchor_top = 0.637
     boost_progress.anchor_bottom = 0.660
     hud_layer.add_child(boost_progress)
-    countdown_label = _text("3", 86, ORANGE)
-    countdown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    countdown_label.anchor_left = 0.35
-    countdown_label.anchor_right = 0.65
-    countdown_label.anchor_top = 0.27
-    countdown_label.anchor_bottom = 0.59
-    hud_layer.add_child(countdown_label)
+    countdown_label = _small_panel_text("",28,Rect2(0.016,0.293,0.155,0.067),
+        HORIZONTAL_ALIGNMENT_CENTER)
+    countdown_label.name = "StartSignal"
+    countdown_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    countdown_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+    var countdown_panel := countdown_label.get_parent() as PanelContainer
+    countdown_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    var countdown_style := _surface(Color("#191d27"),Color("#b1805a"),10)
+    countdown_style.content_margin_top = 2.0
+    countdown_style.content_margin_bottom = 2.0
+    countdown_panel.add_theme_stylebox_override("panel",countdown_style)
+    countdown_panel.hide()
     # Floating left joystick + independent right-side boost. Full screen touch
     # pointer IDs protect against releases of unrelated fingers.
     touch_controls = TOUCH_CONTROLS.new()
@@ -1400,10 +1405,13 @@ func show_race_ui() -> void:
 
 func show_countdown(value: String) -> void:
     countdown_label.text = value
-    countdown_label.visible = true
+    countdown_label.add_theme_color_override("font_color",
+        Color("#8bf3c5") if value == "GO!" else Color("#ffc481"))
+    ghost_label.get_parent().hide()
+    countdown_label.get_parent().show()
 
 func hide_countdown() -> void:
-    countdown_label.visible = false
+    countdown_label.get_parent().hide()
 
 func show_race_moment(title: String, duration: float = 1.1, priority := 0) -> void:
     if not is_instance_valid(race_moment_label) or (moment_remaining > 0.0 and priority < moment_priority):
@@ -1519,7 +1527,8 @@ func update_hud() -> void:
             Color("#ffcf82") if game.boost_energy >= 0.25 else Color("#e9746b")))
     speed_label.text = "%02d KM/H" % int(game.player.linear_velocity.length() * 3.6)
     if is_instance_valid(game.best_ghost):
-        ghost_label.get_parent().visible = game.best_ghost.replay_available and not game.net.is_active()
+        ghost_label.get_parent().visible = game.best_ghost.replay_available and (
+            not game.net.is_active() and not countdown_label.is_visible_in_tree())
         if game.best_ghost.replay_available:
             ghost_label.text = game.best_ghost.gap_text(game.player.global_position)
     # Solo duel indicator: sampled from real 3D positions by RaceMoments

@@ -78,6 +78,15 @@ Base de comparaison GitHub `3546ac930e24d66d631d60a7d6674ec51b4c7fca`, résultat
 - Sur 27 paires de vues OpenGL Compatibility avec Mesa llvmpipe, médianes de six appels de dessin et 5 520 primitives affichées en moins par image. Ces vues statiques décrivent le coût géométrique. Le temps d’image, la stabilité thermique et la lisibilité en mouvement restent à mesurer sur un Android physique.
 - Import Godot 4.6.3, vérifications de tracés, de contrôles tactiles, de rendu, de raccourcis et de qualité graphique validés localement. La simulation existante a mesuré 38, 39 et 36 arrivées sur 40 sur les trois parcours sans pilotage humain. Le workflow GitHub vérifie le build Android avec Godot 4.5.1.
 
+### 2026-11-16 — Départ dégagé et feux synchronisés (1.70.0-rc)
+
+Base de comparaison GitHub `ab10cbd7f3305c14fed26602155e49ff34cd6218`, résultat dans le commit qui introduit cette entrée.
+
+- Deux montants latéraux libèrent la vue sur les premiers obstacles. Bois et laiton à Woodworks, glace facettée à Glacier, acier nervuré et cuivre à Forge. Le signal utilise une surface pour la paire de montants et une instance groupée de six feux, sans ombres supplémentaires ni colliders.
+- Le HUD affiche la préparation, 3, 2, 1 et le départ sous l’indicateur de vitesse. Les feux changent avec ce même compte à rebours et s’éteignent après le lancement. Les essais automatisés couvrent les neuf tracés, 40 billes, le déverrouillage des corps et la remise à zéro.
+- 27 paires de vues OpenGL Compatibility avec Mesa llvmpipe, du compte à rebours au début du roulage. Médiane de 11 appels de dessin et 634 primitives affichées en moins par image pour la scène entière. [Comparatif des trois départs](screenshots/v1.70-start-gates.jpg).
+- Les contrôles tactiles, la pause et la reprise, le cadrage et le HUD passent en local. Le temps d’image sur un Android physique reste à mesurer.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Remplacer les arches de départ génériques par trois portiques propres aux univers. Vérifier le signal de départ, la vue du premier obstacle et le cadrage du HUD pendant les 30 premières secondes. Reprendre les captures à 40 billes et vérifier le budget de dessin sur les neuf tracés.
+Retravailler les premiers obstacles de chaque univers. Rendre leur zone de danger et leur trajectoire d’évitement visibles depuis le départ, puis vérifier les franchissements au milieu du peloton et le budget de rendu sur les neuf tracés.

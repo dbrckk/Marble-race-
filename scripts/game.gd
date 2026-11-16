@@ -17,6 +17,7 @@ const MechanismArt = preload("res://scripts/mechanism_art.gd")
 const CourseDressing = preload("res://scripts/course_dressing.gd")
 const ObstacleFinish = preload("res://scripts/obstacle_finish.gd")
 const TrackSurface = preload("res://scripts/track_surface.gd")
+const StartGate = preload("res://scripts/start_gate.gd")
 const TrackPath = preload("res://scripts/track_path.gd")
 const RaceFeedback = preload("res://scripts/race_feedback.gd")
 const RaceMoments = preload("res://scripts/race_moments.gd")
@@ -115,6 +116,7 @@ var course_sculptures: Node3D
 var race_director: Node3D
 var shortcut_route: Node3D
 var track_surface: Node3D
+var start_gate: Node3D
 var track_physics_material: PhysicsMaterial
 var primary_light: DirectionalLight3D
 var world_environment: Environment
@@ -598,7 +600,7 @@ func _make_course() -> void:
     for color in WOOD_COLORS:
         woods.append(_wood_mat(_themed_wood(color)))
     track_surface.finish(woods,selected_track,_mat(Color("#82563d")))
-    _start_arch()
+    _make_start_gate()
     _finish_arch()
     _checkpoint_arches()
     _decorations()
@@ -854,14 +856,13 @@ func _add_spinner(parent: Node3D, z: float, n: int) -> void:
     pivot.set_meta("spin_speed", (1.0 if n%2==0 else -1.0) * (0.72 + n*0.022) * (1.0 + 0.19*selected_track))
     moving_obstacles.append(pivot)
 
-func _start_arch() -> void:
-    var z = 2.25
-    for x in [-6.0, 6.0]:
-        _box(board, Vector3(x+track_center_at(z), height_at(z)+1.7, z), Vector3(0.52, 3.2, 0.45),
-            _mat(Color("#c84d40")), false)
-    _box(board, Vector3(track_center_at(z), height_at(z)+3.1, z),
-        Vector3(12.4, 0.63, 0.52), _mat(Color("#ca5645")), false)
-    _floating_sign("START · 40 MARBLES", Vector3(track_center_at(z), height_at(z)+3.64, z))
+func _make_start_gate() -> void:
+    var z := StartGate.TRACK_Z
+    start_gate = StartGate.new()
+    start_gate.name = "StartGate"
+    start_gate.position = Vector3(track_center_at(z),height_at(z),z)
+    start_gate.setup(selected_track)
+    board.add_child(start_gate)
 
 func _finish_arch() -> void:
     # Visual finish stripe and physical finish detector coincide.
@@ -1190,8 +1191,9 @@ func start_race(perk_name: String) -> void:
     player.body_entered.connect(_camera_bump)
     audio.begin_race()
     last_count = -1
+    start_gate.set_signal(-1)
     ui.show_race_ui()
-    ui.show_countdown("READY?")
+    ui.show_countdown("READY")
     _update_camera(0.1, true)
 
 func restart_race() -> void:
@@ -1216,6 +1218,7 @@ func return_to_menu() -> void:
     player = null
     if is_instance_valid(contact_shadows):
         contact_shadows.clear_racers()
+    start_gate.set_signal(-1)
     race_state = "MENU"
     audio.menu_music()
     ui.show_menu()
@@ -1250,8 +1253,9 @@ func _process(delta: float) -> void:
         countdown -= delta
         if countdown > 0.0:
             var count := int(ceil(countdown))
-            ui.show_countdown(str(count))
             if count != last_count and count < 4:
+                start_gate.set_signal(count)
+                ui.show_countdown(str(count))
                 audio.tone("count")
                 last_count = count
         else:
@@ -1261,13 +1265,15 @@ func _process(delta: float) -> void:
                     m.freeze = false
                     m.sleeping = false
             ui.show_countdown("GO!")
+            start_gate.set_signal(0)
             audio.tone("start")
     elif race_state == "RACING":
         race_time += delta
         if is_instance_valid(best_ghost) and is_instance_valid(player):
             best_ghost.tick(race_time,player.global_position,graphics_quality)
-        if race_time > 1.0:
+        if race_time > 1.0 and start_gate.signal_stage == 0:
             ui.hide_countdown()
+            start_gate.set_signal(-1)
         if is_instance_valid(trail) and is_instance_valid(player):
             audio.update_progress(clampf(-player.position.z/absf(FINISH_Z),0.0,1.0))
             trail.emitting = graphics_quality > 0 and player.linear_velocity.length() > 4.0
@@ -1561,6 +1567,8 @@ func _burst(where: Vector3, finale: bool) -> void:
 func _end_race() -> void:
     if race_state == "RESULTS":
         return
+    start_gate.set_signal(-1)
+    ui.hide_countdown()
     if is_instance_valid(player) and player.finished:
         _burst(player.global_position, true)
     race_state = "RESULTS"
