@@ -1,8 +1,10 @@
 extends MeshInstance3D
-## Baked obstacle shells and ground paint for the first module. Entry
-## chevrons mark gaps at the entrance, outside the paddle's full sweep.
+## Baked shells and ground paint for the first and last obstacle modules.
+## Only the opening uses entry arrows. The final approach already has a
+## timed gate with independently changing lines.
 const Racer = preload("res://scripts/marble.gd")
 const Visuals = preload("res://scripts/visuals.gd")
+const RaceFeedback = preload("res://scripts/race_feedback.gd")
 const ENTRY_DEPTH := 1.30
 const ROAD_HALF_WIDTH := 6.38
 const CLEARANCE := Racer.RADIUS+0.12
@@ -20,8 +22,10 @@ var obstacle_count := 0
 var peg_count := 0
 var danger_footprints: Array[Rect2] = []
 var spinner_radius := 0.0
+var baffle_footprints: Array[Rect2] = []
+var spinner_center := Vector2.ZERO
 
-func build(section: Node3D, game: Node3D, floor_z: float) -> void:
+func build(section: Node3D, game: Node3D, floor_z: float, section_index: int) -> void:
     var palette: Array = PALETTES[game.selected_track]
     var surface := SurfaceTool.new()
     surface.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -45,6 +49,8 @@ func build(section: Node3D, game: Node3D, floor_z: float) -> void:
         obstacle_count += 1
         var footprint := _footprint(marker)
         danger_footprints.append(footprint)
+        if body.name.begins_with("AntiEdgeBaffle"):
+            baffle_footprints.append(footprint)
         first_edge = maxf(first_edge,footprint.end.y)
         # A band in front of each footprint stays visible as marbles approach it.
         var marking_z := footprint.end.y+0.065
@@ -54,20 +60,21 @@ func build(section: Node3D, game: Node3D, floor_z: float) -> void:
             _ground(surface,game,floor_z,Vector2(footprint.get_center().x,marking_z+0.42),
                 Vector2(footprint.size.x*0.78,0.11),palette[2])
 
-    var spinner := section.get_node_or_null("KineticPaddle_01") as AnimatableBody3D
+    var spinner := section.get_node_or_null("KineticPaddle_%02d" % section_index) as AnimatableBody3D
     if spinner != null:
         spinner_radius = _sweep_radius(spinner)
-        var center := Vector2(spinner.position.x,spinner.position.z)
+        spinner_center = Vector2(spinner.position.x,spinner.position.z)
         # Intersect the circular sweep with the approach band, not its full
         # square bounds. The rest is marked by the dashed ring further in.
-        var depth := maxf(0.0,first_edge-ENTRY_DEPTH-center.y)
+        var depth := maxf(0.0,first_edge-ENTRY_DEPTH-spinner_center.y)
         if depth < spinner_radius:
             var width := sqrt(spinner_radius*spinner_radius-depth*depth)
-            danger_footprints.append(Rect2(center+Vector2(-width,depth),
+            danger_footprints.append(Rect2(spinner_center+Vector2(-width,depth),
                 Vector2(width*2.0,spinner_radius-depth)))
-        _sweep_arcs(surface,game,floor_z,center,spinner_radius,palette[2])
+        _sweep_arcs(surface,game,floor_z,spinner_center,spinner_radius,palette[2])
     entry_z = first_edge+ENTRY_LEAD
-    entry_gaps = _entry_gaps(danger_footprints,first_edge)
+    if section_index == 1:
+        entry_gaps = _entry_gaps(danger_footprints,first_edge)
     for gap in entry_gaps:
         var midpoint := (gap.x+gap.y)*0.5
         var width := minf(0.68,(gap.y-gap.x)*0.51)
@@ -88,6 +95,34 @@ func build(section: Node3D, game: Node3D, floor_z: float) -> void:
     material.emission_energy_multiplier = 0.24
     material_override = material
     cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+func approach_warning(position_at: Vector3, velocity: Vector3, reach_seconds: float) -> Dictionary:
+    var local := to_local(position_at)
+    var speed := maxf(2.0,-velocity.z)
+    var nearest := reach_seconds
+    var message := ""
+    for footprint in baffle_footprints:
+        if local.z < footprint.position.y-Racer.RADIUS:
+            continue
+        var eta := maxf(0.0,local.z-footprint.end.y-Racer.RADIUS)/speed
+        if eta > nearest:
+            continue
+        var x := RaceFeedback.projected_lane_x(local.x,velocity.x,eta)
+        if x >= footprint.position.x-Racer.RADIUS and x <= footprint.end.x+Racer.RADIUS:
+            nearest = eta
+            message = "BAFFLE LEFT  •  MOVE INWARD" if footprint.get_center().x < 0.0 else (
+                "BAFFLE RIGHT  •  MOVE INWARD")
+    var sweep := spinner_radius+Racer.RADIUS
+    if spinner_radius > 0.0 and local.z >= spinner_center.y-sweep:
+        var distance := local.z-spinner_center.y
+        var x := RaceFeedback.projected_lane_x(local.x,velocity.x,maxf(0.0,distance)/speed)
+        var lateral := x-spinner_center.x
+        var half_depth := sqrt(maxf(0.0,sweep*sweep-lateral*lateral))
+        var eta := maxf(0.0,distance-half_depth)/speed
+        if half_depth > 0.0 and distance >= -half_depth and eta < nearest:
+            nearest = eta
+            message = "PADDLE SWEEP  •  WATCH THE ARM"
+    return {} if message.is_empty() else {"text":message,"eta":nearest}
 
 func _footprint(marker: CollisionShape3D) -> Rect2:
     var body := marker.get_parent() as Node3D
@@ -133,6 +168,12 @@ static func _block(surface: SurfaceTool, pose: Transform3D, size: Vector3, palet
             Vector3(x-width*0.23,high,front+0.008),
             Vector3(x+width,high,front+0.008),
             Vector3(x+width*0.23,low,front+0.008),palette[2])
+        # Keep the inlay visible from the chase camera above the pack.
+        var y := top+0.040
+        _quad(surface,pose,Vector3(x-width,y,front*0.58),
+            Vector3(x-width*0.23,y,front*0.20),
+            Vector3(x+width*0.23,y,front*0.20),
+            Vector3(x+width,y,front*0.58),palette[2])
 
 static func _peg(surface: SurfaceTool, pose: Transform3D, shape: CylinderShape3D,
         palette: Array, biome: int) -> void:

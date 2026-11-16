@@ -46,6 +46,7 @@ const MARBLE_COUNT := 40
 const SLOPE := 0.085
 const SEGMENT_LENGTH := 12.0
 const SEGMENTS := 18
+const FINAL_OBSTACLE_SECTION := SEGMENTS-4
 const FINISH_Z := -185.0
 const CHECKPOINT_Z := [-46.0,-106.0,-166.0]
 const RACE_TIMEOUT := 155.0
@@ -72,6 +73,8 @@ var audio: Node3D
 var camera: Camera3D
 var board: Node3D
 var moving_obstacles: Array[Node3D] = []
+var final_obstacle_art: MeshInstance3D
+var final_straight_z := 0.0
 var racers: Array[RigidBody3D] = []
 var player: RigidBody3D
 var racer_finish_order: Array[String] = []
@@ -388,7 +391,7 @@ func upcoming_hazard(at_z: float, downstream_limit := INF) -> Dictionary:
         if hazard_z <= downstream_limit and distance >= -1.0 and distance < nearest:
             nearest = distance
             notice = {"side":hazard["side"],"distance":maxi(0,int(round(distance))),
-                "z":hazard["z"]}
+                "z":hazard["z"], "final":hazard.get("final",false)}
     if is_instance_valid(race_director):
         var event: Dictionary = race_director.event_ahead(at_z,downstream_limit)
         if not event.is_empty() and float(event["distance"]) < nearest:
@@ -478,13 +481,14 @@ func _box(parent: Node3D, location: Vector3, dimensions: Vector3, material: Mate
     parent.add_child(holder)
     return holder
 
-func _cylinder(parent: Node3D, location: Vector3, radius: float, tall: float, color: Color) -> StaticBody3D:
+func _cylinder(parent: Node3D, location: Vector3, radius: float, tall: float, color: Color,
+        section: int) -> StaticBody3D:
     var body = StaticBody3D.new()
     body.name = "ToyPeg"
     body.position = location
     parent.add_child(body)
-    var opening := parent.name == &"Course_01"
-    if not opening and is_instance_valid(obstacle_finish):
+    var batched_art := section == 1 or section == FINAL_OBSTACLE_SECTION
+    if not batched_art and is_instance_valid(obstacle_finish):
         obstacle_finish.register_post(body.global_position,radius,tall,color)
     var hitbox = CollisionShape3D.new()
     var cylinder = CylinderShape3D.new()
@@ -492,7 +496,7 @@ func _cylinder(parent: Node3D, location: Vector3, radius: float, tall: float, co
     cylinder.height = tall
     hitbox.shape = cylinder
     body.add_child(hitbox)
-    if opening:
+    if batched_art:
         return body
     var art = MeshInstance3D.new()
     var mesh = CylinderMesh.new()
@@ -527,6 +531,9 @@ func _make_course() -> void:
     board.name = "HandcraftedWoodenCourse"
     board.set_meta("track_index",selected_track)
     built_variation = race_variation
+    var last_bank: int = CourseSculptures.BANK_SECTIONS.back()
+    final_straight_z = CourseSculptures.bank_z(last_bank,built_variation)-(
+        CourseSculptures.BANK_HALF_LENGTH+Racer.RADIUS)
     add_child(board)
     moving_obstacles.clear()
     # A freshly assembled course must not inherit the previous race's
@@ -570,7 +577,7 @@ func _make_course() -> void:
                 track_surface.register_rail(pos+section_node.position,track_grade_at(z))
         if section in [3, 9, 14]:
             _terrain_ramp(section_node,center_z,section)
-        if section > 0 and section < SEGMENTS - 3:
+        if section > 0 and section <= FINAL_OBSTACLE_SECTION:
             # Edge-specific baffles eliminate the dominant strategy of riding
             # permanently against either rail. Passages remain physically open.
             var glacier_return := selected_track == 1 and section >= ShortcutRoute.EXIT_SECTION and (
@@ -586,12 +593,14 @@ func _make_course() -> void:
                 _gate_with_posts(section_node, center_z, section)
             else:
                 _slalom(section_node, center_z, section)
-            if section == 1:
-                var opening := OpeningObstacles.new()
-                opening.name = "OpeningObstacleArt"
-                # Add the single assembled mesh after reading the real shapes.
-                opening.build(section_node,self,center_z)
-                section_node.add_child(opening)
+            if section == 1 or section == FINAL_OBSTACLE_SECTION:
+                var art := OpeningObstacles.new()
+                art.name = "OpeningObstacleArt" if section == 1 else "FinalObstacleArt"
+                # Paint the visible approach from the same collider geometry.
+                art.build(section_node,self,center_z,section)
+                section_node.add_child(art)
+                if section == FINAL_OBSTACLE_SECTION:
+                    final_obstacle_art = art
 
     _connect_winding_sections()
     # Real banked line options, plus collision-free landmark arches. The
@@ -717,11 +726,13 @@ func _edge_baffles(parent: Node3D, center_z: float, section: int, glacier_return
         var merge_side: bool = glacier_return and section == ShortcutRoute.EXIT_SECTION+1 and side < 0.0
         var size := Vector3(0.94 if merge_side else 2.72,1.05,1.32)
         var edge_offset := 6.04 if merge_side else 5.17
+        var batched_art := section == 1 or section == FINAL_OBSTACLE_SECTION
         var node := _box(parent,Vector3(side*edge_offset,height_at(z)+0.49,z),
-            size,_lacquer(material_color),true,true,section != 1)
+            size,_lacquer(material_color),true,true,not batched_art)
         node.name = "AntiEdgeBaffle_%02d_%s" % [section, "L" if side < 0.0 else "R"]
-        hazard_beacons.append({"z":z,"side":"LEFT" if side < 0.0 else "RIGHT"})
-        if section != 1:
+        hazard_beacons.append({"z":z,"side":"LEFT" if side < 0.0 else "RIGHT",
+            "final":section == FINAL_OBSTACLE_SECTION})
+        if not batched_art:
             obstacle_finish.register_block(node.global_transform,size,material_color)
     if not glacier_return and selected_track >= 1 and section % 3 == 0:
         # This diagonal gate reaches further into the lane but leaves a
@@ -752,7 +763,7 @@ func _glacier_return_obstacles(parent: Node3D, center_z: float, section: int) ->
         var z: float = center_z+flank*(1.45+float(built_variation)*0.75)
         var tint: Color = BARRIER_COLORS[(section+built_variation+int(flank))%BARRIER_COLORS.size()]
         if (section+built_variation+int(flank))%3 == 0:
-            var peg := _cylinder(parent,Vector3(x,height_at(z)+0.71,z),0.38,1.42,tint)
+            var peg := _cylinder(parent,Vector3(x,height_at(z)+0.71,z),0.38,1.42,tint,section)
             peg.name = "ToyPeg_GlacierShoulder_%02d_%s" % [section,"L" if flank < 0 else "R"]
         else:
             var size := Vector3(1.56,0.84,1.06)
@@ -773,9 +784,10 @@ func _pegs(parent: Node3D, center_z: float, n: int) -> void:
             shift += (float(race_variation)-1.0)*0.19*(1.0 if row%2==0 else -1.0)
             var x = (c - 2) * 2.20 + (0.56 if row % 2 == 1 else 0.0) + shift
             var tint = BARRIER_COLORS[(n + c + row) % BARRIER_COLORS.size()]
-            _cylinder(parent, Vector3(x, height_at(z)+0.8, z), 0.31, 1.6, tint)
+            _cylinder(parent, Vector3(x, height_at(z)+0.8, z), 0.31, 1.6, tint,n)
 
 func _gate_with_posts(parent: Node3D, center_z: float, n: int) -> void:
+    var batched_art := n == 1 or n == FINAL_OBSTACLE_SECTION
     for row in range(3 if selected_track == 2 else 2):
         var z = center_z + 3.2 - row * (4.2 if selected_track == 2 else 6.0)
         for i in range(3):
@@ -783,9 +795,9 @@ func _gate_with_posts(parent: Node3D, center_z: float, n: int) -> void:
             var gate_color: Color = BARRIER_COLORS[(n+row+i)%6]
             var size := Vector3(0.91,1.37,1.25)
             var block := _box(parent, Vector3(x,height_at(z)+0.67,z),
-                size,_lacquer(gate_color),true,true,n != 1)
+                size,_lacquer(gate_color),true,true,not batched_art)
             block.name = "GatePost_%02d_%02d_%02d" % [n,row,i]
-            if n != 1:
+            if not batched_art:
                 obstacle_finish.register_block(block.global_transform,size,gate_color)
     _add_spinner(parent, center_z, n)
     _swing_hammer(parent, center_z - 1.6, n)
@@ -815,6 +827,7 @@ func _swing_hammer(parent: Node3D, z: float, n: int) -> void:
     moving_obstacles.append(hinge)
 
 func _slalom(parent: Node3D, center_z: float, n: int) -> void:
+    var batched_art := n == 1 or n == FINAL_OBSTACLE_SECTION
     for i in range(5 if selected_track == 2 else 4):
         var z = center_z + 4.4 - float(i) * (2.2 if selected_track == 2 else 2.8)
         # The alternating barrier rhythm changes between layouts, but the
@@ -824,13 +837,13 @@ func _slalom(parent: Node3D, center_z: float, n: int) -> void:
         var slalom_color: Color = BARRIER_COLORS[(n+i)%6]
         var size := Vector3(3.4,0.75,1.05)
         var block := _box(parent, Vector3(x,height_at(z)+0.36,z),
-            size,_lacquer(slalom_color),true,true,n != 1)
+            size,_lacquer(slalom_color),true,true,not batched_art)
         block.name = "SlalomBlock_%02d_%02d" % [n,i]
-        if n != 1:
+        if not batched_art:
             obstacle_finish.register_block(block.global_transform,size,slalom_color)
     for i in range(3):
         var z = center_z + 2.3 - i * 3.5
-        _cylinder(parent, Vector3(0, height_at(z)+0.65, z), 0.34, 1.3, BARRIER_COLORS[(n+2*i)%6])
+        _cylinder(parent, Vector3(0, height_at(z)+0.65, z), 0.34, 1.3, BARRIER_COLORS[(n+2*i)%6],n)
 
 func _add_spinner(parent: Node3D, z: float, n: int) -> void:
     var pivot = AnimatableBody3D.new()

@@ -10,6 +10,7 @@ const RARE_ITEMS = preload("res://scripts/race_items.gd")
 const SHORTCUT_ROUTE = preload("res://scripts/shortcut_route.gd")
 const WOODWORKS_GUIDE_LIMIT := 30.0
 const VENT_WARNING_SECONDS := 1.55
+const FINAL_OBSTACLE_WARNING_SECONDS := 1.40
 const SURFACE_CUE_TOP := 0.402
 const SURFACE_CUE_BOTTOM := 0.449
 const PISTON_WARNING_SECONDS := 2.20
@@ -90,6 +91,7 @@ var race_notification_backdrop: Panel
 var speed_stripes: Array[ColorRect] = []
 var moment_remaining := 0.0
 var moment_priority := 0
+var final_danger_active := false
 var overtake_count := 0
 var overtake_chain_seconds := 0.0
 var last_seen_rank := -1
@@ -1364,6 +1366,7 @@ func show_race_ui() -> void:
     rank_toast_seconds = 0.0
     moment_remaining = 0.0
     moment_priority = 0
+    final_danger_active = false
     overtake_count = 0
     overtake_chain_seconds = 0.0
     rival_marker.hide()
@@ -1578,7 +1581,8 @@ func update_hud() -> void:
     var hazard: Dictionary = game.upcoming_hazard(game.player.global_position.z,downstream_limit)
     # Timed events have their own forecast, so do not show two duplicate
     # hazard banners while also preserving warnings for physical edge gates.
-    hazard_label.visible = not hazard.is_empty() and not hazard.has("index")
+    hazard_label.visible = not hazard.is_empty() and not hazard.has("index") and (
+        not hazard.get("final",false))
     if hazard_label.visible:
         var metres: float = float(hazard["distance"])
         var approach: float = maxf(1.25,-game.player.linear_velocity.z)
@@ -1712,6 +1716,7 @@ func update_hud() -> void:
         timed_gate_backdrop.visible = is_finite(urgent_gate_eta) or (
             game.selected_track == 1 and bridge_approach_active and timed_gate_label.visible)
         _update_biome_lane(lane_hint,urgent_gate_eta)
+    _show_final_danger(gate_id,urgent_gate_eta,piston_contact_eta,lane_hint,vent_eta,still_racing)
     if vent_eta < 0.20 or vent_eta > VENT_WARNING_SECONDS:
         vent_eta = INF
     if game.audio.warned_vents.has(vent_index):
@@ -1729,7 +1734,7 @@ func update_hud() -> void:
         game.player.global_position,game.player.racer_id,item_reach,bridge_approach_active) if (
         is_instance_valid(game.race_items) and still_racing) else {}
     var pickup_eta := float(next_item.get("distance",INF))/maxf(2.0,forward_speed)
-    rare_item_label.visible = not next_item.is_empty() and pickup_eta < pickup_limit
+    rare_item_label.visible = not final_danger_active and not next_item.is_empty() and pickup_eta < pickup_limit
     if rare_item_label.visible:
         rare_item_label.text = "RARE %s  •  %s  •  %dm" % [
             str(next_item["label"]),str(next_item["side"]),
@@ -1760,6 +1765,46 @@ func update_hud() -> void:
     if place > 3:
         table += "%02d  YOU ★" % place
     leaderboard.text = table
+
+func _show_final_danger(gate_id: int, urgent_gate_eta: float, piston_contact_eta: float,
+        lane_hint: Dictionary, vent_eta: float, still_racing: bool) -> void:
+    # Keep the nearest final-sector steering instruction in the existing
+    # danger row. Later cues stay quiet until the marble clears the hazard.
+    var last_gate: bool = gate_id >= 0 and gate_id == game.race_director.EVENT_Z.size()-1
+    var last_surface: bool = not lane_hint.is_empty() and (
+        int(lane_hint["index"]) == game.course_mechanics.ZONE_Z.size()-1)
+    var final_gate_eta := urgent_gate_eta if last_gate and timed_gate_label.visible else INF
+    if last_gate and game.selected_track == 2 and timed_gate_label.visible and timed_gate_backdrop.visible:
+        final_gate_eta = piston_contact_eta
+    var final_surface_eta := INF
+    if last_surface and biome_lane_label.visible:
+        if game.selected_track == 2 and vent_eta <= VENT_WARNING_SECONDS:
+            final_surface_eta = vent_eta
+        elif game.selected_track == 1 and lane_hint.get("on_line",false) and (
+                float(lane_hint["eta"]) <= FINAL_OBSTACLE_WARNING_SECONDS):
+            final_surface_eta = float(lane_hint["eta"])
+    var final_warning: Dictionary = game.final_obstacle_art.approach_warning(
+        game.player.global_position,game.player.linear_velocity,FINAL_OBSTACLE_WARNING_SECONDS) if (
+        still_racing and is_instance_valid(game.final_obstacle_art)) else {}
+    var final_obstacle_eta := float(final_warning.get("eta",INF))
+    var danger_was_active := final_danger_active
+    final_danger_active = is_finite(minf(final_obstacle_eta,minf(final_gate_eta,final_surface_eta)))
+    if final_danger_active:
+        hazard_label.hide()
+        timed_gate_backdrop.show()
+        if final_obstacle_eta < minf(final_gate_eta,final_surface_eta):
+            timed_gate_label.text = "%s  •  %.1fs" % [final_warning["text"],final_obstacle_eta]
+            timed_gate_label.add_theme_color_override("font_color",Color("#ffae91"))
+            timed_gate_label.show()
+            biome_lane_label.hide()
+        elif final_surface_eta < final_gate_eta:
+            timed_gate_label.hide()
+            _update_biome_lane(lane_hint,INF,true)
+        else:
+            biome_lane_label.hide()
+        duel_label.hide()
+    if final_danger_active != danger_was_active:
+        _refresh_race_notification()
 
 func _show_forge_hazard(vent: Dictionary, gate_eta: float, piston_priority: float,
         vent_priority: float) -> void:
@@ -1832,12 +1877,14 @@ func _update_biome_lane(hint: Dictionary, urgent_gate_eta: float, primary := fal
     biome_lane_label.show()
 
 func _refresh_race_notification() -> void:
-    # Give confirmed race moments the slot, then checkpoint/pickup updates.
-    # Every timer keeps running so an old notification cannot reappear later.
+    # Finish feedback keeps its priority. Other timers continue to expire
+    # while the driving cue has the screen to itself.
     race_moment_label.visible = moment_remaining > 0.0 and (
+        not final_danger_active or moment_priority >= 3) and (
         toast_remaining <= 0.0 or moment_priority > 0)
-    checkpoint_label.visible = toast_remaining > 0.0 and not race_moment_label.visible
-    position_feedback.visible = rank_toast_seconds > 0.0 and (
+    checkpoint_label.visible = not final_danger_active and toast_remaining > 0.0 and (
+        not race_moment_label.visible)
+    position_feedback.visible = not final_danger_active and rank_toast_seconds > 0.0 and (
         not checkpoint_label.visible and not race_moment_label.visible)
     var opacity := 0.0
     if race_moment_label.visible:

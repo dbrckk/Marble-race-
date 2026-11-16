@@ -122,6 +122,15 @@ Base de comparaison GitHub `86bcb22501a9b46b2611b012aa41855c7c1ba777`, résultat
 - Les résultats affichent le temps enregistré au franchissement. La revanche lance la variante suivante avec 40 billes. Le test de bout en bout vérifie le résultat affiché et enchaîne une nouvelle course avec le bouton existant.
 - 27 paires de vues à 86 km/h avec 40 billes en OpenGL Compatibility. Médiane de 50 appels de rendu et 4 272 primitives affichées en moins par image. [Comparatif des trois arrivées](screenshots/v1.74-finish-line.jpg). Temps d’image sur Android physique à mesurer.
 
+### 2026-11-16 — Dernier obstacle et sprint final (1.75.0-rc)
+
+Base de comparaison GitHub `d4a6ddc38315e40bfe44746974d00eadc855cc23`.
+
+- Le dernier module réunit les finitions des plots, blocs et déflecteurs dans une surface. Leurs bandes au sol suivent les colliders, et la palette conserve un cercle de débattement visible en Économie. Les obstacles conservent leurs positions, dimensions et trajectoires.
+- L’alerte de conduite la plus proche prend la place centrale lorsqu’un déflecteur, la palette, le dernier obstacle temporisé, l’évent ou la plaque de glace concerne la trajectoire. Le HUD suspend les annonces secondaires. « FINAL STRAIGHT » se déclenche après le dernier virage relevé, avant le damier.
+- 27 paires de vues à 86 km/h avec 40 billes en OpenGL Compatibility sur Mesa llvmpipe. Écarts médians de −44 appels de rendu et −6 986 primitives par image. [Comparatif des trois circuits](screenshots/v1.75-final-approach.jpg). Temps d’image sur Android physique à mesurer.
+- Neuf simulations depuis l’entrée du secteur avec 40 billes. Le joueur termine les neuf courses et retrouve son chrono au résultat. Les nombres de billes déjà arrivées à l'ouverture des résultats et les temps du joueur correspondent à la version précédente. Les tests du HUD couvrent les neuf variantes, la priorité du danger et le retour à l’affichage normal après le passage.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Rendre la dernière relance plus lisible avant le sprint. Vérifier les trajectoires dans le peloton à l’approche du dernier obstacle et la priorité des signaux de danger sur le HUD.
+Profiler sur Android physique les collisions du dernier secteur à 40 billes. Mesurer le temps d’image au 95e percentile et observer les reprises de vitesse des billes coincées entre la palette et les déflecteurs.

@@ -72,8 +72,8 @@ func _checkpoint_stripes(tint: Color) -> void:
 
 func _warning_stripes(stage: Node3D, tint: Color) -> void:
     var points: Array[Vector3] = []
-    # The first pair already has collision-aligned paint in OpeningObstacleArt.
-    for warning in stage.hazard_beacons.slice(2):
+    # Both end modules have collision-aligned paint in their obstacle meshes.
+    for warning in stage.hazard_beacons.slice(2,-2):
         var z: float = float(warning["z"])+2.6
         var x := -5.18 if warning["side"] == "LEFT" else 5.18
         for i in range(3):

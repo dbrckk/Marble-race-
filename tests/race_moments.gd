@@ -128,6 +128,12 @@ func _run() -> void:
     stage.race_moments.message_at = -100.0
     p.global_position = Vector3(0,stage.height_at(-161.0)+0.8,-161.0)
     stage.race_moments.tick(0.12)
+    assert(not stage.race_moments.final_stretch_seen,
+        "The finish cue starts downstream of the remaining obstacles")
+    var sprint_z: float = stage.final_straight_z-0.6
+    var sprint_x: float = stage.track_center_at(sprint_z)
+    p.global_position = Vector3(sprint_x,stage.height_at(sprint_z)+0.65,sprint_z)
+    stage.race_moments.tick(0.12)
     assert(stage.race_moments.final_stretch_seen)
     assert(stage.ui.race_moment_label.text == "FINAL STRAIGHT")
     stage.race_moments.tick(0.12)

@@ -57,8 +57,10 @@ func _run_checks() -> void:
     var finish: Node3D = race.board.get_node_or_null("PremiumObstacleFinishes")
     assert(finish != null, "Missing v0.8 obstacle detailing")
     var opening: MeshInstance3D = race.board.get_node("Course_01/OpeningObstacleArt")
-    assert(finish.post_count+opening.peg_count >= 85, "Pegs must have batched art")
-    assert(finish.block_count+opening.obstacle_count-opening.peg_count >= 20,
+    var final_art: MeshInstance3D = race.final_obstacle_art
+    var batched_pegs: int = opening.peg_count+final_art.peg_count
+    assert(finish.post_count+batched_pegs >= 85, "Pegs must have batched art")
+    assert(finish.block_count+opening.obstacle_count+final_art.obstacle_count-batched_pegs >= 20,
         "Box obstacles must have batched art")
     for detail in finish.get_children():
         assert(detail is MultiMeshInstance3D, "Obstacle details must remain GPU-instanced")

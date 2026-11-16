@@ -10,7 +10,6 @@ const PASS_VERTICAL_LIMIT := 1.45
 const RIVAL_DISPLAY_RANGE := 12.0
 const RIVAL_SWITCH_MARGIN := 0.7
 const NOTIFICATION_COOLDOWN := 1.10
-const FINAL_STRETCH_Z := -158.0
 const PHOTO_FINISH_WINDOW := 0.48
 # A genuine shoulder-to-shoulder contest is more than a one-frame overlap:
 # two moving spheres must maintain comparable speed and elevation.
@@ -166,12 +165,14 @@ func tick(delta: float) -> void:
         nearby_pack_count = 0
         pack_pressure = 0.0
         sampled_once = false
-    if not final_stretch_seen and game.player.global_position.z < FINAL_STRETCH_Z:
+    if not final_stretch_seen and p.z < game.final_straight_z and p.z > game.FINISH_Z and (
+            elapsed-message_at > NOTIFICATION_COOLDOWN and
+            p.y >= game.height_at(p.z)-0.3 and
+            absf(p.x-game.track_center_at(p.z)) <= 6.75):
         final_stretch_seen = true
-        if elapsed-message_at > NOTIFICATION_COOLDOWN:
-            message_at = elapsed
-            game.ui.show_race_moment("FINAL STRAIGHT",1.4,1)
-            game.audio.race_moment("final_stretch")
+        message_at = elapsed
+        game.ui.show_race_moment("FINAL STRAIGHT",1.4,1)
+        game.audio.race_moment("final_stretch")
     if player_teleported:
         return
     sampled_once = true

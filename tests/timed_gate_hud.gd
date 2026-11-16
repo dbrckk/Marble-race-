@@ -248,6 +248,7 @@ func _verify() -> void:
             if biome == 2:
                 _verify_forge_exit(game)
                 _verify_forge_encounter_order(game)
+            assert(_verify_final_approach(game))
             game.return_to_menu()
             assert(not game.ui.hud_layer.visible)
     _verify_audio_cues(game.audio)
@@ -256,8 +257,46 @@ func _verify() -> void:
         await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_timed_hud_career.cfg"))
-    print("TIMED_HUD_PASS: 9 layouts, speed-aware approaches, original cues, Glacier ice and bridge handoffs, Forge encounter order and piston crossing windows")
+    print("TIMED_HUD_PASS: 9 layouts, speed-aware approaches, original cues, Glacier ice and bridge handoffs, Forge encounter order, piston crossing windows and final obstacle priority")
     quit(0)
+
+func _verify_final_approach(game: Node3D) -> bool:
+    var hud: CanvasLayer = game.ui
+    var art: MeshInstance3D = game.final_obstacle_art
+    assert(art.mesh.get_surface_count() == 1 and art.entry_gaps.is_empty())
+    assert(art.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
+    assert(art.baffle_footprints.size() == 2)
+    var speed := Vector3(0,0,-24.0)
+    var right: Rect2 = art.baffle_footprints[1]
+    var baffle_x: float = art.global_position.x+right.get_center().x
+    var z: float = right.end.y+1.0
+    var approach := Vector3(baffle_x,game.height_at(z)+0.68,z)
+    game.set_graphics_quality(0)
+    assert(art.is_visible_in_tree(), "The final warning paint belongs in Economy")
+    game.set_graphics_quality(1)
+    if art.spinner_radius > 0.0:
+        var sweep_z: float = art.spinner_center.y+art.spinner_radius+1.2
+        var sweep_x: float = art.global_position.x+art.spinner_center.x
+        var sweep := Vector3(sweep_x,game.height_at(sweep_z)+0.68,sweep_z)
+        var hint: Dictionary = art.approach_warning(sweep,speed,1.4)
+        assert(hint.get("text","").contains("PADDLE SWEEP"))
+    assert(art.approach_warning(Vector3(art.global_position.x-5.15,approach.y,approach.z),speed,1.4).is_empty(),
+        "The baffle warning must follow the lane and stay silent on the opposite shoulder once its baffle is behind")
+    hud.show_checkpoint(3,7.0)
+    hud.show_race_moment("TURBO",1.0,1)
+    _update_at(game,approach,speed)
+    assert(hud.final_danger_active and hud.timed_gate_backdrop.visible and
+        hud.timed_gate_label.visible and hud.timed_gate_label.text.contains("BAFFLE RIGHT") and
+        not hud.hazard_label.visible and not hud.biome_lane_label.visible and
+        not hud.rare_item_label.visible and not hud.race_notification_backdrop.visible,
+        "The final physical baffle takes the driving row ahead of sprint and bonus toasts")
+    hud.show_race_moment("PHOTO FINISH!",1.4,3)
+    assert(hud.race_moment_label.visible, "Confirmed finish feedback keeps its priority")
+    var clear_z: float = game.final_straight_z-0.25
+    _update_at(game,Vector3(game.track_center_at(clear_z),game.height_at(clear_z)+0.7,clear_z),speed)
+    assert(not hud.final_danger_active and not hud.timed_gate_label.visible and
+        not hud.timed_gate_backdrop.visible)
+    return true
 
 func _verify_forge_feedback(game: Node3D) -> void:
     var ui: CanvasLayer = game.ui
