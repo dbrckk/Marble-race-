@@ -532,7 +532,7 @@ func _make_course() -> void:
     board.name = "HandcraftedWoodenCourse"
     board.set_meta("track_index",selected_track)
     built_variation = race_variation
-    board.set_meta("solo_forge_crest",_uses_solo_forge_crest(built_variation))
+    board.set_meta("solo_course_clearance",_uses_solo_course_clearance(built_variation))
     var last_bank: int = CourseSculptures.BANK_SECTIONS.back()
     final_straight_z = CourseSculptures.bank_z(last_bank,built_variation)-(
         CourseSculptures.BANK_HALF_LENGTH+Racer.RADIUS)
@@ -647,7 +647,7 @@ func _make_course() -> void:
     # Six post arts / twelve light rings render in just two GPU batches.
     arcade_bumpers = ArcadeBumpers.new()
     board.add_child(arcade_bumpers)
-    arcade_bumpers.setup(self,selected_track,built_variation)
+    arcade_bumpers.setup(selected_track,built_variation,board.get_meta("solo_course_clearance"))
     arcade_bumpers.set_quality(graphics_quality)
     var cosmetic = TrackFX.new()
     cosmetic.name = "PolishedToyDetails"
@@ -698,8 +698,9 @@ func _themed_wood(base: Color) -> Color:
         return base.lerp(Color("#aa6353"),0.29)
     return base
 
-func _uses_solo_forge_crest(layout: int) -> bool:
-    return selected_track == 2 and layout == 2 and net != null and not net.is_active()
+func _uses_solo_course_clearance(layout: int) -> bool:
+    return (layout == 0 if selected_track == 1 else layout == 2) and (
+        net != null and not net.is_active())
 
 func _terrain_ramp(parent: Node3D, center_z: float, section: int) -> void:
     # Short, low physical crests alter suspension/rolling lines without
@@ -709,10 +710,9 @@ func _terrain_ramp(parent: Node3D, center_z: float, section: int) -> void:
     var lane := -2.2 if (section+selected_track)%2 == 0 else 2.2
     var z := center_z+1.5
     var size := Vector3(3.55,0.22,2.35)
-    if section == FINAL_OBSTACLE_SECTION and board.get_meta("solo_forge_crest"):
-        # The Forge crest's front edge and the gate's central post can
-        # pin a marble together. Keep the crest after the bank, away from
-        # the paddle, post and baffle collision footprints.
+    if section == FINAL_OBSTACLE_SECTION and board.get_meta("solo_course_clearance"):
+        # Give the crest its own stretch past the last bank, clear of the
+        # gate posts and the paddle's sweep.
         z = CourseSculptures.bank_z(CourseSculptures.BANK_SECTIONS.back(),built_variation)-5.8
         lane += track_center_at(z)-parent.position.x
     if selected_track == 1 and section == ShortcutRoute.EXIT_SECTION:
@@ -1163,7 +1163,7 @@ func start_race(perk_name: String) -> void:
     # without changing the course identity or difficulty.
     if not is_instance_valid(board) or race_variation != built_variation or (
         int(board.get_meta("track_index",-1)) != selected_track or
-        board.get_meta("solo_forge_crest") != _uses_solo_forge_crest(race_variation)):
+        board.get_meta("solo_course_clearance") != _uses_solo_course_clearance(race_variation)):
         _make_course()
         audio.bind_mechanisms(moving_obstacles)
         audio.set_track_theme(selected_track)

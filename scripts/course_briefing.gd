@@ -45,10 +45,9 @@ func hazard_z_at(index: int) -> float:
     return DIRECTOR.event_z_for(course,variation,index)
 
 func kicker_marker(station: int, side: int) -> Vector2:
-    var z: float = KICKERS.station_z(station,variation)
-    var x: float = TRACK_PATH.center_at(z,course)+KICKERS.side_offset(
-        station,side,course,variation)
-    return project(z,x)
+    var solo: bool = not is_instance_valid(stage) or not stage.net.is_active()
+    var position: Vector3 = KICKERS.placement_at(station,side,course,variation,solo)
+    return project(position.z,position.x)
 
 func item_marker(index: int) -> Vector2:
     # Exactly the same absolute world-space placement as the collectible

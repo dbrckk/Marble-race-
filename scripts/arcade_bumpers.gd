@@ -3,6 +3,7 @@ extends Node3D
 ## They use static physics colliders and shared GPU-instanced art. A marble
 ## bounces through ordinary Godot contacts; no hidden impulse, scripted boost,
 ## teleport or client-authoritative effect can distort the championship.
+const TRACK_PATH = preload("res://scripts/track_path.gd")
 const STATION_Z := [-10.0,-130.0,-178.0]
 const SIDES := [-1,1]
 const RADIUS := 0.67
@@ -11,9 +12,9 @@ const EDGE_X := 4.65
 const BOUNCE := [0.76,0.87,0.98]
 const COLORS := [Color("#f5bf71"),Color("#8feeff"),Color("#ff9a72")]
 
-var stage: Node3D
 var biome := 0
 var layout := 0
+var solo := false
 var bodies: Array[StaticBody3D] = []
 var cylinders: MultiMeshInstance3D
 var glow_rings: MultiMeshInstance3D
@@ -38,15 +39,22 @@ static func side_offset(index: int, side: int, track: int,
     var phase: int = posmod(index+next_layout+clampi(track,0,2),3)
     return float(side)*(EDGE_X+[-0.36,0.0,0.36][phase])
 
-func location_at(index: int, side: int) -> Vector3:
-    var z: float = station_z(index,layout)
-    return Vector3(stage.track_center_at(z)+side_offset(
-        index,side,biome,layout),stage.height_at(z)+HEIGHT*0.5,z)
+static func placement_at(index: int, side: int, track: int,
+        next_layout: int, solo: bool) -> Vector3:
+    var z: float = station_z(index,next_layout)
+    if solo and track == 0 and next_layout == 2 and index == 1 and side == -1:
+        # Space the spring post away from the rail seam and next baffle.
+        z += 2.6
+    return Vector3(TRACK_PATH.center_at(z,track)+side_offset(
+        index,side,track,next_layout),TRACK_PATH.height_at(z,track)+HEIGHT*0.5,z)
 
-func setup(owner: Node3D, track: int, next_layout: int) -> void:
-    stage = owner
+func location_at(index: int, side: int) -> Vector3:
+    return placement_at(index,side,biome,layout,solo)
+
+func setup(track: int, next_layout: int, is_solo: bool) -> void:
     biome = clampi(track,0,2)
     layout = posmod(next_layout,3)
+    solo = is_solo
     name = "PhysicalPinballKickers"
     var surface := PhysicsMaterial.new()
     surface.friction = 0.08

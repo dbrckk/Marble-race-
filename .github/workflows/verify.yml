@@ -463,7 +463,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          timeout 150s ./Godot_v4.5.1-stable_linux.x86_64 --headless --fixed-fps 60 --quit-after 33000 --path . --script res://tests/final_pack.gd 2>&1 | tee final-pack.log
+          timeout 180s ./Godot_v4.5.1-stable_linux.x86_64 --headless --fixed-fps 60 --quit-after 41500 --path . --script res://tests/final_pack.gd 2>&1 | tee final-pack.log
           grep -Fq "FINAL_PACK_PASS:" final-pack.log
       - name: Configure Android SDK
         shell: bash

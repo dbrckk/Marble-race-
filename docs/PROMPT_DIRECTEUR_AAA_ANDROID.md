@@ -147,6 +147,14 @@ Base de comparaison GitHub `6fad6efd6aa56fdf8735dead1f9724295e045a9b`.
 - Dans le scénario de régression à 40 billes sur Godot 4.5.1, le blocage de 47,5 s a disparu et la plus longue absence de progression sur ce tracé est passée à 11,2 s. Sur les neuf variantes, le joueur franchit l’arrivée et chaque IA termine ou est éliminée dans les 60 s. Six variantes classent 40 billes, trois en classent 39.
 - Avec un peloton lancé 14 m plus en amont, les 40 billes ont franchi l’arrivée sur la troisième variante de Forge en 26,95 s. Le même essai a révélé un blocage IA sur Woodworks et un autre sur Glacier. Les vues OpenGL Compatibility, à l’approche de l’obstacle et avant l’arrivée, ont permis de vérifier le déplacement de la bosse en vue de poursuite.
 
+### 2026-11-16 — Passages du peloton sur Woodworks et Glacier (1.78.0-rc)
+
+Base de comparaison GitHub `3dbca0484f5e402f01160885a5eef2235f06eaab`.
+
+- Sur le troisième tracé de Woodworks, la bille se coinçait entre le plot à ressort gauche et le raccord de rambarde. Le plot est avancé de 2,60 m vers l’amont. La mini-carte, la géométrie et les effets de contact suivent le même emplacement.
+- Sur le premier tracé de Glacier, le bord de la dernière bosse bloquait une bille entrée dans le peloton. La bosse est déplacée après le virage relevé comme sur Forge. Les trois placements solo sont testés lors des transitions vers le multijoueur puis du retour au même tracé en solo.
+- Le test de peloton couvre les neuf variantes et deux entrées supplémentaires à 51 m de l’arrivée, à 18 m/s. Sur ces deux entrées, les 40 billes passent la ligne. La simulation distincte qui a révélé les blocages classe également les 40 billes sur ces deux tracés. Certaines variantes peuvent toujours éliminer des billes.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Mesurer le temps d’image au 95e percentile sur Redmi en profil Équilibré. Reproduire ensuite les blocages observés avec un peloton entrant plus tôt dans le secteur, notamment à la rambarde de Woodworks et devant les plots de Glacier.
+Mesurer le temps d’image au 95e percentile sur Redmi en profil Équilibré avec 40 billes pendant le dernier secteur. Rejouer les sorties de piste observées dès les premiers contacts du peloton.
