@@ -76,7 +76,8 @@ static func _line_at(index: int, track: int, variation: int, solo: bool) -> Vect
     # Keep online coordinates compatible with deployed clients and servers.
     return Vector2(ITEM_Z[index],ITEM_X[posmod(index+course+layout,ITEM_X.size())])
 
-func nearest_available(at: Vector3, racer_id: int, max_distance: float = 28.0) -> Dictionary:
+func nearest_available(at: Vector3, racer_id: int, max_distance: float = 28.0,
+        continuing_merge := false) -> Dictionary:
     if not at.is_finite() or not is_finite(max_distance) or max_distance <= 0.0:
         return {}
     # Only four candidate pickups. Called by HUD at 9Hz, never the 60Hz
@@ -84,7 +85,7 @@ func nearest_available(at: Vector3, racer_id: int, max_distance: float = 28.0) -
     # A racer committed to the exterior bridge cannot reach main-road items
     # before the physical merge. Suppress misleading impossible pickup cues.
     var on_outer_bridge: bool = is_instance_valid(game.shortcut_route) and (
-        str(game.shortcut_route.shortcut_hint(at).get("mode","")) == "merge")
+        str(game.shortcut_route.shortcut_hint(at,continuing_merge).get("mode","")) == "merge")
     for i in range(items.size()):
         var pickup: Node3D = items[i]
         if not is_instance_valid(pickup) or not pickup.visible or (

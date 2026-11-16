@@ -9,6 +9,10 @@ const PROGRESS_RADAR = preload("res://scripts/race_progress_radar.gd")
 const RARE_ITEMS = preload("res://scripts/race_items.gd")
 const SHORTCUT_ROUTE = preload("res://scripts/shortcut_route.gd")
 const WOODWORKS_GUIDE_LIMIT := 30.0
+const VENT_WARNING_SECONDS := 1.55
+const SURFACE_CUE_TOP := 0.402
+const SURFACE_CUE_BOTTOM := 0.449
+const PISTON_WARNING_SECONDS := 2.20
 const FONT_HEAVY = preload("res://assets/fonts/Rajdhani-Bold.ttf")
 const FONT_REGULAR = preload("res://assets/fonts/Rajdhani-Medium.ttf")
 const TEXT := Color("#fff1dc")
@@ -958,7 +962,7 @@ func _build_race_hud() -> void:
     hud_layer.add_child(timed_gate_label)
     # Rare collectible guidance occupies its own thin band beneath timed
     # hazard warnings; it never covers the mobile steering or boost zones.
-    rare_item_label = _text("",15,Color("#b5eeff"))
+    rare_item_label = _text("",17,Color("#b5eeff"))
     rare_item_label.name = "UpcomingHumanPowerup"
     rare_item_label.anchor_left = 0.285
     rare_item_label.anchor_right = 0.715
@@ -973,8 +977,8 @@ func _build_race_hud() -> void:
     biome_lane_label.name = "SurfaceLanePreview"
     biome_lane_label.anchor_left = 0.285
     biome_lane_label.anchor_right = 0.715
-    biome_lane_label.anchor_top = 0.402
-    biome_lane_label.anchor_bottom = 0.449
+    biome_lane_label.anchor_top = SURFACE_CUE_TOP
+    biome_lane_label.anchor_bottom = SURFACE_CUE_BOTTOM
     biome_lane_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     biome_lane_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
     biome_lane_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1376,6 +1380,8 @@ func show_race_ui() -> void:
     if is_instance_valid(position_feedback):
         position_feedback.visible = false
     bridge_approach_active = false
+    biome_lane_label.anchor_top = SURFACE_CUE_TOP
+    biome_lane_label.anchor_bottom = SURFACE_CUE_BOTTOM
     if is_instance_valid(shortcut_label):
         shortcut_label.visible = false
     if is_instance_valid(timed_gate_label):
@@ -1588,12 +1594,14 @@ func update_hud() -> void:
     var still_racing: bool = game.race_state == "RACING" and not game.player.finished and not game.player.eliminated
     timed_gate_label.visible = still_racing and not moving_event.is_empty()
     var urgent_gate_eta := INF
+    var gate_eta := INF
+    var piston_contact_eta := INF
     var bridge_piston_warning := false
     var audible_gate_eta := INF
     var gate_id := -1
     if timed_gate_label.visible:
         var gate_distance: float = game.player.global_position.z-float(moving_event["z"])
-        var gate_eta: float = gate_distance/maxf(
+        gate_eta = gate_distance/maxf(
             2.0,-game.player.linear_velocity.z)
         gate_id = int(moving_event["index"])
         var projected_blocking: bool = game.selected_track != 2 or (
@@ -1638,20 +1646,30 @@ func update_hud() -> void:
             tint = Color("#ffd494")
         elif player_threatened and not bridge_exit_preview:
             tint = Color("#ffae91") if gate_eta < 1.45 else Color("#f6d49b")
-            if gate_eta >= 0.20 and gate_eta <= 2.20:
-                audible_gate_eta = gate_eta
+        if bridge_piston_warning or (player_threatened and not bridge_exit_preview):
+            var entry_distance: float = gate_distance-game.race_director.BODY_DEPTH*0.5-(
+                game.race_director.MARBLE_CLEARANCE)
+            piston_contact_eta = maxf(0.0,entry_distance)/maxf(2.0,forward_speed)
+            if not bridge_exit_preview and piston_contact_eta >= 0.20 and piston_contact_eta <= PISTON_WARNING_SECONDS:
+                audible_gate_eta = piston_contact_eta
         timed_gate_label.add_theme_color_override("font_color",tint)
-    timed_gate_backdrop.visible = is_finite(urgent_gate_eta) or bridge_piston_warning
     var lane_hint: Dictionary = game.course_mechanics.upcoming_lane(
         game.player.global_position,game.player.linear_velocity,downstream_limit) if (
         still_racing and is_instance_valid(game.course_mechanics)) else {}
-    _update_biome_lane(lane_hint,urgent_gate_eta)
-    var vent_eta := INF
-    if game.selected_track == 2 and not lane_hint.is_empty() and lane_hint["on_line"]:
-        var approach: float = float(lane_hint["eta"])
-        if approach >= 0.20 and approach <= 1.55:
-            vent_eta = approach
+    var vent_eta := float(lane_hint.get("contact_eta",INF))
     var vent_index := int(lane_hint.get("index",-1))
+    var pickup_limit := urgent_gate_eta
+    if game.selected_track == 2:
+        var piston_priority := piston_contact_eta if (
+            bridge_piston_warning or piston_contact_eta <= PISTON_WARNING_SECONDS) else INF
+        var vent_priority := vent_eta if vent_eta <= VENT_WARNING_SECONDS else INF
+        pickup_limit = minf(piston_priority,vent_priority)
+        _show_forge_hazard(lane_hint,gate_eta,piston_priority,vent_priority)
+    else:
+        timed_gate_backdrop.visible = is_finite(urgent_gate_eta)
+        _update_biome_lane(lane_hint,urgent_gate_eta)
+    if vent_eta < 0.20 or vent_eta > VENT_WARNING_SECONDS:
+        vent_eta = INF
     if game.audio.warned_vents.has(vent_index):
         vent_eta = INF
     if game.audio.warned_timed_gates.has(gate_id):
@@ -1664,11 +1682,10 @@ func update_hud() -> void:
     # consult their local server-confirmed visibility; AI never receive UI.
     var item_reach := clampf(forward_speed*1.55,20.0,36.0)
     var next_item: Dictionary = game.race_items.nearest_available(
-        game.player.global_position,game.player.racer_id,item_reach) if (
-        is_instance_valid(game.race_items) and game.race_state == "RACING" and
-        not game.player.finished and not game.player.eliminated) else {}
+        game.player.global_position,game.player.racer_id,item_reach,bridge_approach_active) if (
+        is_instance_valid(game.race_items) and still_racing) else {}
     var pickup_eta := float(next_item.get("distance",INF))/maxf(2.0,forward_speed)
-    rare_item_label.visible = not next_item.is_empty() and pickup_eta < urgent_gate_eta
+    rare_item_label.visible = not next_item.is_empty() and pickup_eta < pickup_limit
     if rare_item_label.visible:
         rare_item_label.text = "RARE %s  •  %s  •  %dm" % [
             str(next_item["label"]),str(next_item["side"]),
@@ -1706,6 +1723,24 @@ func update_hud() -> void:
         table += "%02d  YOU ★" % place
     leaderboard.text = table
 
+func _show_forge_hazard(vent: Dictionary, gate_eta: float, piston_priority: float,
+        vent_priority: float) -> void:
+    # One driving message, with optional item guidance below it.
+    # If a real threat is imminent, the earliest entry wins. Otherwise,
+    # keep the forecast for whichever obstacle the player encounters first.
+    var show_vent := not vent.is_empty() and (
+        vent_priority < piston_priority or (
+            not is_finite(piston_priority) and float(vent["eta"]) <= gate_eta))
+    timed_gate_label.visible = timed_gate_label.visible and not show_vent
+    if show_vent:
+        biome_lane_label.anchor_top = timed_gate_label.anchor_top
+        biome_lane_label.anchor_bottom = timed_gate_label.anchor_bottom
+        _update_biome_lane(vent,INF)
+    else:
+        biome_lane_label.hide()
+    timed_gate_backdrop.visible = is_finite(vent_priority) if show_vent else (
+        timed_gate_label.visible and is_finite(piston_priority))
+
 func _update_biome_lane(hint: Dictionary, urgent_gate_eta: float) -> void:
     biome_lane_label.hide()
     if hint.is_empty() or (is_finite(urgent_gate_eta) and (
@@ -1723,7 +1758,8 @@ func _update_biome_lane(hint: Dictionary, urgent_gate_eta: float) -> void:
             tint = Color("#ff9b85")
         else:
             cue = "LINE CLEAR" if hint["active"] else "EST. COOL"
-        biome_lane_label.text = "VENT %s  •  %s  •  %dm" % [hint["side"],cue,hint["distance"]]
+        var timing := "%.1fs" % float(hint["contact_eta"]) if hint["on_line"] else "%dm" % int(hint["distance"])
+        biome_lane_label.text = "VENT %s  •  %s  •  %s" % [hint["side"],cue,timing]
     biome_lane_label.add_theme_color_override("font_color",tint)
     biome_lane_label.show()
 

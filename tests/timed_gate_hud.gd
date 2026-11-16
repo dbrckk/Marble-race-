@@ -227,7 +227,14 @@ func _verify() -> void:
             game.player.linear_velocity.z = -23.0
             game.ui.label_timer = 0.25
             game.ui.update_hud()
-            assert(label.visible,"Full speed gives the player more distance to react")
+            if biome == 2:
+                var farther: Dictionary = director.event_ahead(
+                    game.player.global_position.z,INF,38.0)
+                assert(int(farther.get("index",-1)) == gate_index and
+                    (label.visible or game.ui.biome_lane_label.visible),
+                    "A nearer vent may occupy the HUD while a piston is in forecast range")
+            else:
+                assert(label.visible,"Full speed gives the player more distance to react")
             game.player.linear_velocity.z = -12.0
             game.ui.label_timer = 0.25
             game.ui.update_hud()
@@ -237,6 +244,7 @@ func _verify() -> void:
                 _verify_biome_lane(game,biome)
             if biome == 2:
                 _verify_forge_exit(game)
+                _verify_forge_encounter_order(game)
             game.return_to_menu()
             assert(not game.ui.hud_layer.visible)
     _verify_audio_cues(game.audio)
@@ -245,7 +253,7 @@ func _verify() -> void:
         await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_timed_hud_career.cfg"))
-    print("TIMED_HUD_PASS: 9 layouts, speed-aware approaches, original cues, nonoverlapping Forge feedback and full piston crossing windows")
+    print("TIMED_HUD_PASS: 9 layouts, speed-aware approaches, original cues, Forge encounter order and full piston crossing windows")
     quit(0)
 
 func _verify_forge_feedback(game: Node3D) -> void:
@@ -287,7 +295,8 @@ func _verify_biome_lane(game: Node3D, biome: int) -> void:
     var mechanics: Node3D = game.course_mechanics
     var label: Label = game.ui.biome_lane_label
     assert(label.mouse_filter == Control.MOUSE_FILTER_IGNORE)
-    assert(label.anchor_top > game.ui.rare_item_label.anchor_bottom)
+    if biome == 1:
+        assert(label.anchor_top > game.ui.rare_item_label.anchor_bottom)
     var first: Vector3 = mechanics.zones[0].global_position
     var position := first+Vector3(0.0,0.55,12.0)
     var velocity := Vector3(0.0,0.0,-12.0)
@@ -415,6 +424,61 @@ func _verify_forge_exit(game: Node3D) -> void:
     assert(not hud.shortcut_label.visible and not hud.bridge_approach_active and
         not hud.timed_gate_label.text.contains("AFTER BRIDGE"),
         "After the join, use the regular live racing line")
+
+func _verify_forge_encounter_order(game: Node3D) -> void:
+    var hud: CanvasLayer = game.ui
+    var director: Node3D = game.race_director
+    var mechanics: Node3D = game.course_mechanics
+    var gate := DIRECTOR.FORGE_EXIT_GATE
+    var gate_z: float = director.event_z(gate)
+    var gate_x: float = director.position_at(gate,0.0).x
+    var vent: Node3D = mechanics.zones[3]
+    var pickup: Node3D = game.race_items.items[2]
+    var vent_origin := vent.position
+    var preceding_vent: Node3D = mechanics.zones[2]
+    var preceding_origin := preceding_vent.position
+    var pickup_origin := pickup.position
+    var approach_z := gate_z+18.0
+    preceding_vent.position.z = approach_z+6.0
+    var approach := Vector3(gate_x,game.height_at(approach_z)+0.73,approach_z)
+    var velocity := Vector3(0,0,-23.0)
+    var eta := (approach_z-gate_z)/23.0
+    for sample in range(120):
+        var clock := float(sample)*0.05
+        if director.piston_up(gate,clock+eta):
+            director.animate(clock)
+            break
+    vent.position = Vector3(gate_x,vent_origin.y,gate_z+7.0)
+    mechanics.race_clock = 1.3
+    pickup.position.z = gate_z-2.0
+    game.audio.warned_timed_gates.clear()
+    game.audio.warned_vents.clear()
+    game.audio.hazard_cooldown = 0.0
+    _update_at(game,approach,velocity)
+    assert(hud.biome_lane_label.visible and hud.biome_lane_label.text.contains("DODGE") and
+        hud.timed_gate_backdrop.visible and not hud.timed_gate_label.visible and
+        not hud.rare_item_label.visible,
+        "A threatening vent before the piston gets the primary row and defers the item")
+    assert(game.audio.warned_vents.has(3) and not game.audio.warned_timed_gates.has(gate))
+    assert(not hud.biome_lane_label.get_global_rect().intersects(hud.rare_item_label.get_global_rect()))
+    pickup.position.z = approach_z-4.0
+    _update_at(game,approach,velocity)
+    assert(hud.rare_item_label.visible and hud.biome_lane_label.visible,
+        "A reachable item before the vent remains visible below the warning")
+    pickup.position.z = gate_z-2.0
+    vent.position.z = gate_z-5.0
+    _update_at(game,approach,velocity)
+    assert(hud.timed_gate_label.visible and not hud.biome_lane_label.visible and
+        hud.timed_gate_backdrop.visible and not hud.rare_item_label.visible,
+        "An earlier blocking piston takes the slot when the vent lies farther away")
+    var after_gate := Vector3(gate_x,game.height_at(gate_z-1.0)+0.73,gate_z-1.0)
+    _update_at(game,after_gate,velocity)
+    assert(hud.biome_lane_label.visible and not hud.timed_gate_label.visible and
+        hud.rare_item_label.visible,
+        "Passing the piston restores the next vent and reachable item cues")
+    vent.position = vent_origin
+    preceding_vent.position = preceding_origin
+    pickup.position = pickup_origin
 
 func _update_at(game: Node3D, position: Vector3, velocity: Vector3) -> void:
     game.player.global_position = position

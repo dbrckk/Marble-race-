@@ -91,6 +91,8 @@ func upcoming_lane(at: Vector3, velocity: Vector3, downstream_limit: float) -> D
             hint["active"] = _vent_crossing_active(index,clock,speed,distance,half_depth)
             hint["on_line"] = crossing > 0.0 and distance >= -crossing and (
                 _vent_crossing_active(index,clock,speed,distance,crossing))
+            if hint["on_line"]:
+                hint["contact_eta"] = maxf(0.0,distance-crossing)/speed
         return hint
     return {}
 
