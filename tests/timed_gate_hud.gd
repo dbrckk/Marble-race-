@@ -253,7 +253,7 @@ func _verify() -> void:
         await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_timed_hud_career.cfg"))
-    print("TIMED_HUD_PASS: 9 layouts, speed-aware approaches, original cues, Forge encounter order and full piston crossing windows")
+    print("TIMED_HUD_PASS: 9 layouts, speed-aware approaches, original cues, Glacier grip previews, Forge encounter order and piston crossing windows")
     quit(0)
 
 func _verify_forge_feedback(game: Node3D) -> void:
@@ -303,16 +303,28 @@ func _verify_biome_lane(game: Node3D, biome: int) -> void:
     var zone_side := "LEFT" if mechanics.lane_offset(0,biome,mechanics.variation) < 0.0 else "RIGHT"
     var alternate := "LEFT" if zone_side == "RIGHT" else "RIGHT"
     if biome == 1:
-        assert(mechanics.zones[0].has_node("IceLaneEdgesAndChevrons"))
+        _verify_glacier_markings(game,mechanics)
         _update_at(game,position,velocity)
         assert(label.visible and label.text.contains("ICE "+zone_side) and
-            label.text.contains("STEER GENTLY"))
+            label.text.contains("GRIP "+alternate),
+            "Before reaching the slab, the player can still choose the grippy side")
+        _update_at(game,first+Vector3(0.0,0.55,6.0),Vector3(0,0,-23))
+        assert(label.visible and label.text.contains("STEER GENTLY") and
+            label.text.contains("0.1s"),
+            "An imminent entry uses a fast readout and gentle steering")
+        _update_at(game,first+Vector3.UP*0.55,Vector3(0,0,-23))
+        assert(label.visible and label.text == "ON ICE  •  STEER GENTLY",
+            "The HUD distinguishes actual ice contact from an approach")
         position.x = game.track_center_at(first.z)
         _update_at(game,position,velocity)
         assert(label.visible and label.text.contains("GRIP "+alternate))
         position.x = first.x-2.0
         assert(mechanics.upcoming_lane(position,Vector3(5,0,-12),INF)["on_line"],
             "Lateral drift must forecast ice contact")
+        var behind := Vector3(first.x,first.y+0.55,first.z-5.0)
+        var next_ice: Dictionary = mechanics.upcoming_lane(behind,velocity,INF)
+        assert(not next_ice.get("on_ice",false),
+            "Leaving the slab clears the on-ice cue")
     else:
         assert(mechanics.zones[0].has_node("VentFootprint"))
         var rim := mechanics.vent_rims[0].material_override as StandardMaterial3D
@@ -368,6 +380,36 @@ func _verify_biome_lane(game: Node3D, biome: int) -> void:
             "A warning after the merge remains relevant while still on the bridge")
     _update_at(game,Vector3(0,0,2),velocity)
     assert(not label.visible,"No surface cue outside the speed-scaled lookahead")
+
+func _verify_glacier_markings(game: Node3D, mechanics: Node3D) -> void:
+    var guides := mechanics.get_node("GlacierGripApproach") as MultiMeshInstance3D
+    var row_count: int = mechanics.GRIP_MARK_OFFSETS.size()
+    assert(guides.multimesh.instance_count == mechanics.zones.size()*row_count*4 and
+        guides.multimesh.use_colors and guides.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF,
+        "All Glacier approach arrows share one shadow-free draw batch")
+    assert(mechanics.grip_mark_origins.size() == mechanics.zones.size()*row_count)
+    for index in range(mechanics.zones.size()):
+        var zone: Node3D = mechanics.zones[index]
+        var ice := zone.get_node("LowFrictionIce") as StaticBody3D
+        var shape := ice.get_child(0).shape as BoxShape3D
+        var surface := zone.get_node("GlacierIceSurface") as MeshInstance3D
+        var edge := zone.get_node("IceLaneEdgesAndChevrons") as MultiMeshInstance3D
+        var surface_box := surface.mesh as BoxMesh
+        assert(is_equal_approx(surface_box.size.x,shape.size.x) and
+            is_equal_approx(surface_box.size.z,shape.size.z) and
+            is_equal_approx(edge.rotation.x,ice.rotation.x) and
+            is_equal_approx(surface.rotation.x,ice.rotation.x),
+            "Visible boundaries and tilt must match the low-friction slab")
+        assert(edge.multimesh.instance_count == 12 and
+            ice.physics_material_override.friction < 0.10)
+        var dry_side: float = -signf(mechanics.lane_offset(index,1,mechanics.variation))
+        for row in range(row_count):
+            var mark: Vector3 = mechanics.grip_mark_origins[index*row_count+row]
+            var offset: float = mark.x-game.track_center_at(mark.z)
+            assert(offset*dry_side > 0.75 and offset*dry_side < 4.35 and
+                absf(mark.x-zone.position.x) > shape.size.x*0.5+0.7,
+                "Approach paint must stay on the dry half and clear the icy lane")
+            assert(is_equal_approx(mark.z-zone.position.z,mechanics.GRIP_MARK_OFFSETS[row]))
 
 func _verify_forge_exit(game: Node3D) -> void:
     var director: Node3D = game.race_director

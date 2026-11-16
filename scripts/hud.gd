@@ -1743,14 +1743,23 @@ func _show_forge_hazard(vent: Dictionary, gate_eta: float, piston_priority: floa
 
 func _update_biome_lane(hint: Dictionary, urgent_gate_eta: float) -> void:
     biome_lane_label.hide()
-    if hint.is_empty() or (is_finite(urgent_gate_eta) and (
-        not hint["on_line"] or float(hint["eta"]) >= urgent_gate_eta)):
+    if hint.is_empty():
+        return
+    # A moving obstacle before the ice takes priority unless the player
+    # has already entered the slab and needs to manage steering there.
+    if is_finite(urgent_gate_eta) and not hint.get("on_ice",false) and (
+            float(hint["eta"]) >= urgent_gate_eta):
         return
     var cue: String
     var tint := Color("#b8ecff")
     if game.selected_track == 1:
-        cue = "STEER GENTLY" if hint["on_line"] else "GRIP %s" % hint["other"]
-        biome_lane_label.text = "ICE %s  •  %s  •  %dm" % [hint["side"],cue,hint["distance"]]
+        var on_ice: bool = hint["on_ice"]
+        var entering_ice: bool = hint["on_line"] and float(hint["eta"]) < 0.40
+        cue = "STEER GENTLY" if on_ice or entering_ice else "GRIP %s" % hint["other"]
+        var timing := "%.1fs" % float(hint["eta"]) if -game.player.linear_velocity.z >= 9.0 else "%dm" % int(hint["distance"])
+        biome_lane_label.text = "ON ICE  •  STEER GENTLY" if on_ice else (
+            "ICE %s  •  %s  •  %s" % [hint["side"],cue,timing])
+        tint = Color("#ffe09d") if on_ice or entering_ice else Color("#c3edff")
     else:
         tint = Color("#ffc39a")
         if hint["on_line"]:
