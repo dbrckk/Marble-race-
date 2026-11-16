@@ -18,6 +18,8 @@ const HAZARD_LOOKAHEAD := 24.0
 const BODY_WIDTH := 1.65
 const BODY_HEIGHT := 0.82
 const BODY_DEPTH := 0.76
+const FORGE_EXIT_GATE := 1
+const MARBLE_CLEARANCE := 0.39
 const NEAR_MISS_IMPULSE := 2.05
 # Risk/reward is measured from REAL bodies, not estimated player input.
 # Only precise passes can start a short streak; all racers are eligible.
@@ -38,6 +40,7 @@ var variation := 0
 var obstacles: Array[AnimatableBody3D] = []
 var warning_rings: Array[MeshInstance3D] = []
 var signs: Array[Label3D] = []
+var forge_exit_paint: MultiMeshInstance3D
 var awarded: Dictionary = {}
 var clock := 0.0
 var collisions_enabled := true
@@ -157,7 +160,8 @@ func setup(owner: Node3D, track: int, layout: int) -> void:
         marker.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
         add_child(marker)
         warning_rings.append(marker)
-        _mark_gate_approach(i,floor_plate,floor_paint)
+        if biome != 2 or i != FORGE_EXIT_GATE:
+            _mark_gate_approach(i,floor_plate,floor_paint)
         var notice := Label3D.new()
         notice.name = "TimedHazardSign_%02d" % i
         notice.text = EVENT_NAMES[biome]
@@ -167,6 +171,8 @@ func setup(owner: Node3D, track: int, layout: int) -> void:
         notice.modulate = EVENT_COLORS[biome]
         notice.billboard = BaseMaterial3D.BILLBOARD_ENABLED
         notice.position = Vector3(x,game.height_at(z)+2.25,z)
+        if biome == 2 and i == FORGE_EXIT_GATE:
+            _forge_exit_telegraph(notice,x,z,side,floor_plate,floor_paint,steel)
         add_child(notice)
         signs.append(notice)
     ring_flash_end.resize(obstacles.size())
@@ -205,6 +211,51 @@ func _mark_gate_approach(index: int, mesh: Mesh, paint: Material) -> void:
     marks.material_override = paint
     marks.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     add_child(marks)
+
+func _forge_exit_telegraph(notice: Label3D, x: float, z: float, side: float,
+        unit_mesh: Mesh, paint: Material, steel: Material) -> void:
+    # The shoulder sign and floor stripes point to the same physical lane.
+    var sign_x: float = game.track_center_at(z)+side*5.68
+    var sign_y: float = game.height_at(z)+1.91
+    var plaque := MeshInstance3D.new()
+    plaque.name = "ForgeExitPistonPlaque"
+    plaque.mesh = VISUALS.rounded_box(Vector3(1.96,0.98,0.19),0.025)
+    plaque.material_override = steel
+    plaque.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    plaque.position = Vector3(sign_x,sign_y,z+0.65)
+    add_child(plaque)
+    notice.position = plaque.position+Vector3(0,0,0.106)
+    notice.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+    notice.pixel_size = 0.0085
+    notice.font_size = 37
+    notice.line_spacing = -4.0
+
+    var batch := MultiMesh.new()
+    batch.transform_format = MultiMesh.TRANSFORM_3D
+    batch.use_colors = true
+    batch.mesh = unit_mesh
+    batch.instance_count = 12
+    for row in range(3):
+        var at_z := z+1.45+1.42*row
+        var section_z: float = 8.0-roundf((8.0-at_z)/game.SEGMENT_LENGTH)*game.SEGMENT_LENGTH
+        var pitch: float = -atan(game.track_grade_at(section_z))
+        var y: float = game.height_at(section_z)-0.34+0.325/cos(pitch)-tan(pitch)*(at_z-section_z)
+        var tilt := Basis(Vector3.RIGHT,pitch)
+        batch.set_instance_transform(row*4,Transform3D(
+            tilt.scaled_local(Vector3(2.36,0.018,0.51)),Vector3(x,y+0.062,at_z)))
+        batch.set_instance_color(row*4,Color("#26212b"))
+        for stripe in range(3):
+            var angle := tilt*Basis(Vector3.UP,side*0.30)
+            batch.set_instance_transform(row*4+stripe+1,Transform3D(
+                angle.scaled_local(Vector3(0.43,0.018,0.34)),
+                Vector3(x+(float(stripe)-1.0)*0.69,y+0.079,at_z)))
+            batch.set_instance_color(row*4+stripe+1,EVENT_COLORS[biome])
+    forge_exit_paint = MultiMeshInstance3D.new()
+    forge_exit_paint.name = "GateApproachMarkings_%02d" % FORGE_EXIT_GATE
+    forge_exit_paint.multimesh = batch
+    forge_exit_paint.material_override = paint
+    forge_exit_paint.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    add_child(forge_exit_paint)
 
 static func precision_grade(lateral: float, forward_speed: float) -> float:
     if not is_finite(lateral) or not is_finite(forward_speed) or (
@@ -300,6 +351,18 @@ func threatens_line(index: int, elapsed: float, eta: float,
     var future_x: float = FEEDBACK.projected_lane_x(current_x,lateral_speed,eta)
     return absf(future_x-obstacle_x) < LANE_THREAT_RADIUS
 
+func forge_exit_blocks_during_crossing(eta: float, speed: float) -> bool:
+    # A nose or tail can reach the collider even if its centerline is
+    # open at the exact arrival instant. The raised phase is contiguous.
+    var half_window := (BODY_DEPTH*0.5+MARBLE_CLEARANCE)/maxf(2.0,speed)
+    var first := clock+maxf(0.0,eta-half_window)
+    var last := clock+eta+half_window
+    if piston_up(FORGE_EXIT_GATE,first) or piston_up(FORGE_EXIT_GATE,last):
+        return true
+    var phase := phase_at(FORGE_EXIT_GATE,first)
+    var seconds_to_crest := fposmod(0.10-phase,1.0)*period()
+    return seconds_to_crest <= last-first
+
 # Readable physical timing cues use the SAME deterministic clock as the
 # collider and AI predictor. No new nodes, lights, materials or draw calls.
 static func hazard_phase_cue(track: int, extension: float,
@@ -354,6 +417,12 @@ func animate(elapsed: float) -> void:
             lateral_speed = (position_at(i,clock+0.08).x-point.x)/0.08
         var cue := hazard_phase_cue(biome,extension,lateral_speed)
         var sign_text: String = EVENT_NAMES[biome]+" / "+cue
+        if biome == 2 and i == FORGE_EXIT_GATE:
+            sign_text = "FORGE PISTON\n"+cue
+            if signs[i].modulate != tint:
+                for row in range(3):
+                    for stripe in range(1,4):
+                        forge_exit_paint.multimesh.set_instance_color(row*4+stripe,tint)
         if signs[i].text != sign_text:
             signs[i].text = sign_text
         signs[i].modulate = tint

@@ -235,6 +235,8 @@ func _verify() -> void:
                 "Do not clutter the HUD with hazards beyond the lookahead")
             if biome != 0:
                 _verify_biome_lane(game,biome)
+            if biome == 2:
+                _verify_forge_exit(game)
             game.return_to_menu()
             assert(not game.ui.hud_layer.visible)
     _verify_audio_cues(game.audio)
@@ -243,7 +245,7 @@ func _verify() -> void:
         await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_timed_hud_career.cfg"))
-    print("TIMED_HUD_PASS: 9 layouts, speed-aware approaches, original cues and nonoverlapping Forge race feedback")
+    print("TIMED_HUD_PASS: 9 layouts, speed-aware approaches, original cues, nonoverlapping Forge feedback and full piston crossing windows")
     quit(0)
 
 func _verify_forge_feedback(game: Node3D) -> void:
@@ -357,6 +359,62 @@ func _verify_biome_lane(game: Node3D, biome: int) -> void:
             "A warning after the merge remains relevant while still on the bridge")
     _update_at(game,Vector3(0,0,2),velocity)
     assert(not label.visible,"No surface cue outside the speed-scaled lookahead")
+
+func _verify_forge_exit(game: Node3D) -> void:
+    var director: Node3D = game.race_director
+    var gate := DIRECTOR.FORGE_EXIT_GATE
+    var speed := 23.0
+    var z := ROUTE.EXIT_Z+4.0
+    var eta: float = (z-director.event_z(gate))/speed
+    var playhead := -1.0
+    var clear_window := -1.0
+    for phase in range(260):
+        var t := float(phase)*0.02
+        director.animate(t)
+        if playhead < 0.0 and director.piston_up(gate,t+eta) and not director.piston_up(gate,t):
+            playhead = t
+        if clear_window < 0.0 and not director.forge_exit_blocks_during_crossing(eta,speed):
+            clear_window = t
+        if playhead >= 0.0 and clear_window >= 0.0:
+            break
+    assert(playhead >= 0.0 and clear_window >= 0.0)
+    var at: Vector3 = game.shortcut_route.point_at(z)+Vector3.UP*0.73
+    game.audio.warned_timed_gates.clear()
+    game.audio.hazard_cooldown = 0.0
+    director.animate(playhead)
+    _update_at(game,at,Vector3(0,0,-speed))
+    var hud: CanvasLayer = game.ui
+    var action := "KEEP LEFT" if director.side_at(gate) > 0.0 else "AIM CENTER"
+    assert(hud.bridge_approach_active and hud.shortcut_label.visible and
+        hud.timed_gate_backdrop.visible and hud.timed_gate_label.text.contains(action) and
+        hud.timed_gate_label.text.contains("AFTER BRIDGE") and
+        not hud.timed_gate_label.text.contains("LINE CLEAR"),
+        "A piston that rises after the merge must give advance lane advice")
+    assert(not game.audio.warned_timed_gates.has(gate),
+        "A bridge preview must leave the immediate collision cue available")
+    director.animate(clear_window)
+    _update_at(game,at,Vector3(0,0,-speed))
+    assert(hud.timed_gate_label.text.contains("OPEN") and not hud.timed_gate_backdrop.visible,
+        "A clear crossing window needs a calm status after the bridge")
+    var window_found := false
+    for phase in range(420):
+        var t := float(phase)*0.013
+        director.animate(t)
+        if not director.piston_up(gate,t+eta) and director.forge_exit_blocks_during_crossing(eta,speed):
+            window_found = true
+            break
+    assert(window_found,"The crossing window must include the front and rear of the marble")
+    assert(director.has_node("ForgeExitPistonPlaque") and
+        director.forge_exit_paint.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
+    director.animate(playhead)
+    assert(director.signs[gate].text.contains("OPEN") or
+        director.signs[gate].text.contains("RISING") or director.signs[gate].text.contains("FALLING"))
+    var passed_z := ROUTE.EXIT_Z-0.5
+    var gate_x: float = director.position_at(gate,playhead).x
+    _update_at(game,Vector3(gate_x,game.height_at(passed_z)+0.73,passed_z),Vector3(0,0,-speed))
+    assert(not hud.shortcut_label.visible and not hud.bridge_approach_active and
+        not hud.timed_gate_label.text.contains("AFTER BRIDGE"),
+        "After the join, use the regular live racing line")
 
 func _update_at(game: Node3D, position: Vector3, velocity: Vector3) -> void:
     game.player.global_position = position

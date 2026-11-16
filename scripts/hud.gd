@@ -1588,6 +1588,7 @@ func update_hud() -> void:
     var still_racing: bool = game.race_state == "RACING" and not game.player.finished and not game.player.eliminated
     timed_gate_label.visible = still_racing and not moving_event.is_empty()
     var urgent_gate_eta := INF
+    var bridge_piston_warning := false
     var audible_gate_eta := INF
     var gate_id := -1
     if timed_gate_label.visible:
@@ -1607,10 +1608,22 @@ func update_hud() -> void:
                 gate_id,game.race_director.clock,gate_eta,
                 game.player.global_position.x,game.player.linear_velocity.x))
         var gate_side: String = str(moving_event["side"])
+        var bridge_exit_preview: bool = game.selected_track == 2 and bridge_approach_active and (
+            gate_id == game.race_director.FORGE_EXIT_GATE)
         var lane_verdict: String = "DODGE!" if player_threatened else "LINE CLEAR"
-        if player_threatened and gate_eta <= 1.45:
+        if not bridge_exit_preview and player_threatened and gate_eta <= 1.45:
             urgent_gate_eta = gate_eta
-        if game.selected_track == 2:
+        if bridge_exit_preview:
+            bridge_piston_warning = game.race_director.forge_exit_blocks_during_crossing(
+                gate_eta,forward_speed)
+            if bridge_piston_warning:
+                var action := "KEEP LEFT" if gate_side == "RIGHT" else "AIM CENTER"
+                timed_gate_label.text = "AFTER BRIDGE  •  PISTON %s  •  %s  •  %.1fs" % [
+                    gate_side,action,gate_eta]
+            else:
+                timed_gate_label.text = "AFTER BRIDGE  •  PISTON %s OPEN  •  %.1fs" % [
+                    gate_side,gate_eta]
+        elif game.selected_track == 2:
             var bypass := "LEFT" if gate_side == "RIGHT" else "RIGHT"
             var action := "DODGE! GO "+bypass if player_threatened else lane_verdict
             timed_gate_label.text = "FORGE PISTON %s  •  EST. %s  •  %s  •  %.1fs" % [
@@ -1620,12 +1633,15 @@ func update_hud() -> void:
                 lane_verdict = "DODGE! GO "+("LEFT" if gate_side == "RIGHT" else "RIGHT")
             timed_gate_label.text = "%s %s  •  %s  •  %.1fs" % [
                 str(moving_event["kind"]),gate_side,lane_verdict,gate_eta]
-        timed_gate_label.add_theme_color_override("font_color",
-            Color("#ffae91") if player_threatened and gate_eta < 1.45 else (
-                Color("#a1edcc") if not player_threatened else Color("#f6d49b")))
-        if player_threatened and gate_eta <= 2.20 and gate_eta >= 0.20:
-            audible_gate_eta = gate_eta
-    timed_gate_backdrop.visible = is_finite(urgent_gate_eta)
+        var tint := Color("#a1edcc")
+        if bridge_piston_warning:
+            tint = Color("#ffd494")
+        elif player_threatened and not bridge_exit_preview:
+            tint = Color("#ffae91") if gate_eta < 1.45 else Color("#f6d49b")
+            if gate_eta >= 0.20 and gate_eta <= 2.20:
+                audible_gate_eta = gate_eta
+        timed_gate_label.add_theme_color_override("font_color",tint)
+    timed_gate_backdrop.visible = is_finite(urgent_gate_eta) or bridge_piston_warning
     var lane_hint: Dictionary = game.course_mechanics.upcoming_lane(
         game.player.global_position,game.player.linear_velocity,downstream_limit) if (
         still_racing and is_instance_valid(game.course_mechanics)) else {}
