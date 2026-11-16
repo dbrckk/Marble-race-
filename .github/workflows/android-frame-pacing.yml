@@ -33,7 +33,7 @@ jobs:
           template_dir="$HOME/.local/share/godot/export_templates/4.5.1.stable"
           mkdir -p "$template_dir" "$HOME/.local/share/godot/keystores" "$HOME/.config/godot" build capture
           unzip -p godot.tpz templates/android_debug.apk > "$template_dir/android_debug.apk"
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "build-tools;35.0.0" "platforms;android-35" "platform-tools" "emulator" "system-images;android-34;google_apis;x86_64"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "build-tools;35.0.0" "platforms;android-35" "platform-tools"
           keystore="$HOME/.local/share/godot/keystores/debug.keystore"
           if [[ ! -f "$keystore" ]]; then
             keytool -genkeypair -noprompt -keystore "$keystore" -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android Debug,O=Open Source,C=US"
@@ -71,44 +71,25 @@ jobs:
           "$godot" --headless --path . --export-debug Android build/marble-race-qa.apk
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify build/marble-race-qa.apk
           unzip -Z1 build/marble-race-qa.apk | grep -Fx 'lib/x86_64/libgodot_android.so'
-      - name: Run Balanced and Economy races on Android
+      - name: Enable KVM
         shell: bash
         run: |
-          set -euo pipefail
-          test -c /dev/kvm
-          sudo chown "$USER" /dev/kvm
-          export PATH="$ANDROID_HOME/platform-tools:$PATH"
-          "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --force --name marble_qa --package "system-images;android-34;google_apis;x86_64" --device "pixel_6" <<< no
-          "$ANDROID_HOME/emulator/emulator" -avd marble_qa -no-window -no-boot-anim -no-audio -no-snapshot -gpu swiftshader -memory 3072 -cores 4 > capture/emulator.log 2>&1 &
-          emulator_pid=$!
-          trap 'kill "$emulator_pid" 2>/dev/null || true' EXIT
-          timeout 220s adb wait-for-device
-          for _ in $(seq 1 110); do
-            if [[ "$(adb shell getprop sys.boot_completed | tr -d '\r')" == 1 ]]; then break; fi
-            kill -0 "$emulator_pid"
-            sleep 2
-          done
-          test "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1
-          adb shell input keyevent 82
-          adb shell wm size 720x1280
-          adb shell wm density 280
-          adb shell wm size
-          adb shell getprop ro.build.version.sdk
-          adb install build/marble-race-qa.apk
-          adb logcat -c
-          adb logcat -v brief > capture/logcat.txt &
-          log_pid=$!
-          trap 'kill "$log_pid" "$emulator_pid" 2>/dev/null || true' EXIT
-          adb shell monkey -p com.dbrckk.marble_race -c android.intent.category.LAUNCHER 1
-          for _ in $(seq 1 106); do
-            if grep -Fq MARBLE_BENCH_COMPLETE capture/logcat.txt; then break; fi
-            if grep -Fq MARBLE_BENCH_FAILURE capture/logcat.txt; then break; fi
-            sleep 5
-          done
-          adb exec-out screencap -p > capture/results.png || true
-          grep -F MARBLE_BENCH_ capture/logcat.txt | tee capture/measurements.txt
-          grep -Fq MARBLE_BENCH_COMPLETE capture/measurements.txt
-          test "$(grep -c 'MARBLE_BENCH_REPORT ' capture/measurements.txt)" = 2
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -r /dev/kvm && test -w /dev/kvm
+      - name: Run Balanced and Economy races on Android
+        uses: ReactiveCircus/android-emulator-runner@5d6e86df22ab11632167a1a6b0c9ab0dc3469586
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          cores: 2
+          ram-size: 2560M
+          emulator-boot-timeout: 240
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-front none -camera-back none
+          script: bash tests/android_frame_pacing_run.sh
       - name: Archive measurements and logs
         if: always()
         uses: actions/upload-artifact@v4
