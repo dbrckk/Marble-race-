@@ -1612,10 +1612,14 @@ func update_hud() -> void:
         # collision envelope overlaps this player's physical driving line.
         # Show a calm clear-line cue otherwise; do not punish safe steering
         # with false hazard sounds when the gate moves on the opposite rail.
-        var player_threatened: bool = projected_blocking and (
-            game.race_director.threatens_line(
+        var player_threatened: bool
+        if game.selected_track == 1 and gate_id == game.race_director.GLACIER_RETURN_GATE:
+            player_threatened = game.race_director.glacier_return_threatens_crossing(
+                gate_eta,forward_speed,game.player.global_position.x,game.player.linear_velocity.x)
+        else:
+            player_threatened = projected_blocking and game.race_director.threatens_line(
                 gate_id,game.race_director.clock,gate_eta,
-                game.player.global_position.x,game.player.linear_velocity.x))
+                game.player.global_position.x,game.player.linear_velocity.x)
         var gate_side: String = str(moving_event["side"])
         if game.selected_track == 1 and player_threatened:
             shutter_side = gate_side

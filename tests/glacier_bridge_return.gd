@@ -3,6 +3,7 @@ extends SceneTree
 ## four- and ten-marble packs converging at the merge.
 const ROUTE = preload("res://scripts/shortcut_route.gd")
 const EXIT_CHECKPOINT := 1
+const SHUTTER_PHASE_SAMPLES := 12
 enum Traffic { SOLO, DUEL, PACK }
 
 func _initialize() -> void:
@@ -28,28 +29,48 @@ func _run() -> void:
                     "Glacier layout %d at %.0f m/s with %s traffic" % [
                         layout,speed,Traffic.keys()[traffic]])
                 game.return_to_menu()
+    var passes_after_impact := 0
+    for layout in range(3):
+        for sample in range(SHUTTER_PHASE_SAMPLES):
+            game.race_variation = layout
+            game.start_race("Grip Tape")
+            game.countdown = 0.02
+            for frame in range(8):
+                await physics_frame
+            var director: Node3D = game.race_director
+            game.race_time = director.period()*float(sample)/SHUTTER_PHASE_SAMPLES
+            director.animate(game.race_time)
+            var timing := {}
+            assert(await _cross_return(game,19.0,Traffic.PACK,timing),
+                "Glacier layout %d, shutter phase sample %d" % [layout,sample])
+            if timing.get("passed_after_impact",false):
+                passes_after_impact += 1
+            game.return_to_menu()
+    assert(passes_after_impact > 0,"A real shutter impact must leave passing room for following racers")
     game.queue_free()
     for frame in range(4):
         await process_frame
-    print("GLACIER_BRIDGE_RETURN_PASS: 27 solo, duel and ten-marble trials across three layouts and speeds")
+    print("GLACIER_BRIDGE_RETURN_PASS: 27 approach trials, 36 shutter-phase trials, %d passes after a real shutter impact" % passes_after_impact)
     quit()
 
-func _cross_return(game: Node3D, speed: float, traffic: Traffic) -> bool:
+func _cross_return(game: Node3D, speed: float, traffic: Traffic,
+        timing: Dictionary = {}) -> bool:
     var route: Node3D = game.shortcut_route
     var racer: RigidBody3D = game.player
     for marble: RigidBody3D in game.racers:
         if marble != racer:
             marble.freeze = true
     var rivals: Array[RigidBody3D] = []
-    var contacts := { "rival": false, "baffle": false }
+    var contacts := {"rival": false,"baffle": false,"frame": 0,"shutter": {}}
     if traffic == Traffic.DUEL:
         rivals = _place_rivals(game)
     elif traffic == Traffic.PACK:
         rivals = _place_pack(game)
         assert(rivals.size() == 9)
         var baffle: StaticBody3D = game.board.get_node("Course_10/AntiEdgeBaffle_10_L")
+        var shutter: AnimatableBody3D = game.race_director.obstacles[game.race_director.GLACIER_RETURN_GATE]
         for marble in [racer]+rivals:
-            _watch_pack_contacts(marble,baffle,contacts)
+            _watch_pack_contacts(marble,baffle,shutter,contacts)
     var alongside := false
     var passed_main_rival := false
     var launch_z := ROUTE.EXIT_Z+10.0
@@ -60,12 +81,13 @@ func _cross_return(game: Node3D, speed: float, traffic: Traffic) -> bool:
     var pad: Control = game.ui.touch_controls
     var finger := pad.get_viewport_rect().size*Vector2(0.20,0.83)
     pad._finger_event(1,finger,true)
-    var clear_z: float = game.race_director.event_z(1)-2.0
+    var clear_z: float = game.race_director.event_z(game.race_director.GLACIER_RETURN_GATE)-2.0
     var frame_budget := 240 if traffic == Traffic.PACK else 210
     var through_shutter: Dictionary = {}
     var field: Array[RigidBody3D] = [racer]
     field.append_array(rivals)
     for frame in range(frame_budget):
+        contacts["frame"] = frame
         var ahead := racer.position.z-4.0
         var target_x: float = route.point_at(ahead).x
         if ahead <= ROUTE.EXIT_Z:
@@ -85,7 +107,7 @@ func _cross_return(game: Node3D, speed: float, traffic: Traffic) -> bool:
         if traffic == Traffic.PACK:
             for marble in field:
                 if not through_shutter.has(marble.racer_id) and marble.position.z < clear_z:
-                    through_shutter[marble.racer_id] = true
+                    through_shutter[marble.racer_id] = frame
             if through_shutter.size() == field.size():
                 break
         elif racer.eliminated or _all_clear(racer,rivals,clear_z):
@@ -97,6 +119,13 @@ func _cross_return(game: Node3D, speed: float, traffic: Traffic) -> bool:
         assert(through_shutter.size() == field.size(),"All ten marbles must clear the shutter within four seconds")
         assert(contacts["rival"],"The pack must exercise a real marble-to-marble contact at the merge")
         assert(not contacts["baffle"],"Pack contact must not throw a racer into the first left baffle")
+        var shutter_hits: Dictionary = contacts["shutter"]
+        if not shutter_hits.is_empty():
+            var first_hit: int = shutter_hits.values().min()
+            for id in through_shutter:
+                if through_shutter[id] > first_hit and not shutter_hits.has(id):
+                    timing["passed_after_impact"] = true
+                    break
         return game.last_checkpoint >= EXIT_CHECKPOINT
     var cleared: bool = _all_clear(racer,rivals,clear_z) and game.last_checkpoint >= EXIT_CHECKPOINT
     # The middle-speed duel places the two routes side by side at the join.
@@ -131,10 +160,13 @@ func _place_rivals(game: Node3D) -> Array[RigidBody3D]:
     _place_main_rival(game,main_rivals[1],8.9,0.8,-11.0)
     return [main_rivals[0],bridge_rival,main_rivals[1]]
 
-func _watch_pack_contacts(marble: RigidBody3D, baffle: StaticBody3D, contacts: Dictionary) -> void:
+func _watch_pack_contacts(marble: RigidBody3D, baffle: StaticBody3D,
+        shutter: AnimatableBody3D, contacts: Dictionary) -> void:
     marble.contact_monitor = true
     marble.max_contacts_reported = 8
     marble.body_entered.connect(func(body: Node):
+        if body == shutter:
+            (contacts["shutter"] as Dictionary).get_or_add(marble.racer_id,contacts["frame"])
         if body == baffle:
             contacts["baffle"] = true
         if body is RigidBody3D and absf(marble.position.z-ROUTE.EXIT_Z) <= 8.0:

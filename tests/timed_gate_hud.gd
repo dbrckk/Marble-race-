@@ -530,11 +530,48 @@ func _verify_glacier_bridge_return(game: Node3D) -> bool:
         hud.timed_gate_label.visible and hud.timed_gate_label.text.contains("DODGE!"))
     assert(game.audio.warned_timed_gates.has(gate),
         "The real collision warning is still available after the join")
+    assert(_verify_glacier_crossing_window(game,director,gate),
+        "The alert must cover both ends of the shutter's physical footprint")
     var main_z := ROUTE.EXIT_Z+1.1
     _update_at(game,Vector3(game.track_center_at(main_z),game.height_at(main_z)+0.64,main_z),velocity)
     assert(not hud.bridge_approach_active and not hud.shortcut_label.visible and
         not hud.timed_gate_label.text.contains("AFTER BRIDGE"),
         "Main-track racers never get bridge-specific instructions")
+    return true
+
+func _verify_glacier_crossing_window(game: Node3D, director: Node3D, gate: int) -> bool:
+    var gate_z: float = director.event_z(gate)
+    var side: float = director.side_at(gate)
+    var speed := 4.0
+    var eta := 0.65
+    var half_window: float = (director.BODY_DEPTH*0.5+director.MARBLE_CLEARANCE)/speed
+    var range_x: float = director.LANE_THREAT_RADIUS
+    var chosen_clock := -1.0
+    var x := 0.0
+    # Pick a legal line that clips the shutter's leading edge but would
+    # be called clear by a single sample at its center.
+    for sample in range(80):
+        var t: float = director.period()*float(sample)/80.0
+        var entry_x: float = director.position_at(gate,t+eta-half_window).x
+        var center_x: float = director.position_at(gate,t+eta).x
+        if (center_x-entry_x)*side > 0.24:
+            chosen_clock = t
+            x = center_x-side*(range_x+0.035)
+            break
+    assert(chosen_clock >= 0.0)
+    director.animate(chosen_clock)
+    var entry_x: float = director.position_at(gate,chosen_clock+eta-half_window).x
+    assert(absf(x-entry_x) < director.BODY_WIDTH*0.5+director.MARBLE_CLEARANCE)
+    assert(not director.threatens_line(gate,chosen_clock,eta,x,0.0))
+    assert(director.glacier_return_threatens_crossing(eta,speed,x,0.0))
+    assert(not director.glacier_return_threatens_crossing(
+        eta,speed,game.track_center_at(gate_z),0.0))
+    game.audio.warned_timed_gates.clear()
+    game.audio.hazard_cooldown = 0.0
+    var z := gate_z+eta*speed
+    _update_at(game,Vector3(x,game.height_at(z)+0.64,z),Vector3(0,0,-speed))
+    assert(game.ui.timed_gate_label.text.contains("DODGE!"))
+    assert(game.audio.warned_timed_gates.has(gate))
     return true
 
 func _verify_forge_exit(game: Node3D) -> void:
