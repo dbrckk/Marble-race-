@@ -101,8 +101,12 @@ func _run() -> void:
         assert(float(side)*(enter_x-game.track_center_at(
             BypassScript.ENTRY_Z-3.0)) > 6.0,
             "A specialist must target outside the gate once it opens")
-        assert(game.track_surface.rails.size() == 106,
-            "Two real portals must remove exactly two solid rail parts")
+        var expected_rails := 105 if course == 1 else 106
+        assert(game.track_surface.rails.size() == expected_rails,
+            "Glacier needs a wider physical return portal")
+        assert(BypassScript.opens_rail(BypassScript.EXIT_SECTION,side,0,course) == (course == 1))
+        assert(not BypassScript.opens_rail(BypassScript.EXIT_SECTION,-side,0,course))
+        assert(not BypassScript.opens_rail(BypassScript.EXIT_SECTION,side,2,course))
         assert(game.track_surface.planks.size() == 180,
             "The original main course stays physically continuous")
         assert(game.race_items.items.size() == 4,

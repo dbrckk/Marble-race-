@@ -565,7 +565,12 @@ func _make_course() -> void:
         if section > 0 and section < SEGMENTS - 3:
             # Edge-specific baffles eliminate the dominant strategy of riding
             # permanently against either rail. Passages remain physically open.
-            _edge_baffles(section_node,center_z,section)
+            var glacier_return := selected_track == 1 and section >= ShortcutRoute.EXIT_SECTION and (
+                section <= ShortcutRoute.EXIT_SECTION+2)
+            _edge_baffles(section_node,center_z,section,glacier_return)
+            if glacier_return:
+                _glacier_return_obstacles(section_node,center_z,section)
+                continue
             var layout := _obstacle_layout(section)
             if layout == 1:
                 _pegs(section_node, center_z, section)
@@ -683,19 +688,21 @@ func _terrain_ramp(parent: Node3D, center_z: float, section: int) -> void:
     ramp.name = "RideableCrest_%02d" % section
     ramp.rotation.x += -0.09 if selected_track == 1 else -0.16
 
-func _edge_baffles(parent: Node3D, center_z: float, section: int) -> void:
+func _edge_baffles(parent: Node3D, center_z: float, section: int, glacier_return: bool) -> void:
     # Two solid edge shutters per module, plus a staggered inboard obstacle
     # for advanced circuits. These are real collisions, not cosmetic warnings.
     for side in [-1.0, 1.0]:
         var z: float = center_z + (3.75 if side < 0.0 else -3.75)
         var material_color: Color = TRACK_COLORS[selected_track].darkened(0.13)
-        var size := Vector3(2.72,1.05,1.32)
-        var node := _box(parent,Vector3(side * 5.17,height_at(z)+0.49,z),
+        var merge_side: bool = glacier_return and section == ShortcutRoute.EXIT_SECTION+1 and side < 0.0
+        var size := Vector3(1.40 if merge_side else 2.72,1.05,1.32)
+        var edge_offset := 5.78 if merge_side else 5.17
+        var node := _box(parent,Vector3(side*edge_offset,height_at(z)+0.49,z),
             size,_lacquer(material_color),true,true)
         node.name = "AntiEdgeBaffle_%02d_%s" % [section, "L" if side < 0.0 else "R"]
         hazard_beacons.append({"z":z,"side":"LEFT" if side < 0.0 else "RIGHT"})
         obstacle_finish.register_block(node.global_transform,size,material_color)
-    if selected_track >= 1 and section % 3 == 0:
+    if not glacier_return and selected_track >= 1 and section % 3 == 0:
         # This diagonal gate reaches further into the lane but leaves a
         # broad side opening. Alternates its side across modules.
         var side := -1.0 if (section/2 + race_variation)%2==0 else 1.0
@@ -707,6 +714,31 @@ func _edge_baffles(parent: Node3D, center_z: float, section: int) -> void:
             wide,_lacquer(tint),true,true)
         gate.name = "Chicane_%02d" % section
         obstacle_finish.register_block(gate.global_transform,wide,tint)
+
+func _glacier_return_obstacles(parent: Node3D, center_z: float, section: int) -> void:
+    # Keep an inward chicane opposite the bridge and leave both evasive
+    # lines open around the timed shutter farther down the course.
+    if section == ShortcutRoute.EXIT_SECTION:
+        var tint: Color = TRACK_COLORS[selected_track].lightened(0.05)
+        var size := Vector3(2.66,0.82,1.25)
+        var block := _box(parent,Vector3(4.82,height_at(center_z)+0.37,center_z),
+            size,_lacquer(tint),true,true)
+        block.name = "Chicane_%02d" % section
+        obstacle_finish.register_block(block.global_transform,size,tint)
+        return
+    for flank in [-1.0,1.0]:
+        var x: float = flank*(4.95 if section == ShortcutRoute.EXIT_SECTION+1 else 4.65)
+        var z: float = center_z+flank*(1.45+float(built_variation)*0.75)
+        var tint: Color = BARRIER_COLORS[(section+built_variation+int(flank))%BARRIER_COLORS.size()]
+        if (section+built_variation+int(flank))%3 == 0:
+            var peg := _cylinder(parent,Vector3(x,height_at(z)+0.71,z),0.38,1.42,tint)
+            peg.name = "ToyPeg_GlacierShoulder_%02d_%s" % [section,"L" if flank < 0 else "R"]
+        else:
+            var size := Vector3(1.56,0.84,1.06)
+            var block := _box(parent,Vector3(x,height_at(z)+0.40,z),
+                size,_lacquer(tint),true,true)
+            block.name = "GlacierShoulderBlock_%02d_%s" % [section,"L" if flank < 0 else "R"]
+            obstacle_finish.register_block(block.global_transform,size,tint)
 
 func _pegs(parent: Node3D, center_z: float, n: int) -> void:
     # Checkerboard of rounded vertical posts, with traversable gaps.

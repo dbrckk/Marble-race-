@@ -82,8 +82,12 @@ static func side_for(track: int) -> int:
     return SIDES[clampi(track,0,2)]
 
 static func opens_rail(section: int, rail_side: int, piece: int, track: int) -> bool:
-    return (section == ENTRY_SECTION or section == EXIT_SECTION) and (
-        rail_side == side_for(track) and piece == 1)
+    if rail_side != side_for(track):
+        return false
+    if track == 1 and section == EXIT_SECTION:
+        # The ice bridge enters at the downhill end of this module.
+        return piece == 0 or piece == 1
+    return (section == ENTRY_SECTION or section == EXIT_SECTION) and piece == 1
 
 func setup(owner: Node3D, track: int) -> void:
     stage = owner

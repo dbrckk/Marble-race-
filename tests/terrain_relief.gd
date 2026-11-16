@@ -36,8 +36,8 @@ func _run() -> void:
     for course in range(3):
         assert(game.set_track(course))
         var road = game.track_surface
-        assert(road.planks.size() == 180 and road.rails.size() == 106,
-            "All original physical planks and protective rails must remain")
+        assert(road.planks.size() == 180 and road.rails.size() == (105 if course == 1 else 106),
+            "Planks and rails outside the authored shortcut openings must remain")
         for section in range(18):
             var z: float = 8.0-float(section)*12.0
             var module: Node3D = game.board.get_node("Course_%02d" % section)
