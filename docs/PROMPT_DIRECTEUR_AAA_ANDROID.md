@@ -139,6 +139,14 @@ Base de comparaison GitHub `9b27b799158c7dc42f17d6d62b487f8ce66056aa`.
 - Le test Godot 4.5.1 reproduit une entrée à 18 m/s avec 40 billes. La bille du joueur, encore bloquée au bout de 60 s avant le correctif, franchit maintenant la ligne à 19,80 s sur ce tracé. Elle termine sur les neuf variantes. Six variantes classent 40 billes et trois en classent 39 dans la fenêtre de 60 s. Certaines billes IA peuvent donc encore rester bloquées dans ce scénario.
 - Le test de peloton est intégré à la vérification Android. Les mesures de temps d’image sur téléphone restent à faire.
 
+### 2026-11-16 — Passage du dernier portique de Forge (1.77.0-rc)
+
+Base de comparaison GitHub `6fad6efd6aa56fdf8735dead1f9724295e045a9b`.
+
+- Sur la troisième variante de Forge, une bille IA pouvait se retrouver au contact de la bosse et du plot central, puis revenir contre ces deux colliders après chaque tentative de récupération. La bosse est déplacée après le dernier virage relevé en solo. Elle garde le même profil. Les courses réseau utilisent sa position actuelle côté serveur, y compris si une partie en ligne suit une course solo sur le même tracé.
+- Dans le scénario de régression à 40 billes sur Godot 4.5.1, le blocage de 47,5 s a disparu et la plus longue absence de progression sur ce tracé est passée à 11,2 s. Sur les neuf variantes, le joueur franchit l’arrivée et chaque IA termine ou est éliminée dans les 60 s. Six variantes classent 40 billes, trois en classent 39.
+- Avec un peloton lancé 14 m plus en amont, les 40 billes ont franchi l’arrivée sur la troisième variante de Forge en 26,95 s. Le même essai a révélé un blocage IA sur Woodworks et un autre sur Glacier. Les vues OpenGL Compatibility, à l’approche de l’obstacle et avant l’arrivée, ont permis de vérifier le déplacement de la bosse en vue de poursuite.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Mesurer le temps d’image au 95e percentile sur Redmi en profil Équilibré pendant le dernier secteur. Vérifier le ressenti de la reprise au toucher sur Glacier et observer les trois cas IA encore sans arrivée après 60 s.
+Mesurer le temps d’image au 95e percentile sur Redmi en profil Équilibré. Reproduire ensuite les blocages observés avec un peloton entrant plus tôt dans le secteur, notamment à la rambarde de Woodworks et devant les plots de Glacier.

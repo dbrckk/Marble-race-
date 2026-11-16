@@ -1,5 +1,5 @@
 extends SceneTree
-## A dense pack can stop a human against the final posts even with the
+## A dense pack can stop racers against the final posts even with the
 ## ordinary recovery impulse. Run all layouts through that contact at 60 Hz.
 
 func _initialize() -> void:
@@ -41,9 +41,26 @@ func _run() -> void:
             assert(game.player.finished and game.player.position.z < game.FINISH_Z,
                 "Player stayed trapped in the final sector (%d/%d)" % [biome,layout])
             assert(finishers >= 38,"Final obstacle stalled the pack (%d/%d)" % [biome,layout])
+            for racer in game.racers:
+                assert(racer.finished or racer.eliminated,
+                    "Racer %d was still trapped in the final sector (%d/%d)" % [
+                        racer.racer_id,biome,layout])
             game.set_process(true)
             game.return_to_menu()
             await process_frame
+    # Switching modes on the same layout must rebuild the crest at the
+    # deployed server's location, then restore the solo version on rematch.
+    var crest_path := "Course_14/RideableCrest_14"
+    game.net.role = "client"
+    game.net._begin_round(2,2,PackedInt32Array())
+    assert(is_equal_approx(game.board.get_node(crest_path).position.z,-158.5),
+        "Online Forge must match the deployed server's crest")
+    game.net.leave_room()
+    game.race_variation = 2
+    game.start_race("Grip Tape")
+    var solo_crest: Node3D = game.board.get_node(crest_path)
+    assert(solo_crest.position.z < game.final_straight_z and solo_crest.position.z > game.FINISH_Z,
+        "The solo rematch must restore the crest between the bank and the finish")
     DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_final_pack_career.cfg"))
     game.queue_free()
     for frame in range(4):
