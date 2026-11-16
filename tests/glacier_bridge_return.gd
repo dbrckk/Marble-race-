@@ -62,10 +62,19 @@ func _run() -> void:
                 "Glacier layout %d at %.0f m/s must let the player merge without contact" % [
                     layout,approach.y])
             game.return_to_menu()
+        for spacing in [2.6,3.0]:
+            game.race_variation = layout
+            game.start_race("Grip Tape")
+            game.countdown = 0.02
+            for frame in range(8):
+                await physics_frame
+            assert(await _player_merges_into_pack(game,2.8,15.0,spacing,true),
+                "Glacier layout %d must protect the %.1f m queue behind a yielding bot" % [layout,spacing])
+            game.return_to_menu()
     game.queue_free()
     for frame in range(4):
         await process_frame
-    print("GLACIER_BRIDGE_RETURN_PASS: 27 approach trials, 36 shutter-phase trials, %d passes after a real shutter impact, 6 player merges without contact" % passes_after_impact)
+    print("GLACIER_BRIDGE_RETURN_PASS: 27 approach trials, 36 shutter-phase trials, %d passes after a real shutter impact, 6 player merges and 6 close queues without contact" % passes_after_impact)
     quit()
 
 func _cross_return(game: Node3D, speed: float, traffic: Traffic,
@@ -227,7 +236,8 @@ func _place_main_rival(game: Node3D, rival: RigidBody3D, distance: float,
     rival.freeze = false
 
 
-func _player_merges_into_pack(game: Node3D, gap: float, pace: float) -> bool:
+func _player_merges_into_pack(game: Node3D, gap: float, pace: float,
+        spacing := 3.6, watch_queue := false) -> bool:
     var route: Node3D = game.shortcut_route
     var player: RigidBody3D = game.player
     var rivals: Array[RigidBody3D] = []
@@ -245,12 +255,20 @@ func _player_merges_into_pack(game: Node3D, gap: float, pace: float) -> bool:
     route.entered[player.racer_id] = true
     var lane: float = route.side
     for index in range(rivals.size()):
-        _place_main_rival(game,rivals[index],5.0+gap+index*3.6,lane,-(pace+index*1.5))
-    var player_contacts: Array[Node] = []
+        _place_main_rival(game,rivals[index],5.0+gap+index*spacing,lane,-(pace+index*1.5))
+    var contacts: Array[Node] = []
     player.body_entered.connect(func(body: Node):
         if body is RigidBody3D and body in rivals:
-            player_contacts.append(body)
+            contacts.append(body)
     )
+    if watch_queue:
+        for rival in rivals:
+            rival.contact_monitor = true
+            rival.max_contacts_reported = 8
+            rival.body_entered.connect(func(body: Node):
+                if body is RigidBody3D and body in rivals:
+                    contacts.append(body)
+            )
     var pad: Control = game.ui.touch_controls
     var finger := pad.get_viewport_rect().size*Vector2(0.20,0.83)
     pad._finger_event(1,finger,true)
@@ -268,9 +286,9 @@ func _player_merges_into_pack(game: Node3D, gap: float, pace: float) -> bool:
         for marble in [player]+rivals:
             if marble.position.z < clear_z:
                 crossed[marble.racer_id] = true
-        if not player_contacts.is_empty() or player.eliminated or crossed.size() == 4:
+        if not contacts.is_empty() or player.eliminated or crossed.size() == 4:
             break
     pad._finger_event(1,finger,false)
-    return player_contacts.is_empty() and crossed.size() == 4 and (
+    return contacts.is_empty() and crossed.size() == 4 and (
         game.last_checkpoint >= EXIT_CHECKPOINT and not player.eliminated and
         rivals.all(func(marble: RigidBody3D): return not marble.eliminated))

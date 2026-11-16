@@ -303,11 +303,11 @@ jobs:
           set -euo pipefail
           timeout 95s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 1150 --path . --script res://tests/timed_gate_hud.gd 2>&1 | tee timed-gate-hud.log
           grep -Fq "TIMED_HUD_PASS:" timed-gate-hud.log
-      - name: Glacier bridge return, manual merges, ten-marble traffic and shutter phases
+      - name: Glacier bridge return, merge queues, ten-marble traffic and shutter phases
         shell: bash
         run: |
           set -euo pipefail
-          XDG_DATA_HOME="$(mktemp -d)" timeout 110s ./Godot_v4.5.1-stable_linux.x86_64 --headless --fixed-fps 60 --quit-after 16000 --path . --script res://tests/glacier_bridge_return.gd 2>&1 | tee glacier-bridge-return.log
+          XDG_DATA_HOME="$(mktemp -d)" timeout 110s ./Godot_v4.5.1-stable_linux.x86_64 --headless --fixed-fps 60 --quit-after 18000 --path . --script res://tests/glacier_bridge_return.gd 2>&1 | tee glacier-bridge-return.log
           grep -Fq "GLACIER_BRIDGE_RETURN_PASS:" glacier-bridge-return.log
       - name: Predictive physical timed-hazard AI across nine course layouts
         shell: bash

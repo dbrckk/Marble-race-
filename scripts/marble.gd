@@ -35,6 +35,7 @@ func set_render_quality(quality: int) -> void:
 const RADIUS := 0.39
 const GLACIER_ACTIVE_SCAN := 0.10
 const GLACIER_ABORT_TIME := 0.35
+const GLACIER_MERGE_BRAKE_HOLD := 0.25
 const PALETTE := [
     Color("#e98739"), Color("#46adb4"), Color("#e45d88"), Color("#a75ad0"),
     Color("#76bc64"), Color("#f1c353"), Color("#e76850"), Color("#468fdc"),
@@ -81,6 +82,9 @@ var glacier_waiting_to_pass := false
 var glacier_resumed_pass := false
 var glacier_abort_remaining := 0.0
 var glacier_return_offset := 0.0
+var glacier_merge_brake_time := 0.0
+var glacier_merge_scan := 0.0
+var glacier_merge_leader: RigidBody3D
 var ai_traffic_offset := 0.0
 var last_boosting := false
 
@@ -353,12 +357,7 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
                     side_force = clampf(lateral_error*22.0-linear_velocity.x*6.0,-26.0,26.0)
             var return_x := traffic_center+glacier_return_offset if glacier_abort_remaining > 0.0 else INF
             drive_force = _glacier_follow_force(drive_force,glacier_passing,return_x)
-            if course_owner.selected_track == 1 and is_instance_valid(course_owner.shortcut_route):
-                var route: Node3D = course_owner.shortcut_route
-                var past_exit: float = route.EXIT_Z-position.z
-                if past_exit >= -0.5 and past_exit <= 16.0 and not route.entered.is_empty() and (
-                        not route.entered.has(racer_id)):
-                    drive_force = AIPath.glacier_merge_drive(self,course_owner.racers,route,drive_force)
+            drive_force = _glacier_merge_force(delta,drive_force)
             side_force += AIPath.baffle_dodge(position,traffic_center)
         elif following_bypass:
             # Real shortcut steering retains full priority over crowd
@@ -476,28 +475,56 @@ func _glacier_return_pass(delta: float, center_x: float) -> float:
     return -side*AIPath.GLACIER_PASS_OFFSET if glacier_pass_remaining > 0.0 and (
         distance >= -1.25 or glacier_resumed_pass) else INF
 
+func _glacier_merge_force(delta: float, drive_force: float) -> float:
+    var route: Node3D = course_owner.shortcut_route
+    if course_owner.selected_track != 1 or not is_instance_valid(route):
+        return drive_force
+    var past_exit: float = route.EXIT_Z-position.z
+    if past_exit < -0.5 or past_exit > 16.0 or route.entered.is_empty() or route.entered.has(racer_id):
+        glacier_merge_brake_time = 0.0
+        glacier_merge_scan = 0.0
+        glacier_merge_leader = null
+        return drive_force
+    glacier_merge_brake_time = maxf(0.0,glacier_merge_brake_time-delta)
+    var limited := AIPath.glacier_merge_drive(self,course_owner.racers,route,drive_force)
+    glacier_merge_scan -= delta
+    if glacier_merge_scan <= 0.0:
+        glacier_merge_scan = GLACIER_ACTIVE_SCAN
+        glacier_merge_leader = AIPath.glacier_return_leader(self,course_owner.racers)
+    var ahead := glacier_merge_leader
+    if is_instance_valid(ahead) and ahead.glacier_merge_brake_time > 0.0 and (
+            AIPath.glacier_leader_in_line(self,ahead)):
+        limited = _glacier_stopping_force(limited,ahead,false)
+    if limited < 0.0 and limited < drive_force:
+        glacier_merge_brake_time = GLACIER_MERGE_BRAKE_HOLD
+    return limited
+
+
 func _glacier_follow_force(drive_force: float, passing: bool, return_x: float) -> float:
     if not is_instance_valid(glacier_leader) or (
         not AIPath.glacier_leader_in_line(self,glacier_leader,return_x)):
         return drive_force
-    var gap: float = position.z-glacier_leader.position.z
+    var limited := _glacier_stopping_force(drive_force,glacier_leader,passing)
+    if not passing and limited < 0.0:
+        glacier_waiting_to_pass = true
+    return limited
+
+
+func _glacier_stopping_force(drive_force: float, leader: RigidBody3D, passing: bool) -> float:
+    var gap := position.z-leader.position.z
     var speed := -linear_velocity.z
-    var leader_speed := maxf(0.0,-glacier_leader.linear_velocity.z)
-    # Preserve room for both bodies. Let a confirmed pass develop unless
-    # the remaining time is too short to get alongside at the current pace.
+    var leader_speed := maxf(0.0,-leader.linear_velocity.z)
+    # Preserve room for both bodies and let a confirmed pass develop while
+    # it still has time to get alongside.
     var clear_gap := maxf(0.0,gap-1.35)
     if passing and clear_gap > (speed-leader_speed)*0.22:
         return drive_force
-    # Compare stopping distances so the bot can still stop if its leader
-    # is already braking for another marble farther up the file.
     var stopping_budget := 2.0*19.0*clear_gap
     var safe_speed := leader_speed+sqrt(stopping_budget) if passing else (
         sqrt(leader_speed*leader_speed+stopping_budget))
     safe_speed = maxf(1.0,safe_speed)
-    var limited_force := minf(drive_force,clampf((safe_speed-speed)*10.0,-64.0,drive_force))
-    if not passing and limited_force < 0.0:
-        glacier_waiting_to_pass = true
-    return limited_force
+    return minf(drive_force,maxf(-64.0,(safe_speed-speed)*10.0))
+
 
 func teleport_to_start(new_position: Vector3) -> void:
     freeze = true
@@ -525,5 +552,8 @@ func teleport_to_start(new_position: Vector3) -> void:
     glacier_resumed_pass = false
     glacier_abort_remaining = 0.0
     glacier_return_offset = 0.0
+    glacier_merge_brake_time = 0.0
+    glacier_merge_scan = 0.0
+    glacier_merge_leader = null
     network_controlled = false
     freeze = false
