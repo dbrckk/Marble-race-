@@ -33,7 +33,7 @@ jobs:
           template_dir="$HOME/.local/share/godot/export_templates/4.5.1.stable"
           mkdir -p "$template_dir" "$HOME/.local/share/godot/keystores" "$HOME/.config/godot" build capture
           unzip -p godot.tpz templates/android_debug.apk > "$template_dir/android_debug.apk"
-          sdkmanager --install "build-tools;35.0.0" "platforms;android-35" "platform-tools" "emulator" "system-images;android-34;google_apis;x86_64"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "build-tools;35.0.0" "platforms;android-35" "platform-tools" "emulator" "system-images;android-34;google_apis;x86_64"
           keystore="$HOME/.local/share/godot/keystores/debug.keystore"
           if [[ ! -f "$keystore" ]]; then
             keytool -genkeypair -noprompt -keystore "$keystore" -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android Debug,O=Open Source,C=US"
@@ -77,7 +77,8 @@ jobs:
           set -euo pipefail
           test -c /dev/kvm
           sudo chown "$USER" /dev/kvm
-          avdmanager create avd --force --name marble_qa --package "system-images;android-34;google_apis;x86_64" --device "pixel_6" <<< no
+          export PATH="$ANDROID_HOME/platform-tools:$PATH"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --force --name marble_qa --package "system-images;android-34;google_apis;x86_64" --device "pixel_6" <<< no
           "$ANDROID_HOME/emulator/emulator" -avd marble_qa -no-window -no-boot-anim -no-audio -no-snapshot -gpu swiftshader -memory 3072 -cores 4 > capture/emulator.log 2>&1 &
           emulator_pid=$!
           trap 'kill "$emulator_pid" 2>/dev/null || true' EXIT
