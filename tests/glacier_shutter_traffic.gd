@@ -1,5 +1,5 @@
 extends SceneTree
-## Real same-level rear-end and passing regression beside the Glacier shutter.
+## Real same-level braking and overtaking beside the Glacier shutter.
 const Strategy = preload("res://scripts/ai_race_strategy.gd")
 
 func _initialize() -> void:
@@ -32,10 +32,17 @@ func _run() -> void:
         assert(await _test_reopening(game),
             "Glacier layout %d must reopen a pass without a rear-end collision" % layout)
         game.return_to_menu()
+    for layout in range(3):
+        for approach in [Vector2(2.4,4),Vector2(2.7,14),Vector2(2.55,19)]:
+            await _start_layout(game,layout)
+            assert(await _test_cut_in(game,approach.x,int(approach.y)),
+                "Glacier layout %d must abort without contact when a rival cuts in after %d ticks" % [
+                    layout,int(approach.y)])
+            game.return_to_menu()
     game.queue_free()
     for tick in range(4):
         await process_frame
-    print("GLACIER_SHUTTER_TRAFFIC_PASS: six passes, six braking runs, nine queues and three reopened passes without contact")
+    print("GLACIER_SHUTTER_TRAFFIC_PASS: six passes, six braking runs, nine queues, three reopened passes and nine cut-ins without contact")
     quit(0)
 
 func _start_layout(game: Node3D, layout: int) -> void:
@@ -196,4 +203,54 @@ func _test_reopening(game: Node3D) -> bool:
             completed = true
         if completed and rear.position.z < gate_z-2.5:
             return first.position.z < gate_z-1.3
+    return false
+
+
+func _test_cut_in(game: Node3D, advance: float, delay: int) -> bool:
+    var leader: RigidBody3D = game.player
+    var bots := _isolate_bots(game,2)
+    var follower := bots[0]
+    var rival := bots[1]
+    var director: Node3D = game.race_director
+    var gate: int = director.GLACIER_RETURN_GATE
+    var gate_z: float = director.event_z(gate)
+    var side: float = director.side_at(gate)
+    var follower_z := gate_z+11.0
+    var passing_lane := -side*Strategy.GLACIER_PASS_OFFSET
+    var outer_lane := -side*3.5
+    _place(game,leader,side*0.08,follower_z-7.5,2.7)
+    _place(game,follower,side*0.08,follower_z,16.0)
+    _place(game,rival,outer_lane,follower_z-advance,13.0)
+    var contacts: Array[Node] = []
+    for bot in bots:
+        _watch_queue_contacts(bot,leader,bots,contacts)
+    var committed_at := -1
+    var cut_in_at := -1
+    var cancelled := false
+    var entered_lane := false
+    for frame in range(100):
+        if committed_at >= 0 and frame == committed_at+delay:
+            cut_in_at = frame
+        var rival_lane := passing_lane if cut_in_at >= 0 else outer_lane
+        # Apply a steering force to the moving rival after the pass starts.
+        # Its position and all contacts remain under the race physics.
+        rival.ai_lane_goal = rival_lane
+        var rival_center: float = game.track_center_at(rival.position.z)
+        var lateral_force := clampf(
+            (rival_center+rival_lane-rival.position.x)*25.0-rival.linear_velocity.x*6.0,-36.0,36.0)
+        rival.apply_central_force(Vector3(lateral_force,0,0)*rival.mass)
+        await physics_frame
+        if not contacts.is_empty() or follower.eliminated or rival.eliminated:
+            return false
+        if committed_at < 0 and follower.glacier_pass_remaining > 0.0:
+            committed_at = frame
+        if cut_in_at >= 0:
+            if not cancelled and follower.glacier_pass_remaining <= 0.0:
+                cancelled = true
+            if not cancelled and frame-cut_in_at >= 12:
+                return false
+            var rival_offset: float = rival.position.x-game.track_center_at(rival.position.z)
+            entered_lane = entered_lane or absf(rival_offset-passing_lane) < 0.45
+        if follower.position.z < gate_z-4.0 and rival.position.z < gate_z-4.0:
+            return cancelled and entered_lane
     return false

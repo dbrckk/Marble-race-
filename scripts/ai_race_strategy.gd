@@ -19,7 +19,7 @@ static func temperament(racer_id: int, track: int, variation: int) -> int:
     return posmod(racer_id*7 + track*5 + variation*4,3)
 
 static func _lane_occupancy(target_x: float, own: RigidBody3D,
-    rivals: Array[RigidBody3D]) -> float:
+    rivals: Array[RigidBody3D], sweep_crossings := false) -> float:
     var penalty := 0.0
     for other in rivals:
         if other == own or not is_instance_valid(other) or (
@@ -37,6 +37,11 @@ static func _lane_occupancy(target_x: float, own: RigidBody3D,
             other.linear_velocity.x,-5.0,5.0)*0.42
         var future_dx: float = absf(predicted_x-target_x)
         var dx: float = minf(current_dx,future_dx)
+        if sweep_crossings:
+            # A sideways rival can cross the line between both samples.
+            var crossed_x := clampf(target_x,minf(other.position.x,predicted_x),
+                maxf(other.position.x,predicted_x))
+            dx = absf(crossed_x-target_x)
         if dx < 1.10:
             penalty += (1.10-dx)*2.4*(
                 1.0-clampf(dz/5.5,0.0,1.0))
@@ -202,11 +207,12 @@ static func biome_zone_safe_lane(mechanics: Node3D, own_z: float,
 # Track the nearest same-level rival in the bot's current line. The
 # caller scans at the ordinary traffic cadence and keeps the body reference
 # so closing distance and relative speed can be checked every physics tick.
-static func glacier_return_leader(own: RigidBody3D, rivals: Array[RigidBody3D]) -> RigidBody3D:
+static func glacier_return_leader(own: RigidBody3D, rivals: Array[RigidBody3D],
+        return_x := INF) -> RigidBody3D:
     var nearest: RigidBody3D
     var nearest_gap := 10.0
     for other in rivals:
-        if not is_instance_valid(other) or not glacier_leader_in_line(own,other):
+        if not is_instance_valid(other) or not glacier_leader_in_line(own,other,return_x):
             continue
         var ahead: float = own.position.z-other.position.z
         if ahead < nearest_gap:
@@ -214,11 +220,15 @@ static func glacier_return_leader(own: RigidBody3D, rivals: Array[RigidBody3D]) 
             nearest = other
     return nearest
 
-static func glacier_leader_in_line(own: RigidBody3D, other: RigidBody3D) -> bool:
+static func glacier_leader_in_line(own: RigidBody3D, other: RigidBody3D,
+        return_x := INF) -> bool:
+    var line_x := own.position.x
+    if is_finite(return_x):
+        line_x = clampf(other.position.x,minf(line_x,return_x),maxf(line_x,return_x))
     return other != own and not other.finished and not other.eliminated and not other.freeze and (
         own.position.z-other.position.z > 0.0 and
         absf(other.position.y-own.position.y) <= TRAFFIC_HEIGHT and
-        absf(other.position.x-own.position.x) < 1.15)
+        absf(other.position.x-line_x) < 1.15)
 
 static func glacier_return_pass_is_clear(own: RigidBody3D, rivals: Array[RigidBody3D],
         leader: RigidBody3D, center_x: float, shutter_side: float,
@@ -240,7 +250,7 @@ static func glacier_return_pass_is_clear(own: RigidBody3D, rivals: Array[RigidBo
                 return false
         elif closing_speed < 5.0:
             return false
-    return _lane_occupancy(target_x,own,rivals) < 0.72
+    return _lane_occupancy(target_x,own,rivals,passing) < 0.72
 
 # The timed gate moves during a marble's approach. Evaluate where the *real
 # collidable body* will be at arrival, rather than dodging its current mesh.
