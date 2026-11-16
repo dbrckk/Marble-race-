@@ -434,7 +434,12 @@ func _glacier_follow_force(drive_force: float, passing: bool) -> float:
     var clear_gap := maxf(0.0,gap-1.35)
     if passing and clear_gap > (speed-leader_speed)*0.22:
         return drive_force
-    var safe_speed := maxf(1.0,leader_speed+sqrt(2.0*19.0*clear_gap))
+    # Compare stopping distances so the bot can still stop if its leader
+    # is already braking for another marble farther up the file.
+    var stopping_budget := 2.0*19.0*clear_gap
+    var safe_speed := leader_speed+sqrt(stopping_budget) if passing else (
+        sqrt(leader_speed*leader_speed+stopping_budget))
+    safe_speed = maxf(1.0,safe_speed)
     return minf(drive_force,clampf((safe_speed-speed)*10.0,-64.0,drive_force))
 
 func teleport_to_start(new_position: Vector3) -> void:

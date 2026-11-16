@@ -291,11 +291,11 @@ jobs:
           set -euo pipefail
           timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 650 --path . --script res://tests/ai_traffic.gd 2>&1 | tee ai-traffic.log
           grep -Fq "AI_TRAFFIC_PASS:" ai-traffic.log
-      - name: Physical AI braking and overtaking at the Glacier shutter
+      - name: Physical AI braking, queues and overtaking at the Glacier shutter
         shell: bash
         run: |
           set -euo pipefail
-          XDG_DATA_HOME="$(mktemp -d)" timeout 75s ./Godot_v4.5.1-stable_linux.x86_64 --headless --fixed-fps 60 --quit-after 2200 --path . --script res://tests/glacier_shutter_traffic.gd 2>&1 | tee glacier-shutter-traffic.log
+          XDG_DATA_HOME="$(mktemp -d)" timeout 75s ./Godot_v4.5.1-stable_linux.x86_64 --headless --fixed-fps 60 --quit-after 3600 --path . --script res://tests/glacier_shutter_traffic.gd 2>&1 | tee glacier-shutter-traffic.log
           grep -Fq "GLACIER_SHUTTER_TRAFFIC_PASS:" glacier-shutter-traffic.log
       - name: Real moving-gate Android HUD and predictive audio warnings
         shell: bash

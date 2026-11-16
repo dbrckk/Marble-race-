@@ -23,10 +23,15 @@ func _run() -> void:
             assert(await _test_passing(game,gap,true),
                 "Glacier layout %d must slow down with a %.0f m gap and an occupied passing lane" % [layout,gap])
             game.return_to_menu()
+        for gap in [3.0,3.4,4.0]:
+            await _start_layout(game,layout)
+            assert(await _test_queue(game,gap),
+                "Three Glacier bots must brake and recover in order at %.1f m on layout %d" % [gap,layout])
+            game.return_to_menu()
     game.queue_free()
     for tick in range(4):
         await process_frame
-    print("GLACIER_SHUTTER_TRAFFIC_PASS: six real passes and six physical braking runs without rear contact through the shutter")
+    print("GLACIER_SHUTTER_TRAFFIC_PASS: six passes, six braking runs and nine three-bot queues without contact")
     quit(0)
 
 func _start_layout(game: Node3D, layout: int) -> void:
@@ -39,18 +44,9 @@ func _start_layout(game: Node3D, layout: int) -> void:
 
 func _test_passing(game: Node3D, gap: float, occupied := false) -> bool:
     var leader: RigidBody3D = game.player
-    var follower: RigidBody3D
-    var blocker: RigidBody3D
-    for marble in game.racers:
-        marble.freeze = true
-        marble.collision_layer = 0
-        marble.collision_mask = 0
-        if marble == leader or marble.wants_shortcut():
-            continue
-        if follower == null:
-            follower = marble
-        elif blocker == null:
-            blocker = marble
+    var bots := _isolate_bots(game,2)
+    var follower := bots[0]
+    var blocker := bots[1]
     var director: Node3D = game.race_director
     var gate: int = director.GLACIER_RETURN_GATE
     var gate_z: float = director.event_z(gate)
@@ -87,6 +83,64 @@ func _test_passing(game: Node3D, gap: float, occupied := false) -> bool:
         if not occupied and follower.position.z < gate_z-1.3 and follower.position.z < leader.position.z-0.78:
             return true
     return false
+
+func _test_queue(game: Node3D, gap: float) -> bool:
+    var director: Node3D = game.race_director
+    var gate: int = director.GLACIER_RETURN_GATE
+    var gate_z: float = director.event_z(gate)
+    var side: float = director.side_at(gate)
+    var start_z := gate_z+0.6
+    var lane := side*0.1
+    var bots := _isolate_bots(game,5)
+    _place(game,game.player,lane,start_z,0.15)
+    var approach_speeds := [12.5,15.0,17.0]
+    for index in range(3):
+        _place(game,bots[index],lane,start_z+gap*(index+1),approach_speeds[index])
+    _place(game,bots[3],-side*Strategy.GLACIER_PASS_OFFSET,start_z+gap*1.2,7.0)
+    _place(game,bots[4],-side*Strategy.GLACIER_PASS_OFFSET,start_z+gap*2.6,9.0)
+
+    var contacts: Array[Node] = []
+    for bot in bots:
+        _watch_queue_contacts(bot,game.player,bots,contacts)
+    var slowest := approach_speeds.duplicate()
+    var exited := 0
+    for frame in range(150):
+        await physics_frame
+        if not contacts.is_empty():
+            return false
+        for index in range(3):
+            var bot := bots[index]
+            if bot.eliminated:
+                return false
+            var speed := -bot.linear_velocity.z
+            slowest[index] = minf(slowest[index],speed)
+            if index >= exited and bot.position.z < gate_z-3.0:
+                if index != exited or slowest[index] > approach_speeds[index]-3.0 or (
+                    speed < slowest[index]+1.0):
+                    return false
+                exited += 1
+        if exited == 3:
+            return true
+    return false
+
+func _isolate_bots(game: Node3D, count: int) -> Array[RigidBody3D]:
+    var bots: Array[RigidBody3D] = []
+    for marble in game.racers:
+        marble.freeze = true
+        marble.collision_layer = 0
+        marble.collision_mask = 0
+        if bots.size() < count and not marble.is_player and not marble.wants_shortcut():
+            bots.append(marble)
+    return bots
+
+func _watch_queue_contacts(bot: RigidBody3D, player: RigidBody3D,
+        bots: Array[RigidBody3D], contacts: Array[Node]) -> void:
+    bot.contact_monitor = true
+    bot.max_contacts_reported = 8
+    bot.body_entered.connect(func(body: Node):
+        if body == player or body in bots:
+            contacts.append(body)
+    )
 
 func _place(game: Node3D, racer: RigidBody3D, lane: float, z: float, speed: float) -> void:
     racer.global_position = Vector3(game.track_center_at(z)+lane,game.height_at(z)+0.46,z)
