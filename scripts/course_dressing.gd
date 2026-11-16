@@ -20,7 +20,6 @@ func _ready() -> void:
     _gold = _material(Color("#d4a86a"),0.26,0.65)
     _dark = _material(Color("#393b3c"),0.43,0.38)
     _wood = _material(Color("#7a5238"),0.68,0.0)
-    _rail_accents()
     _modular_bracing()
     _flags_and_plates()
     _batch_static_boxes()
@@ -94,32 +93,6 @@ func _height(z: float) -> float:
 func _grade(z: float) -> float:
     var stage := get_parent().get_parent() as Node3D
     return stage.track_grade_at(z)
-
-func _rail_accents() -> void:
-    # One batch for all golden upper rail strips. They sit outside the contact surface.
-    var metal := BoxMesh.new()
-    metal.size = Vector3(0.08,0.055,LEN-0.07)
-    metal.material = _gold
-    var batch := MultiMesh.new()
-    batch.transform_format = MultiMesh.TRANSFORM_3D
-    batch.mesh = metal
-    batch.instance_count = SEGMENTS*2
-    for section in range(SEGMENTS):
-        var z := 8.0-float(section)*LEN
-        var angle := Basis(Vector3.RIGHT,-atan(_grade(z)))
-        for side in range(2):
-            var pos := Vector3((-1.0 if side==0 else 1.0)*6.855+_center(z),_height(z)+1.23,z)
-            # Suppress decorative rail trim at the real fork / merger.
-            var portal_side: int = -1 if side == 0 else 1
-            var guide: Basis = angle
-            if section in [5,9] and portal_side == [1,-1,1][clampi(int(get_parent().get_parent().selected_track),0,2)]:
-                guide = Basis().scaled(Vector3.ZERO)
-            batch.set_instance_transform(section*2+side,Transform3D(guide,pos))
-    var instance := MultiMeshInstance3D.new()
-    instance.name = "GoldRailTopTrim_36Segments"
-    instance.multimesh = batch
-    instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-    add_child(instance)
 
 func _modular_bracing() -> void:
     # No extra geometry on the racing surface: all decoration is underneath / outside.

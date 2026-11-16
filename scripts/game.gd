@@ -558,11 +558,9 @@ func _make_course() -> void:
                     section_node.set_meta("shortcut_portal",side)
                     continue
                 var z: float = center_z+(rail_piece-1)*4.02
-                var color_idx := (section+rail_piece+(0 if side==1 else 3))%BARRIER_COLORS.size()
                 var pos := Vector3(side*6.84,height_at(z)+0.58,z)
-                _box(section_node,pos,Vector3(0.57,1.26,4.04),
-                    _lacquer(BARRIER_COLORS[color_idx]),true,true,false)
-                track_surface.register_rail(pos+section_node.position,color_idx,track_grade_at(z))
+                _box(section_node,pos,TrackSurface.RAIL,null,true,true,false)
+                track_surface.register_rail(pos+section_node.position,track_grade_at(z))
         if section in [3, 9, 14]:
             _terrain_ramp(section_node,center_z,section)
         if section > 0 and section < SEGMENTS - 3:
@@ -599,10 +597,7 @@ func _make_course() -> void:
     var woods: Array = []
     for color in WOOD_COLORS:
         woods.append(_wood_mat(_themed_wood(color)))
-    var barriers: Array = []
-    for color in BARRIER_COLORS:
-        barriers.append(_lacquer(color))
-    track_surface.finish(woods,barriers,_mat(Color("#82563d")))
+    track_surface.finish(woods,selected_track,_mat(Color("#82563d")))
     _start_arch()
     _finish_arch()
     _checkpoint_arches()

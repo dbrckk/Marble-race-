@@ -30,7 +30,6 @@ func _run_checks() -> void:
     assert(ResourceLoader.exists("res://assets/audio/sfx/metal_hit_1.ogg"), "Metal impact sound missing")
     var props: Node = race.board.get_node_or_null("ModularBrassAndSilkDressing")
     assert(props != null, "Missing v0.7 scenery")
-    assert(props.get_node_or_null("GoldRailTopTrim_36Segments") != null, "Missing batched brass rail details")
     var flag_count := 0
     var side_labels := 0
     for child in props.get_children():
@@ -44,7 +43,7 @@ func _run_checks() -> void:
     var track_surface: Node3D = race.board.get_node_or_null("InstancedTrackSurface")
     assert(is_instance_valid(track_surface), "Missing v0.10 instanced track")
     assert(track_surface.original_mesh_count == 646, "180 planks + 106 rails (two shortcut portals) + 360 inlays")
-    assert(track_surface.get_batch_count() <= 15, "Repeated track meshes must be batched by material")
+    assert(track_surface.get_batch_count() <= 10, "Track surface must retain the instancing budget")
     for batch in track_surface.get_children():
         assert(batch is MultiMeshInstance3D, "Track decoration must be drawn with GPU instancing")
         assert(not batch is CollisionObject3D, "Track rendering must not introduce new colliders")
@@ -137,7 +136,7 @@ func _run_checks() -> void:
     race.return_to_menu()
     assert(race.race_state == "MENU", "Menu return failed")
     assert(race.contact_shadows.pool.visible_instance_count == 0, "Menu should release race shadows")
-    print("SMOKE_PASS: 40 racers, 648 GPU-instanced track parts, AA/LOD profiles, cached geometry, audio, controls")
+    print("SMOKE_PASS: 40 racers, 646 GPU-instanced track parts, AA/LOD profiles, cached geometry, audio, controls")
     race.queue_free()
     for i in range(4):
         await process_frame

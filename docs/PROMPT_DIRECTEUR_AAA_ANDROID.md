@@ -61,5 +61,23 @@ Tu es responsable technique, game designer, technical artist, expert optimisatio
 - Mettre à jour ce document à chaque lot avec : date, SHA, tests, captures, métriques, décisions, blocages, et la prochaine action unique. Ne pas effacer l'historique des validations.
 - Ne publier sur Google Play qu'après validation explicite de tous les prérequis commerciaux et techniques.
 
+## JOURNAL DES LOTS
+
+### 2026-11-16 — Garde-corps des trois univers (1.69.0-rc)
+
+Base de comparaison GitHub `3546ac930e24d66d631d60a7d6674ec51b4c7fca`, résultat dans le commit qui introduit cette entrée.
+
+| Univers | Variantes observées | Garde-corps | Finition livrée | Structures restantes visibles en course |
+| --- | --- | --- | --- | --- |
+| Woodworks | 0, 1, 2 | 106 par tracé | Bois mouluré, gorge et couronne laiton | Arche de départ, montants d’atelier, socles des décors |
+| Glacier | 0, 1, 2 | 105 par tracé | Arêtes de glace, face cyan et givre | Arche de départ, piliers du fond, transition pont/piste |
+| Forge | 0, 1, 2 | 106 par tracé | Acier en retrait et rebord cuivre | Arche de départ, parois d’atelier, supports des mécanismes |
+
+- Comparaison sur trois positions de la caméra de course par variante, avec 40 billes positionnées en peloton, profil Équilibré, 82 km/h affichés et trois instants reproductibles de la course. [Comparatif des trois univers](screenshots/v1.69-guardrails.jpg).
+- Un lot de dessin pour la famille des garde-corps, contre six lots matériau et un lot de liseré. Le profil passe de 108 à 60 triangles par élément. Les ouvertures et les transformations des colliders correspondent sur les neuf tracés.
+- Sur 27 paires de vues OpenGL Compatibility avec Mesa llvmpipe, médianes de six appels de dessin et 5 520 primitives affichées en moins par image. Ces vues statiques décrivent le coût géométrique. Le temps d’image, la stabilité thermique et la lisibilité en mouvement restent à mesurer sur un Android physique.
+- Import Godot 4.6.3, vérifications de tracés, de contrôles tactiles, de rendu, de raccourcis et de qualité graphique validés localement. La simulation existante a mesuré 38, 39 et 36 arrivées sur 40 sur les trois parcours sans pilotage humain. Le workflow GitHub vérifie le build Android avec Godot 4.5.1.
+
 ## PROCHAIN LOT RECOMMANDÉ
-Construire l'inventaire visuel mesurable des neuf tracés et un jeu de captures comparables sur les trois biomes, puis traiter la première famille d'éléments génériques très visibles (pistes/rails/structures proches caméra), sans toucher aux colliders ni aux alertes de danger. En parallèle, instrumenter les mesures nécessaires pour refuser toute régression de performance. Vérifier en CI et indiquer ce qui nécessite encore un appareil Android.
+
+Remplacer les arches de départ génériques par trois portiques propres aux univers. Vérifier le signal de départ, la vue du premier obstacle et le cadrage du HUD pendant les 30 premières secondes. Reprendre les captures à 40 billes et vérifier le budget de dessin sur les neuf tracés.
