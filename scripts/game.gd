@@ -910,9 +910,9 @@ func _checkpoint_arches() -> void:
 
 func _edge_checkpoint_markers(sectors: Array[int]) -> void:
     var forge := selected_track == 2
-    var biome_name := "Forge" if forge else "Glacier"
-    var shell := _mat(Color("#51383b") if forge else Color("#315266"),0.34,0.62)
-    var enamel := _mat(Color("#f0b56a") if forge else Color("#a8efff"),0.41,0.18)
+    var biome_name: String = ["Woodworks","Glacier","Forge"][selected_track]
+    var shell := _mat([Color("#564233"),Color("#315266"),Color("#51383b")][selected_track],0.34,0.62)
+    var enamel := _mat([Color("#efc487"),Color("#a8efff"),Color("#f0b56a")][selected_track],0.41,0.18)
     var post_x := CourseSculptures.EDGE_SECTOR_POST_OFFSET
     var sign_y := CourseSculptures.EDGE_SECTOR_SIGN_HEIGHT
     var pillar := BoxMesh.new()

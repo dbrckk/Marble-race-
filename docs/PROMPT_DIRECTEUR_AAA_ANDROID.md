@@ -96,6 +96,15 @@ Base de comparaison GitHub `b122be0826748b244a73924736797acb5d417590`, résultat
 - 27 paires de vues OpenGL Compatibility avec Mesa llvmpipe, 40 billes. La médiane est de 40 appels de dessin et 7 102 primitives affichées en moins par image. [Comparatif des trois univers](screenshots/v1.71-opening-obstacles.jpg).
 - Les neuf variantes passent la vérification des ouvertures et du débattement. Contrôles tactiles, caméra, avertissements de danger et import Godot vérifiés localement. Lisibilité et temps d’image restent à mesurer en jeu sur Android physique.
 
+### 2026-11-16 — Première bifurcation lisible à pleine vitesse (1.72.0-rc)
+
+Base de comparaison GitHub `2485953106a494e6fc5d8c51f1c47de4a7e8aa9c`, résultat dans le commit qui introduit cette entrée.
+
+- Le premier toit de Woodworks et de Glacier devient latéral. Les balises de secteur passent sur les bords au plan de chronométrage. Les comparaisons à 86 km/h montrent le pont dans la vue de poursuite jusqu’à l’ouverture. [Comparatif des trois circuits](screenshots/v1.72-first-fork.jpg).
+- Dix flèches près de la bifurcation. Menthe pour la piste et ambre pour le pont, avec deux repères alignés sur son tablier incliné. Le HUD signale le côté, la distance, le temps à vitesse de course puis le moment de bifurquer. Une bille encore sur l’accotement conserve le contexte de la piste.
+- 27 paires de captures à 40 billes en OpenGL Compatibility avec Mesa llvmpipe. Écart médian par circuit de −14 appels de dessin à Woodworks, −15 à Glacier et +6 à Forge. Temps d’image et facilité de lecture à confirmer sur Android physique.
+- Tests Godot sur les neuf tracés, avec visée de la caméra, vrai tablier, signal au HUD, choix du côté et conservation des récompenses sous autorité serveur.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Clarifier l’approche de la première bifurcation. Distinguer la piste principale et le pont physique à la vitesse de course, puis vérifier l’entrée des trois raccourcis et leurs trois variantes à 40 billes.
+Rendre le retour des ponts lisible au milieu du peloton. Vérifier la zone de convergence, les repères de rentrée sur la piste et le transfert vers les alertes de danger, en priorité au volet de Glacier.

@@ -1731,21 +1731,17 @@ func update_hud() -> void:
             RARE_ITEMS.COLORS[color_index].lightened(0.20))
     shortcut_label.visible = still_racing and not route_hint.is_empty()
     if shortcut_label.visible:
-        if game.selected_track == 2 or (game.selected_track == 1 and bridge_approach_active):
+        if route_hint["mode"] == "fork" or game.selected_track == 2 or (
+                game.selected_track == 1 and bridge_approach_active):
             shortcut_label.text = game.shortcut_route.route_guidance_text(
                 route_hint,game.player.global_position.z,forward_speed)
             shortcut_label.visible = not shortcut_label.text.is_empty()
             var route_tint := SHORTCUT_ROUTE.FORGE_MAIN_COLOR
-            if game.selected_track == 1:
+            if route_hint["mode"] == "fork":
+                route_tint = SHORTCUT_ROUTE.FORK_BRIDGE_COLOR
+            elif game.selected_track == 1:
                 route_tint = SHORTCUT_ROUTE.GLACIER_RETURN_COLOR
-            elif route_hint["mode"] == "fork":
-                route_tint = SHORTCUT_ROUTE.FORGE_EDGE_COLOR
             shortcut_label.add_theme_color_override("font_color",route_tint)
-        elif str(route_hint["mode"]) == "fork":
-            var bridge_text := "← ICE SHORTCUT" if route_hint["side"] == "LEFT" else "SHORTCUT BRIDGE →"
-            shortcut_label.text = "MAIN TRACK ↑   /   %s  •  %dm" % [
-                bridge_text,int(route_hint["distance"])]
-            shortcut_label.add_theme_color_override("font_color",Color("#ffdda0"))
         else:
             shortcut_label.text = "MERGE %s  •  %dm" % [
                 str(route_hint["side"]),int(route_hint["distance"])]

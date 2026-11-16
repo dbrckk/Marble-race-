@@ -8,11 +8,13 @@ const ENTRY_Z := -48.0
 const ENTRY_PORTAL_Z := -52.0
 const EXIT_Z := -104.0
 const PORTAL_HALF_LENGTH := 2.0
-const FORGE_FORK_REACH := 32.0
+const FORK_GUIDANCE_REACH := 32.0
 const MERGE_GUIDANCE_REACH := 23.0
 const GLACIER_RETURN_COLOR := Color("#ffda8c")
 const FORGE_EDGE_COLOR := Color("#ffc86e")
 const FORGE_MAIN_COLOR := Color("#b6f6ed")
+const FORK_MAIN_COLOR := FORGE_MAIN_COLOR
+const FORK_BRIDGE_COLOR := FORGE_EDGE_COLOR
 const OUTER_START := -60.0
 const OUTER_END := -92.0
 const INNER_OFFSET := 4.90
@@ -154,12 +156,22 @@ func setup(owner: Node3D, track: int) -> void:
     _launch_ramps(deck_material)
     _bridge_precision_corridor(edge_material)
     _racing_line(edge_material)
+    var signs: Array[Transform3D] = []
+    var paint: Array[Transform3D] = []
+    var colors: Array[Color] = []
+    _fork_signage(signs,paint,colors)
     if course_id == 2:
-        _forge_signage()
+        _forge_return_markings(signs,paint,colors)
+    elif course_id == 1:
+        _glacier_return_markings()
     else:
-        _signage(edge_material)
-        if course_id == 1:
-            _glacier_return_markings()
+        _woodworks_return_marking()
+    var panel := StandardMaterial3D.new()
+    panel.albedo_color = [Color("#493224"),Color("#21374f"),Color("#422b29")][course_id]
+    panel.roughness = 0.52
+    panel.metallic = 0.28
+    _batch("RouteSignPlates",signs,panel)
+    _arrow_batch("RouteDirectionArrows",paint,colors)
     reset_round()
 
 func bridge_lift_at(z: float) -> float:
@@ -329,83 +341,45 @@ func _batch(label: String, instances: Array[Transform3D],
     rendering.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     add_child(rendering)
 
-func _signage(color: Material) -> void:
-    var entry := Label3D.new()
-    entry.name = "ShortcutEntranceArrow"
-    var bridge_name: String = ["PRECISION BRIDGE","ICE BRIDGE","FORGE BRIDGE"][course_id]
-    entry.text = "←  "+bridge_name if side < 0 else bridge_name+"  →"
-    entry.font_size = 48
-    entry.pixel_size = 0.013
-    entry.outline_size = 8
-    entry.modulate = TINTS[course_id]
-    entry.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-    var sign_z := ENTRY_Z+7.6
-    entry.position = Vector3(stage.track_center_at(sign_z)+float(side)*4.7,
-        stage.height_at(sign_z)+3.1,sign_z)
-    add_child(entry)
-    var main_sign := entry.duplicate() as Label3D
-    main_sign.name = "MainTrackSign"
-    main_sign.text = "MAIN TRACK  ↑"
-    main_sign.modulate = Color("#e4edf0")
-    main_sign.position.x = stage.track_center_at(sign_z)-float(side)*1.9
-    add_child(main_sign)
-    # Two readable overhead banners, visible before steering into a fork.
-    var banner_marks: Array[Transform3D] = []
-    for at_z in [ENTRY_Z+7.0,EXIT_Z+5.0]:
-        var x: float = stage.track_center_at(at_z)+float(side)*4.1
-        var y: float = stage.height_at(at_z)+3.55
-        banner_marks.append(Transform3D(Basis().scaled(Vector3(4.8,0.18,0.26)),
-            Vector3(x,y,at_z)))
-    _batch("ShortcutGatewayBeams",banner_marks,color)
-    if course_id == 0:
-        var return_label := Label3D.new()
-        return_label.name = "ShortcutMergeArrow"
-        return_label.text = "MERGE  LEFT"
-        return_label.font_size = 39
-        return_label.pixel_size = 0.013
-        return_label.modulate = TINTS[course_id]
-        return_label.outline_size = 8
-        return_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-        return_label.position = point_at(EXIT_Z+6.0)+Vector3.UP*3.4
-        add_child(return_label)
-    # Glowing stripes lead into the genuine physical fork.
-    var boxes: Array[Transform3D] = []
-    for i in range(4):
-        # Start inside the preceding edge shutter and approach the rail opening.
-        var z := ENTRY_PORTAL_Z+8.0-float(i)*2.0
-        var offset := 2.1+float(i)*1.13
-        var x: float = stage.track_center_at(z)+float(side)*offset
-        var shape := Basis().scaled(Vector3(0.78,0.06,0.24))
-        boxes.append(Transform3D(shape,Vector3(x,stage.height_at(z)+0.09,z)))
-    _batch("EntranceGuideStripes",boxes,color)
-
-func _forge_signage() -> void:
-    var signs: Array[Transform3D] = []
+func _fork_signage(signs: Array[Transform3D], paint: Array[Transform3D], colors: Array[Color]) -> void:
     var entry_z := ENTRY_PORTAL_Z+0.7
-    var entry_x: float = stage.track_center_at(ENTRY_PORTAL_Z)+6.92
-    _route_sign("ShortcutEntranceArrow","BRIDGE  ↗",Vector3(
-        entry_x,stage.height_at(entry_z)+1.41,entry_z),FORGE_EDGE_COLOR,signs)
+    var entry_x: float = point_at(entry_z).x+float(side)*1.65
+    var title := "↖  BRIDGE" if side < 0 else "BRIDGE  ↗"
+    _route_sign("ShortcutEntranceArrow",title,Vector3(
+        entry_x,stage.height_at(entry_z)+2.08,entry_z),FORK_BRIDGE_COLOR,signs)
+
+    # The first arrows split visibly on the main deck. The last two sit
+    # on the actual banked bridge surface, after the side rail opens.
+    for z in [-36.0,-41.8,-47.3,-51.0]:
+        paint.append(_road_arrow(z,-float(side)*1.55,0.0))
+        colors.append(FORK_MAIN_COLOR)
+    for i in range(4):
+        var z := ENTRY_PORTAL_Z+14.5-float(i)*3.1
+        paint.append(_road_arrow(z,float(side)*(1.7+float(i)*0.92),-float(side)*0.34))
+        colors.append(FORK_BRIDGE_COLOR)
+    for z in [-51.0,-56.7]:
+        paint.append(_deck_arrow(z,0.0))
+        colors.append(FORK_BRIDGE_COLOR)
+
+func _woodworks_return_marking() -> void:
+    var return_label := Label3D.new()
+    return_label.name = "ShortcutMergeArrow"
+    return_label.text = "MERGE  LEFT"
+    return_label.font_size = 39
+    return_label.pixel_size = 0.013
+    return_label.modulate = TINTS[course_id]
+    return_label.outline_size = 8
+    return_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+    return_label.position = point_at(EXIT_Z+6.0)+Vector3.UP*3.4
+    add_child(return_label)
+
+func _forge_return_markings(signs: Array[Transform3D], paint: Array[Transform3D],
+        colors: Array[Color]) -> void:
     var exit_z := EXIT_Z+2.4
     var bridge_end := point_at(exit_z)
     _route_sign("ShortcutMergeArrow","↖  MERGE",bridge_end+Vector3(1.72,1.48,0),
         FORGE_MAIN_COLOR,signs)
-    var steel := StandardMaterial3D.new()
-    steel.albedo_color = Color("#422b29")
-    steel.roughness = 0.57
-    steel.metallic = 0.30
-    _batch("ForgeRouteSignPlates",signs,steel)
-
-    # Arrow instances follow actual road grade and the banked deck plane.
-    # All three lines share one mesh and one material, with color per arrow.
-    var paint: Array[Transform3D] = []
-    var colors: Array[Color] = []
-    for z in [-36.0,-41.8,-47.3]:
-        paint.append(_road_arrow(z,-1.85,0.0))
-        colors.append(FORGE_MAIN_COLOR)
-    for i in range(5):
-        var z := ENTRY_PORTAL_Z+14.5-float(i)*3.1
-        paint.append(_road_arrow(z,1.7+float(i)*0.82,-0.36))
-        colors.append(FORGE_EDGE_COLOR)
+    # Merge arrows share the entrance batches and follow the banked deck plane.
     var merge_rows := [-89.0,-93.0,-97.0,-99.0,-103.0]
     for i in range(merge_rows.size()):
         var return_bias := smoothstep(0.0,float(merge_rows.size()-1),float(i))*0.60
@@ -414,7 +388,6 @@ func _forge_signage() -> void:
     paint.append(_road_arrow(EXIT_Z-0.65,4.35,0.52))
     colors.append(FORGE_MAIN_COLOR)
 
-    _arrow_batch("ForgeJunctionArrows",paint,colors)
 
 func _glacier_return_markings() -> void:
     var signs: Array[Transform3D] = []
@@ -542,18 +515,18 @@ func shortcut_hint(location: Vector3, continuing_merge := false) -> Dictionary:
     # Retain bridge context on the overlapping deck only for a racer
     # already seen on the exterior approach.
     var z: float = location.z
+    var fork_end := ENTRY_PORTAL_Z-PORTAL_HALF_LENGTH
     if z <= ENTRY_Z and z >= EXIT_Z:
         var relative_x: float = float(side)*(location.x-stage.track_center_at(z))
         var following_bridge_exit: bool = course_id != 0 and continuing_merge and (
             z <= OUTER_END and relative_x >= 3.35)
-        if relative_x > 5.65 or following_bridge_exit:
+        var bridge_threshold := 6.68 if z > OUTER_START else 5.65
+        if relative_x > bridge_threshold or following_bridge_exit:
             var deck := point_at(z)
             if absf(location.x-deck.x) < WIDTH*0.5+1.7 and location.y >= deck.y-0.25:
                 return {"mode":"merge","side":"RIGHT" if side < 0 else "LEFT",
                     "distance":maxi(0,int(round(z-EXIT_Z)))}
-    var fork_reach := FORGE_FORK_REACH if course_id == 2 else 29.0
-    var fork_end := ENTRY_PORTAL_Z-PORTAL_HALF_LENGTH if course_id == 2 else ENTRY_PORTAL_Z
-    if z <= ENTRY_PORTAL_Z+fork_reach and z > fork_end:
+    if z <= ENTRY_PORTAL_Z+FORK_GUIDANCE_REACH and z > fork_end:
         return {"mode":"fork","side":"LEFT" if side < 0 else "RIGHT",
             "distance":maxi(0,int(round(z-ENTRY_PORTAL_Z)))}
     return {}
@@ -564,9 +537,14 @@ func route_guidance_text(hint: Dictionary, z: float, forward_speed: float) -> St
     var portal_z := ENTRY_PORTAL_Z if at_fork else EXIT_Z
     var timing := "  /  %.1fs" % (maxf(0.0,z-portal_z)/forward_speed) if forward_speed >= 9.0 else ""
     if at_fork:
-        if z <= ENTRY_PORTAL_Z+PORTAL_HALF_LENGTH:
-            return "BRIDGE RIGHT NOW  ↗"
-        return "BRIDGE RIGHT  •  %dm%s" % [distance,timing]
+        var direction: String = hint["side"]
+        var immediate := z <= ENTRY_PORTAL_Z+PORTAL_HALF_LENGTH
+        var turn := " NOW" if immediate else ""
+        var choices := "↖ BRIDGE LEFT%s  /  MAIN TRACK ↑" % turn if direction == "LEFT" else (
+            "↑ MAIN TRACK  /  BRIDGE RIGHT%s ↗" % turn)
+        if immediate:
+            return choices
+        return "%s  •  %dm%s" % [choices,distance,timing]
     if distance > MERGE_GUIDANCE_REACH:
         return ""
     var direction: String = hint["side"]

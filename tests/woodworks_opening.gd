@@ -54,7 +54,8 @@ func _run() -> void:
     var z := ROUTE.ENTRY_PORTAL_Z+2.0
     game.player.global_position = Vector3(game.track_center_at(z),game.height_at(z)+0.4,z)
     _refresh(game)
-    assert(hud.shortcut_label.text.contains("MAIN TRACK") and hud.shortcut_label.text.contains("2m"))
+    assert(hud.shortcut_label.text.contains("MAIN TRACK") and
+        hud.shortcut_label.text.contains("BRIDGE RIGHT NOW"))
     assert(hud.woodworks_guide_active, "Keep the choice visible through the entrance")
     var bridge: Vector3 = game.shortcut_route.point_at(-72.0)
     game.player.global_position = bridge+Vector3.UP

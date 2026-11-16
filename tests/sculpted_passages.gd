@@ -48,13 +48,16 @@ func _run() -> void:
             else:
                 assert(absf(crest.y-ceiling_floor-(
                     GEOMETRY.VAULT_CLEARANCE+0.57+
-                    sin(roof_pitch)*GEOMETRY.VAULT_HALF_WIDTH*0.5)) < 0.001,
-                    "Continuous timber and ice crowns retain their original height")
+                    tan(roof_pitch)*(GEOMETRY.FORGE_RIB_OFFSET-GEOMETRY.FORGE_LIGHT_OFFSET))) < 0.001,
+                    "Fork wing lights stay on the outer ribs")
+                _verify_first_fork_sightline(game,geometry,layout)
+                if biome == 0:
+                    _verify_edge_markers(game,"Woodworks",[0])
             if biome == 1:
                 _verify_glacier_return(game,geometry,layout)
             assert(geometry.bank_surfaces.multimesh.instance_count == 8 and
                 geometry.apex_inlays.multimesh.instance_count == 4)
-            var highlight_count: int = [9,12,18][biome]
+            var highlight_count: int = [12,15,18][biome]
             assert(geometry.vault_posts.multimesh.instance_count == 18 and
                 geometry.vault_roofs.multimesh.instance_count == 18 and
                 geometry.vault_highlights.multimesh.instance_count == highlight_count,
@@ -162,7 +165,7 @@ func _run() -> void:
         await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_sculpted_course.cfg"))
-    print("SCULPTED_PASSAGES_PASS: 36 real ramps, open Forge and Glacier return sightlines, exact split markers and mobile GPU budgets")
+    print("SCULPTED_PASSAGES_PASS: 36 real ramps, nine open first forks, Glacier return, exact split markers and GPU budgets")
     quit(0)
 
 func _verify_forge_sightline(game: Node3D, geometry: Node3D) -> void:
@@ -183,6 +186,22 @@ func _verify_forge_sightline(game: Node3D, geometry: Node3D) -> void:
         var center: float = game.track_center_at(transform.origin.z)
         assert(bounds.end.x < center-5.15 or bounds.position.x > center+5.15)
     _verify_edge_markers(game,"Forge",[0,1,2])
+
+func _verify_first_fork_sightline(game: Node3D, geometry: Node3D, layout: int) -> void:
+    var center_z := GEOMETRY.bank_z(GEOMETRY.VAULT_SECTIONS[0],layout)
+    var roof: Mesh = geometry.vault_roofs.multimesh.mesh
+    var canopy: Mesh = geometry.canopy_panels.multimesh.mesh
+    var checked := 0
+    for transform in geometry.vault_rib_roots+geometry.canopy_roots:
+        if absf(transform.origin.z-center_z) > 3.4:
+            continue
+        var mesh := roof if transform in geometry.vault_rib_roots else canopy
+        var bounds: AABB = transform*mesh.get_aabb()
+        var center: float = game.track_center_at(transform.origin.z)
+        assert(bounds.end.x < center-5.15 or bounds.position.x > center+5.15,
+            "The first portal must be visible through the chase-camera corridor")
+        checked += 1
+    assert(checked == 10)
 
 func _verify_glacier_return(game: Node3D, geometry: Node3D, layout: int) -> void:
     var center_z := GEOMETRY.bank_z(GEOMETRY.GLACIER_RETURN_VAULT,layout)
@@ -207,7 +226,7 @@ func _verify_glacier_return(game: Node3D, geometry: Node3D, layout: int) -> void
     for node in game.board.get_children():
         assert(not (node is Label3D and node.text == "CHECKPOINT 2"),
             "The old overhead Glacier checkpoint must be replaced")
-    _verify_edge_markers(game,"Glacier",[GEOMETRY.GLACIER_RETURN_SECTOR])
+    _verify_edge_markers(game,"Glacier",[0,GEOMETRY.GLACIER_RETURN_SECTOR])
 
 func _verify_edge_markers(game: Node3D, biome_name: String, sectors: Array[int]) -> void:
     var posts := game.board.get_node(biome_name+"SectorPostBatch") as MultiMeshInstance3D

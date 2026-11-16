@@ -45,14 +45,11 @@ func _run() -> void:
         assert(road.get_node_or_null("BatchedBypassGuards") is MultiMeshInstance3D)
         assert(road.get_node_or_null("BatchedJumpTakeoff") is MultiMeshInstance3D)
         assert(road.get_node_or_null("BypassNavigationChevrons") is MultiMeshInstance3D)
-        assert(road.get_node_or_null(
-            "ForgeRouteSignPlates" if course == 2 else "ShortcutGatewayBeams") is MultiMeshInstance3D)
-        if course == 2:
-            var arrows := road.get_node("ForgeJunctionArrows") as MultiMeshInstance3D
-            assert(arrows.multimesh.instance_count == 14 and arrows.multimesh.use_colors)
-            assert(arrows.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
-            assert(road.get_node_or_null("MainTrackSign") == null,
-                "Forge uses the main arrow painted on the road")
+        assert(road.get_node_or_null("RouteSignPlates") is MultiMeshInstance3D)
+        var arrows := road.get_node("RouteDirectionArrows") as MultiMeshInstance3D
+        assert(arrows.multimesh.instance_count == (16 if course == 2 else 10) and
+            arrows.multimesh.use_colors)
+        assert(arrows.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
         assert(road.get_node_or_null("ShortcutEntranceArrow") is Label3D)
         assert(road.get_node_or_null("ShortcutMergeArrow") is Label3D)
         for section in range(18):
@@ -167,8 +164,7 @@ func _run() -> void:
                 str(floor_hit.name) == "BypassLaunchRamp"),
                 "No gaps or unrelated obstacle colliders along the detour")
         game.start_race("Grip Tape")
-        if course == 2:
-            _verify_forge_cues(game)
+        assert(_verify_fork_cues(game,side))
         # A minority of AI should attempt the physical bypass, rather
         # than all 39 bots always following the same central racing line.
         var bypass_bots := 0
@@ -199,7 +195,7 @@ func _run() -> void:
             game.height_at(-32.0)+0.78,-32.0)
         game.ui.label_timer = 0.5
         game.ui.update_hud()
-        var fork_word := "BRIDGE RIGHT" if course == 2 else "SHORTCUT"
+        var fork_word := "BRIDGE RIGHT" if side > 0 else "BRIDGE LEFT"
         assert(game.ui.shortcut_label.visible and
             game.ui.shortcut_label.text.contains(fork_word),
             "Android players should see the upcoming turn-off clearly")
@@ -246,12 +242,20 @@ func _run() -> void:
         game.net.role = "offline"
         game.net.joined_slots.clear()
         game.return_to_menu()
+        # Rebuild and read the live HUD on every variation of this physical fork.
+        for layout in range(3):
+            game.race_variation = layout
+            game.start_race("Grip Tape")
+            assert(game.built_variation == layout and game.racers.size() == 40)
+            assert(_verify_fork_cues(game,side))
+            game.return_to_menu()
+            await process_frame
     print("SHORTCUT_ROUTES_PASS: three collidable, rewarded fork/merge alternatives")
     game.queue_free()
     await process_frame
     quit()
 
-func _verify_forge_cues(game: Node3D) -> void:
+func _verify_fork_cues(game: Node3D, side: int) -> bool:
     var road: Node3D = game.shortcut_route
     var hud: CanvasLayer = game.ui
     game.race_state = "RACING"
@@ -261,14 +265,26 @@ func _verify_forge_cues(game: Node3D) -> void:
     marble.global_position = Vector3(game.track_center_at(z),game.height_at(z)+0.6,z)
     hud.label_timer = 0.25
     hud.update_hud()
-    assert(hud.shortcut_label.visible and hud.shortcut_label.text.contains("RIGHT") and
+    var direction := "RIGHT" if side > 0 else "LEFT"
+    assert(hud.shortcut_label.visible and hud.shortcut_label.text.contains("BRIDGE "+direction) and
+        hud.shortcut_label.text.contains("MAIN TRACK") and
         hud.shortcut_label.text.contains("1.3s"),
         "Fast fork guidance shows time and side before the rail opens")
     z = BypassScript.ENTRY_PORTAL_Z+1.4
     marble.global_position.z = z
     hud.label_timer = 0.25
     hud.update_hud()
-    assert(hud.shortcut_label.text.contains("NOW"))
+    assert(hud.shortcut_label.text.contains("BRIDGE "+direction+" NOW"))
+    marble.global_position = Vector3(game.track_center_at(z)+side*6.1,
+        game.height_at(z)+0.6,z)
+    assert(road.shortcut_hint(marble.global_position).get("mode") == "fork",
+        "A marble beside the rail is still making its entry choice")
+    var after_entry := BypassScript.ENTRY_PORTAL_Z-2.1
+    marble.global_position = Vector3(game.track_center_at(after_entry)+side*6.1,
+        game.height_at(after_entry)+0.6,after_entry)
+    assert(road.shortcut_hint(marble.global_position).is_empty())
+    if game.selected_track != 2:
+        return true
     z = BypassScript.EXIT_Z+1.5
     var return_point: Vector3 = road.point_at(z)+Vector3.UP*0.7
     assert(road.shortcut_hint(return_point).is_empty(),
@@ -288,5 +304,6 @@ func _verify_forge_cues(game: Node3D) -> void:
     hud.label_timer = 0.25
     hud.update_hud()
     assert(not hud.bridge_approach_active and not hud.shortcut_label.visible)
+    return true
     hud.show_race_ui()
     assert(not hud.bridge_approach_active)
