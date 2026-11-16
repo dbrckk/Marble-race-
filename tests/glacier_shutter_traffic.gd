@@ -18,14 +18,15 @@ func _run() -> void:
             assert(await _test_passing(game,gap),
                 "A real pass with a %.0f m gap must avoid rear contact on Glacier layout %d" % [gap,layout])
             game.return_to_menu()
-        await _start_layout(game,layout)
-        assert(await _test_passing(game,6.0,true),
-            "Glacier layout %d must leave a rival already in the passing line alone" % layout)
-        game.return_to_menu()
+        for gap in [4.0,6.0]:
+            await _start_layout(game,layout)
+            assert(await _test_passing(game,gap,true),
+                "Glacier layout %d must slow down with a %.0f m gap and an occupied passing lane" % [layout,gap])
+            game.return_to_menu()
     game.queue_free()
     for tick in range(4):
         await process_frame
-    print("GLACIER_SHUTTER_TRAFFIC_PASS: six real passes without contact and three occupied-lane decisions")
+    print("GLACIER_SHUTTER_TRAFFIC_PASS: six real passes and six physical braking runs without rear contact through the shutter")
     quit(0)
 
 func _start_layout(game: Node3D, layout: int) -> void:
@@ -60,20 +61,31 @@ func _test_passing(game: Node3D, gap: float, occupied := false) -> bool:
     _place(game,leader,lane,leader_z,1.8)
     _place(game,follower,lane,follower_z,16.0)
     if occupied:
-        _place(game,blocker,-side*Strategy.GLACIER_PASS_OFFSET,follower_z-0.7,16.0)
-        await physics_frame
-        await physics_frame
-        return follower.glacier_pass_scan > 0.0 and follower.glacier_pass_remaining == 0.0
+        _place(game,blocker,-side*Strategy.GLACIER_PASS_OFFSET,follower_z-0.7,8.0)
 
-    var rear_contacts: Array[float] = []
-    leader.body_entered.connect(func(body: Node):
-        if body == follower:
-            rear_contacts.append(follower.position.z)
+    var contacts: Array[Node] = []
+    follower.contact_monitor = true
+    follower.max_contacts_reported = 8
+    follower.body_entered.connect(func(body: Node):
+        if body == leader or (occupied and body == blocker):
+            contacts.append(body)
     )
-    for frame in range(115):
+    var entry_speed := 16.0
+    var slowed := false
+    for frame in range(140):
         await physics_frame
-        if follower.position.z < gate_z-1.3 and follower.position.z < leader.position.z-0.78:
-            return rear_contacts.is_empty() and not follower.eliminated
+        var speed := -follower.linear_velocity.z
+        if occupied and frame < 12:
+            assert(follower.glacier_pass_remaining == 0.0,
+                "A bot must wait when a rival occupies the passing lane")
+        if occupied and speed < entry_speed-3.0:
+            slowed = true
+        if follower.eliminated or not contacts.is_empty():
+            return false
+        if occupied and follower.position.z < gate_z-3.0:
+            return slowed and speed > 1.0
+        if not occupied and follower.position.z < gate_z-1.3 and follower.position.z < leader.position.z-0.78:
+            return true
     return false
 
 func _place(game: Node3D, racer: RigidBody3D, lane: float, z: float, speed: float) -> void:

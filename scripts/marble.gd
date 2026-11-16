@@ -74,6 +74,7 @@ var ai_traffic_timer := 0.0
 var ai_traffic_goal := 0.0
 var glacier_pass_remaining := 0.0
 var glacier_pass_scan := 0.0
+var glacier_leader: RigidBody3D
 var ai_traffic_offset := 0.0
 var last_boosting := false
 
@@ -338,6 +339,7 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
                 side_force = clampf(
                     (traffic_center+glacier_lane-position.x)*13.0-linear_velocity.x*4.2,
                     -19.0,19.0)
+            drive_force = _glacier_follow_force(drive_force,glacier_lane != INF)
             side_force += AIPath.baffle_dodge(position,traffic_center)
         elif following_bypass:
             # Real shortcut steering retains full priority over crowd
@@ -401,9 +403,10 @@ func _glacier_return_pass(delta: float, center_x: float) -> float:
     var director: Node3D = course_owner.race_director
     var gate: int = director.GLACIER_RETURN_GATE
     var distance: float = position.z-director.event_z(gate)
-    if position.z > course_owner.shortcut_route.EXIT_Z-0.5 or distance < -1.25 or distance > 12.0:
+    if position.z > course_owner.shortcut_route.EXIT_Z-0.5 or distance < -5.0 or distance > 12.0:
         glacier_pass_remaining = 0.0
         glacier_pass_scan = 0.0
+        glacier_leader = null
         return INF
     glacier_pass_remaining = maxf(0.0,glacier_pass_remaining-delta)
     glacier_pass_scan -= delta
@@ -411,13 +414,28 @@ func _glacier_return_pass(delta: float, center_x: float) -> float:
     var passing := glacier_pass_remaining > 0.0
     if glacier_pass_scan <= 0.0 and absf(position.x-center_x) <= 2.7:
         glacier_pass_scan = AIPath.TRAFFIC_SCAN_PERIOD+float(racer_id%4)*0.05
-        var clear := AIPath.glacier_return_pass_is_clear(
-            self,course_owner.racers,center_x,side,passing)
+        glacier_leader = AIPath.glacier_return_leader(self,course_owner.racers)
+        var clear := distance >= -1.25 and AIPath.glacier_return_pass_is_clear(
+            self,course_owner.racers,glacier_leader,center_x,side,passing)
         if not clear:
             glacier_pass_remaining = 0.0
         elif not passing:
             glacier_pass_remaining = 0.85
-    return -side*AIPath.GLACIER_PASS_OFFSET if glacier_pass_remaining > 0.0 else INF
+    return -side*AIPath.GLACIER_PASS_OFFSET if distance >= -1.25 and glacier_pass_remaining > 0.0 else INF
+
+func _glacier_follow_force(drive_force: float, passing: bool) -> float:
+    if not is_instance_valid(glacier_leader) or not AIPath.glacier_leader_in_line(self,glacier_leader):
+        return drive_force
+    var gap: float = position.z-glacier_leader.position.z
+    var speed := -linear_velocity.z
+    var leader_speed := maxf(0.0,-glacier_leader.linear_velocity.z)
+    # Preserve room for both bodies. Let a confirmed pass develop unless
+    # the remaining time is too short to get alongside at the current pace.
+    var clear_gap := maxf(0.0,gap-1.35)
+    if passing and clear_gap > (speed-leader_speed)*0.22:
+        return drive_force
+    var safe_speed := maxf(1.0,leader_speed+sqrt(2.0*19.0*clear_gap))
+    return minf(drive_force,clampf((safe_speed-speed)*10.0,-64.0,drive_force))
 
 func teleport_to_start(new_position: Vector3) -> void:
     freeze = true
@@ -440,5 +458,6 @@ func teleport_to_start(new_position: Vector3) -> void:
     ai_traffic_offset = 0.0
     glacier_pass_remaining = 0.0
     glacier_pass_scan = 0.0
+    glacier_leader = null
     network_controlled = false
     freeze = false
