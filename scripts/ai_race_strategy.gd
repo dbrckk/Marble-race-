@@ -221,12 +221,25 @@ static func glacier_leader_in_line(own: RigidBody3D, other: RigidBody3D) -> bool
         absf(other.position.x-own.position.x) < 1.15)
 
 static func glacier_return_pass_is_clear(own: RigidBody3D, rivals: Array[RigidBody3D],
-        leader: RigidBody3D, center_x: float, shutter_side: float, passing: bool) -> bool:
+        leader: RigidBody3D, center_x: float, shutter_side: float,
+        passing: bool, resuming: bool) -> bool:
     var target_x := center_x-shutter_side*GLACIER_PASS_OFFSET
     if not passing and (not is_instance_valid(leader) or
-            leader.linear_velocity.z-own.linear_velocity.z < 5.0 or
             absf(leader.position.x-target_x) < 1.30):
         return false
+    if not passing:
+        var closing_speed: float = leader.linear_velocity.z-own.linear_velocity.z
+        if resuming:
+            # A trailing bot stays in line while the bot it is following
+            # moves out. The committed bot can finish its lane change.
+            if leader.glacier_pass_remaining > 0.0:
+                return false
+            # A bot matching its leader's speed has already slowed down.
+            # A short gap still makes a pass worthwhile once the line opens.
+            if own.position.z-leader.position.z > 2.8 or closing_speed < -1.0:
+                return false
+        elif closing_speed < 5.0:
+            return false
     return _lane_occupancy(target_x,own,rivals) < 0.72
 
 # The timed gate moves during a marble's approach. Evaluate where the *real

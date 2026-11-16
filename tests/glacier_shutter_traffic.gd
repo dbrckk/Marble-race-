@@ -28,10 +28,14 @@ func _run() -> void:
             assert(await _test_queue(game,gap),
                 "Three Glacier bots must brake and recover in order at %.1f m on layout %d" % [gap,layout])
             game.return_to_menu()
+        await _start_layout(game,layout)
+        assert(await _test_reopening(game),
+            "Glacier layout %d must reopen a pass without a rear-end collision" % layout)
+        game.return_to_menu()
     game.queue_free()
     for tick in range(4):
         await process_frame
-    print("GLACIER_SHUTTER_TRAFFIC_PASS: six passes, six braking runs and nine three-bot queues without contact")
+    print("GLACIER_SHUTTER_TRAFFIC_PASS: six passes, six braking runs, nine queues and three reopened passes without contact")
     quit(0)
 
 func _start_layout(game: Node3D, layout: int) -> void:
@@ -138,7 +142,7 @@ func _watch_queue_contacts(bot: RigidBody3D, player: RigidBody3D,
     bot.contact_monitor = true
     bot.max_contacts_reported = 8
     bot.body_entered.connect(func(body: Node):
-        if body == player or body in bots:
+        if body is RigidBody3D and (body == player or body in bots):
             contacts.append(body)
     )
 
@@ -151,3 +155,45 @@ func _place(game: Node3D, racer: RigidBody3D, lane: float, z: float, speed: floa
     racer.linear_velocity = Vector3(0,0,-speed)
     racer.ai_lane_goal = lane
     racer.ai_lane_timer = 3.0
+
+func _test_reopening(game: Node3D) -> bool:
+    var director: Node3D = game.race_director
+    var gate: int = director.GLACIER_RETURN_GATE
+    var gate_z: float = director.event_z(gate)
+    var side: float = director.side_at(gate)
+    var bots := _isolate_bots(game,3)
+    var lead: RigidBody3D = game.player
+    var first := bots[0]
+    var rear := bots[1]
+    var blocker := bots[2]
+    _place(game,lead,side*0.08,gate_z+5.0,0.2)
+    _place(game,first,side*0.08,gate_z+8.85,15.0)
+    _place(game,rear,side*0.08,gate_z+11.85,17.0)
+    _place(game,blocker,-side*Strategy.GLACIER_PASS_OFFSET,gate_z+8.45,20.0)
+    var contacts: Array[Node] = []
+    for bot in bots:
+        _watch_queue_contacts(bot,lead,bots,contacts)
+    var first_committed := false
+    var completed := false
+    var slowed := false
+    for frame in range(205):
+        # Simulate a sustained slowdown using force, then release it. The
+        # blocker opens the passing lane by racing away under its own drive.
+        if frame < 100:
+            var brake := clampf((-lead.linear_velocity.z-2.3)*16.0+15.0,0.0,24.0)
+            lead.apply_central_force(Vector3(0,0,brake)*lead.mass)
+        await physics_frame
+        if not contacts.is_empty() or first.eliminated or rear.eliminated:
+            return false
+        slowed = slowed or -first.linear_velocity.z < 11.0
+        if first.glacier_pass_remaining > 0.0:
+            if not slowed or frame < 12:
+                return false
+            first_committed = true
+        if rear.glacier_pass_remaining > 0.0 and not completed:
+            return false
+        if first_committed and first.position.z < lead.position.z-0.78:
+            completed = true
+        if completed and rear.position.z < gate_z-2.5:
+            return first.position.z < gate_z-1.3
+    return false

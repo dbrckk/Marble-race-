@@ -295,7 +295,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          XDG_DATA_HOME="$(mktemp -d)" timeout 75s ./Godot_v4.5.1-stable_linux.x86_64 --headless --fixed-fps 60 --quit-after 3600 --path . --script res://tests/glacier_shutter_traffic.gd 2>&1 | tee glacier-shutter-traffic.log
+          XDG_DATA_HOME="$(mktemp -d)" timeout 75s ./Godot_v4.5.1-stable_linux.x86_64 --headless --fixed-fps 60 --quit-after 4350 --path . --script res://tests/glacier_shutter_traffic.gd 2>&1 | tee glacier-shutter-traffic.log
           grep -Fq "GLACIER_SHUTTER_TRAFFIC_PASS:" glacier-shutter-traffic.log
       - name: Real moving-gate Android HUD and predictive audio warnings
         shell: bash
