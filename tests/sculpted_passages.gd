@@ -51,14 +51,15 @@ func _run() -> void:
                     tan(roof_pitch)*(GEOMETRY.FORGE_RIB_OFFSET-GEOMETRY.FORGE_LIGHT_OFFSET))) < 0.001,
                     "Fork wing lights stay on the outer ribs")
                 _verify_first_fork_sightline(game,geometry,layout)
+                _verify_first_fork_sightline(game,geometry,layout,2)
                 if biome == 0:
                     _verify_first_fork_sightline(game,geometry,layout,1)
-                    _verify_edge_markers(game,"Woodworks",[0,1])
+                    _verify_edge_markers(game,"Woodworks",[0,1,2])
             if biome == 1:
                 _verify_glacier_return(game,geometry,layout)
             assert(geometry.bank_surfaces.multimesh.instance_count == 8 and
                 geometry.apex_inlays.multimesh.instance_count == 4)
-            var highlight_count: int = [15,15,18][biome]
+            var highlight_count := 18
             assert(geometry.vault_posts.multimesh.instance_count == 18 and
                 geometry.vault_roofs.multimesh.instance_count == 18 and
                 geometry.vault_highlights.multimesh.instance_count == highlight_count,
@@ -227,7 +228,7 @@ func _verify_glacier_return(game: Node3D, geometry: Node3D, layout: int) -> void
     for node in game.board.get_children():
         assert(not (node is Label3D and node.text == "CHECKPOINT 2"),
             "The old overhead Glacier checkpoint must be replaced")
-    _verify_edge_markers(game,"Glacier",[0,GEOMETRY.GLACIER_RETURN_SECTOR])
+    _verify_edge_markers(game,"Glacier",[0,GEOMETRY.GLACIER_RETURN_SECTOR,2])
 
 func _verify_edge_markers(game: Node3D, biome_name: String, sectors: Array[int]) -> void:
     var posts := game.board.get_node(biome_name+"SectorPostBatch") as MultiMeshInstance3D

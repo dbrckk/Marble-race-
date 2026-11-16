@@ -19,6 +19,7 @@ const ObstacleFinish = preload("res://scripts/obstacle_finish.gd")
 const OpeningObstacles = preload("res://scripts/opening_obstacles.gd")
 const TrackSurface = preload("res://scripts/track_surface.gd")
 const StartGate = preload("res://scripts/start_gate.gd")
+const FinishLine = preload("res://scripts/finish_line.gd")
 const TrackPath = preload("res://scripts/track_path.gd")
 const RaceFeedback = preload("res://scripts/race_feedback.gd")
 const RaceMoments = preload("res://scripts/race_moments.gd")
@@ -611,8 +612,8 @@ func _make_course() -> void:
         woods.append(_wood_mat(_themed_wood(color)))
     track_surface.finish(woods,selected_track,_mat(Color("#82563d")))
     _make_start_gate()
-    _finish_arch()
-    _checkpoint_arches()
+    _make_finish_line()
+    _edge_checkpoint_markers()
     _decorations()
     _showroom()
     var universe := TrackUniverses.new()
@@ -877,38 +878,19 @@ func _make_start_gate() -> void:
     start_gate.setup(selected_track)
     board.add_child(start_gate)
 
-func _finish_arch() -> void:
-    # Visual finish stripe and physical finish detector coincide.
-    var z = FINISH_Z
-    for x in [-6.0, 6.0]:
-        _box(board, Vector3(x+track_center_at(z), height_at(z)+1.35, z),
-            Vector3(0.48, 2.8, 0.45), _mat(Color("#eee1bd")), false)
-    _box(board, Vector3(track_center_at(z), height_at(z)+2.62, z),
-        Vector3(12.6, 0.52, 0.55), _mat(Color("#f3d779")), false)
-    _floating_sign("FINISH", Vector3(track_center_at(z), height_at(z)+3.12, z))
-    # Checkered line visible on the wooden surface.
-    for i in range(12):
-        _box(board, Vector3(track_center_at(z)-5.75 + i*1.04, height_at(z)+0.034, z),
-            Vector3(1.02, 0.045, 0.63), _mat(Color("#f2e5d0") if i%2==0 else Color("#342a28")), false)
+func _make_finish_line() -> void:
+    var finish := FinishLine.new()
+    finish.name = "FinishLine"
+    # Place the paint on the same tilted plank plane as the physical deck.
+    var module_z := 8.0-roundf((8.0-FINISH_Z)/SEGMENT_LENGTH)*SEGMENT_LENGTH
+    var grade := track_grade_at(module_z)
+    var pitch := atan(grade)
+    var floor_y := height_at(module_z)-0.34+0.325/cos(pitch)+grade*(FINISH_Z-module_z)
+    finish.position = Vector3(track_center_at(module_z),floor_y,FINISH_Z)
+    finish.setup(selected_track,grade)
+    board.add_child(finish)
 
-func _checkpoint_arches() -> void:
-    var edge_sectors: Array[int] = []
-    for sector in range(CHECKPOINT_Z.size()):
-        if CourseSculptures.uses_edge_checkpoint(selected_track,sector):
-            edge_sectors.append(sector)
-            continue
-        var z = 8.0 - float(CourseSculptures.VAULT_SECTIONS[sector]) * SEGMENT_LENGTH
-        var y = height_at(z)
-        for side in [-1.0,1.0]:
-            _box(board,Vector3(side*6.28+track_center_at(z),y+2.4,z),Vector3(0.21,4.7,0.28),
-                _mat(Color("#e6c488"),0.3,0.28),false)
-        _box(board,Vector3(track_center_at(z),y+4.65,z),Vector3(12.7,0.32,0.38),
-            _mat(Color("#dfb66c"),0.35,0.2),false)
-        _floating_sign("CHECKPOINT %d" % (sector+1),Vector3(track_center_at(z),y+5.22,z))
-    if not edge_sectors.is_empty():
-        _edge_checkpoint_markers(edge_sectors)
-
-func _edge_checkpoint_markers(sectors: Array[int]) -> void:
+func _edge_checkpoint_markers() -> void:
     var forge := selected_track == 2
     var biome_name: String = ["Woodworks","Glacier","Forge"][selected_track]
     var shell := _mat([Color("#564233"),Color("#315266"),Color("#51383b")][selected_track],0.34,0.62)
@@ -929,15 +911,14 @@ func _edge_checkpoint_markers(sectors: Array[int]) -> void:
     var posts := MultiMesh.new()
     posts.transform_format = MultiMesh.TRANSFORM_3D
     posts.mesh = mesh
-    posts.instance_count = sectors.size()*2
+    posts.instance_count = CHECKPOINT_Z.size()*2
     var post_art := MultiMeshInstance3D.new()
     post_art.name = biome_name+"SectorPostBatch"
     post_art.multimesh = posts
     post_art.material_override = shell
     post_art.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     board.add_child(post_art)
-    for index in range(sectors.size()):
-        var sector := sectors[index]
+    for sector in range(CHECKPOINT_Z.size()):
         var z: float = CHECKPOINT_Z[sector]
         var floor_y: float = height_at(z)
         var center_x: float = track_center_at(z)
@@ -947,7 +928,7 @@ func _edge_checkpoint_markers(sectors: Array[int]) -> void:
         board.add_child(marker)
         for flank in range(2):
             var side := -1.0 if flank == 0 else 1.0
-            posts.set_instance_transform(index*2+flank,Transform3D(
+            posts.set_instance_transform(sector*2+flank,Transform3D(
                 Basis(),marker.position+Vector3(side*post_x,0,0)))
             var number := _floating_sign("SECTOR %02d" % (sector+1),
                 Vector3(side*post_x,sign_y,0.148),marker)
@@ -1679,4 +1660,6 @@ func _end_race() -> void:
     if is_instance_valid(player) and player.finished:
         audio.finish_fanfare()
     audio.menu_music()
-    ui.show_results(player_rank(), race_time, get_rankings())
+    var recorded_time: float = player.finish_time if is_instance_valid(player) and player.finished else race_time
+    var rankings := get_rankings()
+    ui.show_results(rankings.find(player)+1,recorded_time,rankings)

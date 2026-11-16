@@ -1,6 +1,7 @@
 extends SceneTree
 const TrackSurface = preload("res://scripts/track_surface.gd")
 const OpeningObstacles = preload("res://scripts/opening_obstacles.gd")
+const FinishLine = preload("res://scripts/finish_line.gd")
 
 func _initialize() -> void:
     call_deferred("_verify")
@@ -130,6 +131,7 @@ func _verify() -> void:
     game.set_physics_process(false)
     var profiles: Array[Mesh] = []
     var gates_by_biome: Array[Mesh] = []
+    var finishes_by_biome: Array[Mesh] = []
     for biome in range(3):
         assert(game.set_track(biome))
         for layout in range(3):
@@ -137,17 +139,26 @@ func _verify() -> void:
             var opening_layout: int = game._obstacle_layout(1)
             game.start_race("Grip Tape")
             assert(game.built_variation == layout and game.racers.size() == 40)
+            var finish := game.board.get_node("FinishLine") as FinishLine
+            assert(is_equal_approx(finish.position.z,game.FINISH_Z))
+            assert(finish.mesh.get_surface_count() == 1 and finish.get_child_count() == 2)
+            for vertex in finish.mesh.get_faces():
+                assert(vertex.y < 0.07 or absf(vertex.x) >= 5.60,
+                    "The finish must leave the driving corridor open")
             var profile := _check_rail_batch(game,biome)
             var frame := _check_start_gate(game)
             assert(_check_opening_obstacles(game,opening_layout))
             if layout == 0:
                 assert(profile not in profiles, "Each biome needs its own geometry")
                 assert(frame not in gates_by_biome, "Each biome needs its own starting towers")
+                assert(finish.mesh not in finishes_by_biome,"Each biome needs its own finish markers")
                 profiles.append(profile)
                 gates_by_biome.append(frame)
+                finishes_by_biome.append(finish.mesh)
             else:
                 assert(profile == profiles[biome], "Reuse geometry across layout changes")
                 assert(frame == gates_by_biome[biome], "Reuse tower geometry across layout changes")
+                assert(finish.mesh == finishes_by_biome[biome])
             game.return_to_menu()
             await process_frame
     print("RAIL_PROFILE_PASS: 9 layouts, 40 racers, all guards match physics, one rail batch")

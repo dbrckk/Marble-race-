@@ -71,9 +71,6 @@ var validated_apex_hits := 0
 var apex_inlay_roots: Array[Transform3D] = []
 var apex_flash: Array[float] = []
 
-static func uses_edge_checkpoint(track: int, sector: int) -> bool:
-    return sector <= GLACIER_RETURN_SECTOR or track == 2
-
 static func bank_side(section: int, track: int, layout: int) -> float:
     return -1.0 if (section+clampi(track,0,2)+posmod(layout,3))%2 == 0 else 1.0
 
@@ -186,10 +183,9 @@ func _world_passage_vaults() -> void:
     # glacier rib sits farther out on the bridge side than on the main road.
     for section in VAULT_SECTIONS:
         var glacier_return: bool = biome == 1 and section == GLACIER_RETURN_VAULT
-        # Keep the chase-camera corridor open at both junctions. Glacier's
+        # Keep the chase-camera corridor open at every sector. Glacier's
         # return also extends its outer wing past the detached ice deck.
-        var open_junction: bool = not forge and not glacier_return and (
-            section == VAULT_SECTIONS[0] or section == GLACIER_RETURN_VAULT)
+        var open_junction: bool = not forge and not glacier_return
         var centre_z: float = bank_z(section,variation)
         # Two partial overhead bays between each set of three landmark
         # ribs. Open central skylight and clear 5m headroom keep the ball

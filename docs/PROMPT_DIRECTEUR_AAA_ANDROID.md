@@ -114,6 +114,14 @@ Base de comparaison GitHub `5d03f34d911ee0720511db27c2be18c394367d45`, résultat
 - 36 paires de vues à 86 km/h avec 40 billes en OpenGL Compatibility. Écart médian des appels de rendu de −1,5 à Woodworks, −4 à Glacier, 0 à Forge. [Comparatif des sorties](screenshots/v1.73-bridge-returns.jpg). Le temps d’image sur Android physique reste à mesurer.
 - Régressions Godot sur neuf tracés et vérification du relais entre l’alerte de rentrée et le volet physique. Tests de caméra, commandes, récompenses de pont et collisions de peloton intégrés au workflow Android.
 
+### 2026-11-16 — Ligne d’arrivée et chrono du franchissement (1.74.0-rc)
+
+Base de comparaison GitHub `86bcb22501a9b46b2611b012aa41855c7c1ba777`, résultat dans le commit qui introduit cette entrée.
+
+- L’arrivée reçoit un damier à deux rangées aligné sur le plan de la piste et deux balises latérales propres à l’univers. Le dernier passage de Woodworks et de Glacier libère la vue sur la ligne. Les panneaux de secteur suivent le plan de chronométrage.
+- Les résultats affichent le temps enregistré au franchissement. La revanche lance la variante suivante avec 40 billes. Le test de bout en bout vérifie le résultat affiché et enchaîne une nouvelle course avec le bouton existant.
+- 27 paires de vues à 86 km/h avec 40 billes en OpenGL Compatibility. Médiane de 50 appels de rendu et 4 272 primitives affichées en moins par image. [Comparatif des trois arrivées](screenshots/v1.74-finish-line.jpg). Temps d’image sur Android physique à mesurer.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Améliorer l’approche de l’arrivée dans les trois univers. Dégager la vue sur la ligne au milieu du peloton, donner à chaque arrivée une silhouette propre et vérifier l’instant du classement et l’accès à la revanche.
+Rendre la dernière relance plus lisible avant le sprint. Vérifier les trajectoires dans le peloton à l’approche du dernier obstacle et la priorité des signaux de danger sur le HUD.
