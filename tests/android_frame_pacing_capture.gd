@@ -4,7 +4,7 @@ const ROUTE = preload("res://scripts/shortcut_route.gd")
 const PERK := "Grip Tape"
 
 func _ready() -> void:
-    if OS.get_name() == "Android":
+    if OS.get_name() == "Android" or OS.has_environment("MARBLE_DESKTOP_QA"):
         call_deferred("_capture")
 
 func _capture() -> void:
@@ -73,6 +73,8 @@ func _capture() -> void:
                 _fail("Profile replay did not restart the race")
                 return
     print("MARBLE_BENCH_COMPLETE")
+    if OS.get_name() != "Android":
+        get_tree().quit()
 
 func _fail(message: String) -> void:
     print("MARBLE_BENCH_FAILURE ",message)

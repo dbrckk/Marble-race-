@@ -76,7 +76,9 @@ jobs:
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
+          sudo udevadm trigger --name-match=kvm --settle
+          ls -l /dev/kvm
+          sudo chmod a+rw /dev/kvm
           test -r /dev/kvm && test -w /dev/kvm
       - name: Run Balanced and Economy races on Android
         uses: ReactiveCircus/android-emulator-runner@5d6e86df22ab11632167a1a6b0c9ab0dc3469586
@@ -95,6 +97,44 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: marble-race-android-emulator-frame-pacing
+          path: capture/
+          retention-days: 14
+          if-no-files-found: warn
+  desktop-frame-pacing:
+    if: github.head_ref == 'qa/android-frame-pacing-183'
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Measure matching races with the desktop compatibility renderer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p capture
+          version=4.5.1-stable
+          curl -fsSL --retry 3 -o godot.zip "https://github.com/godotengine/godot/releases/download/$version/Godot_v${version}_linux.x86_64.zip"
+          unzip -q godot.zip
+          python - <<'PY'
+          from pathlib import Path
+          scene = Path("scenes/main.tscn")
+          text = scene.read_text().replace("load_steps=2", "load_steps=3", 1)
+          resource = '[ext_resource type="Script" path="res://tests/android_frame_pacing_capture.gd" id="2"]'
+          text = text.replace('[node name="MarbleRace"', resource + '\n\n[node name="MarbleRace"', 1)
+          text += '\n[node name="FramePacingCapture" type="Node" parent="."]\nscript = ExtResource("2")\n'
+          scene.write_text(text)
+          PY
+          godot="./Godot_v${version}_linux.x86_64"
+          "$godot" --headless --editor --path . --import 2>&1 | tee capture/import.log
+          if grep -Eq 'SCRIPT ERROR|Parse Error' capture/import.log; then exit 1; fi
+          export MARBLE_DESKTOP_QA=1 LIBGL_ALWAYS_SOFTWARE=1
+          timeout 520s xvfb-run -a "$godot" --path . --resolution 960x540 --audio-driver Dummy 2>&1 | tee capture/desktop.txt
+          grep -Fq MARBLE_BENCH_COMPLETE capture/desktop.txt
+          test "$(grep -c 'MARBLE_BENCH_REPORT ' capture/desktop.txt)" = 2
+      - name: Archive desktop cross-check
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: marble-race-desktop-frame-pacing
           path: capture/
           retention-days: 14
           if-no-files-found: warn
