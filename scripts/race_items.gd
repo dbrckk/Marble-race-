@@ -14,7 +14,7 @@ const SOLO_LINES := [
     # Glacier: jump near the ice, shockwave on the main route, steady
     # dash through the late ice section, then boost on the run home.
     [
-        [Vector2(-21.0,2.55), Vector2(-82.0,1.80), Vector2(-139.0,-1.80), Vector2(-176.0,1.80)],
+        [Vector2(-21.0,2.55), Vector2(-82.0,1.80), Vector2(-139.0,-1.80), Vector2(-174.5,1.80)],
         [Vector2(-21.0,-1.80), Vector2(-82.0,-1.80), Vector2(-141.0,1.80), Vector2(-175.0,-1.80)],
         [Vector2(-20.0,-1.80), Vector2(-83.0,1.80), Vector2(-135.0,-1.80), Vector2(-176.0,1.80)]
     ],

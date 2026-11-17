@@ -23,7 +23,7 @@ func _verify() -> void:
         "The new HUD cannot intercept Android taps or swipes")
     assert(label.anchor_top > game.ui.duel_label.anchor_bottom,
         "The threat predictor must not obscure the live rival prompt")
-    assert(label.anchor_bottom < game.ui.rare_item_label.anchor_top,
+    assert(label.anchor_top > game.ui.rare_item_label.anchor_bottom,
         "The threat predictor needs its own driving row")
     assert(game.ui.race_notification_backdrop.anchor_right < game.ui.duel_label.anchor_left,
         "Sector and overtake notifications must stay beside the driving view")

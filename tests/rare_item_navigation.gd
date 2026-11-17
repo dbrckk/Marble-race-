@@ -91,6 +91,11 @@ func _verify() -> void:
             assert(label.visible and label.text.contains(ITEMS.label_at(0,track)),
                 "An upcoming rare effect must have an actual Android HUD cue")
             assert(label.text.contains("18m"))
+            var badge: Panel = hud.driving_cue_backgrounds[label]
+            assert(badge.visible and label.anchor_left > hud.hazard_label.anchor_right and
+                label.anchor_top > hud.leaderboard.get_parent().anchor_bottom and
+                label.anchor_bottom < hud.network_quality_label.get_parent().anchor_top,
+                "A pickup preview keeps a fixed slot away from the steering and status rows")
             if track > 0:
                 # Same physical item, with a preview that reaches farther as
                 # forward speed increases. Keep the timed gate out of range.

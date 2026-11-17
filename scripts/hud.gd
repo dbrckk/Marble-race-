@@ -969,14 +969,14 @@ func _build_race_hud() -> void:
     timed_gate_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
     timed_gate_label.visible = false
     hud_layer.add_child(timed_gate_label)
-    # Rare collectible guidance occupies its own thin band beneath timed
-    # hazard warnings; it never covers the mobile steering or boost zones.
+    # Keep optional pickups beside the standings so they never cover the
+    # central steering cues. The slot also clears the online status panel.
     rare_item_label = _text("",17,Color("#b5eeff"))
     rare_item_label.name = "UpcomingHumanPowerup"
-    rare_item_label.anchor_left = 0.285
-    rare_item_label.anchor_right = 0.715
-    rare_item_label.anchor_top = 0.357
-    rare_item_label.anchor_bottom = 0.396
+    rare_item_label.anchor_left = 0.735
+    rare_item_label.anchor_right = 0.985
+    rare_item_label.anchor_top = 0.220
+    rare_item_label.anchor_bottom = 0.270
     rare_item_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     rare_item_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
     rare_item_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
