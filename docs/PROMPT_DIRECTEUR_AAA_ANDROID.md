@@ -226,13 +226,14 @@ Base de comparaison GitHub `184f4d075f601c5f9a6dcb16012d7ec1dd0f0bd4`.
 - La décision est prise huit fois par seconde à partir de la caméra active. Les billes gardent leur matériau et leur sphère de collision. L’optimisation réduit le nombre de triangles, avec un appel de rendu par bille comme avant.
 - Les tests couvrent les deux seuils, le rival signalé et les changements vers Economy et Ultra. Le temps d’image sur Redmi reste à mesurer.
 
-### 2026-11-17 — Matériau des billes en peloton (1.88.0-rc)
+### 2026-11-17 — Comparatif du matériau des billes en peloton
 
 Base de comparaison GitHub `697e7a5f65c50738035844a7a6f52518e9ad2153`.
 
-- Les billes ordinaires sautent le calcul du motif animé des skins exclusifs. Economy saute aussi le deuxième reflet de studio. Le shader réutilise les vecteurs normalisés pour le reflet et le contour du verre.
-- Sur Godot 4.5.1 avec Mesa en OpenGL ES logiciel, les captures avant et après des 40 billes sont identiques pixel par pixel en Balanced et Economy. Avec des maillages fixes et trois comparaisons alternées, la médiane des temps d’image par série en Balanced passe de 9,87 ms à 9,29 ms. Les séries Economy fluctuent. Ce banc mesure les intervalles entre images et isole le matériau. Le temps d’image sur Redmi reste à mesurer.
+- Le prototype conditionne le motif animé au skin exclusif et le second reflet au profil. Les maillages, la caméra et l’éclairage sont fixes. Cinq paires de captures avant et après sont identiques pixel par pixel sous Mesa et sur Android 14 émulé avec ANGLE. Elles couvrent les billes ordinaires en Balanced et Economy, puis les dix motifs premium à temps égal sur les trois profils.
+- Sous Mesa OpenGL ES logiciel à 960 × 540, la médiane des trois médianes Balanced passe de 9,87 à 9,29 ms. Sur Android émulé, la médiane des trois P95 Balanced passe de 204,8 à 170,3 ms, tandis que les médianes Economy augmentent dans les trois séries. Ces mesures portent sur les intervalles entre images du banc logiciel. Les temps GPU et le gain sur téléphone restent à mesurer.
+- Le shader de la version 1.87.0-rc reste en service. L’instrumentation et les résultats sont archivés dans la [PR de comparaison](https://github.com/dbrckk/Marble-race-/pull/8) et le [journal Android](https://github.com/dbrckk/Marble-race-/actions/runs/44047903900).
 
 ## PROCHAIN LOT RECOMMANDÉ
 
-Profiler le peloton en course complète, puis séparer le coût de la physique et de l’IA de celui du rendu à la grille et au premier obstacle.
+Mesurer les 40 billes sur une grille et au premier obstacle dans une course complète. Séparer le coût de la physique et de l’IA de celui du rendu pour choisir le prochain levier sur Android.
