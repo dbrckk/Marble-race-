@@ -260,6 +260,14 @@ Base de comparaison GitHub `f8af5c7e29428cb6b4b18da5941014c7f013a282`.
 - À la grille de Woodworks en Balanced, réactiver les ombres directionnelles individuelles fait passer la vue de 597 à 677 appels de rendu et de 274 230 à 325 078 triangles. Le jeu conserve le lot d’ombres de contact.
 - [Mesures et séquences Android](https://github.com/dbrckk/Marble-race-/pull/11). Le gain de FPS sur téléphone reste à mesurer.
 
+### 2026-11-17 — Mipmaps des matériaux de la piste (1.92.0-rc)
+
+Base de comparaison GitHub `5a45d696d51ab34208258a2025b3736d24454712`.
+
+- Le bois, sa carte de normales et le vernis utilisaient des samplers mipmap sans niveaux générés à l’import. Les trois réglages de texture sont désormais suivis dans Git et la vérification de démarrage contrôle les niveaux importés. Le filtrage réutilise les matériaux existants. Les trois textures ajoutent 1,06 Mio de données décodées pour leurs niveaux de détail.
+- À 640 × 360 sous OpenGL ES logiciel, les quatorze poses suivent la caméra de course de Woodworks à 22 m/s. Pour chaque pose, deux décalages latéraux de ±2 mm sollicitent les textures sous le pixel. Sur la zone de bois mesurée, la variation absolue moyenne de luminance passe de 1,33 à 0,42 sur une échelle de 255. Les appels de rendu restent à 644 sur la grille du banc.
+- Les variantes à bois et à vernis unis isolent le travail de leurs shaders. Les intervalles entre images fluctuent entre séries sous émulation logicielle. Les FPS sur téléphone restent à mesurer. [Relevés et captures](https://github.com/dbrckk/Marble-race-/pull/12).
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Profiler les matériaux de la piste et du décor proche à la grille. Vérifier la stabilité des textures sur un passage rapide avant d’ajuster le niveau de détail.
+Comparer les détails de brillance du bois au ras des planches et dans les secteurs rapides. Mesurer si le relief de proximité peut être conservé avec une contribution moins coûteuse à distance.

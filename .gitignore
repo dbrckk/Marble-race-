@@ -9,6 +9,10 @@ dist/
 .DS_Store
 
 *.import
+# These textures opt into mipmaps through their committed import settings.
+!/assets/textures/oak_albedo.png.import
+!/assets/textures/oak_normal.png.import
+!/assets/textures/lacquer_micro.png.import
 __pycache__/
 .pytest_cache/
 *.tmp
