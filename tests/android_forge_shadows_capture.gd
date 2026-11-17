@@ -39,10 +39,16 @@ func _run() -> void:
             var light: DirectionalLight3D = game.primary_light
             for ii in range(CANDIDATES.size()):
                 var option: Array = CANDIDATES[posmod(ii+pose+layout,CANDIDATES.size())]
-                light.shadow_enabled = option[1]
-                light.directional_shadow_mode = option[2]
-                light.directional_shadow_max_distance = option[3]
-                light.directional_shadow_split_1 = option[4]
+                if option[0] == "two33":
+                    game._apply_graphics_quality()
+                    assert(light.shadow_enabled and light.directional_shadow_mode == option[2])
+                    assert(is_equal_approx(light.directional_shadow_max_distance,option[3]))
+                    assert(is_equal_approx(light.directional_shadow_split_1,option[4]))
+                else:
+                    light.shadow_enabled = option[1]
+                    light.directional_shadow_mode = option[2]
+                    light.directional_shadow_max_distance = option[3]
+                    light.directional_shadow_split_1 = option[4]
                 for warm in range(4):
                     await RenderingServer.frame_post_draw
                 var draw_calls := PackedInt32Array()
