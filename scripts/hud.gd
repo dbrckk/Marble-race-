@@ -125,6 +125,9 @@ var performance_actions: HBoxContainer
 var copy_performance: Button
 var compare_performance: Button
 var performance_text := ""
+var performance_copy_request := 0
+var performance_report_dialog: AcceptDialog
+var performance_report_input: TextEdit
 var sensitivity_index := 1
 var left_handed := false
 const SENSITIVITIES := [0.70,1.0,1.35]
@@ -1297,10 +1300,7 @@ func _build_results() -> void:
     copy_performance.name = "CopyPerformanceReport"
     copy_performance.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     copy_performance.add_theme_font_size_override("font_size",17)
-    copy_performance.pressed.connect(func():
-        DisplayServer.clipboard_set(performance_text)
-        copy_performance.text = "REPORT COPIED"
-    )
+    copy_performance.pressed.connect(_copy_fps_report)
     performance_actions.add_child(copy_performance)
     compare_performance = _action("TEST ECONOMY")
     compare_performance.name = "CompareGraphicsProfile"
@@ -1331,6 +1331,55 @@ func _build_results() -> void:
     menu.pressed.connect(_leave_multiplayer)
     col.add_child(menu)
 
+func _copy_fps_report() -> void:
+    if copy_performance.disabled or performance_text.is_empty() or not results_layer.is_visible_in_tree():
+        return
+    performance_copy_request += 1
+    var request := performance_copy_request
+    var report := performance_text
+    copy_performance.disabled = true
+    DisplayServer.clipboard_set(report)
+    # Android schedules the clipboard write on its UI thread.
+    if OS.get_name() == "Android":
+        copy_performance.text = "COPYING..."
+        for attempt in range(4):
+            await get_tree().create_timer(0.15).timeout
+            if request != performance_copy_request:
+                return
+            if DisplayServer.clipboard_get() == report:
+                copy_performance.disabled = false
+                copy_performance.text = "REPORT COPIED"
+                return
+    elif DisplayServer.clipboard_get() == report:
+        copy_performance.disabled = false
+        copy_performance.text = "REPORT COPIED"
+        return
+    copy_performance.disabled = false
+    copy_performance.text = "COPY FPS REPORT"
+    _show_fps_report(report)
+
+func _show_fps_report(report: String) -> void:
+    if not is_instance_valid(performance_report_dialog):
+        performance_report_dialog = AcceptDialog.new()
+        performance_report_dialog.title = "FPS REPORT"
+        performance_report_dialog.ok_button_text = "CLOSE"
+        performance_report_dialog.exclusive = true
+        root.add_child(performance_report_dialog)
+        var column := _column(10)
+        performance_report_dialog.add_child(column)
+        var status := _text("Clipboard unconfirmed. The full report is below.", 18)
+        status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+        column.add_child(status)
+        performance_report_input = TextEdit.new()
+        performance_report_input.editable = false
+        performance_report_input.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+        performance_report_input.custom_minimum_size.y = 225.0
+        performance_report_input.size_flags_vertical = Control.SIZE_EXPAND_FILL
+        performance_report_input.add_theme_font_size_override("font_size",19)
+        column.add_child(performance_report_input)
+    performance_report_input.text = report
+    performance_report_dialog.popup_centered_ratio(0.82)
+
 func _continue_championship() -> void:
     var next_index: int = game.selected_track + 1
     game.return_to_menu()
@@ -1345,6 +1394,9 @@ func _hide_all() -> void:
     perks_layer.visible = false
     hud_layer.visible = false
     results_layer.visible = false
+    performance_copy_request += 1
+    if is_instance_valid(performance_report_dialog):
+        performance_report_dialog.hide()
     if is_instance_valid(lan_layer):
         lan_layer.visible = false
     if is_instance_valid(pause_layer):
@@ -2004,6 +2056,7 @@ func show_results(place: int, time: float, ranking: Array) -> void:
             game.QUALITY_NAMES[game.graphics_setting],game.selected_perk,"FINISHED" if finished else "DNF",
             game.racers.size(),measurements]
         copy_performance.text = "COPY FPS REPORT"
+        copy_performance.disabled = false
         compare_performance.visible = not game.net.is_active()
         compare_performance.text = "TEST BALANCED" if game.graphics_setting == 0 else "TEST ECONOMY"
     var award := "DNF"

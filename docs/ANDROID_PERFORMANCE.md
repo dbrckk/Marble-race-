@@ -31,8 +31,9 @@ geometry or fidelity.
 1. Install an APK using the safe update precautions in
    [ANDROID_UPDATES.md](ANDROID_UPDATES.md).
 2. In the main menu, select **GRAPHICS: BALANCED** and enable **FPS DISPLAY**.
-3. Finish a solo race and tap **COPY FPS REPORT**. Paste the report into a note
-   or message.
+3. Finish a solo race and tap **COPY FPS REPORT**. Wait for **REPORT COPIED**,
+   then paste it into a note or message. If clipboard access cannot be
+   confirmed, the game shows the full report in a selectable text view.
 4. Tap **TEST ECONOMY** in the results to replay the same layout with the same
    perk. Copy the second report. **TEST BALANCED** repeats the comparison in
    the other direction. The selected profile also becomes your graphics preference.

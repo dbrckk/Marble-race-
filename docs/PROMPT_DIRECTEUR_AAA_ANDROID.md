@@ -195,6 +195,13 @@ Base de comparaison GitHub `f82157d6712bb0d2509e8434d5e9bcb72ed79cfb`.
 - La zone de jonction couvre le même tronçon sur les deux routes. Pour comparer les profils, rejouer le même tracé avec le même atout et suivre la même trajectoire. Chaque fenêtre courte relève au moins une fois les compteurs Godot dès qu’elle enregistre un intervalle.
 - Le test du rapport couvre les limites des fenêtres, l’exclusion de la pause, les images lentes et la relance de comparaison. Mesures sur Redmi à effectuer.
 
+### 2026-11-17 — Copie du rapport FPS sur Android (1.84.0-rc)
+
+Base de comparaison GitHub `e533e8dd79f4a68a68347c76630687ca1e2ec93e`.
+
+- Godot 4.5.1 planifie l’écriture du presse-papiers sur le thread Android. La confirmation attend la relecture du rapport complet. En cas d’échec, le rapport reste consultable et sélectionnable dans les résultats.
+- Une relance ou un retour au menu invalide la confirmation en cours. La fenêtre du rapport se ferme lors du changement d’écran.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Recueillir les rapports Economy et Balanced sur Redmi. Comparer en priorité les deux fenêtres et optimiser le passage où le P95 augmente.
+Profiler le coût des ombres en Balanced au départ de Forge. Comparer les régressions sur le même émulateur et les temps d’image sur Redmi quand une mesure matérielle sera disponible.

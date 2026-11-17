@@ -133,7 +133,16 @@ func _run() -> void:
         game.ui.performance_text.contains("FINAL SECTOR | NO SAMPLES") and
         game.ui.performance_text.contains("BRIDGE RETURN ±8 m | NO SAMPLES"),
         "Results identify the measured profile and distinguish an unreached phase")
+    var report: String = game.ui.performance_text
+    game.ui._show_fps_report(report)
+    await process_frame
+    assert(game.ui.performance_report_dialog.visible and
+        game.ui.performance_report_input.text == report and
+        not game.ui.performance_report_input.editable,
+        "The fallback exposes the complete report without changing its contents")
     game.ui.compare_performance.pressed.emit()
+    assert(not game.ui.performance_report_dialog.visible,
+        "An old report must close when a new race begins")
     assert(game.race_state == "COUNTDOWN" and game.built_variation == previous_layout and
         game.selected_perk == previous_perk and game.graphics_setting == 0 and
         game.performance_budget.race_summary().is_empty(),
