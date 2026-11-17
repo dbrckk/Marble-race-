@@ -330,6 +330,14 @@ Base de comparaison GitHub `4fb9b4a5d2812a5b21a86bee2bb5bd3fac03a1e6`.
 - Sur Mesa OpenGL ES logiciel à 640 × 360 et 40 billes, le P95 au premier obstacle passe de 114,0 à 88,8 ms, en prenant la médiane de deux essais par réglage. Avec deux cascades, réduire la portée à 31 m puis à 29 m donne respectivement 105,1 et 98,4 ms. Les médianes d’appels de rendu sont de 626,5 avant et 609 avec la carte unique.
 - Les essais isolés des lampes, ombres de contact, du brouillard et du décor donnent des résultats variables selon la phase. [Protocole, mesures et captures Android 14](https://github.com/dbrckk/Marble-race-/pull/20). Les gains sur téléphone physique restent à mesurer.
 
+### 2026-11-17 — Ombres Balanced de Forge (1.101.0-rc)
+
+Base de comparaison GitHub `a3993048c32ed10d07079187acdad0f5c8c6d517`.
+
+- Forge en Balanced utilise une carte d’ombres directionnelles sur 33 m. Cette portée couvre les pistons proches, dont celui situé après le pont. Auto applique le même réglage quand il sélectionne Balanced.
+- Les neuf approches de pistons couvrent les trois variantes, avec douze poses de caméra par approche et une référence sans ombre. Sur Mesa OpenGL ES logiciel à 640 × 360, la carte unique réduit de 34 à 64 les appels de rendu médians par approche. La variation temporelle des ombres augmente de 1,55 % en médiane appariée, et de 3,74 % sur l’approche la plus affectée. Le banc fige les pistons en position haute et isole la couche d’ombres directionnelles.
+- Le test de qualité adaptative couvre la sélection de Forge, le passage en course et le retour d’Auto à Balanced. [Protocole et captures Android 14](https://github.com/dbrckk/Marble-race-/pull/22).
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Comparer le réglage Woodworks sur téléphone physique avec le rapport FPS, puis contrôler la netteté des ombres dans les autres variantes de parcours.
+Comparer les ombres de Glacier en Balanced sur les approches de glace et le retour du pont. Relever le P95 du temps d’image sur téléphone physique pour quantifier le gain de Woodworks et Forge.

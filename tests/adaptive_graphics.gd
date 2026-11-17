@@ -43,14 +43,13 @@ func _test() -> void:
     assert(game.set_track(2))
     var key_light: DirectionalLight3D = game.primary_light
     assert(key_light.shadow_enabled and
-        key_light.directional_shadow_mode == DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS and
-        is_equal_approx(key_light.directional_shadow_max_distance,33.0) and
-        is_equal_approx(key_light.directional_shadow_split_1,0.30),
-        "Forge Balanced keeps two shadow cascades close to the driving view")
+        key_light.directional_shadow_mode == DirectionalLight3D.SHADOW_ORTHOGONAL and
+        is_equal_approx(key_light.directional_shadow_max_distance,33.0),
+        "Forge Balanced uses a single shadow map over the driving view")
     assert(_check_showroom(game,GeometryInstance3D.SHADOW_CASTING_SETTING_OFF))
     game.race_variation = 2
     game.start_race("Grip Tape")
-    assert(key_light.directional_shadow_mode == DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS)
+    assert(key_light.directional_shadow_mode == DirectionalLight3D.SHADOW_ORTHOGONAL)
     assert(_check_showroom(game,GeometryInstance3D.SHADOW_CASTING_SETTING_OFF))
     game.return_to_menu()
     game.set_graphics_quality(2)
@@ -63,7 +62,7 @@ func _test() -> void:
     assert(not key_light.shadow_enabled)
     game.set_graphics_quality(3)
     assert(key_light.shadow_enabled and
-        key_light.directional_shadow_mode == DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS)
+        key_light.directional_shadow_mode == DirectionalLight3D.SHADOW_ORTHOGONAL)
     assert(game.set_track(1))
     assert(key_light.directional_shadow_mode == DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS and
         is_equal_approx(key_light.directional_shadow_max_distance,47.0) and
