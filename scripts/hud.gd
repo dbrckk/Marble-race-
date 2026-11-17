@@ -73,7 +73,8 @@ var sector_map_panel: PanelContainer
 var sector_map_title: Label
 var sector_map_boundaries: Label
 var sector_map_back: Button
-var sector_map: Control
+var sector_map: COURSE_BRIEFING
+var sector_map_buttons: Array[Button] = []
 var online_leave_layer: Control
 var online_stay_button: Button
 var clock_label: Label
@@ -1480,8 +1481,8 @@ func _build_sector_map() -> void:
     sector_map_panel.name = "SectorMapPanel"
     sector_map_panel.anchor_left = 0.13
     sector_map_panel.anchor_right = 0.87
-    sector_map_panel.anchor_top = 0.14
-    sector_map_panel.anchor_bottom = 0.86
+    sector_map_panel.anchor_top = 0.12
+    sector_map_panel.anchor_bottom = 0.88
     results_layer.add_child(sector_map_panel)
     var column := _column(10)
     sector_map_panel.add_child(column)
@@ -1490,9 +1491,29 @@ func _build_sector_map() -> void:
     sector_map_boundaries = _text("",22)
     column.add_child(sector_map_boundaries)
     sector_map = COURSE_BRIEFING.new()
+    sector_map.allow_sector_selection = true
     sector_map.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    sector_map.sector_selected.connect(_select_map_sector)
     column.add_child(sector_map)
-    column.add_child(_text("RED DOTS: MOVING GATES   •   DIAMONDS: ITEMS   •   BRANCH: BRIDGE",18,DIM))
+    column.add_child(_text("TAP A SECTOR TO FOCUS   •   RED DOTS: MOVING GATES   •   DIAMONDS: ITEMS   •   BRANCH: BRIDGE",18,DIM))
+    var choices := HBoxContainer.new()
+    choices.name = "SectorChoices"
+    choices.add_theme_constant_override("separation",8)
+    column.add_child(choices)
+    var group := ButtonGroup.new()
+    var selected_style := _surface(Color("#59402e"),TIME_LOSS,10)
+    var focus_style := _surface(Color.TRANSPARENT,TEXT,10)
+    focus_style.set_border_width_all(2)
+    for sector in sector_result_times.size():
+        var choice := _action("SECTOR %d" % (sector+1))
+        choice.toggle_mode = true
+        choice.button_group = group
+        choice.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        choice.add_theme_stylebox_override("pressed",selected_style)
+        choice.add_theme_stylebox_override("focus",focus_style)
+        choice.pressed.connect(_select_map_sector.bind(sector))
+        choices.add_child(choice)
+        sector_map_buttons.append(choice)
     var actions := HBoxContainer.new()
     actions.add_theme_constant_override("separation",10)
     column.add_child(actions)
@@ -1508,20 +1529,29 @@ func _build_sector_map() -> void:
     sector_map_panel.hide()
 
 func _open_sector_map() -> void:
-    if slowest_sector < 0 or not sector_result_hint.is_visible_in_tree() or game.net.is_active():
+    if not sector_result_hint.is_visible_in_tree() or game.net.is_active():
         return
-    var sector_number := slowest_sector+1
-    var entry := "START GRID" if slowest_sector == 0 else "SECTOR %d SIGN" % slowest_sector
-    var exit := "FINISH LINE" if slowest_sector == game.CHECKPOINT_Z.size() else (
-        "SECTOR %d SIGN" % sector_number)
-    sector_map_title.text = "%s  •  LAYOUT %d  •  SECTOR %d  %s VS GHOST" % [
-        game.track_title(),game.built_variation+1,sector_number,sector_result_gaps[slowest_sector].text]
-    sector_map_boundaries.text = "ENTRY  %s    →    EXIT  %s" % [entry,exit]
     sector_map.configure(game,game.selected_track,game.built_variation)
-    sector_map.focus_sector(slowest_sector)
     results_card.hide()
     sector_map_panel.show()
-    sector_map_back.grab_focus()
+    var practice: Dictionary = game.last_result.get("practice_comparison",{})
+    _select_map_sector(slowest_sector if slowest_sector >= 0 else int(practice.get("sector",0)))
+
+func _select_map_sector(sector: int) -> void:
+    if not sector_map_panel.is_visible_in_tree():
+        return
+    var sector_number := sector+1
+    var entry := "START GRID" if sector == 0 else "SECTOR %d SIGN" % sector
+    var exit := "FINISH LINE" if sector == game.CHECKPOINT_Z.size() else (
+        "SECTOR %d SIGN" % sector_number)
+    sector_map_title.text = "%s  •  LAYOUT %d  •  SECTOR %d  %s" % [
+        game.track_title(),game.built_variation+1,sector_number,sector_result_times[sector].text]
+    if sector_result_gaps[sector].visible:
+        sector_map_title.text += "  •  %s VS GHOST" % sector_result_gaps[sector].text
+    sector_map_boundaries.text = "ENTRY  %s    →    EXIT  %s" % [entry,exit]
+    sector_map.focus_sector(sector)
+    sector_map_buttons[sector].button_pressed = true
+    sector_map_buttons[sector].grab_focus()
 
 func _close_sector_map() -> void:
     sector_map_panel.hide()
@@ -1532,7 +1562,8 @@ func _retry_from_results() -> void:
     if game.net.is_active():
         show_online_lobby()
     else:
-        game.retry_current_layout(slowest_sector)
+        var sector := sector_map.focused_sector if sector_map_panel.is_visible_in_tree() else slowest_sector
+        game.retry_current_layout(sector)
 
 func _copy_fps_report() -> void:
     if copy_performance.disabled or performance_text.is_empty() or not results_layer.is_visible_in_tree():
@@ -2371,8 +2402,9 @@ func _show_sector_results(status: Dictionary, finished_solo: bool) -> void:
             if gap >= VISIBLE_TIME_GAP and gap > largest_loss:
                 largest_loss = gap
                 slowest_sector = sector
-    sector_result_hint.visible = slowest_sector >= 0
-    if sector_result_hint.visible:
+    sector_result_hint.show()
+    sector_result_hint.text = "VIEW MAP  →  CHOOSE A SECTOR"
+    if slowest_sector >= 0:
         sector_result_hint.text = "MOST TIME LOST  •  SECTOR %d  %s    →    VIEW MAP" % [
             slowest_sector+1,_gap_time(largest_loss)]
 

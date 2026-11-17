@@ -418,6 +418,10 @@ Base `1fa5a3a5bde78c1f04e5a7a2426723a094b4e372`. Après **Retry Same Layout**, l
 
 Base `1c54522c9ef74e43cef7cc8607537316848b3183`. Une relance guidée terminée affiche le temps précédent, le temps actuel et le gain ou la perte au centième sur le secteur ciblé. Un redémarrage depuis la pause reprend le même temps de référence. Une nouvelle relance depuis le bilan utilise la course tout juste terminée. Le bilan affiche aussi les écarts au fantôme dans les cases des secteurs.
 
+### 2026-11-17 — Choix du secteur depuis la carte (1.114.0-rc)
+
+Base `26ad686604047b15ea362d6806aadb834ca4a676`. Le bilan ouvre la carte d’une course solo avec quatre secteurs chronométrés. Chaque portion de la piste est tactile et les quatre boutons permettent aussi de choisir un secteur. La carte affiche sa durée, ses repères d’entrée et de sortie et son écart au fantôme lorsqu’il est disponible. La relance depuis la carte reprend le choix du joueur et son chrono de référence.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Permettre de choisir sur la carte le secteur à travailler avant de relancer le tracé.
+Afficher sur la carte les principaux obstacles du secteur choisi et leurs repères d’approche.

@@ -105,8 +105,19 @@ func _verify() -> void:
     assert(hud.sector_map_title.text.contains("LAYOUT 2") and hud.sector_map.variation == 1)
     assert(hud.sector_map.sector_bounds() == Vector2(game.CHECKPOINT_Z[0],game.CHECKPOINT_Z[1]))
     assert(hud.sector_map_boundaries.text.contains("EXIT  SECTOR 2 SIGN"))
-    assert(hud.sector_map.drawn_sections == 65 and hud.sector_map.mouse_filter == Control.MOUSE_FILTER_IGNORE)
+    assert(hud.sector_map.drawn_sections == 65 and hud.sector_map.mouse_filter == Control.MOUSE_FILTER_STOP)
     assert(hud.sector_map.get_global_rect().end.y < hud.sector_map_back.get_global_rect().position.y)
+    assert(hud.sector_map_buttons[1].button_pressed)
+    var tap := InputEventScreenTouch.new()
+    tap.pressed = true
+    var map_x: float = hud.sector_map.project((game.CHECKPOINT_Z[1]+game.CHECKPOINT_Z[2])*0.5,0.0).x
+    tap.position = hud.sector_map.get_global_transform_with_canvas()*Vector2(map_x,hud.sector_map.size.y*0.35)
+    root.push_input(tap,true)
+    tap.pressed = false
+    root.push_input(tap,true)
+    assert(hud.sector_map.focused_sector == 2 and hud.sector_map_buttons[2].button_pressed,
+        "A touch between two checkpoints must select the physical sector")
+    assert(not hud.sector_map_buttons[1].button_pressed and hud.sector_map_title.text.contains("SECTOR 3"))
     var back := InputEventAction.new()
     back.action = "ui_cancel"
     back.pressed = true
@@ -120,7 +131,7 @@ func _verify() -> void:
 
     result["ghost_deltas"] = [-1.0,-1.5,-1.51,-1.51]
     hud.show_results(game.player_rank(),98.0,game.get_rankings())
-    assert(not hud.sector_result_hint.visible and hud.sector_result_gaps[3].text == "0.00s")
+    assert(hud.sector_result_hint.text == "VIEW MAP  →  CHOOSE A SECTOR" and hud.sector_result_gaps[3].text == "0.00s")
     result["ghost_deltas"] = [NAN,NAN,NAN,-0.25]
     hud.show_results(game.player_rank(),98.0,game.get_rankings())
     assert(hud.sector_result_row.is_visible_in_tree() and
@@ -129,18 +140,20 @@ func _verify() -> void:
         assert(not gap_label.visible, "Legacy ghosts only supply a finish gap")
     result["ghost_deltas"] = []
     hud.show_results(game.player_rank(),98.0,game.get_rankings())
-    assert(hud.sector_result_header.text == "SECTOR TIMES" and not hud.sector_result_hint.visible)
+    assert(hud.sector_result_header.text == "SECTOR TIMES" and hud.sector_result_hint.visible)
+    hud.sector_result_hint.pressed.emit()
+    assert(hud.sector_map.focused_sector == 0 and not hud.sector_map_title.text.contains("VS GHOST"))
+    hud.sector_map_buttons[1].pressed.emit()
+    assert(hud.sector_map.focused_sector == 1 and hud.sector_map_title.text.contains("25.00s"))
+    hud.sector_map_back.pressed.emit()
 
     result["ghost_deltas"] = [2.5,1.0,1.0,1.0]
     hud.show_results(game.player_rank(),98.0,game.get_rankings())
     hud.sector_result_hint.pressed.emit()
     assert(hud.sector_map.sector_bounds().is_equal_approx(Vector2(grid_z,game.CHECKPOINT_Z[0])))
     assert(hud.sector_map_boundaries.text.contains("ENTRY  START GRID"))
-    hud.sector_map_back.pressed.emit()
-
-    result["ghost_deltas"] = [-1.0,-1.5,-2.5,1.0]
-    hud.show_results(game.player_rank(),98.0,game.get_rankings())
-    hud.sector_result_hint.pressed.emit()
+    hud.sector_map_buttons[3].pressed.emit()
+    assert(hud.slowest_sector == 0 and hud.sector_map_buttons[3].button_pressed)
     assert(hud.sector_map.sector_bounds() == Vector2(game.CHECKPOINT_Z[-1],game.FINISH_Z))
     assert(hud.sector_map_boundaries.text.contains("EXIT  FINISH LINE"))
     hud.sector_map_panel.find_child("RetryFromSectorMap",true,false).pressed.emit()
@@ -256,7 +269,7 @@ func _verify() -> void:
     DirAccess.remove_absolute(ProjectSettings.globalize_path(game.best_ghost.save_path))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(c.save_path))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(game.career.save_path))
-    print("SECTOR_TIMING_PASS: sector timing, retry map and guidance, previous-attempt comparison, legacy saves and DNF protection")
+    print("SECTOR_TIMING_PASS: sector timing, touch selection, retry guidance, prior-attempt comparison, legacy saves and DNF protection")
     game.queue_free()
     for k in range(4):
         await process_frame

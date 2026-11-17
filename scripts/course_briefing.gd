@@ -2,6 +2,8 @@ extends Control
 ## Circuit schematic used in the briefing and solo results.
 ## All paths come from the same TrackPath / physical ShortcutRoute used by
 ## racing marbles. No fake physics, textures, downloads or extra cameras.
+signal sector_selected(index: int)
+
 const TRACK_PATH = preload("res://scripts/track_path.gd")
 const SHORTCUT = preload("res://scripts/shortcut_route.gd")
 const DIRECTOR = preload("res://scripts/race_director.gd")
@@ -15,18 +17,20 @@ const SIDE_COLORS := [
     Color("#ecd6a5"), Color("#9be7ff"), Color("#f7b188")]
 const BACKGROUND := Color(0.065,0.088,0.12,0.95)
 const SECTOR_ACCENT := Color("#ffc18d")
+const RELIEF_TOP_RATIO := 0.752
 
 var stage: Node3D
 var course := 0
 var variation := 0
 var drawn_sections := 0
 var focused_sector := -1
+var allow_sector_selection := false
 var finish_z: float
 
 func _ready() -> void:
     name = "PhysicalCourseBriefingMap"
     custom_minimum_size = Vector2(0,178)
-    mouse_filter = Control.MOUSE_FILTER_IGNORE
+    mouse_filter = Control.MOUSE_FILTER_STOP if allow_sector_selection else Control.MOUSE_FILTER_IGNORE
     clip_contents = true
 
 func configure(owner: Node3D, track: int, next_variation: int) -> void:
@@ -40,6 +44,22 @@ func configure(owner: Node3D, track: int, next_variation: int) -> void:
 func focus_sector(index: int) -> void:
     focused_sector = index
     queue_redraw()
+
+func _gui_input(event: InputEvent) -> void:
+    if not allow_sector_selection or not is_instance_valid(stage):
+        return
+    var pointer: bool = event is InputEventScreenTouch or (
+        event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT)
+    if not pointer or not event.is_pressed() or event.position.y >= size.y*RELIEF_TOP_RATIO:
+        return
+    var sector := 0
+    for checkpoint in stage.CHECKPOINT_Z:
+        if event.position.x < project(checkpoint,0.0).x:
+            break
+        sector += 1
+    if sector != focused_sector:
+        sector_selected.emit(sector)
+    accept_event()
 
 func sector_bounds() -> Vector2:
     var exit: float = finish_z if focused_sector == stage.CHECKPOINT_Z.size() else (
@@ -123,14 +143,19 @@ func _draw() -> void:
     if not is_instance_valid(stage) or w < 70.0 or h < 50.0:
         return
     var full := Rect2(Vector2(1,1),Vector2(w-2,h-2))
+    var chart_top := h*RELIEF_TOP_RATIO
     draw_rect(full,BACKGROUND,true)
     draw_rect(full,Color(0.50,0.67,0.70,0.30),false,1.0)
     var sector_span := Vector2.ZERO
     if focused_sector >= 0:
         var bounds := sector_bounds()
         sector_span = Vector2(project(bounds.x,0.0).x,project(bounds.y,0.0).x)
-        draw_rect(Rect2(sector_span.x,24.0,sector_span.y-sector_span.x,h*0.752-25.0),
+        draw_rect(Rect2(sector_span.x,24.0,sector_span.y-sector_span.x,chart_top-25.0),
             Color(SECTOR_ACCENT,0.19))
+    if allow_sector_selection:
+        for checkpoint in stage.CHECKPOINT_Z:
+            var x := project(checkpoint,0.0).x
+            draw_line(Vector2(x,24.0),Vector2(x,chart_top),Color(0.65,0.77,0.80,0.31),1.0)
     var main := PackedVector2Array()
     var detour := PackedVector2Array()
     drawn_sections = 0
@@ -194,7 +219,6 @@ func _draw() -> void:
         _draw_sector_marker(sector_span.y,"EXIT")
     # A separate real terrain profile makes the biome's physical hills
     # visible before choosing a perk. This never changes race mechanics.
-    var chart_top: float = h*0.752
     draw_rect(Rect2(1.0,chart_top,w-2.0,h-chart_top-1.0),
         Color(0.035,0.055,0.074,0.94),true)
     draw_line(Vector2(19.0,h*0.855),Vector2(w-19.0,h*0.855),
@@ -218,4 +242,4 @@ func _draw_sector_marker(x: float, caption: String) -> void:
     var width := font.get_string_size(caption,HORIZONTAL_ALIGNMENT_LEFT,-1,16).x
     var label_x := clampf(x-width*0.5,8.0,size.x-width-8.0)
     draw_string(font,Vector2(label_x,20.0),caption,HORIZONTAL_ALIGNMENT_LEFT,-1,16,SECTOR_ACCENT)
-    draw_dashed_line(Vector2(x,25.0),Vector2(x,size.y*0.752-2.0),SECTOR_ACCENT,2.0,6.0)
+    draw_dashed_line(Vector2(x,25.0),Vector2(x,size.y*RELIEF_TOP_RATIO-2.0),SECTOR_ACCENT,2.0,6.0)
