@@ -27,7 +27,8 @@ func _verify() -> void:
             hud.show_perks()
             var map = hud.course_briefing
             assert(map.course == track and map.variation == variation)
-            assert(hud.course_strategy_label.text.contains("DIAMONDS"))
+            assert(hud.briefing_notes.text.contains("DIAMONDS = RARE ITEMS"),
+                "The map legend must explain what the pickup diamonds mean")
             for i in range(ITEMS.ITEM_Z.size()):
                 var at: Vector3 = ITEMS.placement_at(i,track,variation)
                 assert(absf(at.y-game.height_at(at.z)-1.05) < 0.0001)
