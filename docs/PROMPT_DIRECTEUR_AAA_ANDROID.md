@@ -276,6 +276,14 @@ Base de comparaison GitHub `320bf99ab051a8080d838536b245677ecd8103d7`.
 - Le banc à un plan conserve la même surface affichée à 8 et 36 m à 640 × 360 sous Mesa OpenGL ES logiciel. À 36 m, la médiane des huit médianes d’intervalle passe de 5,18 à 4,37 ms. La variante descend sous la base dans les huit séries. Les variantes sans relief et sans fibres ont été mesurées séparément.
 - Quatre cadrages Woodworks couvrent la grille, un plan au ras du bois, le premier obstacle et le deuxième repère. Le premier plan au ras des planches est identique pixel par pixel dans la zone mesurée. Les temps de la scène complète varient selon les séries, les appels de rendu et triangles concordent. [Captures et relevés Android](https://github.com/dbrckk/Marble-race-/pull/13). Les FPS sur téléphone restent à mesurer.
 
+### 2026-11-17 — Radar groupé et classement compact (1.94.0-rc)
+
+Base de comparaison GitHub `d1538c98ce28be01ac8cf6f22e4ca89555b915f5`.
+
+- Le radar échantillonne les 40 positions réelles à 10 Hz. Les 39 points adverses partagent un dessin instancié 2D. La ligne de progression et les deux formes du marqueur joueur sont dessinées séparément. Le classement conserve son contenu sur un panneau plus court.
+- Dans les vues Woodworks à 640 × 360, le radar passe de 42 à 4 appels de rendu. La scène entière économise 38 appels et 2 028 triangles sur la grille, près du premier obstacle en vraie course et lors du passage à 79 km/h simulés. Le panneau occupe environ 32 % moins de surface dans les captures.
+- Les régressions couvrent les 40 positions, la remise à zéro au redémarrage, les alertes et les commandes à deux doigts. [Validation et captures Android](https://github.com/dbrckk/Marble-race-/pull/14). Les FPS sur téléphone restent à mesurer.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Profiler les surimpressions transparentes et indicateurs du HUD au premier obstacle. Cibler les éléments qui couvrent la piste et vérifier leur lisibilité à pleine vitesse.
+Améliorer la lisibilité des alertes du premier obstacle sur petit écran. Comparer leurs contours au-dessus du décor clair en conservant la priorité aux dangers imminents.

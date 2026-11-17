@@ -19,6 +19,9 @@ func _run() -> void:
     game.set_physics_process(false)
     var radar: Control = game.ui.race_radar
     assert(radar != null and radar.name == "FortyMarbleRadar")
+    assert(radar.opponent_dots.instance_count == 40 and
+        radar.opponent_dots.transform_format == MultiMesh.TRANSFORM_2D,
+        "The race radar must reuse one batch sized for all physical racers")
     assert(radar.mouse_filter == Control.MOUSE_FILTER_IGNORE,
         "Race radar must never block joystick, boost or rare items")
     radar.sample(0.02)
@@ -36,7 +39,8 @@ func _run() -> void:
         "Actual marble position, not rankings, drives the player marker")
     game.return_to_menu()
     game.start_race("Grip Tape")
-    assert(radar.positions.is_empty() and radar.updates == 2,
+    assert(radar.positions.is_empty() and radar.updates == 2 and
+        radar.opponent_dots.visible_instance_count == 0,
         "Rematch must clear old player and opponent positions")
     game.set_graphics_quality(0)
     radar.sample(0.12)
