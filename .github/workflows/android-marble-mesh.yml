@@ -1,0 +1,123 @@
+name: Verify Balanced marble mesh on Android
+
+on:
+  pull_request:
+    branches: [woodworks-race-flow]
+    paths:
+      - .github/workflows/android-marble-mesh.yml
+      - tests/android_marble_mesh_capture.gd
+      - tests/android_marble_mesh_run.sh
+
+permissions:
+  contents: read
+
+concurrency:
+  group: marble-android-gles-sampling-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: github.head_ref == 'qa/balanced-marble-mesh'
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Build instrumented x86_64 APK from Marble Race 1.87.0-rc
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=4.5.1-stable
+          root="https://github.com/godotengine/godot/releases/download/$version"
+          curl -fsSL --retry 3 -o godot.zip "$root/Godot_v${version}_linux.x86_64.zip"
+          curl -fsSL --retry 3 -o godot.tpz "$root/Godot_v${version}_export_templates.tpz"
+          unzip -q godot.zip
+          template_dir="$HOME/.local/share/godot/export_templates/4.5.1.stable"
+          mkdir -p "$template_dir" "$HOME/.local/share/godot/keystores" "$HOME/.config/godot" build capture
+          unzip -p godot.tpz templates/android_debug.apk > "$template_dir/android_debug.apk"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "build-tools;35.0.0" "platforms;android-35" "platform-tools"
+          keystore="$HOME/.local/share/godot/keystores/debug.keystore"
+          if [[ ! -f "$keystore" ]]; then
+            keytool -genkeypair -noprompt -keystore "$keystore" -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android Debug,O=Open Source,C=US"
+          fi
+          cat > "$HOME/.config/godot/editor_settings-4.5.tres" <<EOF
+          [gd_resource type="EditorSettings" format=3]
+
+          [resource]
+          export/android/android_sdk_path = "$ANDROID_HOME"
+          export/android/java_sdk_path = "$JAVA_HOME"
+          export/android/debug_keystore = "$keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
+          EOF
+          python - <<'PY'
+          from pathlib import Path
+
+          preset = Path("export_presets.cfg")
+          debug, play = preset.read_text().split("[preset.1]", 1)
+          assert "architectures/x86_64=false" in debug
+          debug = debug.replace("architectures/arm64-v8a=true", "architectures/arm64-v8a=false")
+          debug = debug.replace("architectures/x86_64=false", "architectures/x86_64=true")
+          preset.write_text(debug + "[preset.1]" + play)
+
+          scene = Path("scenes/main.tscn")
+          text = scene.read_text().replace("load_steps=2", "load_steps=3", 1)
+          resource = '[ext_resource type="Script" path="res://tests/android_marble_mesh_capture.gd" id="2"]'
+          text = text.replace('[node name="MarbleRace"', resource + '\n\n[node name="MarbleRace"', 1)
+          text += '\n[node name="AndroidMarbleMesh" type="Node" parent="."]\nscript = ExtResource("2")\n'
+          scene.write_text(text)
+          PY
+          godot="./Godot_v${version}_linux.x86_64"
+          "$godot" --headless --editor --path . --import 2>&1 | tee capture/import.log
+          if grep -Eq 'SCRIPT ERROR|Parse Error' capture/import.log; then exit 1; fi
+          "$godot" --headless --path . --export-debug Android build/marble-race-qa.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify build/marble-race-qa.apk
+          unzip -Z1 build/marble-race-qa.apk | grep -Fx 'lib/x86_64/libgodot_android.so'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-shadow-qa-apk
+          path: build/marble-race-qa.apk
+          retention-days: 7
+
+  android-rendering:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 21
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-shadow-qa-apk
+          path: build
+      - name: Enable KVM
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm --settle
+          ls -l /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          test -r /dev/kvm && test -w /dev/kvm
+      - name: Compare distant marble geometry at fixed Forge viewpoints
+        uses: ReactiveCircus/android-emulator-runner@5d6e86df22ab11632167a1a6b0c9ab0dc3469586
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          cores: 2
+          ram-size: 2560M
+          emulator-boot-timeout: 260
+          emulator-options: -no-window -gpu swangle -no-snapshot -noaudio -no-boot-anim -camera-front none -camera-back none
+          script: bash tests/android_marble_mesh_run.sh
+      - name: Archive the screenshots and measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: marble-balanced-mesh-comparison
+          path: capture/
+          retention-days: 21
+          if-no-files-found: warn
