@@ -165,6 +165,22 @@ func _run() -> void:
     stage._update_camera(0.016,false)
     assert(stage.camera.global_position.distance_to(before) < 1.3,
         "A 60Hz frame should not snap the camera as marbles jostle")
+    assert(RaceFeedback.chase_forward_step(-12.0,1.0/60.0) == 0.0,
+        "Recovery teleports must still use normal camera damping")
+    stage.player.linear_velocity = Vector3(0,0,-23)
+    for fps: int in [30,60]:
+        var delta := 1.0/float(fps)
+        stage.player.position.z = -64.0
+        stage._update_camera(delta,true)
+        for frame in fps:
+            stage.player.position.z -= 23.0*delta
+            stage._update_camera(delta)
+        var target: Dictionary = RaceFeedback.camera_pose(stage.player.global_position,
+            stage.player.linear_velocity,stage.track_center_at(stage.player.position.z-12.0),
+            0,false,float(stage.upcoming_hazard(stage.player.position.z).get("distance",-1.0)))
+        var offset: float = stage.camera.global_position.z-target["position"].z
+        print("CHASE_DAMPING ",fps,"FPS ",offset,"m")
+        assert(absf(offset) < 1.25,"Chase camera must stay near its desired offset at speed")
     var beacon: Dictionary = stage.hazard_beacons[0]
     stage.player.position.z = float(beacon["z"])+8.0
     stage.player.linear_velocity = Vector3(0,0,-18)

@@ -430,6 +430,10 @@ Base `18c8aa844325b026474448746128f1677f91708f`. Les obstacles du secteur choisi
 
 Base `809c98300b71292208a25f464cba34cfe4487122`. Le radar et le panneau latéral reprennent le prochain obstacle numéroté de la carte et sa distance d’approche. Les repères suivent la piste principale ou le pont et indiquent le retour sur la piste à la sortie du pont. Ils s’effacent au fil du parcours. Les alertes de danger et les temps intermédiaires prennent la priorité sur le panneau latéral.
 
+### 2026-11-17 — Sensations de course et lisibilité (1.117.0-rc)
+
+Base `28b6d944a329549db2b207eb7b2b629342e734ab`. Captures natives en 640 × 360 avec 40 billes, sur le menu, le briefing, le départ, les premières sections des trois circuits et le bilan de Forge. Le panneau des circuits recouvrait le bouton des skins et les alertes encombraient le centre de la piste. Les options occupent maintenant une grille sous le sélecteur. La caméra de poursuite amortit son écart à la bille pendant la descente. Le joystick indique sa course réelle et le bouton de boost affiche la charge en anneau. Les obstacles d'ouverture et de fin se détachent sur le plateau grâce à des marquages bordés, intégrés aux maillages existants. Les alertes proches ont la priorité quand plusieurs indications se disputent la vue.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Mettre en évidence au bilan le passage où la relance guidée a coûté le plus de temps.
+Mesurer le suivi caméra, la prise en main du boost et la lisibilité du premier obstacle sur un appareil Android. Reprendre ensuite le bilan de la relance guidée.

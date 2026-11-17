@@ -15,7 +15,8 @@ var boost_pressed := false
 var sensitivity := 1.0
 var left_handed := false
 var enabled := true
-var radius := 75.0
+var boost_percent := 100
+var boost_active := false
 var tap_sound: AudioStreamPlayer
 var game: Node3D
 
@@ -76,7 +77,7 @@ func _finger_event(id: int, at: Vector2, pressed: bool) -> void:
 
 func _move_finger(id: int, at: Vector2) -> void:
     if id == joystick_finger:
-        radius = clampf(get_viewport_rect().size.y*0.14,66.0,120.0)
+        var radius := steering_radius()
         joystick_tip = joystick_origin + Vector2(clampf(at.x-joystick_origin.x,-radius,radius),0)
         var normalized := (joystick_tip.x-joystick_origin.x)/radius
         var deadzone := 0.10
@@ -101,28 +102,59 @@ func release_all() -> void:
     _set_boost(false)
     queue_redraw()
 
+func steering_radius() -> float:
+    return clampf(size.y*0.14,66.0,120.0)
+
+func boost_center_fraction() -> float:
+    return 0.20 if left_handed else 0.79
+
+func set_boost_state(charge: float, active: bool) -> void:
+    var percent := roundi(clampf(charge,0.0,1.0)*100.0)
+    if percent == boost_percent and active == boost_active:
+        return
+    boost_percent = percent
+    boost_active = active
+    queue_redraw()
+
 func _draw() -> void:
     if not _controls_allowed():
         return
-    var w := size.x
-    var h := size.y
-    var cx := w* (0.79 if left_handed else 0.19)
-    var center := Vector2(cx,h*0.81)
-    var scale := maxf(0.7,minf(w/1280.0,h/720.0))
-    var r := clampf(h*0.14,70.0,112.0)*scale
-    var base := joystick_origin if joystick_finger >= 0 else center
-    draw_circle(base,r,Color(0.06,0.10,0.15,0.63))
-    draw_arc(base,r,0,TAU,64,Color(0.73,0.86,0.96,0.76),3.0*scale)
-    draw_line(base+Vector2(-r*0.67,0),base+Vector2(r*0.67,0),Color(0.75,0.88,0.95,0.31),2.0*scale)
-    var knob := joystick_tip if joystick_finger >= 0 else base
-    draw_circle(knob,33.0*scale,Color(0.82,0.94,0.99,0.65 if joystick_finger>=0 else 0.34))
-    draw_arc(knob,33.0*scale,0,TAU,40,Color.WHITE,2.5*scale)
-    var bx := w*(0.20 if left_handed else 0.79)
-    var bcenter := Vector2(bx,h*0.81)
-    var br := clampf(h*0.11,56.0,89.0)*scale
-    draw_circle(bcenter,br+5*scale,Color(0.07,0.1,0.16,0.53))
-    draw_circle(bcenter,br,Color(1.0,0.62,0.13,0.94 if boost_pressed else 0.60))
-    draw_arc(bcenter,br,0,TAU,48,Color(1.0,0.88,0.60,0.96),4.0*scale)
-    draw_string(ThemeDB.fallback_font,bcenter-Vector2(br*0.45,-7*scale),
-        "BOOST",HORIZONTAL_ALIGNMENT_LEFT,-1,int(22*scale),
-        Color(0.12,0.10,0.09,1.0))
+    var scale := maxf(0.7,minf(size.x/1280.0,size.y/720.0))
+    var has_steering_finger := joystick_finger >= 0
+    var idle_center := Vector2(size.x*(0.79 if left_handed else 0.19),size.y*0.81)
+    var base := joystick_origin if has_steering_finger else idle_center
+    var radius := steering_radius()
+    draw_circle(base,radius,Color(0.06,0.10,0.15,0.30))
+    draw_arc(base,radius,0,TAU,52,Color(0.73,0.86,0.96,0.63),2.5*scale,true)
+    var rail := Vector2(radius*0.78,0)
+    draw_line(base-rail,base+rail,Color(0.75,0.88,0.95,0.42),2.0*scale,true)
+    var knob := joystick_tip if has_steering_finger else base
+    if has_steering_finger:
+        draw_line(base,knob,Color("#a3e7ef"),3.0*scale,true)
+    var knob_radius := 28.0*scale
+    draw_circle(knob,knob_radius,Color(0.82,0.94,0.99,0.56 if has_steering_finger else 0.24))
+    draw_arc(knob,knob_radius,0,TAU,36,Color("#e3f7ff"),2.0*scale,true)
+    _draw_boost(Vector2(size.x*boost_center_fraction(),size.y*0.81),scale)
+
+func _draw_boost(center: Vector2, scale: float) -> void:
+    var radius := clampf(size.y*0.11,56.0,89.0)*scale
+    var tint := Color("#ffd68d") if boost_percent > 3 else Color("#ff9c89")
+    var fill := Color(0.08,0.10,0.15,0.76)
+    if boost_active:
+        fill = Color(0.49,0.28,0.12,0.93)
+        draw_arc(center,radius+6.0*scale,0,TAU,48,Color("#ffe8b5"),2.0*scale,true)
+    draw_circle(center,radius,fill)
+    draw_arc(center,radius,0,TAU,48,Color(0.92,0.88,0.83,0.34),3.0*scale,true)
+    if boost_percent > 0:
+        draw_arc(center,radius,-PI*0.5,-PI*0.5+TAU*boost_percent/100.0,48,
+            tint,5.0*scale,true)
+    var title := "RECHARGE" if boost_percent <= 3 and not boost_active else "BOOST"
+    _draw_centered_text(center,title,-4.0*scale,roundi(20.0*scale),Color("#fcf8ec"))
+    _draw_centered_text(center,"%d%%" % boost_percent,22.0*scale,roundi(19.0*scale),tint)
+
+func _draw_centered_text(center: Vector2, value: String, baseline: float,
+        font_size: int, tint: Color) -> void:
+    var font := ThemeDB.fallback_font
+    var width := font.get_string_size(value,HORIZONTAL_ALIGNMENT_LEFT,-1,font_size).x
+    draw_string(font,center+Vector2(-width*0.5,baseline),value,
+        HORIZONTAL_ALIGNMENT_LEFT,-1,font_size,tint)

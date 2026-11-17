@@ -4,7 +4,7 @@ Original **3D Android marble-racing game** inspired by the look and mechanics sh
 
 Independent implementation in **Godot 4.5.1**, focused on real mobile playability, physics, and stylized toy-table graphics. No proprietary material from the reference game is redistributed.
 
-## Current state: Android QA build (v1.116.0-rc, versionCode 130)
+## Current state: Android QA build (v1.117.0-rc, versionCode 131)
 
 **Playable scope (October 2026):** three visually differentiated 3D worlds with physical elevation changes, nine repeatable obstacle layouts, forty individually simulated glass marbles, real banked and elevated side-route shortcuts, six player perks, progression, ghost comparisons and optional online races. Autonomous opponents use deterministic physical steering, real route choices, anticipatory passing and forecasts of moving hazards; human steering stays entirely manual. The phone HUD previews real course geometry and estimates when Forge pistons will be open or blocked on arrival, with a nonrepeating audio danger cue. The three pistons share an illuminated shoulder beacon and matched deck markings for their current phase.
 
@@ -14,7 +14,9 @@ Woodworks, Glacier and Forge have individually shaped guardrails with timber, ic
 
 Each circuit opens with its own pair of starting towers. The six lamps count down with the HUD and turn green when the race starts. The countdown sits under the speed panel to leave the track, the marbles and the first obstacles visible.
 
-The first module has biome-specific obstacle finishes, amber hazard bands, and paired chevrons in the actual entry gaps. In kinetic layouts a dashed ring shows the full paddle sweep. The opening art and paint use one mesh and remain visible in Economy.
+The opening and final modules have darker obstacle shells and outlined amber hazard paint. Paired mint chevrons mark the physical entry gaps and a dashed ring marks the paddle sweep. Each module keeps its single batched mesh and remains visible in Economy.
+
+The chase camera carries forward travel through its damping so the player marble stays framed at racing speed. The touch stick rim matches full analog travel, and the boost button displays its charge and depletion directly. Driving notices sit higher on the screen and a farther edge forecast yields when a closer warning and the route choice are both visible. Circuit selection and menu options have separate space, including direct access to skins and backup.
 
 At the first fork, pale mint arrows trace the main road and amber arrows lead through the physical opening onto the bridge. The HUD gives the direction and time to the turn, then prompts at the opening. Woodworks and Glacier have open checkpoint wings that keep both choices in view from the chase camera.
 

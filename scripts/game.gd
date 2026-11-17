@@ -107,6 +107,7 @@ var slipstream: RefCounted
 var draft_cue_cooldown := 0.0
 var performance_budget: RefCounted
 var camera_lookahead := Vector3.ZERO
+var camera_previous_racer_z := NAN
 var feedback_cooldown := 0.0
 var obstacle_notice := 0.0
 var last_count := -1
@@ -1565,6 +1566,7 @@ func _update_camera(delta: float, force := false) -> void:
         return
     if race_state == "MENU" or not is_instance_valid(player):
         camera_shake = 0.0
+        camera_previous_racer_z = NAN
         camera.set_meta("previous_jitter",Vector3.ZERO)
         _position_intro_camera(force)
         return
@@ -1583,18 +1585,22 @@ func _update_camera(delta: float, force := false) -> void:
         race_moments.pack_pressure if race_moments != null and race_state == "RACING" else 0.0)
     var desired: Vector3 = pose["position"]
     var focus: Vector3 = pose["focus"]
-    # Match the camera to the real 3D grade, not the old flat slope.
-    # Smooth interpolation remains unchanged; no per-frame raycasts.
+    # Match the camera to the real 3D grade without per-frame raycasts.
     focus = RaceFeedback.terrain_safe_focus(focus,height_at(focus.z))
     desired = RaceFeedback.terrain_safe_camera(desired,height_at(desired.z))
     var previous_jitter: Vector3 = camera.get_meta(
         "previous_jitter",Vector3.ZERO)
     var follow_rate: float = lerpf(4.5,6.0,float(pose["pace"]))
     var step: float = RaceFeedback.smooth_factor(delta,follow_rate)
-    var base: Vector3 = camera.global_position-previous_jitter
+    var racer_z := player.global_position.z
+    var forward_step := Vector3.ZERO
+    if race_state == "RACING" and cam_mode == 0 and not force:
+        forward_step.z = RaceFeedback.chase_forward_step(racer_z-camera_previous_racer_z,delta)
+    camera_previous_racer_z = racer_z
+    var base: Vector3 = camera.global_position-previous_jitter+forward_step
     camera.global_position = desired if force else base.lerp(desired,step)
     var focus_step: float = RaceFeedback.smooth_factor(delta,7.0)
-    camera_lookahead = focus if force else camera_lookahead.lerp(
+    camera_lookahead = focus if force else (camera_lookahead+forward_step).lerp(
         focus,focus_step)
     camera_shake *= exp(-clampf(delta,0.0,0.12)*9.5)
     var jitter := Vector3(sin(world_time*52.0),

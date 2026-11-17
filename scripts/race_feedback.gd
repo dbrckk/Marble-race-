@@ -28,6 +28,12 @@ static func smooth_factor(delta: float, rate: float) -> float:
     # from 60 fps to 30 fps in a crowded hazard section.
     return 1.0-exp(-clampf(delta,0.0,0.12)*rate)
 
+static func chase_forward_step(traveled: float, delta: float) -> float:
+    # Carry continuous forward motion into the damped camera frame. Large
+    # position corrections still go through the original smoothing.
+    var limit := 1.5+30.0*clampf(delta,0.0,0.12)
+    return traveled*0.87 if is_finite(traveled) and absf(traveled) <= limit else 0.0
+
 const HAZARD_PREVIEW_SECONDS := 1.55
 const HAZARD_MIN_PREVIEW := 9.0
 const HAZARD_MAX_PREVIEW := 37.0

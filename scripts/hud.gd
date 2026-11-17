@@ -10,8 +10,8 @@ const RARE_ITEMS = preload("res://scripts/race_items.gd")
 const SHORTCUT_ROUTE = preload("res://scripts/shortcut_route.gd")
 const VENT_WARNING_SECONDS := 1.55
 const FINAL_OBSTACLE_WARNING_SECONDS := 1.40
-const SURFACE_CUE_TOP := 0.402
-const SURFACE_CUE_BOTTOM := 0.449
+const SURFACE_CUE_TOP := 0.350
+const SURFACE_CUE_BOTTOM := 0.396
 const PISTON_WARNING_SECONDS := 2.20
 const FONT_HEAVY = preload("res://assets/fonts/Rajdhani-Bold.ttf")
 const FONT_REGULAR = preload("res://assets/fonts/Rajdhani-Medium.ttf")
@@ -94,7 +94,6 @@ var quality_button: Button
 var fps_button: Button
 var course_progress: ProgressBar
 var race_radar: Control
-var boost_progress: ProgressBar
 var checkpoint_label: Label
 var practice_sector_label: Label
 var practice_entry_pending := false
@@ -281,63 +280,45 @@ func _build_menu() -> void:
         sound.text = "SOUND: ON" if active else "SOUND: OFF"
     )
     col.add_child(sound)
-    # Visual options stay outside the menu card to leave the launch actions readable.
-    quality_button = _action("GRAPHICS: " + game.graphics_mode_label(),Color(0.13,0.18,0.22,0.86))
-    quality_button.add_theme_font_size_override("font_size",17)
-    quality_button.anchor_left = 0.76
-    quality_button.anchor_right = 0.975
-    quality_button.anchor_top = 0.755
-    quality_button.anchor_bottom = 0.830
+    _build_track_picker()
+    var options := GridContainer.new()
+    options.name = "MenuOptions"
+    options.columns = 2
+    options.anchor_left = 0.475
+    options.anchor_right = 0.972
+    options.anchor_top = 0.608
+    options.anchor_bottom = 0.885
+    options.add_theme_constant_override("h_separation",10)
+    options.add_theme_constant_override("v_separation",8)
+    menu_layer.add_child(options)
+
+    var skins_button := _action("EXCLUSIVE SKINS  ✦",Color("#513c75"))
+    skins_button.name = "ExclusiveTemporarySkins"
+    skins_button.pressed.connect(show_skin_shop)
+    var backup_button := _action("SAVE / RESTORE  ↗",Color("#42535a"))
+    backup_button.name = "SaveRestore"
+    backup_button.pressed.connect(show_backup_dialog)
+
+    var option_fill := Color(0.13,0.18,0.22,0.86)
+    sensitivity_button = _action("STEERING: NORMAL",option_fill)
+    sensitivity_button.pressed.connect(_sensitivity_pressed)
+    hand_button = _action("LAYOUT: RIGHT-HAND",option_fill)
+    hand_button.pressed.connect(_hand_pressed)
+    quality_button = _action("GRAPHICS: " + game.graphics_mode_label(),option_fill)
     quality_button.pressed.connect(func():
         game.set_graphics_quality((game.graphics_setting+1)%4)
         quality_button.text = "GRAPHICS: " + game.graphics_mode_label()
     )
-    menu_layer.add_child(quality_button)
-    var skins_button := _action("EXCLUSIVE SKINS  ✦",Color("#513c75"))
-    skins_button.name = "ExclusiveTemporarySkins"
-    skins_button.anchor_left = 0.76
-    skins_button.anchor_right = 0.975
-    skins_button.anchor_top = 0.345
-    skins_button.anchor_bottom = 0.440
-    skins_button.add_theme_font_size_override("font_size",17)
-    skins_button.pressed.connect(show_skin_shop)
-    menu_layer.add_child(skins_button)
-    fps_button = _action("FPS DISPLAY: " + ("ON" if game.show_fps else "OFF"),Color(0.13,0.18,0.22,0.86))
-    fps_button.add_theme_font_size_override("font_size",17)
-    fps_button.anchor_left = 0.76
-    fps_button.anchor_right = 0.975
-    fps_button.anchor_top = 0.855
-    fps_button.anchor_bottom = 0.925
+    fps_button = _action("FPS DISPLAY: " + ("ON" if game.show_fps else "OFF"),option_fill)
     fps_button.pressed.connect(func():
         fps_button.text = "FPS DISPLAY: " + ("ON" if game.toggle_fps_overlay() else "OFF")
     )
-    menu_layer.add_child(fps_button)
-    sensitivity_button = _action("STEERING: NORMAL",Color(0.13,0.18,0.22,0.86))
-    sensitivity_button.add_theme_font_size_override("font_size",16)
-    sensitivity_button.anchor_left = 0.76
-    sensitivity_button.anchor_right = 0.975
-    sensitivity_button.anchor_top = 0.555
-    sensitivity_button.anchor_bottom = 0.630
-    sensitivity_button.pressed.connect(_sensitivity_pressed)
-    menu_layer.add_child(sensitivity_button)
-    hand_button = _action("LAYOUT: RIGHT-HAND",Color(0.13,0.18,0.22,0.86))
-    hand_button.add_theme_font_size_override("font_size",16)
-    hand_button.anchor_left = 0.76
-    hand_button.anchor_right = 0.975
-    hand_button.anchor_top = 0.655
-    hand_button.anchor_bottom = 0.730
-    hand_button.pressed.connect(_hand_pressed)
-    menu_layer.add_child(hand_button)
-    var backup_button := _action("SAVE / RESTORE  ↗",Color("#42535a"))
-    backup_button.name = "SaveRestore"
-    backup_button.anchor_left = 0.488
-    backup_button.anchor_right = 0.735
-    backup_button.anchor_top = 0.575
-    backup_button.anchor_bottom = 0.664
-    backup_button.add_theme_font_size_override("font_size",17)
-    backup_button.pressed.connect(show_backup_dialog)
-    menu_layer.add_child(backup_button)
-    _build_track_picker()
+    for button: Button in [skins_button,backup_button,sensitivity_button,
+            hand_button,quality_button,fps_button]:
+        button.add_theme_font_size_override("font_size",17)
+        button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        button.size_flags_vertical = Control.SIZE_EXPAND_FILL
+        options.add_child(button)
 
 func _build_backup_dialog() -> void:
     # Large-touch-target modal for Android without storage permissions.
@@ -484,6 +465,7 @@ func _confirm_restore_backup() -> void:
 
 func _build_track_picker() -> void:
     var panel := _panel()
+    panel.name = "CircuitPicker"
     panel.anchor_left = 0.475
     panel.anchor_right = 0.972
     panel.anchor_top = 0.13
@@ -982,8 +964,8 @@ func _build_race_hud() -> void:
     timed_gate_backdrop.name = "UrgentObstacleBackdrop"
     timed_gate_backdrop.anchor_left = 0.237
     timed_gate_backdrop.anchor_right = 0.763
-    timed_gate_backdrop.anchor_top = 0.301
-    timed_gate_backdrop.anchor_bottom = 0.351
+    timed_gate_backdrop.anchor_top = 0.296
+    timed_gate_backdrop.anchor_bottom = 0.344
     timed_gate_backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
     timed_gate_backdrop.add_theme_stylebox_override("panel",
         _surface(Color("#281d24"),Color("#de836b"),8))
@@ -993,8 +975,8 @@ func _build_race_hud() -> void:
     timed_gate_label.name = "PredictedTimedGate"
     timed_gate_label.anchor_left = 0.237
     timed_gate_label.anchor_right = 0.763
-    timed_gate_label.anchor_top = 0.302
-    timed_gate_label.anchor_bottom = 0.350
+    timed_gate_label.anchor_top = 0.297
+    timed_gate_label.anchor_bottom = 0.343
     timed_gate_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     timed_gate_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
     timed_gate_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1095,13 +1077,6 @@ func _build_race_hud() -> void:
         streak.visible = false
         hud_layer.add_child(streak)
         speed_stripes.append(streak)
-    boost_progress = _progress_bar(Color("#91e6e6"))
-    boost_progress.name = "BoostCharge"
-    boost_progress.anchor_left = 0.665
-    boost_progress.anchor_right = 0.915
-    boost_progress.anchor_top = 0.637
-    boost_progress.anchor_bottom = 0.660
-    hud_layer.add_child(boost_progress)
     countdown_label = _small_panel_text("",28,Rect2(0.016,0.293,0.155,0.067),
         HORIZONTAL_ALIGNMENT_CENTER)
     countdown_label.name = "StartSignal"
@@ -1122,12 +1097,12 @@ func _build_race_hud() -> void:
     touch_controls.configure(game)
     touch_controls.direction_changed.connect(func(v: float): game.change_steer(v))
     touch_controls.boost_changed.connect(func(v: bool): game.change_boost(v))
-    boost_label = _text("BOOST 100%", 18, ORANGE)
+    boost_label = _text("DRAFT", 17, Color("#a4f4e5"))
+    boost_label.hide()
+    boost_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
     boost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    boost_label.anchor_left = 0.665
-    boost_label.anchor_right = 0.915
-    boost_label.anchor_top = 0.603
-    boost_label.anchor_bottom = 0.636
+    boost_label.anchor_top = 0.625
+    boost_label.anchor_bottom = 0.666
     hud_layer.add_child(boost_label)
     var cam_button = _action("CAMERA", Color("#353944"))
     cam_button.anchor_left = 0.790
@@ -1709,6 +1684,8 @@ func show_perks() -> void:
     perks_layer.visible = true
 
 func show_race_ui() -> void:
+    boost_label.hide()
+    touch_controls.set_boost_state(game.boost_energy,false)
     last_seen_rank = -1
     rank_toast_seconds = 0.0
     moment_remaining = 0.0
@@ -1853,6 +1830,7 @@ func update_hud() -> void:
     rank_toast_seconds = maxf(0.0,rank_toast_seconds-elapsed)
     toast_remaining = maxf(0.0,toast_remaining-elapsed)
     _refresh_race_notification()
+    touch_controls.set_boost_state(game.boost_energy,game.boosting)
     label_timer += get_process_delta_time()
     if label_timer < 0.11:
         return
@@ -1885,11 +1863,11 @@ func update_hud() -> void:
     remaining_label.text = "%s  •  %d FINISHED" % [game.track_title(),game.racer_finish_order.size()]
     var drafting: bool = not game.net.is_active() and game.slipstream != null and (
         game.slipstream.strength >= 0.30)
-    boost_label.text = ("BOOST %d%%  •  DRAFT" if drafting else "BOOST %d%%") % (
-        int(game.boost_energy*100.0))
-    boost_label.add_theme_color_override("font_color",
-        Color("#a4f4e5") if drafting else (
-            Color("#ffcf82") if game.boost_energy >= 0.25 else Color("#e9746b")))
+    boost_label.visible = drafting
+    if drafting:
+        var boost_x: float = touch_controls.boost_center_fraction()
+        boost_label.anchor_left = boost_x-0.10
+        boost_label.anchor_right = boost_x+0.10
     speed_label.text = "%02d KM/H" % int(game.player.linear_velocity.length() * 3.6)
     if is_instance_valid(game.best_ghost):
         ghost_label.get_parent().visible = game.best_ghost.replay_available and (
@@ -1935,7 +1913,6 @@ func update_hud() -> void:
         place_label.add_theme_color_override("font_color",Color("#ffb089"))
     else:
         place_label.add_theme_color_override("font_color",TEXT)
-    boost_progress.value = game.boost_energy*100.0
     var route_hint: Dictionary = game.shortcut_route.shortcut_hint(
         game.player.global_position,bridge_approach_active) if is_instance_valid(game.shortcut_route) else {}
     bridge_approach_active = game.race_state == "RACING" and route_hint.get("mode","") == "merge"
@@ -1945,10 +1922,11 @@ func update_hud() -> void:
     # hazard banners while also preserving warnings for physical edge gates.
     hazard_label.visible = not hazard.is_empty() and not hazard.has("index") and (
         not hazard.get("final",false))
+    var seconds_until := INF
     if hazard_label.visible:
         var metres: float = float(hazard["distance"])
         var approach: float = maxf(1.25,-game.player.linear_velocity.z)
-        var seconds_until: float = metres/approach
+        seconds_until = metres/approach
         # Distance is more useful during slow manoeuvres; time-to-impact
         # gets urgent at 20m/s and warns before the next blind baffle.
         var hazard_name: String = str(hazard.get("kind","EDGE"))
@@ -2119,6 +2097,11 @@ func update_hud() -> void:
         elif game.selected_track == 1:
             route_tint = SHORTCUT_ROUTE.GLACIER_RETURN_COLOR
         shortcut_label.add_theme_color_override("font_color",route_tint)
+    # A later edge forecast can wait while the player reads the fork and
+    # reacts to a closer live hazard. Keep the nearest edge cue available.
+    if shortcut_label.visible and timed_gate_backdrop.visible and seconds_until > minf(
+            urgent_gate_eta,minf(piston_contact_eta,vent_eta))+0.35:
+        hazard_label.hide()
     if bridge_approach_active and (shortcut_label.visible or glacier_return_panel):
         # Keep the physical rival marked while the player reads the return line.
         duel_label.hide()

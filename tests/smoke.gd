@@ -111,7 +111,7 @@ func _run_checks() -> void:
     assert(race.player.is_player, "Wrong player identity")
     assert(race.contact_shadows.pool.visible_instance_count == 40, "40 ground shadows required")
     assert(is_instance_valid(race.ui.course_progress), "Race progress bar missing")
-    assert(is_instance_valid(race.ui.boost_progress), "Boost progress bar missing")
+    assert(race.ui.touch_controls.boost_percent == 100, "Fresh race must show full boost")
     assert(race.player.mass > 1.0, "Lead Core perk did not affect real physics")
     assert(race.player_rank() >= 1 and race.player_rank() <= 40, "Invalid leaderboard")
     var seen = {}

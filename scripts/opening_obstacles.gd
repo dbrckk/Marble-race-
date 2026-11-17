@@ -9,10 +9,11 @@ const ENTRY_DEPTH := 1.30
 const ROAD_HALF_WIDTH := 6.38
 const CLEARANCE := Racer.RADIUS+0.12
 const ENTRY_LEAD := 1.35
+const MARKING_OUTLINE := Color("#20252a")
 const PALETTES := [
-    [Color("#684934"),Color("#b17b44"),Color("#ffca78"),Color("#cef3ce")],
-    [Color("#234c66"),Color("#4c9bb4"),Color("#ffc978"),Color("#bafaff")],
-    [Color("#3d343d"),Color("#995746"),Color("#ffad65"),Color("#b6f4da")]
+    [Color("#3d3029"),Color("#62472e"),Color("#ffbd5e"),Color("#b6ffdc")],
+    [Color("#233848"),Color("#38566a"),Color("#ffc66e"),Color("#c4f9ff")],
+    [Color("#322933"),Color("#5b3841"),Color("#ffae5e"),Color("#acffda")]
 ]
 const PEG_SIDES := [12,8,10]
 const PEG_SHOULDERS := [0.94,0.73,0.87]
@@ -52,13 +53,14 @@ func build(section: Node3D, game: Node3D, floor_z: float, section_index: int) ->
         if body.name.begins_with("AntiEdgeBaffle"):
             baffle_footprints.append(footprint)
         first_edge = maxf(first_edge,footprint.end.y)
-        # A band in front of each footprint stays visible as marbles approach it.
-        var marking_z := footprint.end.y+0.065
-        _ground(surface,game,floor_z,Vector2(footprint.get_center().x,marking_z+0.09),
-            Vector2(footprint.size.x,0.26),palette[2])
+        # A dark apron separates the amber warning from bright floor seams.
+        var center := Vector2(footprint.get_center().x,footprint.end.y+0.22)
+        var half_width := Vector2(footprint.size.x*0.5,0)
+        _marked_strip(surface,game,floor_z,center-half_width,center+half_width,0.28,palette[2])
         if footprint.size.x > 1.0:
-            _ground(surface,game,floor_z,Vector2(footprint.get_center().x,marking_z+0.42),
-                Vector2(footprint.size.x*0.78,0.11),palette[2])
+            var far_edge := center+Vector2(0,0.36)
+            _ground_strip(surface,game,floor_z,far_edge-half_width*0.78,
+                far_edge+half_width*0.78,0.11,MARKING_OUTLINE)
 
     var spinner := section.get_node_or_null("KineticPaddle_%02d" % section_index) as AnimatableBody3D
     if spinner != null:
@@ -81,9 +83,9 @@ func build(section: Node3D, game: Node3D, floor_z: float, section_index: int) ->
         for flank in [-1.0,1.0]:
             var tail := Vector2(midpoint+flank*width,entry_z+0.43)
             var nose := Vector2(midpoint,entry_z-0.24)
-            _ground_strip(surface,game,floor_z,tail,nose,0.19,palette[3])
-            _ground_strip(surface,game,floor_z,
-                tail+Vector2(0.0,0.52),nose+Vector2(0.0,0.52),0.14,palette[3])
+            _marked_strip(surface,game,floor_z,tail,nose,0.23,palette[3])
+            _marked_strip(surface,game,floor_z,
+                tail+Vector2(0.0,0.64),nose+Vector2(0.0,0.64),0.16,palette[3])
     surface.index()
     mesh = surface.commit()
     var material := StandardMaterial3D.new()
@@ -212,18 +214,19 @@ static func _ground_point(game: Node3D, floor_z: float, point: Vector2) -> Vecto
     var height: float = game.height_at(floor_z)+(point.y-floor_z)*game.track_grade_at(floor_z)
     return Vector3(point.x,maxf(height,game.height_at(point.y))+0.072,point.y)
 
-static func _ground(surface: SurfaceTool, game: Node3D, floor_z: float,
-        center: Vector2, size: Vector2, tint: Color) -> void:
-    _ground_strip(surface,game,floor_z,center-Vector2(size.x*0.5,0.0),
-        center+Vector2(size.x*0.5,0.0),size.y,tint)
+static func _marked_strip(surface: SurfaceTool, game: Node3D, floor_z: float,
+        start: Vector2, end: Vector2, width: float, tint: Color) -> void:
+    _ground_strip(surface,game,floor_z,start,end,width+0.15,MARKING_OUTLINE)
+    _ground_strip(surface,game,floor_z,start,end,width,tint,0.012)
 
 static func _ground_strip(surface: SurfaceTool, game: Node3D, floor_z: float,
-        start: Vector2, end: Vector2, width: float, tint: Color) -> void:
+        start: Vector2, end: Vector2, width: float, tint: Color, lift := 0.0) -> void:
     var direction := (end-start).normalized()
     var half := Vector2(-direction.y,direction.x)*width*0.5
-    _quad(surface,Transform3D.IDENTITY,_ground_point(game,floor_z,start-half),
-        _ground_point(game,floor_z,end-half),_ground_point(game,floor_z,end+half),
-        _ground_point(game,floor_z,start+half),tint)
+    var offset := Vector3.UP*lift
+    _quad(surface,Transform3D.IDENTITY,_ground_point(game,floor_z,start-half)+offset,
+        _ground_point(game,floor_z,end-half)+offset,_ground_point(game,floor_z,end+half)+offset,
+        _ground_point(game,floor_z,start+half)+offset,tint)
 
 static func _sweep_radius(spinner: AnimatableBody3D) -> float:
     var radius := 0.0
@@ -236,9 +239,9 @@ static func _sweep_arcs(surface: SurfaceTool, game: Node3D, floor_z: float,
         hub: Vector2, radius: float, tint: Color) -> void:
     for index in range(12):
         var angle := TAU*float(index)/12.0
-        _ground_strip(surface,game,floor_z,
+        _marked_strip(surface,game,floor_z,
             hub+Vector2.from_angle(angle)*radius,
-            hub+Vector2.from_angle(angle+0.34)*radius,0.105,tint)
+            hub+Vector2.from_angle(angle+0.34)*radius,0.12,tint)
 
 static func _quad(surface: SurfaceTool, pose: Transform3D, a: Vector3,
         b: Vector3, c: Vector3, d: Vector3, tint: Color) -> void:
