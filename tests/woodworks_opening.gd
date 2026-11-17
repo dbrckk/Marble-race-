@@ -51,6 +51,10 @@ func _run() -> void:
     game.race_time = 35.0
     _refresh(game)
     assert(hud.rare_item_label.visible and hud.rare_item_label.text.contains("TURBO DIAMOND"))
+    var pickup_background: Panel = hud.driving_cue_backgrounds[hud.rare_item_label]
+    assert(pickup_background.visible and pickup_background.size.x > 0.0 and
+        pickup_background.show_behind_parent and pickup_background.mouse_filter == Control.MOUSE_FILTER_IGNORE,
+        "The pickup cue stays legible without blocking touch input")
     assert(hud.woodworks_guide_label.text.contains("ACTIVATE") and hud.woodworks_guide_label.is_visible_in_tree())
     game.player.global_position = pickup.global_position
     game.race_items.tick(1.0/60.0,game.racers,game.net)

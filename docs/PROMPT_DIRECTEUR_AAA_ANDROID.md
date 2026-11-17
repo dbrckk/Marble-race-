@@ -284,6 +284,14 @@ Base de comparaison GitHub `d1538c98ce28be01ac8cf6f22e4ca89555b915f5`.
 - Dans les vues Woodworks à 640 × 360, le radar passe de 42 à 4 appels de rendu. La scène entière économise 38 appels et 2 028 triangles sur la grille, près du premier obstacle en vraie course et lors du passage à 79 km/h simulés. Le panneau occupe environ 32 % moins de surface dans les captures.
 - Les régressions couvrent les 40 positions, la remise à zéro au redémarrage, les alertes et les commandes à deux doigts. [Validation et captures Android](https://github.com/dbrckk/Marble-race-/pull/14). Les FPS sur téléphone restent à mesurer.
 
+### 2026-11-17 — Contraste des alertes en course (1.95.0-rc)
+
+Base de comparaison GitHub `1f793ab8b4eb3da8c77fb84ac93f71473a7e6787`.
+
+- Un fond sombre ajusté au texte accompagne les alertes de bord, de route, de mécanisme, d’objet rare et de terrain. Le panneau des dangers imminents conserve sa priorité. Les fonds des alertes laissent passer le toucher.
+- Le comparatif Woodworks à 640 × 360 couvre la première approche en vraie course, la même pose avec un fond clair de contrôle et une approche du diamant. Sous Mesa OpenGL ES logiciel, le fond ajoute un appel de rendu au premier obstacle et trois dans le cadrage où trois alertes sont visibles.
+- [Captures et vérification Android](https://github.com/dbrckk/Marble-race-/pull/15).
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Améliorer la lisibilité des alertes du premier obstacle sur petit écran. Comparer leurs contours au-dessus du décor clair en conservant la priorité aux dangers imminents.
+Vérifier la hiérarchie des repères à haute vitesse quand un danger et un objet rare apparaissent ensemble. Comparer la portion de piste masquée et la durée d’affichage des deux messages.

@@ -78,6 +78,7 @@ var timed_gate_backdrop: Panel
 var rare_item_label: Label
 var biome_lane_label: Label
 var shortcut_label: Label
+var driving_cue_backgrounds: Dictionary[Label,Panel] = {}
 var bridge_approach_active := false
 var woodworks_guide_label: Label
 var woodworks_guide_seen := false
@@ -924,7 +925,7 @@ func _build_race_hud() -> void:
     race_radar.anchor_bottom = 0.150
     race_radar.configure(game)
     hud_layer.add_child(race_radar)
-    hazard_label = _text("",17,Color("#ffd39c"))
+    hazard_label = _text("",19,Color("#ffd39c"))
     hazard_label.name = "UpcomingHazard"
     hazard_label.anchor_left = 0.32
     hazard_label.anchor_right = 0.68
@@ -992,9 +993,22 @@ func _build_race_hud() -> void:
     biome_lane_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
     biome_lane_label.hide()
     hud_layer.add_child(biome_lane_label)
-    for cue in [hazard_label,shortcut_label,timed_gate_label,rare_item_label,biome_lane_label]:
-        cue.add_theme_color_override("font_outline_color",Color("#121820"))
-        cue.add_theme_constant_override("outline_size",5)
+    var cue_surface := _surface(Color("#151d28"),Color("#586579"),7)
+    for cue: Label in [hazard_label,shortcut_label,timed_gate_label,rare_item_label,biome_lane_label]:
+        cue.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+        cue.mouse_filter = Control.MOUSE_FILTER_IGNORE
+        cue.add_theme_font_override("font",FONT_HEAVY)
+        cue.add_theme_color_override("font_outline_color",Color("#10151e"))
+        cue.add_theme_constant_override("outline_size",2)
+        var background := Panel.new()
+        background.name = "ContrastBackground"
+        background.mouse_filter = Control.MOUSE_FILTER_IGNORE
+        background.show_behind_parent = true
+        background.add_theme_stylebox_override("panel",cue_surface)
+        background.hide()
+        cue.add_child(background)
+        driving_cue_backgrounds[cue] = background
+        cue.resized.connect(_refresh_driving_cue_background.bind(cue))
     # Performance feedback shares a single card beside the driving view.
     race_notification_backdrop = Panel.new()
     race_notification_backdrop.name = "RaceNotification"
@@ -1867,6 +1881,23 @@ func update_hud() -> void:
     if place > 3:
         table += "%02d  YOU ★" % place
     leaderboard.text = table
+    for cue: Label in driving_cue_backgrounds:
+        _refresh_driving_cue_background(cue)
+
+func _refresh_driving_cue_background(cue: Label) -> void:
+    var background := driving_cue_backgrounds[cue]
+    # An urgent alert already has a dedicated wide panel.
+    var on_urgent_panel := timed_gate_backdrop.visible and (cue == timed_gate_label or (
+        cue == biome_lane_label and is_equal_approx(cue.anchor_top,timed_gate_label.anchor_top)))
+    background.visible = cue.visible and not cue.text.is_empty() and not on_urgent_panel
+    if not background.visible:
+        return
+    var font := cue.get_theme_font("font")
+    var font_size := cue.get_theme_font_size("font_size")
+    var text_width := font.get_string_size(cue.text,HORIZONTAL_ALIGNMENT_LEFT,-1,font_size).x
+    var text_height := float(cue.get_line_height())*maxi(1,cue.get_line_count())
+    background.size = Vector2(minf(cue.size.x,text_width+22.0),minf(cue.size.y,text_height+6.0))
+    background.position = (cue.size-background.size)*0.5
 
 func _show_final_danger(gate_id: int, urgent_gate_eta: float, piston_contact_eta: float,
         lane_hint: Dictionary, vent_eta: float, still_racing: bool) -> void:

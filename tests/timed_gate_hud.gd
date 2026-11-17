@@ -283,6 +283,8 @@ func _verify_final_approach(game: Node3D) -> bool:
         not hud.hazard_label.visible and not hud.biome_lane_label.visible and
         not hud.rare_item_label.visible and not hud.race_notification_backdrop.visible,
         "The final physical baffle takes the driving row ahead of sprint and bonus toasts")
+    assert(not hud.driving_cue_backgrounds[hud.timed_gate_label].visible,
+        "The urgent danger panel is the only background on this row")
     hud.show_race_moment("PHOTO FINISH!",1.4,3)
     assert(hud.race_moment_label.visible, "Confirmed finish feedback keeps its priority")
     var clear_z: float = game.final_straight_z-0.25
