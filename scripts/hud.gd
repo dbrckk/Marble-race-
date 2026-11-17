@@ -60,12 +60,19 @@ var replay_button_ref: Button
 var next_layout_button: Button
 var result_overview: Label
 var results_scroll: ScrollContainer
+var results_card: PanelContainer
 var sector_results: VBoxContainer
 var sector_result_header: Label
 var sector_result_row: HBoxContainer
 var sector_result_times: Array[Label] = []
 var sector_result_gaps: Array[Label] = []
-var sector_result_hint: Label
+var sector_result_hint: Button
+var slowest_sector := -1
+var sector_map_panel: PanelContainer
+var sector_map_title: Label
+var sector_map_boundaries: Label
+var sector_map_back: Button
+var sector_map: Control
 var online_leave_layer: Control
 var online_stay_button: Button
 var clock_label: Label
@@ -1285,6 +1292,10 @@ func _toggle_pause() -> void:
         pause_race()
 
 func _unhandled_input(event: InputEvent) -> void:
+    if event.is_action_pressed("ui_cancel") and sector_map_panel.is_visible_in_tree():
+        _close_sector_map()
+        get_viewport().set_input_as_handled()
+        return
     if (event.is_action_pressed("ui_cancel") or (
         event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_P
     )) and (game.race_state in ["RACING","COUNTDOWN"]):
@@ -1344,9 +1355,10 @@ func _build_results() -> void:
     var panel = _panel()
     panel.anchor_left = 0.23
     panel.anchor_right = 0.77
-    panel.anchor_top = 0.075
-    panel.anchor_bottom = 0.925
+    panel.anchor_top = 0.06
+    panel.anchor_bottom = 0.94
     results_layer.add_child(panel)
+    results_card = panel
     var col = _column(11)
     panel.add_child(col)
     var title = _text("RACE RESULTS", 40, ORANGE)
@@ -1417,6 +1429,7 @@ func _build_results() -> void:
     var menu = _action("MAIN MENU", Color("#343b47"))
     menu.pressed.connect(_leave_multiplayer)
     col.add_child(menu)
+    _build_sector_map()
 
 func _build_sector_results(parent: VBoxContainer) -> void:
     sector_results = _column(4)
@@ -1450,9 +1463,65 @@ func _build_sector_results(parent: VBoxContainer) -> void:
         gap.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
         line.add_child(gap)
         sector_result_gaps.append(gap)
-    sector_result_hint = _text("",18,TIME_LOSS)
-    sector_result_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    sector_result_hint = _action("",Color("#3e3027"),TIME_LOSS)
+    sector_result_hint.name = "ViewSlowestSectorMap"
+    sector_result_hint.custom_minimum_size.y = 48.0
+    sector_result_hint.add_theme_font_size_override("font_size",20)
+    sector_result_hint.pressed.connect(_open_sector_map)
     sector_results.add_child(sector_result_hint)
+
+func _build_sector_map() -> void:
+    sector_map_panel = _panel()
+    sector_map_panel.name = "SectorMapPanel"
+    sector_map_panel.anchor_left = 0.13
+    sector_map_panel.anchor_right = 0.87
+    sector_map_panel.anchor_top = 0.14
+    sector_map_panel.anchor_bottom = 0.86
+    results_layer.add_child(sector_map_panel)
+    var column := _column(10)
+    sector_map_panel.add_child(column)
+    sector_map_title = _text("",31,TIME_LOSS)
+    column.add_child(sector_map_title)
+    sector_map_boundaries = _text("",22)
+    column.add_child(sector_map_boundaries)
+    sector_map = COURSE_BRIEFING.new()
+    sector_map.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    column.add_child(sector_map)
+    column.add_child(_text("RED DOTS: MOVING GATES   •   DIAMONDS: ITEMS   •   BRANCH: BRIDGE",18,DIM))
+    var actions := HBoxContainer.new()
+    actions.add_theme_constant_override("separation",10)
+    column.add_child(actions)
+    sector_map_back = _action("BACK TO RESULTS")
+    sector_map_back.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    sector_map_back.pressed.connect(_close_sector_map)
+    actions.add_child(sector_map_back)
+    var retry := _action("RETRY SAME LAYOUT",ORANGE,Color("#251b0d"))
+    retry.name = "RetryFromSectorMap"
+    retry.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    retry.pressed.connect(game.retry_current_layout)
+    actions.add_child(retry)
+    sector_map_panel.hide()
+
+func _open_sector_map() -> void:
+    if slowest_sector < 0 or not sector_result_hint.is_visible_in_tree() or game.net.is_active():
+        return
+    var sector_number := slowest_sector+1
+    var entry := "START GRID" if slowest_sector == 0 else "SECTOR %d SIGN" % slowest_sector
+    var exit := "FINISH LINE" if slowest_sector == game.CHECKPOINT_Z.size() else (
+        "SECTOR %d SIGN" % sector_number)
+    sector_map_title.text = "%s  •  LAYOUT %d  •  SECTOR %d  %s VS GHOST" % [
+        game.track_title(),game.built_variation+1,sector_number,sector_result_gaps[slowest_sector].text]
+    sector_map_boundaries.text = "ENTRY  %s    →    EXIT  %s" % [entry,exit]
+    sector_map.configure(game,game.selected_track,game.built_variation)
+    sector_map.focus_sector(slowest_sector,game.race_start_z)
+    results_card.hide()
+    sector_map_panel.show()
+    sector_map_back.grab_focus()
+
+func _close_sector_map() -> void:
+    sector_map_panel.hide()
+    results_card.show()
+    sector_result_hint.grab_focus()
 
 func _copy_fps_report() -> void:
     if copy_performance.disabled or performance_text.is_empty() or not results_layer.is_visible_in_tree():
@@ -1482,6 +1551,8 @@ func _copy_fps_report() -> void:
     _show_fps_report(report)
 
 func _show_fps_report(report: String) -> void:
+    if sector_map_panel.is_visible_in_tree():
+        return
     if not is_instance_valid(performance_report_dialog):
         performance_report_dialog = Control.new()
         performance_report_dialog.name = "FpsReportDialog"
@@ -1530,6 +1601,8 @@ func _hide_all() -> void:
     perks_layer.visible = false
     hud_layer.visible = false
     results_layer.visible = false
+    sector_map_panel.hide()
+    results_card.show()
     performance_copy_request += 1
     if is_instance_valid(performance_report_dialog):
         performance_report_dialog.hide()
@@ -2205,6 +2278,8 @@ func show_checkpoint(number: int, sector_time: float = 0.0, best_before: float =
     _refresh_race_notification()
 
 func _show_sector_results(status: Dictionary, finished_solo: bool) -> void:
+    slowest_sector = -1
+    sector_result_hint.hide()
     var times: Array = status.get("sector_times",[])
     var records: Array = status.get("sector_records",[])
     var crossings: Array = status.get("ghost_deltas",[])
@@ -2214,7 +2289,6 @@ func _show_sector_results(status: Dictionary, finished_solo: bool) -> void:
     if not sector_results.visible:
         return
     sector_result_row.visible = has_times
-    sector_result_hint.hide()
     sector_result_header.text = "SECTOR TIMES" if has_times else ""
     if is_finite(finish_gap):
         var finish_comparison := "FINISH %s VS GHOST" % _gap_time(finish_gap)
@@ -2226,7 +2300,6 @@ func _show_sector_results(status: Dictionary, finished_solo: bool) -> void:
         has_ghost_sectors = has_ghost_sectors and is_finite(float(crossing))
     var previous_gap := 0.0
     var largest_loss := 0.0
-    var sector_with_loss := -1
     for sector in range(4):
         var time_label := sector_result_times[sector]
         var record := records.size() == 4 and bool(records[sector])
@@ -2241,11 +2314,11 @@ func _show_sector_results(status: Dictionary, finished_solo: bool) -> void:
             gap_label.add_theme_color_override("font_color",_gap_color(gap))
             if gap >= VISIBLE_TIME_GAP and gap > largest_loss:
                 largest_loss = gap
-                sector_with_loss = sector
-    sector_result_hint.visible = sector_with_loss >= 0
+                slowest_sector = sector
+    sector_result_hint.visible = slowest_sector >= 0
     if sector_result_hint.visible:
-        sector_result_hint.text = "MOST TIME LOST  •  SECTOR %d  %s" % [
-            sector_with_loss+1,_gap_time(largest_loss)]
+        sector_result_hint.text = "MOST TIME LOST  •  SECTOR %d  %s    →    VIEW MAP" % [
+            slowest_sector+1,_gap_time(largest_loss)]
 
 func show_results(place: int, time: float, ranking: Array) -> void:
     if get_tree().paused:

@@ -406,6 +406,10 @@ Les anciens fantômes restent lisibles et comparables à l’arrivée. Ils acqui
 
 Base `fcdfe07f258bef2ee98b6a89f9fe82c00260fbe2`. Le bilan solo affiche d’entrée les quatre durées au centième, les records de secteur, l’écart à l’arrivée et le secteur où le joueur a perdu le plus de temps. Chaque écart de secteur soustrait les avances ou retards déjà accumulés avant son entrée. Les écarts cumulés aux trois repères restent dans le rapport détaillé. Les anciens fantômes affichent leur écart à l’arrivée. Les résultats en ligne et les abandons gardent leur présentation propre.
 
+### 2026-11-17 — Carte du secteur le plus coûteux (1.111.0-rc)
+
+Base `a53d68b8a718f956e85c1343faed6c1ad576fa58`. Depuis le bilan solo, **View Map** ouvre la carte du tracé terminé. Elle indique la zone, l’entrée et la sortie du secteur où le joueur a perdu le plus de temps face à son fantôme. Les repères correspondent aux positions de course, de la grille du joueur à la ligne d’arrivée. Le bouton de relance reprend le tracé et l’avantage utilisés.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Associer le secteur le plus coûteux aux repères de la carte du tracé pour préparer la prochaine tentative.
+Après une relance, indiquer le secteur à travailler à l’approche de son entrée pour aider le joueur à y préparer sa trajectoire.

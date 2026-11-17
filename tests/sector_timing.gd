@@ -28,6 +28,7 @@ func _verify() -> void:
     game.career.save_path = "user://test_live_splits_v14.cfg"
     game.career.sector_best.fill(0.0)
     game.best_ghost.save_path = "user://test_live_ghost_splits.cfg"
+    game.race_variation = 1
     var ghost_key: String = game.best_ghost.storage_key(0,game.race_variation,"Grip Tape")
     var ghost := ConfigFile.new()
     ghost.set_value(ghost_key,"best_time",100.0)
@@ -36,6 +37,7 @@ func _verify() -> void:
     assert(ghost.save(game.best_ghost.save_path) == OK)
     game.set_graphics_quality(0)
     game.start_race("Grip Tape")
+    var grid_z: float = game.player.position.z
     game.countdown = 0.01
     await process_frame
     for marble in game.racers:
@@ -96,6 +98,21 @@ func _verify() -> void:
     assert(hud.replay_button_ref.get_global_rect().end.y <= hud.next_course_button.get_global_rect().position.y)
     game.show_fps = false
 
+    hud.sector_result_hint.pressed.emit()
+    for frame in range(4):
+        await process_frame
+    assert(hud.sector_map_panel.is_visible_in_tree() and not hud.results_card.visible)
+    assert(hud.sector_map_title.text.contains("LAYOUT 2") and hud.sector_map.variation == 1)
+    assert(hud.sector_map.sector_bounds() == Vector2(game.CHECKPOINT_Z[0],game.CHECKPOINT_Z[1]))
+    assert(hud.sector_map_boundaries.text.contains("EXIT  SECTOR 2 SIGN"))
+    assert(hud.sector_map.drawn_sections == 65 and hud.sector_map.mouse_filter == Control.MOUSE_FILTER_IGNORE)
+    assert(hud.sector_map.get_global_rect().end.y < hud.sector_map_back.get_global_rect().position.y)
+    var back := InputEventAction.new()
+    back.action = "ui_cancel"
+    back.pressed = true
+    hud._unhandled_input(back)
+    assert(hud.results_card.is_visible_in_tree() and not hud.sector_map_panel.visible)
+
     game.net.role = "client"
     hud.show_results(game.player_rank(),98.0,game.get_rankings())
     assert(not hud.sector_results.visible and summary.text.begins_with("TOP FINISHERS"))
@@ -114,7 +131,21 @@ func _verify() -> void:
     hud.show_results(game.player_rank(),98.0,game.get_rankings())
     assert(hud.sector_result_header.text == "SECTOR TIMES" and not hud.sector_result_hint.visible)
 
-    game.retry_current_layout()
+    result["ghost_deltas"] = [2.5,1.0,1.0,1.0]
+    hud.show_results(game.player_rank(),98.0,game.get_rankings())
+    hud.sector_result_hint.pressed.emit()
+    assert(hud.sector_map.sector_bounds().is_equal_approx(Vector2(grid_z,game.CHECKPOINT_Z[0])))
+    assert(hud.sector_map_boundaries.text.contains("ENTRY  START GRID"))
+    hud.sector_map_back.pressed.emit()
+
+    result["ghost_deltas"] = [-1.0,-1.5,-2.5,1.0]
+    hud.show_results(game.player_rank(),98.0,game.get_rankings())
+    hud.sector_result_hint.pressed.emit()
+    assert(hud.sector_map.sector_bounds() == Vector2(game.CHECKPOINT_Z[-1],game.FINISH_Z))
+    assert(hud.sector_map_boundaries.text.contains("EXIT  FINISH LINE"))
+    hud.sector_map_panel.find_child("RetryFromSectorMap",true,false).pressed.emit()
+    assert(not hud.sector_map_panel.visible and game.race_state == "COUNTDOWN")
+    assert(game.built_variation == 1 and game.selected_perk == "Grip Tape")
     assert(is_equal_approx(game.best_ghost.crossing_delta(0,20.016),0.0))
 
     var first_best: float = game.career.best_sector(0,0)
@@ -135,7 +166,7 @@ func _verify() -> void:
     DirAccess.remove_absolute(ProjectSettings.globalize_path(game.best_ghost.save_path))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(c.save_path))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(game.career.save_path))
-    print("SECTOR_TIMING_PASS: pinned splits, greatest ghost loss, legacy saves, PB and DNF protection")
+    print("SECTOR_TIMING_PASS: pinned splits, physical sector map, exact replay, legacy saves and DNF protection")
     game.queue_free()
     for k in range(4):
         await process_frame

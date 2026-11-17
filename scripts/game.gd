@@ -112,6 +112,7 @@ var obstacle_notice := 0.0
 var last_count := -1
 var last_checkpoint := -1
 var checkpoint_splits: Array[float] = []
+var race_start_z := 0.0
 var course_flash := 0.0
 var trail: CPUParticles3D
 var skins: Node
@@ -1240,6 +1241,7 @@ func start_race(perk_name: String) -> void:
     if performance_budget != null:
         performance_budget.reset()
     _spawn_racers()
+    race_start_z = player.position.z
     if is_instance_valid(race_items):
         race_items.reset_round()
     if is_instance_valid(course_mechanics):
