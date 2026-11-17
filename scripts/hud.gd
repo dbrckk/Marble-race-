@@ -1517,7 +1517,11 @@ func _open_sector_map() -> void:
     results_card.hide()
     sector_map_panel.show()
     var practice: Dictionary = game.last_result.get("practice_comparison",{})
-    _select_map_sector(slowest_sector if slowest_sector >= 0 else int(practice.get("sector",0)))
+    var hotspot: Dictionary = practice.get("worst_passage",{})
+    var sector := int(practice.get("sector",0))
+    if hotspot.is_empty() and slowest_sector >= 0:
+        sector = slowest_sector
+    _select_map_sector(sector)
 
 func _select_map_sector(sector: int) -> void:
     if not sector_map_panel.is_visible_in_tree():
@@ -1531,7 +1535,13 @@ func _select_map_sector(sector: int) -> void:
     if sector_result_gaps[sector].visible:
         sector_map_title.text += "  •  %s VS GHOST" % sector_result_gaps[sector].text
     sector_map_boundaries.text = "ENTRY  %s    →    EXIT  %s" % [entry,exit]
-    sector_map.focus_sector(sector)
+    var practice: Dictionary = game.last_result.get("practice_comparison",{})
+    var hotspot: Dictionary = practice.get("worst_passage",{}) if int(practice.get("sector",-1)) == sector else {}
+    var span := Vector2.ZERO
+    if not hotspot.is_empty():
+        span = hotspot["span"]
+        sector_map_boundaries.text += "  •  PASSAGE %d %s" % [hotspot["number"],_gap_time(hotspot["loss"])]
+    sector_map.focus_sector(sector,span)
     var landmark_names := PackedStringArray()
     for landmark in sector_map.sector_landmarks:
         landmark_names.append("%d  %s" % [landmark_names.size()+1,landmark["title"]])
@@ -1550,6 +1560,10 @@ func _retry_from_results() -> void:
         show_online_lobby()
     else:
         var sector := sector_map.focused_sector if sector_map_panel.is_visible_in_tree() else slowest_sector
+        if not sector_map_panel.is_visible_in_tree():
+            var practice: Dictionary = game.last_result.get("practice_comparison",{})
+            if not practice.get("worst_passage",{}).is_empty():
+                sector = int(practice["sector"])
         game.retry_current_layout(sector)
 
 func _copy_fps_report() -> void:
@@ -2427,6 +2441,10 @@ func _show_sector_results(status: Dictionary, finished_solo: bool) -> void:
     if slowest_sector >= 0:
         sector_result_hint.text = "MOST TIME LOST  •  SECTOR %d  %s    →    VIEW MAP" % [
             slowest_sector+1,_gap_time(largest_loss)]
+    var hotspot: Dictionary = practice.get("worst_passage",{})
+    if not hotspot.is_empty():
+        sector_result_hint.text = "SECTOR %d  •  PASSAGE %d  %s    →    VIEW MAP" % [
+            int(practice["sector"])+1,hotspot["number"],_gap_time(hotspot["loss"])]
 
 func show_results(place: int, time: float, ranking: Array) -> void:
     if get_tree().paused:

@@ -438,6 +438,10 @@ Base `28b6d944a329549db2b207eb7b2b629342e734ab`. Captures natives en 640 × 360 
 
 Base `5240a9d63eb285673069bed74458056b75c40825`. Les 39 adversaires gardent leurs corps physiques et leurs motifs de verre. Leur rendu utilise deux lots selon la taille à l'écran, avec culling par bille. La bille du joueur conserve son matériau pour les skins et le boost. Sur les départs capturés à 640 × 360 en Balanced, les appels de dessin passent de 590 à 552 sur Woodworks, de 719 à 681 sur Glacier et de 636 à 598 sur Forge. Le changement a été comparé avec le rendu GL Compatibility sur ordinateur.
 
+### 2026-11-17 — Passage le plus coûteux après une relance guidée (1.119.0-rc)
+
+Base `126b9e3eba23a635727f63c831576666b4693939`. Chaque secteur comprend quatre passages chronométrés en solo. Le bilan conserve les temps de la course précédente en mémoire et affiche le passage où la relance sur le même tracé a coûté le plus de temps. Le bouton ouvre la carte directement sur la zone surlignée. Les franchissements valides sont interpolés au fil de la course, sur la route ou le pont. Les passages incomplets laissent le bilan de secteur disponible.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Reprendre le bilan de la relance guidée et situer dans le secteur ciblé le passage ayant coûté le plus de temps. Mesurer la fluidité du peloton sur un appareil Android dès qu'il est disponible.
+Prolonger la relance guidée avec un repère d'approche du passage surligné, à côté des indications déjà présentes en course. Mesurer la fluidité du peloton sur un appareil Android dès qu'il est disponible.

@@ -22,6 +22,7 @@ const TrackSurface = preload("res://scripts/track_surface.gd")
 const StartGate = preload("res://scripts/start_gate.gd")
 const FinishLine = preload("res://scripts/finish_line.gd")
 const TrackPath = preload("res://scripts/track_path.gd")
+const PracticeTiming = preload("res://scripts/practice_timing.gd")
 const RaceFeedback = preload("res://scripts/race_feedback.gd")
 const RaceMoments = preload("res://scripts/race_moments.gd")
 const TemporarySkins = preload("res://scripts/temporary_skins.gd")
@@ -117,6 +118,8 @@ var checkpoint_splits: Array[float] = []
 var race_start_z := 0.0
 var practice_sector := -1
 var practice_previous_time := NAN
+var practice_previous_passages := PackedFloat64Array()
+var practice_timing := PracticeTiming.new()
 var course_flash := 0.0
 var trail: CPUParticles3D
 var skins: Node
@@ -1216,12 +1219,14 @@ func _camera_bump(body: Node) -> void:
 func sector_entry_z(sector: int) -> float:
     return race_start_z if sector == 0 else CHECKPOINT_Z[sector-1]
 
-func start_race(perk_name: String, sector_to_practice := -1, previous_sector_time := NAN) -> void:
+func start_race(perk_name: String, sector_to_practice := -1, previous_sector_time := NAN,
+        previous_passages := PackedFloat64Array()) -> void:
     selected_perk = perk_name
     practice_sector = sector_to_practice if (
         not net.is_active() and sector_to_practice >= 0 and sector_to_practice <= CHECKPOINT_Z.size()) else -1
     practice_previous_time = previous_sector_time if (
         practice_sector >= 0 and is_finite(previous_sector_time) and previous_sector_time > 0.0) else NAN
+    practice_previous_passages = previous_passages if is_finite(practice_previous_time) else PackedFloat64Array()
     if not net.is_active():
         career.begin()
     result_saved = false
@@ -1260,6 +1265,8 @@ func start_race(perk_name: String, sector_to_practice := -1, previous_sector_tim
         performance_budget.reset()
     _spawn_racers()
     race_start_z = player.position.z
+    if not net.is_active():
+        practice_timing.begin(player.position,CHECKPOINT_Z,FINISH_Z)
     if is_instance_valid(race_items):
         race_items.reset_round()
     if is_instance_valid(course_mechanics):
@@ -1289,22 +1296,28 @@ func restart_race() -> void:
 
 func retry_current_layout(sector_to_practice := -1) -> void:
     var previous_time := NAN
+    var passages := PackedFloat64Array()
     if race_state == "RESULTS" and bool(last_result.get("finished",false)):
         var times: Array = last_result.get("sector_times",[])
         if times.size() == CHECKPOINT_Z.size()+1 and sector_to_practice >= 0 and sector_to_practice < times.size():
             previous_time = float(times[sector_to_practice])
+            var recorded: Array = last_result.get("passage_times",[])
+            if sector_to_practice < recorded.size():
+                passages = recorded[sector_to_practice]
     elif race_state in ["COUNTDOWN","RACING"] and sector_to_practice == practice_sector:
         previous_time = practice_previous_time
+        passages = practice_previous_passages
     race_variation = built_variation
     kinetic_time = 0.0
     for obstacle in moving_obstacles:
         if is_instance_valid(obstacle):
             obstacle.rotation = Vector3.ZERO
-    start_race(selected_perk,sector_to_practice,previous_time)
+    start_race(selected_perk,sector_to_practice,previous_time,passages)
 
 func return_to_menu() -> void:
     practice_sector = -1
     practice_previous_time = NAN
+    practice_previous_passages.clear()
     if race_moments != null:
         race_moments.reset_round()
     if is_instance_valid(airtime):
@@ -1382,6 +1395,8 @@ func _process(delta: float) -> void:
             audio.tone("start")
     elif race_state == "RACING":
         race_time += delta
+        if not net.is_active() and is_instance_valid(player) and not player.finished and not player.eliminated:
+            practice_timing.sample(self,player.position,race_time)
         if is_instance_valid(best_ghost) and is_instance_valid(player):
             best_ghost.tick(race_time,player.global_position,graphics_quality)
         if race_time > 1.0 and start_gate.signal_stage == 0:
@@ -1797,9 +1812,18 @@ func _end_race() -> void:
             not net.is_active() and race_moments != null) else 0
         last_result["sector_times"] = durations
         last_result["sector_records"] = career.record_sectors(selected_track,durations) if completed and not net.is_active() else [false,false,false,false]
-        if completed and complete_sectors and not net.is_active() and (
-            practice_sector >= 0 and is_finite(practice_previous_time) and is_finite(durations[practice_sector])):
-            last_result["practice_comparison"] = {"sector":practice_sector,"previous":practice_previous_time}
+        if completed and complete_sectors and not net.is_active():
+            var passage_times: Array[PackedFloat64Array] = []
+            for sector in durations.size():
+                var entry := 0.0 if sector == 0 else checkpoint_splits[sector-1]
+                var exit: float = player.finish_time if sector == CHECKPOINT_Z.size() else checkpoint_splits[sector]
+                passage_times.append(practice_timing.durations(sector,entry,exit))
+            last_result["passage_times"] = passage_times
+            if practice_sector >= 0 and is_finite(practice_previous_time):
+                last_result["practice_comparison"] = {
+                    "sector":practice_sector,"previous":practice_previous_time,
+                    "worst_passage":practice_timing.worst_loss(practice_sector,
+                        practice_previous_passages,passage_times[practice_sector])}
         # An offline, genuinely finished race is the only source of mastery.
         # Client snapshots and server online races must never modify career.
         if not net.is_active():

@@ -297,11 +297,79 @@ func _verify() -> void:
     game._end_race()
     assert(game.career.best_sector(0,0) == first_best,"DNF must retain previous record")
     assert(game.last_result["ghost_deltas"].is_empty() and not hud.sector_results.visible)
+    _verify_passage_loss(game)
     DirAccess.remove_absolute(ProjectSettings.globalize_path(game.best_ghost.save_path))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(c.save_path))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(game.career.save_path))
-    print("SECTOR_TIMING_PASS: shared map landmarks, route-aware retry guidance, timing, legacy saves and DNF protection")
+    print("SECTOR_TIMING_PASS: shared map landmarks, route-aware retry guidance, matched passages, timing, legacy saves and DNF protection")
     game.queue_free()
     for k in range(4):
         await process_frame
     quit(0)
+
+
+func _verify_passage_loss(game: Node3D) -> void:
+    game.start_race("Grip Tape")
+    var timing: RefCounted = game.practice_timing
+    var start: float = game.race_start_z
+    var exit: float = game.CHECKPOINT_Z[0]
+    var first := lerpf(start,exit,0.25)
+    # A teleport onto the course and a below-deck crossing both fail to
+    # manufacture a split. A legitimate crossing after returning does count.
+    timing.sample(game,_road_point(game,first-0.15),0.05)
+    assert(is_nan(timing.crossings[0]))
+    timing.sample(game,_road_point(game,first+0.15)-Vector3.UP*3.0,2.0)
+    timing.sample(game,_road_point(game,first-0.15)-Vector3.UP*3.0,2.05)
+    assert(is_nan(timing.crossings[0]))
+    _sample_first_sector(game,[5.0,10.0,15.0])
+    var bridge_plane: float = lerpf(game.CHECKPOINT_Z[0],game.CHECKPOINT_Z[1],0.5)
+    timing.sample(game,game.shortcut_route.point_at(bridge_plane+0.15)+Vector3.UP*0.6,34.95)
+    timing.sample(game,game.shortcut_route.point_at(bridge_plane-0.15)+Vector3.UP*0.6,35.05)
+    assert(is_equal_approx(timing.crossings[4],35.0),"The elevated route must count")
+    _finish_passage_fixture(game,20.0)
+    var source: Array = game.last_result["passage_times"]
+    assert(source[0].size() == 4 and source[1].is_empty(),
+        "Missing passages must not be fabricated across sector boundaries")
+    assert(not game.last_result.has("practice_comparison"))
+    var layout: int = game.built_variation
+    game.retry_current_layout(0)
+    assert(game.built_variation == layout and game.practice_previous_passages == source[0])
+    game.retry_current_layout(0)
+    assert(game.practice_previous_passages == source[0],"Restart must retain the same passages")
+    _sample_first_sector(game,[4.0,10.5,14.5])
+    _finish_passage_fixture(game,19.0)
+    var loss: Dictionary = game.last_result["practice_comparison"]["worst_passage"]
+    assert(loss["number"] == 2 and is_equal_approx(loss["loss"],1.5))
+    assert(loss["span"].is_equal_approx(Vector2(first,lerpf(start,exit,0.5))))
+    var hud: CanvasLayer = game.ui
+    assert(hud.sector_retry_comparison.text.contains("1.00s FASTER"))
+    assert(hud.sector_result_hint.text.contains("PASSAGE 2  +1.50s"))
+    hud.sector_result_hint.pressed.emit()
+    assert(hud.sector_map.focused_sector == 0 and hud.sector_map.passage_span == loss["span"])
+    assert(hud.sector_map_boundaries.text.contains("PASSAGE 2 +1.50s"))
+    hud.sector_map_buttons[1].pressed.emit()
+    assert(hud.sector_map.passage_span == Vector2.ZERO,"Loss must stay on its measured sector")
+    hud.sector_map_back.pressed.emit()
+    hud.replay_button_ref.pressed.emit()
+    assert(game.practice_sector == 0 and is_equal_approx(game.practice_previous_passages[1],6.5))
+    _sample_first_sector(game,[4.0,10.5,14.5])
+    _finish_passage_fixture(game,19.0)
+    assert(game.last_result["practice_comparison"]["worst_passage"].is_empty())
+    assert(not hud.sector_result_hint.text.contains("PASSAGE"))
+
+func _sample_first_sector(game: Node3D, times: Array) -> void:
+    var timing: RefCounted = game.practice_timing
+    for index in times.size():
+        var plane := lerpf(game.race_start_z,game.CHECKPOINT_Z[0],float(index+1)/4.0)
+        timing.sample(game,_road_point(game,plane+0.15),float(times[index])-0.05)
+        timing.sample(game,_road_point(game,plane-0.15),float(times[index])+0.05)
+        assert(is_equal_approx(timing.crossings[index],float(times[index])))
+
+func _road_point(game: Node3D, z: float) -> Vector3:
+    return Vector3(game.track_center_at(z),game.height_at(z)+0.6,z)
+
+func _finish_passage_fixture(game: Node3D, first_split: float) -> void:
+    game.checkpoint_splits.assign([first_split,45.0,79.0])
+    game.player.finished = true
+    game.player.finish_time = 98.9
+    game._end_race()

@@ -18,6 +18,7 @@ const SIDE_COLORS := [
     Color("#ecd6a5"), Color("#9be7ff"), Color("#f7b188")]
 const BACKGROUND := Color(0.065,0.088,0.12,0.95)
 const SECTOR_ACCENT := Color("#ffc18d")
+const PASSAGE_LOSS_COLOR := Color("#ff9584")
 const RELIEF_TOP_RATIO := 0.752
 enum LandmarkRoute { MAIN, BRIDGE }
 
@@ -26,6 +27,7 @@ var course := 0
 var variation := 0
 var drawn_sections := 0
 var focused_sector := -1
+var passage_span := Vector2.ZERO
 var allow_sector_selection := false
 var finish_z: float
 var sector_landmarks: Array[Dictionary] = []
@@ -42,11 +44,13 @@ func configure(owner: Node3D, track: int, next_variation: int) -> void:
     variation = posmod(next_variation,3)
     finish_z = stage.FINISH_Z
     focused_sector = -1
+    passage_span = Vector2.ZERO
     sector_landmarks.clear()
     queue_redraw()
 
-func focus_sector(index: int) -> void:
+func focus_sector(index: int, loss_span := Vector2.ZERO) -> void:
     focused_sector = index
+    passage_span = loss_span
     sector_landmarks = landmarks_for(stage,index)
     queue_redraw()
 
@@ -204,6 +208,11 @@ func _draw() -> void:
         sector_span = Vector2(project(bounds.x,0.0).x,project(bounds.y,0.0).x)
         draw_rect(Rect2(sector_span.x,24.0,sector_span.y-sector_span.x,chart_top-25.0),
             Color(SECTOR_ACCENT,0.19))
+        if passage_span != Vector2.ZERO:
+            var first := project(passage_span.x,0.0).x
+            var last := project(passage_span.y,0.0).x
+            draw_rect(Rect2(first,26.0,last-first,chart_top-27.0),Color(PASSAGE_LOSS_COLOR,0.28))
+            draw_line(Vector2(first,28.0),Vector2(last,28.0),PASSAGE_LOSS_COLOR,4.0)
     if allow_sector_selection:
         for checkpoint in stage.CHECKPOINT_Z:
             var x := project(checkpoint,0.0).x
