@@ -43,6 +43,8 @@ const CourseSculptures = preload("res://scripts/course_sculptures.gd")
 const AirtimeDirector = preload("res://scripts/airtime_director.gd")
 
 const MARBLE_COUNT := 40
+const MARBLE_DETAIL_INTERVAL := 0.125
+const MARBLE_DETAIL_NEAR_DISTANCE_SQUARED := 81.0
 const SLOPE := 0.085
 const SEGMENT_LENGTH := 12.0
 const SEGMENTS := 18
@@ -133,6 +135,7 @@ var track_physics_material: PhysicsMaterial
 var primary_light: DirectionalLight3D
 var world_environment: Environment
 var graphics_quality := 1
+var marble_detail_refresh := 0.0
 var graphics_setting := 1 # 0 economy, 1 balanced, 2 ultra, 3 auto
 var auto_fps_seconds := 0.0
 var auto_fps_accum := 0.0
@@ -1077,6 +1080,7 @@ func _showroom() -> void:
     roof.name = "ShowroomRoofBeam"
 
 func _spawn_racers() -> void:
+    marble_detail_refresh = 0.0
     for m in racers:
         if is_instance_valid(m):
             remove_child(m)
@@ -1398,6 +1402,7 @@ func _process(delta: float) -> void:
     if race_state == "RACING" or race_state == "COUNTDOWN":
         if race_moments != null:
             race_moments.tick(delta)
+        _update_marble_detail(delta)
         ui.update_hud()
     # Audio tension reads the local HUD's existing 10Hz physics snapshot.
     # No extra 40-racer scans, AI updates or online rewards.
@@ -1490,6 +1495,28 @@ func _physics_process(delta: float) -> void:
                 player.apply_central_force(-tug * 0.14 * player.mass)
     if racer_finish_order.size() == MARBLE_COUNT:
         _end_race()
+
+func _update_marble_detail(delta: float) -> void:
+    if graphics_quality != 1 or net.role == "server" or not (
+        is_instance_valid(player) and is_instance_valid(camera)):
+        return
+    marble_detail_refresh -= delta
+    if marble_detail_refresh > 0.0:
+        return
+    marble_detail_refresh = MARBLE_DETAIL_INTERVAL
+    var eye := camera.global_position
+    var forward := -camera.global_basis.z
+    var driver := player.global_position
+    var diameter_scale := 720.0*Racer.RADIUS/tan(deg_to_rad(camera.fov*0.5))
+    var featured: RigidBody3D = race_moments.closest_rival if race_moments != null else null
+    for marble in racers:
+        if not is_instance_valid(marble) or marble == player:
+            continue
+        var at := marble.global_position
+        var depth := forward.dot(at-eye)
+        var keep_detail := marble == featured or at.distance_squared_to(driver) <= (
+            MARBLE_DETAIL_NEAR_DISTANCE_SQUARED)
+        marble.update_render_detail(diameter_scale/maxf(depth,0.01),keep_detail)
 
 func _update_camera(delta: float, force := false) -> void:
     if not is_instance_valid(camera):

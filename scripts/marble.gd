@@ -28,11 +28,26 @@ static func get_sphere(high_detail: bool, quality: int) -> SphereMesh:
     return sphere
 
 func set_render_quality(quality: int) -> void:
+    render_quality = clampi(quality,0,2)
+    using_distant_mesh = false
     if is_instance_valid(mesh):
-        mesh.mesh = get_sphere(is_player,quality)
+        mesh.mesh = get_sphere(is_player,render_quality)
         if is_instance_valid(glass_material):
-            glass_material.set_shader_parameter("visual_quality",float(clampi(quality,0,2)))
+            glass_material.set_shader_parameter("visual_quality",float(render_quality))
+
+func update_render_detail(projected_diameter: float, keep_detail: bool) -> void:
+    if is_player or render_quality != 1 or not is_instance_valid(mesh):
+        return
+    var threshold := DETAIL_RETURN_PIXELS if using_distant_mesh else DETAIL_REDUCE_PIXELS
+    var distant := not keep_detail and projected_diameter < threshold
+    if distant != using_distant_mesh:
+        using_distant_mesh = distant
+        mesh.mesh = get_sphere(false,0 if distant else 1)
+
 const RADIUS := 0.39
+# Projected diameter at the game's 720 px reference height.
+const DETAIL_REDUCE_PIXELS := 22.0
+const DETAIL_RETURN_PIXELS := 27.0
 const GLACIER_ACTIVE_SCAN := 0.10
 const GLACIER_ABORT_TIME := 0.35
 const GLACIER_MERGE_BRAKE_HOLD := 0.25
@@ -63,6 +78,8 @@ var previous_race_position := Vector3.ZERO
 var perk := ""
 var track_direction := -1.0
 var mesh: MeshInstance3D
+var render_quality := 1
+var using_distant_mesh := false
 var collision: CollisionShape3D
 var seed_value := 0.0
 var target_sway := 0.0

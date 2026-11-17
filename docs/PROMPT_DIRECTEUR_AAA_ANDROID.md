@@ -218,6 +218,14 @@ Base de comparaison GitHub `b41dccc954fc2d051db7a559126e75853edca19f`.
 - Sur 12 vues fixes avec 40 billes et trois tracés, les médianes d’appels de rendu passent de 779 à 726 à l’approche du retour de pont, puis de 717 à 660 après la jonction. Le retrait des ombres des murs et de la poutre modifie fortement l’image et a été écarté.
 - La régression couvre la reconstruction du tracé, le changement de profil et le passage à Glacier. Les temps d’image sur Redmi restent à mesurer.
 
+### 2026-11-17 — Maillage des billes éloignées en Balanced (1.87.0-rc)
+
+Base de comparaison GitHub `184f4d075f601c5f9a6dcb16012d7ec1dd0f0bd4`.
+
+- Balanced réutilise la sphère Economy lorsque la bille occupe moins de 22 pixels à la hauteur de référence de 720 px. Elle retrouve le maillage Balanced à 27 pixels. Le joueur, les rivaux à moins de neuf mètres et le rival signalé gardent le détail de près.
+- La décision est prise huit fois par seconde à partir de la caméra active. Les billes gardent leur matériau et leur sphère de collision. L’optimisation réduit le nombre de triangles, avec un appel de rendu par bille comme avant.
+- Les tests couvrent les deux seuils, le rival signalé et les changements vers Economy et Ultra. Le temps d’image sur Redmi reste à mesurer.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Profiler le rendu des billes dans le peloton à la jonction du pont. Chercher une réduction sur les billes éloignées en conservant la lisibilité des concurrents proches.
+Profiler le matériau des billes sur un peloton compact. Mesurer son coût séparément du maillage et garder l’identité visuelle des billes proches.
