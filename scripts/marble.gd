@@ -306,16 +306,19 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
             # General passing yields to hazards. Glacier's return has a
             # dedicated passing line wholly beyond its shutter's sweep.
             var traffic_center: float = course_owner.track_center_at(position.z)
-            var next_hazard: Dictionary = course_owner.upcoming_hazard(position.z)
-            var hazard_near: bool = not next_hazard.is_empty() and (
-                float(next_hazard.get("distance",999.0)) < 3.5)
             # Keep start-grid collisions, both route portals, jumps and
             # their AI approach entirely unchanged. Tactical side choices
             # belong in the run home where a passing duel matters most.
             var traffic_safe: bool = position.z < -108.0 and (
                 not wants_shortcut()) and (
                 absf(position.x-traffic_center) < 2.15) and (
-                absf(ai_lane_goal) < 1.9) and not hazard_near
+                absf(ai_lane_goal) < 1.9)
+            if traffic_safe:
+                # Only racers eligible to pass need the traffic hazard forecast.
+                var next_hazard: Dictionary = course_owner.upcoming_hazard(position.z)
+                var hazard_near: bool = not next_hazard.is_empty() and (
+                    float(next_hazard.get("distance",999.0)) < 3.5)
+                traffic_safe = not hazard_near
             if traffic_safe:
                 # Staggered 2.5-3 Hz scans; no physics simulation or network
                 # traffic added. Blend rather than snapping between lines.

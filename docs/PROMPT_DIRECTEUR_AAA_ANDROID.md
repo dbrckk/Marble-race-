@@ -234,6 +234,15 @@ Base de comparaison GitHub `697e7a5f65c50738035844a7a6f52518e9ad2153`.
 - Sous Mesa OpenGL ES logiciel à 960 × 540, la médiane des trois médianes Balanced passe de 9,87 à 9,29 ms. Sur Android émulé, la médiane des trois P95 Balanced passe de 204,8 à 170,3 ms, tandis que les médianes Economy augmentent dans les trois séries. Ces mesures portent sur les intervalles entre images du banc logiciel. Les temps GPU et le gain sur téléphone restent à mesurer.
 - Le shader de la version 1.87.0-rc reste en service. L’instrumentation et les résultats sont archivés dans la [PR de comparaison](https://github.com/dbrckk/Marble-race-/pull/8) et le [journal Android](https://github.com/dbrckk/Marble-race-/actions/runs/44047903900).
 
+### 2026-11-17 — Départ de Woodworks et calculs des bots (1.89.0-rc)
+
+Base de comparaison GitHub `bf9cf989d9c2829e02b985cb36a11c26f10a615a`.
+
+- Les bots demandent le bulletin de danger général uniquement lorsqu’ils remplissent déjà les critères du dépassement. Le bulletin du HUD et les prévisions des mécanismes, des portails et des pistes secondaires gardent leur propre cadence.
+- Huit départs du premier tracé Woodworks avec 40 billes, en Balanced, dont quatre départs avec le rendu 3D désactivé pour isoler son coût. Mesures prises pendant le compte à rebours, les deux premières secondes et à ±7 m de l’entrée du premier module. Les fenêtres peuvent se recouper. Les compteurs GPU de Godot ne remontent pas de durée exploitable en OpenGL Compatibility sur ce banc.
+- Sous Mesa OpenGL ES logiciel à 640 × 360, avec la 3D, la médiane des deux séries de temps de pilotage des bots passe de 0,71 à 0,41 ms par pas au départ et de 0,72 à 0,42 ms au premier module. Les 39 requêtes par pas de simulation deviennent zéro dans les deux fenêtres. La variante avec 3D désactivée confirme la baisse du coût du pilotage. Le rendu domine la durée d’une image sur le banc logiciel. Ces mesures ne quantifient pas un gain de FPS sur téléphone.
+- [Banc reproductible et relevés Android](https://github.com/dbrckk/Marble-race-/pull/9).
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Mesurer les 40 billes sur une grille et au premier obstacle dans une course complète. Séparer le coût de la physique et de l’IA de celui du rendu pour choisir le prochain levier sur Android.
+Isoler les passes de rendu les plus coûteuses sur la grille Woodworks en Balanced avec la caméra de course. Garder la signalisation et les silhouettes des obstacles dans les comparatifs.
