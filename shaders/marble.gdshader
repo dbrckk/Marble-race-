@@ -38,28 +38,34 @@ void fragment() {
     // Core seems to float just under a polished shell.
     vec3 glass = mix(base_color.rgb,accent_color.rgb,layer);
     glass = mix(glass,vein_color.rgb,milk*0.71);
-    // Ten premium waveforms, retaining mobile GL compatibility: no
-    // transparency sorting, secondary texture, geometry pass or extra mesh.
-    float signature = skin_signature*0.71;
-    float aurora = sin(theta*(3.0+mod(skin_signature,4.0))+
-        p.y*(10.0+mod(skin_signature,3.0)*4.0)+
-        TIME*(0.45+mod(skin_signature,5.0)*0.15)+signature);
-    float stardust = pow(max(0.0,aurora),5.0);
-    glass = mix(glass,vein_color.rgb,
-        stardust*skin_radiance*0.52);
+    // Ordinary glass skips the animated premium layer.
+    float stardust = 0.0;
+    if (skin_radiance > 0.0) {
+        float signature = skin_signature*0.71;
+        float aurora = sin(theta*(3.0+mod(skin_signature,4.0))+
+            p.y*(10.0+mod(skin_signature,3.0)*4.0)+
+            TIME*(0.45+mod(skin_signature,5.0)*0.15)+signature);
+        stardust = pow(max(0.0,aurora),5.0);
+        glass = mix(glass,vein_color.rgb,stardust*skin_radiance*0.52);
+    }
     float inner_glow = 0.84+0.13*sin(swirl*0.37 + theta*2.0);
     glass *= inner_glow;
     float sparkle = step(0.994,hash_13(floor(p*(68.0+visual_quality*14.0)+pattern_seed*7.0)));
     glass += sparkle*vein_color.rgb*0.22;
     // Fake optical Fresnel: helps spheres read as glass without expensive transparency.
-    float facing = clamp(dot(normalize(NORMAL),normalize(VIEW)),0.0,1.0);
+    vec3 glass_normal = normalize(NORMAL);
+    vec3 view_direction = normalize(VIEW);
+    float facing = clamp(dot(glass_normal,view_direction),0.0,1.0);
     float fresnel = pow(1.0-facing,3.1);
     vec3 rim_color = mix(vec3(0.65,0.86,1.0),vein_color.rgb,0.40);
     // Two broad photographic softbox reflections as a cheap fake studio environment.
     // Reflection moves naturally as the glass marble rolls (no screen-space reflections).
-    vec3 reflected = reflect(-normalize(VIEW),normalize(NORMAL));
+    vec3 reflected = reflect(-view_direction,glass_normal);
     float softbox_a = pow(max(dot(reflected,normalize(vec3(0.42,0.8,0.36))),0.0),18.0);
-    float softbox_b = pow(max(dot(reflected,normalize(vec3(-0.68,0.23,0.62))),0.0),42.0) * step(0.5,visual_quality);
+    float softbox_b = 0.0;
+    if (visual_quality >= 0.5) {
+        softbox_b = pow(max(dot(reflected,normalize(vec3(-0.68,0.23,0.62))),0.0),42.0);
+    }
     vec3 chrome_luster = vec3(0.98,0.94,0.84)*softbox_a*0.33
                          + vec3(0.78,0.91,1.0)*softbox_b*0.21;
     ALBEDO = clamp(mix(glass,rim_color,fresnel*0.58)+chrome_luster,vec3(0.0),vec3(1.0));

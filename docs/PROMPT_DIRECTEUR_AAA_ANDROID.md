@@ -226,6 +226,13 @@ Base de comparaison GitHub `184f4d075f601c5f9a6dcb16012d7ec1dd0f0bd4`.
 - La décision est prise huit fois par seconde à partir de la caméra active. Les billes gardent leur matériau et leur sphère de collision. L’optimisation réduit le nombre de triangles, avec un appel de rendu par bille comme avant.
 - Les tests couvrent les deux seuils, le rival signalé et les changements vers Economy et Ultra. Le temps d’image sur Redmi reste à mesurer.
 
+### 2026-11-17 — Matériau des billes en peloton (1.88.0-rc)
+
+Base de comparaison GitHub `697e7a5f65c50738035844a7a6f52518e9ad2153`.
+
+- Les billes ordinaires sautent le calcul du motif animé des skins exclusifs. Economy saute aussi le deuxième reflet de studio. Le shader réutilise les vecteurs normalisés pour le reflet et le contour du verre.
+- Sur Godot 4.5.1 avec Mesa en OpenGL ES logiciel, les captures avant et après des 40 billes sont identiques pixel par pixel en Balanced et Economy. Avec des maillages fixes et trois comparaisons alternées, la médiane des temps d’image par série en Balanced passe de 9,87 ms à 9,29 ms. Les séries Economy fluctuent. Ce banc mesure les intervalles entre images et isole le matériau. Le temps d’image sur Redmi reste à mesurer.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Profiler le matériau des billes sur un peloton compact. Mesurer son coût séparément du maillage et garder l’identité visuelle des billes proches.
+Profiler le peloton en course complète, puis séparer le coût de la physique et de l’IA de celui du rendu à la grille et au premier obstacle.
