@@ -40,7 +40,7 @@ adb exec-out screencap -p >capture/results.png || true
 adb exec-out run-as "$package" cat files/race-profile.jsonl >capture/race-profile.jsonl || true
 adb exec-out run-as "$package" cat files/opening.png >capture/opening.png || true
 grep -E 'RACE_PROFILE|SCRIPT ERROR|FATAL EXCEPTION|Shader compilation' capture/logcat.txt |
-    tail -n 23 | tee capture/measurements.txt
+    tee capture/measurements.txt
 shader_errors="$(grep -Ec 'GL_MAX_FRAGMENT_UNIFORM_VECTORS|ShaderGLES3: Program linking failed' capture/logcat.txt || true)"
 echo "GLES shader link diagnostics: $shader_errors"
 grep -Fq RACE_PROFILE_PASS capture/measurements.txt
