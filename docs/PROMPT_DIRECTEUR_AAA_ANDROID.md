@@ -202,6 +202,14 @@ Base de comparaison GitHub `e533e8dd79f4a68a68347c76630687ca1e2ec93e`.
 - Godot 4.5.1 planifie l’écriture du presse-papiers sur le thread Android. La confirmation attend la relecture du rapport complet. En cas d’échec, le rapport reste consultable et sélectionnable dans les résultats.
 - Une relance ou un retour au menu invalide la confirmation en cours. La fenêtre du rapport se ferme lors du changement d’écran.
 
+### 2026-11-17 — Ombres directionnelles de Forge en Balanced (1.85.0-rc)
+
+Base de comparaison GitHub `b4cb5f61ebabb3dc93c03d9e657ead284fa2dcb5`.
+
+- Forge passe à deux cascades d’ombres directionnelles sur 33 m en Balanced, avec la première séparation à 9,9 m de la caméra. Le réglage s’applique aussi lorsque Auto sélectionne Balanced.
+- Sur Godot 4.5.1 avec Mesa en OpenGL ES, quatre vues fixes et 40 billes sont comparées pour chacun des trois tracés de Forge. Les médianes des appels de rendu passent de 828 à 675 sur la grille, de 1 004 à 825 dans l’ouverture, de 957 à 779 à l’approche du retour du pont et de 915 à 717 après le retour. Les ombres proches restent visibles.
+- La régression de profil couvre la relance, Auto, Economy, Ultra et le changement de circuit. Les temps d’image sur Redmi restent à mesurer.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Profiler le coût des ombres en Balanced au départ de Forge. Comparer les régressions sur le même émulateur et les temps d’image sur Redmi quand une mesure matérielle sera disponible.
+Isoler le coût des ombres des décors hors piste sur les vues de retour du pont. Garder la priorité sur la lisibilité du relief et des obstacles proches.

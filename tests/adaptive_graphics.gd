@@ -38,7 +38,33 @@ func _test() -> void:
     game._auto_quality_sample(12.0,99.0)
     assert(game.graphics_quality == 2, "Manual profile must never be modified")
     game.set_graphics_quality(1)
-    print("ADAPTIVE_GRAPHICS_PASS: saved setting, stable hysteresis, 30fps recovery and manual override")
+    game.career.unlocked = 3
+    assert(game.set_track(2))
+    var key_light: DirectionalLight3D = game.primary_light
+    assert(key_light.shadow_enabled and
+        key_light.directional_shadow_mode == DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS and
+        is_equal_approx(key_light.directional_shadow_max_distance,33.0) and
+        is_equal_approx(key_light.directional_shadow_split_1,0.30),
+        "Forge Balanced keeps two shadow cascades close to the driving view")
+    game.start_race("Grip Tape")
+    assert(key_light.directional_shadow_mode == DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS)
+    game.return_to_menu()
+    game.set_graphics_quality(2)
+    assert(key_light.shadow_enabled and
+        key_light.directional_shadow_mode == DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS and
+        is_equal_approx(key_light.directional_shadow_max_distance,72.0),
+        "Ultra restores its longer shadow range on Forge")
+    game.set_graphics_quality(0)
+    assert(not key_light.shadow_enabled)
+    game.set_graphics_quality(3)
+    assert(key_light.shadow_enabled and
+        key_light.directional_shadow_mode == DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS)
+    assert(game.set_track(1))
+    assert(key_light.directional_shadow_mode == DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS and
+        is_equal_approx(key_light.directional_shadow_max_distance,47.0) and
+        is_equal_approx(key_light.directional_shadow_split_1,0.10),
+        "Changing tracks restores the other courses' Balanced shadow setup")
+    print("ADAPTIVE_GRAPHICS_PASS: saved setting, stable hysteresis, 30fps recovery and profile/track shadows")
     game.queue_free()
     for i in range(4):
         await process_frame
