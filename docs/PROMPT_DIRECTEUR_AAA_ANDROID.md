@@ -306,6 +306,14 @@ Base de comparaison GitHub `76b6635205c88decdba9ed6e4a42bcedec703727`.
 - Le texte de duel s’efface pendant le guidage du retour sur la piste. Le losange continue de suivre le rival et le texte revient après la jonction. Le repère de bifurcation garde son comportement à l’entrée du pont.
 - À Glacier, l’alerte indique de rejoindre la piste à droite puis de viser le centre. À Forge, le repère de retour et la prévision du piston gardent chacun leur emplacement. Les tests couvrent les trois tracés de ces deux circuits, le guidage hors du pont et les commandes tactiles.
 
+### 2026-11-17 — Caméra de poursuite en peloton et en saut (1.98.0-rc)
+
+Base de comparaison GitHub `ad37972b0d864e11193fc7db3f8938628f3e62ba`.
+
+- La caméra de poursuite réutilise la densité des rivaux sur la même voie. Elle se relève progressivement à l’approche d’un obstacle et vise plus bas en vol pour garder l’atterrissage dans le cadre. Le réglage est propre à la caméra de poursuite.
+- Dans 99 poses contrôlées à 83 km/h sur les trois variantes de Woodworks, les billes masquent 85 des 231 points échantillonnés sur les flèches d’entrée, contre 92 auparavant. Le centre du diamant et le sommet de la barrière de gauche gardent une ligne de vue dégagée dans ce banc. À 2,4 m de hauteur de saut, le point de piste à 14 m devant la bille passe d’environ 54,5 % à 52,7 % de la hauteur d’image.
+- Le banc utilise les positions des billes et le rayon du modèle physique pour mesurer les masquages. Les régressions du peloton, de l’atterrissage et des trois caméras vérifient les transitions et le pilotage.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Vérifier que le premier obstacle et le premier diamant restent visibles pendant un passage de la caméra dans un peloton dense, puis vérifier le cadrage lors d’un saut.
+Mesurer les saccades entre la grille et le premier obstacle en profil Economy et Balanced, au moment où les billes se resserrent.

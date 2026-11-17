@@ -37,9 +37,18 @@ func _verify() -> void:
         (normal["position"] as Vector3).z and
         float(duel["fov"]) > float(normal["fov"]),
         "The chase camera should show a little more of a REAL close duel")
+    var crowded: Dictionary = FEEDBACK.camera_pose(
+        origin,speed,0.0,0,false,4.0,true,0.0,0.0,1.0)
+    var approach: Dictionary = FEEDBACK.camera_pose(
+        origin,speed,0.0,0,false,4.0,true)
+    assert((crowded["position"] as Vector3).y > (approach["position"] as Vector3).y and
+        crowded["focus"] == approach["focus"],
+        "A dense pack raises the chase view over the same approach line")
+    assert(FEEDBACK.camera_pose(origin,speed,0.0,0,false,-1.0,true,0.0,0.0,1.0) == duel,
+        "Crowd framing must stay idle outside an obstacle approach")
     for mode in [1,2]:
         normal = FEEDBACK.camera_pose(origin,speed,0.0,mode,false,-1.0,false)
-        duel = FEEDBACK.camera_pose(origin,speed,0.0,mode,false,-1.0,true)
+        duel = FEEDBACK.camera_pose(origin,speed,0.0,mode,false,-1.0,true,0.0,0.0,1.0)
         assert(duel == normal,
             "Manual overhead camera angles may not be silently overridden")
     var game = load("res://scenes/main.tscn").instantiate()

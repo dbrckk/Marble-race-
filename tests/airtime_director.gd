@@ -26,6 +26,7 @@ func _run() -> void:
         if mode == 0:
             assert((flight["position"] as Vector3).y >
                 (base["position"] as Vector3).y and
+                (flight["focus"] as Vector3).y < (base["focus"] as Vector3).y and
                 float(flight["fov"]) > float(base["fov"]),
                 "True jumps should reveal more of the course in chase mode")
         else:

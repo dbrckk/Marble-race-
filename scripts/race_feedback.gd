@@ -49,7 +49,8 @@ static func hazard_preview_weight(distance: float, forward_speed: float) -> floa
 static func camera_pose(position: Vector3, velocity: Vector3,
     center_ahead_x: float, camera_mode: int, boosting: bool,
     hazard_distance: float, close_duel: bool = false,
-    airborne_weight: float = 0.0, duel_side: float = 0.0) -> Dictionary:
+    airborne_weight: float = 0.0, duel_side: float = 0.0,
+    pack_pressure: float = 0.0) -> Dictionary:
     var planar_speed: float = Vector2(velocity.x,velocity.z).length()
     var pace: float = clampf((planar_speed-3.0)/19.0,0.0,1.0)
     # A compact preview pulls the camera up and back before a near-side
@@ -82,7 +83,8 @@ static func camera_pose(position: Vector3, velocity: Vector3,
         is_finite(airborne_weight)) else 0.0
     if camera_mode == 0 and air > 0.0:
         desired += Vector3(0.0,1.15*air,0.65*air)
-        focus += Vector3(0.0,0.36*air,-0.35*air)
+        # Keep the landing line in view as the marble rises.
+        focus += Vector3(0.0,-0.55*air,-0.35*air)
     # A verified sustained duel gets slightly more framing room to see
     # the competing sphere. Only camera mode 0 changes; overhead/manual
     # modes retain their exact original framing and human control.
@@ -93,6 +95,12 @@ static func camera_pose(position: Vector3, velocity: Vector3,
         desired += Vector3(0.0,duel_lift,1.3*intensity)
         var framing_side := clampf(duel_side,-1.0,1.0) if is_finite(duel_side) else 0.0
         focus += Vector3(0.72*framing_side*intensity,0.0,0.65*intensity)
+    if camera_mode == 0 and is_finite(pack_pressure):
+        # Use the existing same-deck sample to reveal the road paint.
+        # Share the height allowance with the duel and fade it during jumps.
+        var crowd := clampf((pack_pressure-0.25)/0.75,0.0,1.0)
+        var crowd_lift := 2.20*crowd*pace*risk
+        desired.y += maxf(0.0,crowd_lift-duel_lift)*(1.0-air)
     var fov: float = clampf(
         64.0+pace*9.0+(3.1 if boosting else 0.0)+risk*1.4+
         duel_lift*2.1+(1.5*air if camera_mode == 0 else 0.0),
