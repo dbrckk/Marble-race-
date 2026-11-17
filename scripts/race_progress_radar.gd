@@ -6,6 +6,7 @@ const UPDATE_PERIOD := 0.10
 const PLAYER_COLOR := Color("#fff2be")
 const OPPONENT_COLOR := Color(0.67,0.83,0.90,0.58)
 const FINISHED_COLOR := Color(0.60,0.98,0.71,0.85)
+const PRACTICE_COLOR := Color("#ffc18d")
 var opponent_dots := MultiMesh.new()
 var stage: Node3D
 var elapsed := 0.0
@@ -14,6 +15,7 @@ var finished := PackedByteArray()
 var player_id := -1
 var last_count := 0
 var updates := 0
+var practice_progress := NAN
 
 func configure(owner: Node3D) -> void:
     stage = owner
@@ -32,10 +34,15 @@ func reset() -> void:
     elapsed = 0.0
     last_count = 0
     opponent_dots.visible_instance_count = 0
+    practice_progress = NAN
     queue_redraw()
 
 static func progress_at(z: float) -> float:
     return clampf(-z / -FINISH_Z,0.0,1.0)
+
+func set_practice_entry(z: float) -> void:
+    practice_progress = progress_at(z) if is_finite(z) else NAN
+    queue_redraw()
 
 func sample(delta: float) -> void:
     if not is_instance_valid(stage) or not visible:
@@ -85,6 +92,10 @@ func _draw() -> void:
         var x: float = lerpf(3.0,width_px-3.0,positions[player_id])
         draw_circle(Vector2(x,baseline),4.5,Color(0.04,0.09,0.13,0.95))
         draw_circle(Vector2(x,baseline),3.2,PLAYER_COLOR)
+    if is_finite(practice_progress):
+        var entry_x := lerpf(3.0,width_px-3.0,practice_progress)
+        draw_colored_polygon(PackedVector2Array([Vector2(entry_x-5.0,0.0),
+            Vector2(entry_x+5.0,0.0),Vector2(entry_x,height_px-1.0)]),PRACTICE_COLOR)
 
 static func _make_dot() -> ArrayMesh:
     var points := PackedVector2Array([Vector2.ZERO])

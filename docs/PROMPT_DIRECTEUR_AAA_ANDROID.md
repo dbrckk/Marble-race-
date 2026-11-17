@@ -410,6 +410,10 @@ Base `fcdfe07f258bef2ee98b6a89f9fe82c00260fbe2`. Le bilan solo affiche d’entr�
 
 Base `a53d68b8a718f956e85c1343faed6c1ad576fa58`. Depuis le bilan solo, **View Map** ouvre la carte du tracé terminé. Elle indique la zone, l’entrée et la sortie du secteur où le joueur a perdu le plus de temps face à son fantôme. Les repères correspondent aux positions de course, de la grille du joueur à la ligne d’arrivée. Le bouton de relance reprend le tracé et l’avantage utilisés.
 
+### 2026-11-17 — Repère du secteur à travailler en course (1.112.0-rc)
+
+Base `1fa5a3a5bde78c1f04e5a7a2426723a094b4e372`. Après **Retry Same Layout**, le radar indique l’entrée du secteur identifié dans le bilan ou sur la carte. La distance apparaît à l’approche selon la vitesse de la bille. Le secteur 1 s’annonce pendant le compte à rebours. Les dangers et les notifications de course passent avant ce repère textuel. Le repère utilise le même point d’entrée que la carte et s’efface au franchissement.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Après une relance, indiquer le secteur à travailler à l’approche de son entrée pour aider le joueur à y préparer sa trajectoire.
+Comparer dans le bilan le temps du secteur ciblé avec celui de la tentative précédente.

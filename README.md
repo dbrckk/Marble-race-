@@ -4,7 +4,7 @@ Original **3D Android marble-racing game** inspired by the look and mechanics sh
 
 Independent implementation in **Godot 4.5.1**, focused on real mobile playability, physics, and stylized toy-table graphics. No proprietary material from the reference game is redistributed.
 
-## Current state: Android QA build (v1.111.0-rc, versionCode 125)
+## Current state: Android QA build (v1.112.0-rc, versionCode 126)
 
 **Playable scope (October 2026):** three visually differentiated 3D worlds with physical elevation changes, nine repeatable obstacle layouts, forty individually simulated glass marbles, real banked and elevated side-route shortcuts, six player perks, progression, ghost comparisons and optional online races. Autonomous opponents use deterministic physical steering, real route choices, anticipatory passing and forecasts of moving hazards; human steering stays entirely manual. The phone HUD previews real course geometry and estimates when Forge pistons will be open or blocked on arrival, with a nonrepeating audio danger cue. The three pistons share an illuminated shoulder beacon and matched deck markings for their current phase.
 
@@ -27,6 +27,8 @@ The race checks where the marble crosses the finish plane between physics ticks.
 Solo checkpoints show the cumulative lead or gap against a ghost recorded with the same layout and perk. The results pin all four sector times, the time gained or lost in each sector, and the sector with the greatest loss. The finish comparison uses the ghost you started with, including when the race sets a new record. Older ghosts supply a finish comparison and acquire sector times when a new record with valid checkpoints is saved.
 
 Open **View Map** on the greatest loss to see its entry and exit on the completed layout, with the moving gates, pickups, bridge and terrain profile from the race briefing. **Retry Same Layout** starts another attempt with the same obstacles and perk.
+
+On that retry, the radar marks the sector entry. An approach cue displays the remaining distance and appears sooner at higher speed. Sector 1 is announced during the countdown. Hazard warnings and race feedback take priority in the HUD.
 
 Enable **FPS DISPLAY** before racing to collect frame pacing by course phase. Results offer **COPY FPS REPORT** and an Economy/Balanced comparison on the same layout and perk in solo races.
 

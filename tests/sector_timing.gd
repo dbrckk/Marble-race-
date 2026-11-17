@@ -147,10 +147,57 @@ func _verify() -> void:
     assert(not hud.sector_map_panel.visible and game.race_state == "COUNTDOWN")
     assert(game.built_variation == 1 and game.selected_perk == "Grip Tape")
     assert(is_equal_approx(game.best_ghost.crossing_delta(0,20.016),0.0))
+    assert(game.practice_sector == 3 and hud.practice_entry_pending)
+    var entry: float = game.CHECKPOINT_Z[2]
+    assert(is_equal_approx(hud.race_radar.practice_progress,-entry/absf(game.FINISH_Z)))
+    game.race_state = "RACING"
+    # A fast approach needs an earlier cue than a slow approach at the same spot.
+    game.player.position.z = entry+30.0
+    game.player.linear_velocity = Vector3(0.0,0.0,-5.0)
+    hud.label_timer = 0.12
+    hud.update_hud()
+    assert(not hud.practice_hint_ready and not hud.practice_sector_label.visible)
+    game.player.linear_velocity.z = -22.0
+    hud.label_timer = 0.12
+    hud.update_hud()
+    assert(hud.practice_hint_ready and hud.practice_sector_label.text.contains("30 m TO ENTRY"))
+    hud.timed_gate_backdrop.hide()
+    hud.final_danger_active = false
+    hud._refresh_race_notification()
+    assert(hud.practice_sector_label.visible and hud.practice_sector_label.mouse_filter == Control.MOUSE_FILTER_IGNORE)
+    hud.show_checkpoint(3,13.0)
+    assert(hud.checkpoint_label.visible and not hud.practice_sector_label.visible)
+    hud.toast_remaining = 0.0
+    hud.timed_gate_backdrop.show()
+    hud._refresh_race_notification()
+    assert(not hud.practice_sector_label.visible and is_finite(hud.race_radar.practice_progress))
+
+    game.player.position.z = entry-0.1
+    hud.label_timer = 0.12
+    hud.update_hud()
+    assert(not hud.practice_entry_pending and is_nan(hud.race_radar.practice_progress))
+    game.player.position.z = entry+3.0
+    hud.label_timer = 0.12
+    hud.update_hud()
+    assert(not hud.practice_sector_label.visible, "Crossing back must not rearm the cue")
+
+    result["ghost_deltas"] = [2.5,1.0,1.0,1.0]
+    game.last_result = result
+    game.race_state = "RESULTS"
+    hud.show_results(game.player_rank(),98.0,game.get_rankings())
+    hud.replay_button_ref.pressed.emit()
+    hud.label_timer = 0.12
+    hud.update_hud()
+    assert(game.practice_sector == 0 and hud.practice_sector_label.visible and
+        hud.practice_sector_label.text.contains("FROM THE START"))
+    hud.pause_race()
+    hud._restart_from_pause()
+    assert(game.practice_sector == 0 and hud.practice_entry_pending)
 
     var first_best: float = game.career.best_sector(0,0)
     game.return_to_menu()
     game.start_race("Grip Tape")
+    assert(game.practice_sector == -1 and is_nan(hud.race_radar.practice_progress))
     game.countdown = 0.01
     await process_frame
     for marble in game.racers:
@@ -166,7 +213,7 @@ func _verify() -> void:
     DirAccess.remove_absolute(ProjectSettings.globalize_path(game.best_ghost.save_path))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(c.save_path))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(game.career.save_path))
-    print("SECTOR_TIMING_PASS: pinned splits, physical sector map, exact replay, legacy saves and DNF protection")
+    print("SECTOR_TIMING_PASS: split timing, physical sector map, retry guidance, legacy saves and DNF protection")
     game.queue_free()
     for k in range(4):
         await process_frame

@@ -93,6 +93,9 @@ var course_progress: ProgressBar
 var race_radar: Control
 var boost_progress: ProgressBar
 var checkpoint_label: Label
+var practice_sector_label: Label
+var practice_entry_pending := false
+var practice_hint_ready := false
 var hazard_label: Label
 var timed_gate_label: Label
 var timed_gate_backdrop: Panel
@@ -1049,7 +1052,9 @@ func _build_race_hud() -> void:
     race_moment_label.name = "LiveRaceMoment"
     checkpoint_label = _text("",22,ORANGE)
     checkpoint_label.name = "SectorAndPickupFeedback"
-    for label: Label in [position_feedback,race_moment_label,checkpoint_label]:
+    practice_sector_label = _text("",22,TIME_LOSS)
+    practice_sector_label.name = "PracticeSectorApproach"
+    for label: Label in [position_feedback,race_moment_label,checkpoint_label,practice_sector_label]:
         label.mouse_filter = Control.MOUSE_FILTER_IGNORE
         label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
         label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -1268,7 +1273,7 @@ func resume_race() -> void:
 
 func _restart_from_pause() -> void:
     resume_race()
-    game.retry_current_layout()
+    game.retry_current_layout(game.practice_sector)
 
 func _leave_from_pause() -> void:
     resume_race()
@@ -1409,12 +1414,7 @@ func _build_results() -> void:
     col.add_child(race_actions)
     var replay = _action("RETRY SAME LAYOUT", ORANGE, Color("#251b0d"))
     replay.name = "Replay"
-    replay.pressed.connect(func():
-        if game.net.is_active():
-            show_online_lobby()
-        else:
-            game.retry_current_layout()
-    )
+    replay.pressed.connect(_retry_from_results)
     replay.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     race_actions.add_child(replay)
     replay_button_ref = replay
@@ -1498,7 +1498,7 @@ func _build_sector_map() -> void:
     var retry := _action("RETRY SAME LAYOUT",ORANGE,Color("#251b0d"))
     retry.name = "RetryFromSectorMap"
     retry.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    retry.pressed.connect(game.retry_current_layout)
+    retry.pressed.connect(_retry_from_results)
     actions.add_child(retry)
     sector_map_panel.hide()
 
@@ -1513,7 +1513,7 @@ func _open_sector_map() -> void:
         game.track_title(),game.built_variation+1,sector_number,sector_result_gaps[slowest_sector].text]
     sector_map_boundaries.text = "ENTRY  %s    →    EXIT  %s" % [entry,exit]
     sector_map.configure(game,game.selected_track,game.built_variation)
-    sector_map.focus_sector(slowest_sector,game.race_start_z)
+    sector_map.focus_sector(slowest_sector)
     results_card.hide()
     sector_map_panel.show()
     sector_map_back.grab_focus()
@@ -1522,6 +1522,12 @@ func _close_sector_map() -> void:
     sector_map_panel.hide()
     results_card.show()
     sector_result_hint.grab_focus()
+
+func _retry_from_results() -> void:
+    if game.net.is_active():
+        show_online_lobby()
+    else:
+        game.retry_current_layout(slowest_sector)
 
 func _copy_fps_report() -> void:
     if copy_performance.disabled or performance_text.is_empty() or not results_layer.is_visible_in_tree():
@@ -1593,6 +1599,8 @@ func _continue_championship() -> void:
 
 func _hide_all() -> void:
     rival_marker.hide()
+    practice_entry_pending = false
+    practice_hint_ready = false
     if is_instance_valid(touch_controls):
         touch_controls.release_all()
     if is_instance_valid(online_leave_layer):
@@ -1662,6 +1670,7 @@ func show_race_ui() -> void:
     duel_label.hide()
     toast_remaining = 0.0
     checkpoint_label.hide()
+    practice_sector_label.hide()
     race_notification_backdrop.hide()
     woodworks_guide_active = game.selected_track == 0 and not game.net.is_active() and (
         not woodworks_guide_seen and game.career.finishes == 0)
@@ -1690,6 +1699,9 @@ func show_race_ui() -> void:
     if get_tree().paused:
         get_tree().paused = false
     _hide_all()
+    practice_entry_pending = game.practice_sector >= 0 and not game.net.is_active()
+    if practice_entry_pending:
+        race_radar.set_practice_entry(game.sector_entry_z(game.practice_sector))
     hud_layer.visible = true
     network_quality_label.get_parent().visible = game.net.role == "client"
     if is_instance_valid(pause_button_ref):
@@ -2070,6 +2082,9 @@ func update_hud() -> void:
     leaderboard.text = table
     for cue: Label in driving_cue_backgrounds:
         _refresh_driving_cue_background(cue)
+    if practice_entry_pending:
+        _update_practice_sector(forward_speed)
+        _refresh_race_notification()
 
 func _refresh_driving_cue_background(cue: Label) -> void:
     var background := driving_cue_backgrounds[cue]
@@ -2125,6 +2140,24 @@ func _show_final_danger(gate_id: int, urgent_gate_eta: float, piston_contact_eta
         duel_label.hide()
     if final_danger_active != danger_was_active:
         _refresh_race_notification()
+
+func _update_practice_sector(forward_speed: float) -> void:
+    practice_hint_ready = false
+    if not practice_entry_pending:
+        return
+    var sector: int = game.practice_sector
+    var distance: float = game.player.global_position.z-game.sector_entry_z(sector)
+    if game.net.is_active() or game.player.finished or game.player.eliminated or (
+        game.race_state == "RACING" and distance <= 0.0):
+        practice_entry_pending = false
+        race_radar.set_practice_entry(NAN)
+        return
+    if game.race_state == "COUNTDOWN" and sector == 0:
+        practice_sector_label.text = "FOCUS SECTOR 1\nFROM THE START"
+        practice_hint_ready = true
+    elif game.race_state == "RACING" and distance <= clampf(forward_speed*2.0,16.0,44.0):
+        practice_sector_label.text = "FOCUS SECTOR %d\n%d m TO ENTRY" % [sector+1,ceili(distance)]
+        practice_hint_ready = true
 
 func _show_forge_hazard(vent: Dictionary, gate_eta: float, piston_priority: float,
         vent_priority: float) -> void:
@@ -2206,6 +2239,9 @@ func _refresh_race_notification() -> void:
         not race_moment_label.visible)
     position_feedback.visible = not final_danger_active and rank_toast_seconds > 0.0 and (
         not checkpoint_label.visible and not race_moment_label.visible)
+    practice_sector_label.visible = practice_hint_ready and not final_danger_active and (
+        not timed_gate_backdrop.visible and not position_feedback.visible and (
+            not checkpoint_label.visible and not race_moment_label.visible))
     var opacity := 0.0
     if race_moment_label.visible:
         opacity = minf(1.0,moment_remaining*4.0)
@@ -2213,6 +2249,8 @@ func _refresh_race_notification() -> void:
         opacity = minf(1.0,toast_remaining*3.0)
     elif position_feedback.visible:
         opacity = minf(1.0,rank_toast_seconds*3.0)
+    elif practice_sector_label.visible:
+        opacity = 1.0
     race_notification_backdrop.visible = opacity > 0.0
     race_notification_backdrop.modulate.a = opacity
 

@@ -113,6 +113,7 @@ var last_count := -1
 var last_checkpoint := -1
 var checkpoint_splits: Array[float] = []
 var race_start_z := 0.0
+var practice_sector := -1
 var course_flash := 0.0
 var trail: CPUParticles3D
 var skins: Node
@@ -1202,8 +1203,13 @@ func _camera_bump(body: Node) -> void:
     obstacle_notice = 0.46 if intensity > 0.45 else 0.22
     feedback_cooldown = RaceFeedback.feedback_interval(intensity)
 
-func start_race(perk_name: String) -> void:
+func sector_entry_z(sector: int) -> float:
+    return race_start_z if sector == 0 else CHECKPOINT_Z[sector-1]
+
+func start_race(perk_name: String, sector_to_practice := -1) -> void:
     selected_perk = perk_name
+    practice_sector = sector_to_practice if (
+        not net.is_active() and sector_to_practice >= 0 and sector_to_practice <= CHECKPOINT_Z.size()) else -1
     if not net.is_active():
         career.begin()
     result_saved = false
@@ -1269,15 +1275,16 @@ func start_race(perk_name: String) -> void:
 func restart_race() -> void:
     start_race(selected_perk)
 
-func retry_current_layout() -> void:
+func retry_current_layout(sector_to_practice := -1) -> void:
     race_variation = built_variation
     kinetic_time = 0.0
     for obstacle in moving_obstacles:
         if is_instance_valid(obstacle):
             obstacle.rotation = Vector3.ZERO
-    restart_race()
+    start_race(selected_perk,sector_to_practice)
 
 func return_to_menu() -> void:
+    practice_sector = -1
     if race_moments != null:
         race_moments.reset_round()
     if is_instance_valid(airtime):

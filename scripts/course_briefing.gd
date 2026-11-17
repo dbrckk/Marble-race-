@@ -22,7 +22,6 @@ var variation := 0
 var drawn_sections := 0
 var focused_sector := -1
 var finish_z: float
-var race_start_z: float
 
 func _ready() -> void:
     name = "PhysicalCourseBriefingMap"
@@ -38,16 +37,14 @@ func configure(owner: Node3D, track: int, next_variation: int) -> void:
     focused_sector = -1
     queue_redraw()
 
-func focus_sector(index: int, start_z: float) -> void:
+func focus_sector(index: int) -> void:
     focused_sector = index
-    race_start_z = start_z
     queue_redraw()
 
 func sector_bounds() -> Vector2:
-    var checkpoints: Array = stage.CHECKPOINT_Z
-    var entry: float = race_start_z if focused_sector == 0 else checkpoints[focused_sector-1]
-    var exit: float = finish_z if focused_sector == checkpoints.size() else checkpoints[focused_sector]
-    return Vector2(entry,exit)
+    var exit: float = finish_z if focused_sector == stage.CHECKPOINT_Z.size() else (
+        stage.sector_entry_z(focused_sector+1))
+    return Vector2(stage.sector_entry_z(focused_sector),exit)
 
 static func hazard_side(track: int, next_variation: int, index: int) -> int:
     if index < 0 or index >= DIRECTOR.EVENT_Z.size():
