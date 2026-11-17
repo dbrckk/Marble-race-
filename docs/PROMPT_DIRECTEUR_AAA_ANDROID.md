@@ -376,6 +376,14 @@ Base de comparaison GitHub `086e4d09f3f973cf30d11f91701ddd4f2e4277f7`.
 - Sur un banc CPU sans rendu, sept répétitions de 3 840 décisions par variante donnent une baisse médiane de 24 à 36 % pour cette fonction sur Forge, et de 35 à 43 % sur les deux autres circuits. Les 77 760 comparaisons autour des seuils de dégagement et de distance donnent des décisions identiques.
 - Les trois courses complètes de Forge avec 40 billes donnent les mêmes positions et vitesses échantillonnées, temps d’arrivée et classements. Le P95 de l’ensemble du pilotage et de l’arrivée varie selon le tracé, de 853 à 794 µs, de 947 à 803 µs et de 750 à 765 µs. Les FPS sur téléphone restent à mesurer.
 
+### 2026-11-17 — Anticipation des zones de terrain (1.107.0-rc)
+
+Base de comparaison GitHub `8ee663bfe28989ec555217b7e2de5cdb21673822`.
+
+- Les bots examinent les positions fixes des zones dans l’ordre du parcours et s’arrêtent au-delà de leur horizon. Sur Woodworks et Glacier, la prévision revient immédiatement à la voie choisie pour les profils qui ignorent déjà la zone. Sur Forge, elle calcule l’heure d’arrivée et la phase de l’évent quand sa proximité latérale peut modifier la trajectoire.
+- Sur un banc CPU sans rendu, sept répétitions de 6 400 décisions par tracé donnent une baisse médiane du temps de prévision de 63 à 77 % sur Woodworks, de 71 à 76 % sur Glacier et de 38 à 60 % sur Forge. Les 204 120 comparaisons autour des seuils de distance, de largeur, de phase et de vitesse donnent les mêmes décisions.
+- Une comparaison à 40 billes sur chacun des neuf tracés retrouve les mêmes trajectoires échantillonnées, temps d’arrivée et classements. Le P95 du pilotage et du contrôle d’arrivée baisse de 7 à 21 % selon le tracé dans ces essais CPU. Le temps d’image sur téléphone reste à mesurer.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Confirmer le temps d’image sur téléphone physique. Mesurer le coût des prévisions liées aux bandes d’accélération, à la glace et aux évents dans les pelotons denses.
+Comparer le temps d’image sur Android à 40 billes et isoler la part des effets physiques des zones dans les passages chargés.

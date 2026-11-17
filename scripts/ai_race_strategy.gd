@@ -177,39 +177,39 @@ static func biome_zone_safe_lane(mechanics: Node3D, own_z: float,
     if not is_instance_valid(mechanics) or not is_instance_valid(mechanics.game):
         return preferred
     var course: int = mechanics.track_id
-    var speed: float = clampf(-speed_z,6.0,24.0)
-    for index in range(mechanics.zones.size()):
-        var node: Node3D = mechanics.zones[index]
-        if not is_instance_valid(node):
+    if (course == 0 and temperament_id != 2) or (course == 1 and temperament_id != 0):
+        return preferred
+
+    var zones: Array[Node3D] = mechanics.zones
+    for index in range(zones.size()):
+        # The physical zones are built at these fixed Z positions in this order.
+        var dz: float = own_z-ZONE_MECHANICS.ZONE_Z[index]
+        if dz > ZONE_LOOKAHEAD:
+            break
+        if dz < ZONE_MIN_DISTANCE or not is_instance_valid(zones[index]):
             continue
-        var dz: float = own_z-node.position.z
-        if dz < ZONE_MIN_DISTANCE or dz > ZONE_LOOKAHEAD:
-            continue
+
         var offset: float = ZONE_MECHANICS.lane_offset(index,course,mechanics.variation)
         var clearance: float = absf(preferred-offset)
-        if course == 0:
-            # Only the opportunists chase a nearby speed ribbon; other
-            # personalities keep an open passing line and all racers still
-            # need to physically touch the strip to earn its impulse.
-            if temperament_id == 2 and dz >= 2.0 and clearance < 2.8:
-                return clampf(offset-signf(offset)*0.63,
-                    -TRAFFIC_SAFE_LANE,TRAFFIC_SAFE_LANE)
-        elif course == 1:
-            # Careful drivers skirt the physical low-friction slab;
-            # risk-taking opponents can intentionally drift on the ice.
-            if temperament_id == 0 and clearance < (
-                ZONE_MECHANICS.ZONE_WIDTH*0.5+ZONE_AVOID_MARGIN):
-                return clampf(offset-signf(offset)*(
-                    ZONE_MECHANICS.ZONE_WIDTH*0.5+ZONE_AVOID_MARGIN),
-                    -TRAFFIC_SAFE_LANE,TRAFFIC_SAFE_LANE)
-        elif course == 2:
-            # A vent which is down NOW may fire at a racer's arrival.
-            # Reuse the SAME server physics race_clock and eruption phase.
-            var eta: float = maxf(0.0,dz)/speed
-            if mechanics.vent_active(index,mechanics.race_clock+eta) and (
-                clearance < 1.95):
-                return clampf(offset-signf(offset)*2.55,
-                    -TRAFFIC_SAFE_LANE,TRAFFIC_SAFE_LANE)
+        match course:
+            0:
+                # Opportunists must still touch the strip to earn its impulse.
+                if dz >= 2.0 and clearance < 2.8:
+                    return clampf(offset-signf(offset)*0.63,
+                        -TRAFFIC_SAFE_LANE,TRAFFIC_SAFE_LANE)
+            1:
+                var margin := ZONE_MECHANICS.ZONE_WIDTH*0.5+ZONE_AVOID_MARGIN
+                if clearance < margin:
+                    return clampf(offset-signf(offset)*margin,
+                        -TRAFFIC_SAFE_LANE,TRAFFIC_SAFE_LANE)
+            2:
+                if clearance < 1.95:
+                    # Use the authoritative eruption phase at predicted arrival.
+                    var speed := clampf(-speed_z,6.0,24.0)
+                    var eta := maxf(0.0,dz)/speed
+                    if mechanics.vent_active(index,mechanics.race_clock+eta):
+                        return clampf(offset-signf(offset)*2.55,
+                            -TRAFFIC_SAFE_LANE,TRAFFIC_SAFE_LANE)
     return preferred
 
 
