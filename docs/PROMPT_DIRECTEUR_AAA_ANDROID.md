@@ -446,6 +446,10 @@ Base `126b9e3eba23a635727f63c831576666b4693939`. Chaque secteur comprend quatre 
 
 Base `2419255f8fbedad49b80b8231923a9f56077f64a`. Une relance du secteur surligné reporte le même intervalle sur le radar. Le panneau d’approche indique la distance à l’entrée puis à la sortie, avec priorité aux alertes de danger. Le repère s’efface après le passage et est rétabli si le joueur recommence depuis la pause.
 
+### 2026-11-17 — Chrono du passage travaillé (1.121.0-rc)
+
+Base `d2ae8dcee1bf26b261b94a18850da5568dd02ca5`. Le bilan solo compare au centième le temps du passage ciblé avec celui de la tentative précédente sur le même tracé. La carte continue de signaler la plus grosse perte de la course qui vient de se terminer. Sur Woodworks, le passage ciblé 4 est passé de 3,56 s à 2,66 s alors que la perte la plus importante concernait le passage 3.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Afficher dans le bilan le gain ou la perte sur le passage que le joueur a ciblé pendant sa relance. Mesurer la fluidité du peloton sur un appareil Android dès qu'il est disponible.
+Alléger les annonces au centre de l'écran à l'approche des obstacles et améliorer la lecture du briefing en format paysage compact. Mesurer la fluidité du peloton sur un appareil Android dès qu'il est disponible.

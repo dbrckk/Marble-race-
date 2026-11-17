@@ -1830,10 +1830,13 @@ func _end_race() -> void:
                 passage_times.append(practice_timing.durations(sector,entry,exit))
             last_result["passage_times"] = passage_times
             if practice_sector >= 0 and is_finite(practice_previous_time):
+                var current_passages := passage_times[practice_sector]
                 last_result["practice_comparison"] = {
                     "sector":practice_sector,"previous":practice_previous_time,
+                    "target_passage":PracticeTiming.target_comparison(practice_passage,
+                        practice_previous_passages,current_passages),
                     "worst_passage":practice_timing.worst_loss(practice_sector,
-                        practice_previous_passages,passage_times[practice_sector])}
+                        practice_previous_passages,current_passages)}
         # An offline, genuinely finished race is the only source of mastery.
         # Client snapshots and server online races must never modify career.
         if not net.is_active():

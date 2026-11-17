@@ -297,7 +297,7 @@ func _verify() -> void:
     game._end_race()
     assert(game.career.best_sector(0,0) == first_best,"DNF must retain previous record")
     assert(game.last_result["ghost_deltas"].is_empty() and not hud.sector_results.visible)
-    _verify_passage_loss(game)
+    await _verify_passage_loss(game)
     DirAccess.remove_absolute(ProjectSettings.globalize_path(game.best_ghost.save_path))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(c.save_path))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(game.career.save_path))
@@ -354,12 +354,46 @@ func _verify_passage_loss(game: Node3D) -> void:
     assert(game.practice_sector == 0 and is_equal_approx(game.practice_previous_passages[1],6.5))
     assert(game.practice_passage == 2 and hud.practice_passage_bounds == loss["span"])
     _verify_live_passage_cue(game,loss["span"])
-    _sample_first_sector(game,[4.0,10.5,14.5])
+    _sample_first_sector(game,[4.2,9.4,14.6])
     _finish_passage_fixture(game,19.0)
+    var attempt: Dictionary = game.last_result["practice_comparison"]
+    assert(attempt["target_passage"]["number"] == 2)
+    assert(attempt["worst_passage"]["number"] == 3,
+        "A distinct new loss must not replace the practiced passage in its comparison")
+    assert(hud.passage_retry_comparison.text == "TARGET PASSAGE 2 VS LAST TRY   6.50s → 5.20s   •   1.30s FASTER")
+    assert(hud.sector_result_hint.text.contains("PASSAGE 3  +1.20s"))
+    hud.sector_result_hint.pressed.emit()
+    assert(hud.sector_map.passage_span == attempt["worst_passage"]["span"])
+    hud.sector_map_back.pressed.emit()
+    game.show_fps = true
+    game.performance_budget.record_frame(1000000,0)
+    game.performance_budget.record_frame(1016000,0)
+    hud.show_results(game.player_rank(),98.9,game.get_rankings())
+    for frame in range(4):
+        await process_frame
+    assert(hud.passage_retry_comparison.is_visible_in_tree() and hud.performance_actions.is_visible_in_tree())
+    assert(hud.results_scroll.size.y > 70.0,"Both retry comparisons must leave room for the details")
+    game.show_fps = false
+    game.retry_current_layout(0)
+    assert(game.practice_passage == 3)
+    _sample_first_sector(game,[4.2,9.4,14.6])
+    _finish_passage_fixture(game,19.0)
+    assert(hud.passage_retry_comparison.text.ends_with("SAME TIME"))
     assert(game.last_result["practice_comparison"]["worst_passage"].is_empty())
     assert(not hud.sector_result_hint.text.contains("PASSAGE"))
+    game.net.role = "client"
+    hud.show_results(game.player_rank(),98.9,game.get_rankings())
+    assert(not hud.passage_retry_comparison.visible)
+    game.net.role = "offline"
     game.retry_current_layout(0)
     assert(game.practice_passage == 0 and hud.race_radar.passage_progress == Vector2.ZERO)
+    game.start_race("Grip Tape",0,19.0,PackedFloat64Array([4.2,5.2,5.2,4.4]),3)
+    _sample_first_sector(game,[4.2,9.4,15.1])
+    _finish_passage_fixture(game,19.0)
+    assert(hud.passage_retry_comparison.text.ends_with("0.50s SLOWER"))
+    game.retry_current_layout(0)
+    _finish_passage_fixture(game,19.0)
+    assert(not hud.passage_retry_comparison.visible,"Missing crossings must not invent a comparison")
     game.return_to_menu()
     assert(hud.practice_passage_bounds == Vector2.ZERO and hud.race_radar.passage_progress == Vector2.ZERO)
 

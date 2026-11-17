@@ -4,7 +4,7 @@ Original **3D Android marble-racing game** inspired by the look and mechanics sh
 
 Independent implementation in **Godot 4.5.1**, focused on real mobile playability, physics, and stylized toy-table graphics. No proprietary material from the reference game is redistributed.
 
-## Current state: Android QA build (v1.120.0-rc, versionCode 134)
+## Current state: Android QA build (v1.121.0-rc, versionCode 135)
 
 **Playable scope (October 2026):** three visually differentiated 3D worlds with physical elevation changes, nine repeatable obstacle layouts, forty individually simulated glass marbles, real banked and elevated side-route shortcuts, six player perks, progression, ghost comparisons and optional online races. Autonomous opponents use deterministic physical steering, real route choices, anticipatory passing and forecasts of moving hazards; human steering stays entirely manual. The phone HUD previews real course geometry and estimates when Forge pistons will be open or blocked on arrival, with a nonrepeating audio danger cue. The three pistons share an illuminated shoulder beacon and matched deck markings for their current phase.
 
@@ -40,7 +40,7 @@ On that retry, the radar marks the sector entry. An approach cue displays the re
 
 The radar and HUD then follow the next numbered feature on the chosen route, using its approach and obstacle positions from the map. The bridge merge appears on the bridge route. Passed features clear as the marble advances.
 
-Finish the guided retry to see the targeted sector's previous time, current time and time gained or lost in **VS LAST TRY**. Restarting that retry from pause keeps its reference time. Returning to the same layout again from the results uses the just-completed attempt.
+Finish the guided retry to see the targeted sector's previous time, current time and time gained or lost in **VS LAST TRY**. Restarting that retry from pause keeps its reference time. Returning to the same layout again from the results uses the just-completed attempt. After targeting a specific passage, the results show its previous and current times and the change to the hundredth. The map button can still lead to a different passage if it cost more time on that attempt.
 
 Enable **FPS DISPLAY** before racing to collect frame pacing by course phase. Results offer **COPY FPS REPORT** and an Economy/Balanced comparison on the same layout and perk in solo races.
 

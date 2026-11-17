@@ -70,6 +70,16 @@ func durations(sector: int, start_time: float, finish_time: float) -> PackedFloa
         start_time = split
     return times
 
+static func target_comparison(number: int, previous: PackedFloat64Array,
+        current: PackedFloat64Array) -> Dictionary:
+    if number < 1 or number > PASSAGES or previous.size() != PASSAGES or current.size() != PASSAGES:
+        return {}
+    var before := previous[number-1]
+    var after := current[number-1]
+    if not is_finite(before) or not is_finite(after) or before <= 0.0 or after <= 0.0:
+        return {}
+    return {"number":number,"previous":before,"current":after}
+
 func worst_loss(sector: int, previous: PackedFloat64Array, current: PackedFloat64Array) -> Dictionary:
     if previous.size() != PASSAGES or current.size() != PASSAGES:
         return {}
