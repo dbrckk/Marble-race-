@@ -137,8 +137,12 @@ func _run() -> void:
         assert(stage.camera.fov >= 60.0 and stage.camera.fov <= 80.0)
         assert(stage.camera_shake <= strength_before)
         strength_before = stage.camera_shake
+    assert(stage.showroom_roof.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY,
+        "The overhead camera must see the road through the ceiling while keeping its shadow")
     stage.cam_mode = 0
     stage._update_camera(0.016,true)
+    assert(stage.showroom_roof.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_ON,
+        "The roof should return when switching back to the chase camera")
     var before: Vector3 = stage.camera.global_position
     # Inspect the actual integrated follow camera near the strongest terrain
     # profile: the lookahead must stay above local collidable ground.

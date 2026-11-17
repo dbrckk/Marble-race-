@@ -456,7 +456,7 @@ Base `4bcaad09c4fab266557f16fd22bcbb7643e7f57e`. Le briefing affiche les six ava
 
 ### 2026-11-17 — Bille du joueur repérable dans le peloton (1.123.0-rc)
 
-Base `be40a3fab9a449f2e46ac3d230977e31073f1cf2`. Le repère YOU de taille fixe suit la projection de la bille. Deux arcs contrastés la délimitent au départ ou à proximité d’adversaires, puis disparaissent lorsque le peloton s’écarte. Les trois circuits ont été capturés aux mêmes positions avant et après. Le coût total augmente d’au plus un appel de dessin par image dans les neuf échantillons de bureau comparés.
+Base `be40a3fab9a449f2e46ac3d230977e31073f1cf2`. Le repère YOU de taille fixe suit la projection de la bille. Deux arcs contrastés la délimitent au départ ou à proximité d’adversaires, puis disparaissent lorsque le peloton s’écarte. Les trois circuits ont été capturés aux mêmes positions avant et après. Le coût total augmente d’au plus un appel de dessin par image dans les neuf échantillons de bureau comparés. Le plafond conserve son ombre et libère la piste lorsque la caméra s’élève au-dessus du plateau.
 
 ## PROCHAIN LOT RECOMMANDÉ
 

@@ -10,7 +10,7 @@ Independent implementation in **Godot 4.5.1**, focused on real mobile playabilit
 
 The briefing keeps the circuit name, layout and leading driving advice above the perk choices. All six perks appear before the map, with the full map and reference notes underneath. Start and Back remain pinned when the player scrolls. In race, fork guidance takes precedence over distant clear-gate forecasts and rival labels, while physical gate warnings and the rival's world-space marker stay available.
 
-A fixed-size **YOU** badge projects from the local marble onto the driving view. Two contrast brackets appear at the starting grid and in close traffic, then fade as the pack opens. The overlay uses the existing 10 Hz rivalry sample, leaves camera and touch controls available, and preserves the look of equipped skins.
+A fixed-size **YOU** badge projects from the local marble onto the driving view. Two contrast brackets appear at the starting grid and in close traffic, then fade as the pack opens. The overlay uses the existing 10 Hz rivalry sample, leaves camera and touch controls available, and preserves the look of equipped skins. The ceiling stops obscuring the road when a camera rises above it, while still shading the track.
 
 In solo races, a single in-world marker and the HUD identify the relevant nearby rival by name and side. A stable side-by-side contest gains slightly wider chase framing. Actual same-level passes show the overtaken racer or combine quickly successive passes into one callout.
 

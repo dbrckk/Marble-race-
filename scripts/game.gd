@@ -60,6 +60,8 @@ const FINISH_AIR_CLEARANCE := 8.0
 const CHECKPOINT_Z := [-46.0,-106.0,-166.0]
 const RACE_TIMEOUT := 155.0
 const TRACK_NAMES := ["WOODWORKS","SWITCHBACK","GAUNTLET"]
+const SHOWROOM_ROOF_HEIGHT := 14.0
+const SHOWROOM_ROOF_THICKNESS := 0.8
 const BALANCED_SHADOW_RANGES := [36.0,47.0,33.0]
 const TRACK_SUBTITLES := [
     "Woodland workshop & flowing chicanes",
@@ -129,6 +131,7 @@ var starting_camera_target := Vector3(0, 0, 0)
 var contact_shadows: Node3D
 var rival_render: Node3D
 var workshop_lamps: Array[OmniLight3D] = []
+var showroom_roof: MeshInstance3D
 var secondary_showroom_art: Array[MeshInstance3D] = []
 var lamp_refresh := 0.0
 var kinetic_time := 0.0
@@ -1097,8 +1100,10 @@ func _showroom() -> void:
         board.add_child(glass)
         secondary_showroom_art.append(glass)
     # Deep charcoal overhead beam frames the miniature track without glare.
-    var roof := _box(board,Vector3(0,14,-80),Vector3(38,0.8,192),_mat(Color("#343339")),false)
+    var roof := _box(board,Vector3(0,SHOWROOM_ROOF_HEIGHT,-80),
+        Vector3(38,SHOWROOM_ROOF_THICKNESS,192),_mat(Color("#343339")),false)
     roof.name = "ShowroomRoofBeam"
+    showroom_roof = roof.get_child(0) as MeshInstance3D
 
 func _spawn_racers() -> void:
     marble_detail_refresh = 0.0
@@ -1580,6 +1585,7 @@ func _update_camera(delta: float, force := false) -> void:
         camera_previous_racer_z = NAN
         camera.set_meta("previous_jitter",Vector3.ZERO)
         _position_intro_camera(force)
+        _update_roof_visibility()
         return
     # Use the centerline ahead so the racer can see approaching turns.
     # Pure math; multiplayer does not need camera replication.
@@ -1629,6 +1635,19 @@ func _update_camera(delta: float, force := false) -> void:
         curve_delta,cam_mode))
     camera.fov = lerpf(camera.fov,float(pose["fov"]),
         RaceFeedback.smooth_factor(delta,4.4))
+    _update_roof_visibility()
+
+func _update_roof_visibility() -> void:
+    if not is_instance_valid(showroom_roof):
+        return
+    # Cut away the ceiling for elevated viewpoints while keeping its
+    # cast shadow. Use the actual eye so the transition is safe as well.
+    var underside := showroom_roof.global_position.y-SHOWROOM_ROOF_THICKNESS*0.5
+    var roof_mode := GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY if (
+        camera.global_position.y >= underside-camera.near) else (
+        GeometryInstance3D.SHADOW_CASTING_SETTING_ON)
+    if showroom_roof.cast_shadow != roof_mode:
+        showroom_roof.cast_shadow = roof_mode
 
 func _position_intro_camera(force: bool) -> void:
     var target = Vector3(6.5, 12.6, 22.0)
