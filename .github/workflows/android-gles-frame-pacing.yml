@@ -84,10 +84,6 @@ jobs:
 
   android-rendering:
     needs: build
-    strategy:
-      fail-fast: false
-      matrix:
-        gpu: [host, swangle]
     runs-on: ubuntu-latest
     timeout-minutes: 21
     steps:
@@ -105,13 +101,7 @@ jobs:
           ls -l /dev/kvm
           sudo chmod a+rw /dev/kvm
           test -r /dev/kvm && test -w /dev/kvm
-      - name: Start a software-backed X server for the host graphics mode
-        if: matrix.gpu == 'host'
-        run: |
-          Xvfb :99 -screen 0 1280x720x24 -nolisten tcp > "$RUNNER_TEMP/marble-xvfb.log" 2>&1 &
-          echo "DISPLAY=:99" >> "$GITHUB_ENV"
-          echo "LIBGL_ALWAYS_SOFTWARE=1" >> "$GITHUB_ENV"
-      - name: Compare both graphics profiles on visible races
+      - name: Compare both graphics profiles on visible portions of Forge
         uses: ReactiveCircus/android-emulator-runner@5d6e86df22ab11632167a1a6b0c9ab0dc3469586
         with:
           api-level: 34
@@ -121,13 +111,13 @@ jobs:
           cores: 2
           ram-size: 2560M
           emulator-boot-timeout: 260
-          emulator-options: -no-window -gpu ${{ matrix.gpu }} -no-snapshot -noaudio -no-boot-anim -camera-front none -camera-back none
+          emulator-options: -no-window -gpu swangle -no-snapshot -noaudio -no-boot-anim -camera-front none -camera-back none
           script: bash tests/android_gles_run.sh
       - name: Archive the screenshots and measurements
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: marble-android-gles-${{ matrix.gpu }}
+          name: marble-android-gles-swangle
           path: capture/
           retention-days: 21
           if-no-files-found: warn

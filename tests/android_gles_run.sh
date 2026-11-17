@@ -2,8 +2,8 @@
 set -euo pipefail
 
 mkdir -p capture
-adb shell wm size 540x960
-adb shell wm density 240
+adb shell wm size 360x640
+adb shell wm density 160
 adb shell settings put secure immersive_mode_confirmations confirmed
 adb shell getprop ro.build.version.sdk
 adb shell dumpsys SurfaceFlinger | grep -i GLES | head -n 2 || true
