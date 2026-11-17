@@ -52,7 +52,10 @@ func _run_checks() -> void:
         if decoration.name.begins_with("LanePaintInstanced_"):
             fx_lines += 1
     assert(fx_lines == 2, "Road markings should use two GPU batches")
-    assert(ResourceLoader.exists("res://assets/textures/lacquer_micro.png"), "Missing baked microtexture")
+    for name in ["oak_albedo","oak_normal","lacquer_micro"]:
+        var texture := load("res://assets/textures/%s.png" % name) as Texture2D
+        assert(texture != null and texture.get_image().has_mipmaps(),
+            "Track texture requires imported mip levels: %s" % name)
 
     var finish: Node3D = race.board.get_node_or_null("PremiumObstacleFinishes")
     assert(finish != null, "Missing v0.8 obstacle detailing")
