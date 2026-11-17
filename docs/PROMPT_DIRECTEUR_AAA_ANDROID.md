@@ -442,6 +442,10 @@ Base `5240a9d63eb285673069bed74458056b75c40825`. Les 39 adversaires gardent leur
 
 Base `126b9e3eba23a635727f63c831576666b4693939`. Chaque secteur comprend quatre passages chronométrés en solo. Le bilan conserve les temps de la course précédente en mémoire et affiche le passage où la relance sur le même tracé a coûté le plus de temps. Le bouton ouvre la carte directement sur la zone surlignée. Les franchissements valides sont interpolés au fil de la course, sur la route ou le pont. Les passages incomplets laissent le bilan de secteur disponible.
 
+### 2026-11-17 — Repère en course du passage ciblé (1.120.0-rc)
+
+Base `2419255f8fbedad49b80b8231923a9f56077f64a`. Une relance du secteur surligné reporte le même intervalle sur le radar. Le panneau d’approche indique la distance à l’entrée puis à la sortie, avec priorité aux alertes de danger. Le repère s’efface après le passage et est rétabli si le joueur recommence depuis la pause.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Prolonger la relance guidée avec un repère d'approche du passage surligné, à côté des indications déjà présentes en course. Mesurer la fluidité du peloton sur un appareil Android dès qu'il est disponible.
+Afficher dans le bilan le gain ou la perte sur le passage que le joueur a ciblé pendant sa relance. Mesurer la fluidité du peloton sur un appareil Android dès qu'il est disponible.

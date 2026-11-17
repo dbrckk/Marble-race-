@@ -18,7 +18,7 @@ const SIDE_COLORS := [
     Color("#ecd6a5"), Color("#9be7ff"), Color("#f7b188")]
 const BACKGROUND := Color(0.065,0.088,0.12,0.95)
 const SECTOR_ACCENT := Color("#ffc18d")
-const PASSAGE_LOSS_COLOR := Color("#ff9584")
+const PracticeTiming = preload("res://scripts/practice_timing.gd")
 const RELIEF_TOP_RATIO := 0.752
 enum LandmarkRoute { MAIN, BRIDGE }
 
@@ -211,8 +211,8 @@ func _draw() -> void:
         if passage_span != Vector2.ZERO:
             var first := project(passage_span.x,0.0).x
             var last := project(passage_span.y,0.0).x
-            draw_rect(Rect2(first,26.0,last-first,chart_top-27.0),Color(PASSAGE_LOSS_COLOR,0.28))
-            draw_line(Vector2(first,28.0),Vector2(last,28.0),PASSAGE_LOSS_COLOR,4.0)
+            draw_rect(Rect2(first,26.0,last-first,chart_top-27.0),Color(PracticeTiming.PASSAGE_LOSS_COLOR,0.28))
+            draw_line(Vector2(first,28.0),Vector2(last,28.0),PracticeTiming.PASSAGE_LOSS_COLOR,4.0)
     if allow_sector_selection:
         for checkpoint in stage.CHECKPOINT_Z:
             var x := project(checkpoint,0.0).x

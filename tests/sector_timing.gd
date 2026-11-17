@@ -352,10 +352,46 @@ func _verify_passage_loss(game: Node3D) -> void:
     hud.sector_map_back.pressed.emit()
     hud.replay_button_ref.pressed.emit()
     assert(game.practice_sector == 0 and is_equal_approx(game.practice_previous_passages[1],6.5))
+    assert(game.practice_passage == 2 and hud.practice_passage_bounds == loss["span"])
+    _verify_live_passage_cue(game,loss["span"])
     _sample_first_sector(game,[4.0,10.5,14.5])
     _finish_passage_fixture(game,19.0)
     assert(game.last_result["practice_comparison"]["worst_passage"].is_empty())
     assert(not hud.sector_result_hint.text.contains("PASSAGE"))
+    game.retry_current_layout(0)
+    assert(game.practice_passage == 0 and hud.race_radar.passage_progress == Vector2.ZERO)
+    game.return_to_menu()
+    assert(hud.practice_passage_bounds == Vector2.ZERO and hud.race_radar.passage_progress == Vector2.ZERO)
+
+func _verify_live_passage_cue(game: Node3D, span: Vector2) -> void:
+    var hud: CanvasLayer = game.ui
+    var radar: Control = hud.race_radar
+    var expected := Vector2(maxf(0.0,-span.x),-span.y)/absf(game.FINISH_Z)
+    assert(radar.passage_progress.is_equal_approx(expected),"The radar marks the same interval as the map")
+    hud.pause_race()
+    hud._restart_from_pause()
+    assert(game.practice_passage == 2 and radar.passage_progress.is_equal_approx(expected),
+        "Restarting in pause must keep the guided passage")
+    game.race_state = "RACING"
+    game.player.position = _road_point(game,span.x+7.9)
+    hud._update_practice_sector(12.0)
+    assert(hud.practice_hint_ready and hud.practice_sector_label.text == "PASSAGE 2\n8 m TO ENTRY")
+    assert(not radar.inside_passage)
+    hud.timed_gate_backdrop.show()
+    hud._refresh_race_notification()
+    assert(not hud.practice_sector_label.visible and radar.passage_progress.is_equal_approx(expected),
+        "A timed danger has text priority while the radar interval stays visible")
+    hud.timed_gate_backdrop.hide()
+
+    game.player.position = _road_point(game,span.y+4.9)
+    hud._update_practice_sector(12.0)
+    assert(radar.inside_passage and hud.practice_sector_label.text == "PASSAGE 2\n5 m TO EXIT")
+    game.player.position = _road_point(game,span.y-0.5)
+    hud._update_practice_sector(12.0)
+    assert(radar.passage_progress == Vector2.ZERO and not radar.inside_passage)
+    game.player.position = _road_point(game,span.y+4.9)
+    hud._update_practice_sector(12.0)
+    assert(radar.passage_progress == Vector2.ZERO,"Backing up must not bring back the completed target")
 
 func _sample_first_sector(game: Node3D, times: Array) -> void:
     var timing: RefCounted = game.practice_timing

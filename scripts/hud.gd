@@ -4,6 +4,7 @@ extends CanvasLayer
 const TOUCH_CONTROLS = preload("res://scripts/touch_controls.gd")
 const CAREER_TRANSFER = preload("res://scripts/career_transfer.gd")
 const RACE_MOMENTS = preload("res://scripts/race_moments.gd")
+const PracticeTiming = preload("res://scripts/practice_timing.gd")
 const COURSE_BRIEFING = preload("res://scripts/course_briefing.gd")
 const PROGRESS_RADAR = preload("res://scripts/race_progress_radar.gd")
 const RARE_ITEMS = preload("res://scripts/race_items.gd")
@@ -100,6 +101,7 @@ var practice_entry_pending := false
 var practice_hint_ready := false
 var practice_landmarks: Array[Dictionary] = []
 var practice_bounds := Vector2.ZERO
+var practice_passage_bounds := Vector2.ZERO
 var practice_farthest_z := INF
 var hazard_label: Label
 var timed_gate_label: Label
@@ -1637,6 +1639,9 @@ func _continue_championship() -> void:
 func _hide_all() -> void:
     rival_marker.hide()
     practice_entry_pending = false
+    practice_passage_bounds = Vector2.ZERO
+    if is_instance_valid(race_radar):
+        race_radar.set_practice_passage(Vector2.ZERO)
     practice_hint_ready = false
     practice_landmarks.clear()
     practice_farthest_z = INF
@@ -1745,6 +1750,8 @@ func show_race_ui() -> void:
         practice_bounds = COURSE_BRIEFING.sector_bounds_for(game,game.practice_sector)
         practice_landmarks = COURSE_BRIEFING.landmarks_for(game,game.practice_sector)
         race_radar.set_practice_marker(practice_bounds.x)
+        practice_passage_bounds = PracticeTiming.passage_span(practice_bounds,game.practice_passage)
+        race_radar.set_practice_passage(practice_passage_bounds)
     hud_layer.visible = true
     network_quality_label.get_parent().visible = game.net.role == "client"
     if is_instance_valid(pause_button_ref):
@@ -2131,7 +2138,7 @@ func update_hud() -> void:
     leaderboard.text = table
     for cue: Label in driving_cue_backgrounds:
         _refresh_driving_cue_background(cue)
-    if practice_entry_pending or not practice_landmarks.is_empty():
+    if practice_entry_pending or not practice_landmarks.is_empty() or practice_passage_bounds != Vector2.ZERO:
         _update_practice_sector(forward_speed)
         _refresh_race_notification()
 
@@ -2197,15 +2204,20 @@ func _update_practice_sector(forward_speed: float) -> void:
     if game.net.is_active() or game.player.finished or game.player.eliminated or z <= practice_bounds.y:
         practice_entry_pending = false
         practice_landmarks.clear()
+        practice_passage_bounds = Vector2.ZERO
+        race_radar.set_practice_passage(Vector2.ZERO)
         race_radar.set_practice_marker(NAN)
         return
     if game.race_state == "COUNTDOWN":
         if sector == 0:
-            practice_sector_label.text = "FOCUS SECTOR 1\nFROM THE START"
+            practice_sector_label.text = "PASSAGE 1\nFROM THE START" if game.practice_passage == 1 else (
+                "FOCUS SECTOR 1\nFROM THE START")
             practice_hint_ready = true
         return
     practice_farthest_z = minf(practice_farthest_z,z)
     practice_entry_pending = practice_farthest_z > practice_bounds.x
+    if practice_passage_bounds != Vector2.ZERO:
+        _update_practice_passage(z,forward_speed)
     var route := COURSE_BRIEFING.LandmarkRoute.BRIDGE if bridge_approach_active else COURSE_BRIEFING.LandmarkRoute.MAIN
     for index in practice_landmarks.size():
         var landmark := practice_landmarks[index]
@@ -2218,16 +2230,31 @@ func _update_practice_sector(forward_speed: float) -> void:
         if practice_entry_pending and (approach_z <= practice_bounds.x or not in_range):
             break
         race_radar.set_practice_marker(approach_z if approach_distance > 0.0 else obstacle_z)
-        if in_range:
+        if in_range and not practice_hint_ready:
             var distance := "%d m TO APPROACH" % ceili(approach_distance) if approach_distance > 0.0 else (
                 "%d m AHEAD" % ceili(z-obstacle_z))
             practice_sector_label.text = "%d  %s\n%s" % [index+1,landmark["title"],distance]
             practice_hint_ready = true
         return
     race_radar.set_practice_marker(practice_bounds.x if practice_entry_pending else NAN)
-    if practice_entry_pending and z-practice_bounds.x <= clampf(forward_speed*2.0,16.0,44.0):
+    if not practice_hint_ready and practice_entry_pending and z-practice_bounds.x <= clampf(forward_speed*2.0,16.0,44.0):
         practice_sector_label.text = "FOCUS SECTOR %d\n%d m TO ENTRY" % [sector+1,ceili(z-practice_bounds.x)]
         practice_hint_ready = true
+
+func _update_practice_passage(z: float, forward_speed: float) -> void:
+    if practice_farthest_z <= practice_passage_bounds.y:
+        practice_passage_bounds = Vector2.ZERO
+        race_radar.set_practice_passage(Vector2.ZERO)
+        return
+    var entry_distance := z-practice_passage_bounds.x
+    var inside := entry_distance <= 0.0
+    race_radar.set_practice_passage(practice_passage_bounds,inside)
+    if entry_distance > clampf(forward_speed*1.25,12.0,30.0):
+        return
+    var distance := z-practice_passage_bounds.y if inside else entry_distance
+    practice_sector_label.text = "PASSAGE %d\n%d m TO %s" % [
+        game.practice_passage,ceili(distance),"EXIT" if inside else "ENTRY"]
+    practice_hint_ready = true
 
 func _show_forge_hazard(vent: Dictionary, gate_eta: float, piston_priority: float,
         vent_priority: float) -> void:

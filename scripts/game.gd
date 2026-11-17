@@ -117,6 +117,7 @@ var last_checkpoint := -1
 var checkpoint_splits: Array[float] = []
 var race_start_z := 0.0
 var practice_sector := -1
+var practice_passage := 0
 var practice_previous_time := NAN
 var practice_previous_passages := PackedFloat64Array()
 var practice_timing := PracticeTiming.new()
@@ -1220,10 +1221,12 @@ func sector_entry_z(sector: int) -> float:
     return race_start_z if sector == 0 else CHECKPOINT_Z[sector-1]
 
 func start_race(perk_name: String, sector_to_practice := -1, previous_sector_time := NAN,
-        previous_passages := PackedFloat64Array()) -> void:
+        previous_passages := PackedFloat64Array(), passage_to_practice := 0) -> void:
     selected_perk = perk_name
     practice_sector = sector_to_practice if (
         not net.is_active() and sector_to_practice >= 0 and sector_to_practice <= CHECKPOINT_Z.size()) else -1
+    practice_passage = passage_to_practice if practice_sector >= 0 and (
+        passage_to_practice >= 1 and passage_to_practice <= PracticeTiming.PASSAGES) else 0
     practice_previous_time = previous_sector_time if (
         practice_sector >= 0 and is_finite(previous_sector_time) and previous_sector_time > 0.0) else NAN
     practice_previous_passages = previous_passages if is_finite(practice_previous_time) else PackedFloat64Array()
@@ -1297,6 +1300,7 @@ func restart_race() -> void:
 func retry_current_layout(sector_to_practice := -1) -> void:
     var previous_time := NAN
     var passages := PackedFloat64Array()
+    var target_passage := 0
     if race_state == "RESULTS" and bool(last_result.get("finished",false)):
         var times: Array = last_result.get("sector_times",[])
         if times.size() == CHECKPOINT_Z.size()+1 and sector_to_practice >= 0 and sector_to_practice < times.size():
@@ -1304,18 +1308,24 @@ func retry_current_layout(sector_to_practice := -1) -> void:
             var recorded: Array = last_result.get("passage_times",[])
             if sector_to_practice < recorded.size():
                 passages = recorded[sector_to_practice]
+            var practice: Dictionary = last_result.get("practice_comparison",{})
+            if int(practice.get("sector",-1)) == sector_to_practice:
+                var loss: Dictionary = practice.get("worst_passage",{})
+                target_passage = int(loss.get("number",0))
     elif race_state in ["COUNTDOWN","RACING"] and sector_to_practice == practice_sector:
         previous_time = practice_previous_time
         passages = practice_previous_passages
+        target_passage = practice_passage
     race_variation = built_variation
     kinetic_time = 0.0
     for obstacle in moving_obstacles:
         if is_instance_valid(obstacle):
             obstacle.rotation = Vector3.ZERO
-    start_race(selected_perk,sector_to_practice,previous_time,passages)
+    start_race(selected_perk,sector_to_practice,previous_time,passages,target_passage)
 
 func return_to_menu() -> void:
     practice_sector = -1
+    practice_passage = 0
     practice_previous_time = NAN
     practice_previous_passages.clear()
     if race_moments != null:

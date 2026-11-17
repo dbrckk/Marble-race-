@@ -3,6 +3,7 @@ extends RefCounted
 ## Passage boundaries are fixed on both routes by downhill Z.
 const ShortcutRoute = preload("res://scripts/shortcut_route.gd")
 const PASSAGES := 4
+const PASSAGE_LOSS_COLOR := Color("#ff9584")
 const MAX_SAMPLE_SECONDS := 0.25
 const MAX_SAMPLE_SPEED := 36.0
 const MIN_LOSS_CENTISECONDS := 2
@@ -81,7 +82,11 @@ func worst_loss(sector: int, previous: PackedFloat64Array, current: PackedFloat6
             loss = gap
     if worst < 0:
         return {}
-    var entry := boundaries[sector]
-    var exit := boundaries[sector+1]
-    return {"number":worst+1,"loss":float(loss)/100.0,"span":Vector2(
-        lerpf(entry,exit,float(worst)/PASSAGES),lerpf(entry,exit,float(worst+1)/PASSAGES))}
+    return {"number":worst+1,"loss":float(loss)/100.0,
+        "span":passage_span(Vector2(boundaries[sector],boundaries[sector+1]),worst+1)}
+
+static func passage_span(bounds: Vector2, number: int) -> Vector2:
+    if number < 1 or number > PASSAGES:
+        return Vector2.ZERO
+    return Vector2(lerpf(bounds.x,bounds.y,float(number-1)/PASSAGES),
+        lerpf(bounds.x,bounds.y,float(number)/PASSAGES))

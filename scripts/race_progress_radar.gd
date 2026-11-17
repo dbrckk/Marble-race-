@@ -7,6 +7,7 @@ const PLAYER_COLOR := Color("#fff2be")
 const OPPONENT_COLOR := Color(0.67,0.83,0.90,0.58)
 const FINISHED_COLOR := Color(0.60,0.98,0.71,0.85)
 const PRACTICE_COLOR := Color("#ffc18d")
+const PracticeTiming = preload("res://scripts/practice_timing.gd")
 var opponent_dots := MultiMesh.new()
 var stage: Node3D
 var elapsed := 0.0
@@ -16,6 +17,8 @@ var player_id := -1
 var last_count := 0
 var updates := 0
 var practice_progress := NAN
+var passage_progress := Vector2.ZERO
+var inside_passage := false
 
 func configure(owner: Node3D) -> void:
     stage = owner
@@ -35,6 +38,8 @@ func reset() -> void:
     last_count = 0
     opponent_dots.visible_instance_count = 0
     practice_progress = NAN
+    passage_progress = Vector2.ZERO
+    inside_passage = false
     queue_redraw()
 
 static func progress_at(z: float) -> float:
@@ -45,6 +50,14 @@ func set_practice_marker(z: float) -> void:
     if (is_nan(progress) and is_nan(practice_progress)) or is_equal_approx(progress,practice_progress):
         return
     practice_progress = progress
+    queue_redraw()
+
+func set_practice_passage(span: Vector2, inside := false) -> void:
+    var progress := Vector2(progress_at(span.x),progress_at(span.y))
+    if passage_progress.is_equal_approx(progress) and inside_passage == inside:
+        return
+    passage_progress = progress
+    inside_passage = inside
     queue_redraw()
 
 func sample(delta: float) -> void:
@@ -78,6 +91,12 @@ func _draw() -> void:
     # independent of local rank, multiplayer claims and career records.
     draw_line(Vector2(3.0,baseline),Vector2(width_px-3.0,baseline),
         Color(0.78,0.81,0.83,0.35),1.5)
+    if passage_progress.y > passage_progress.x:
+        var left := lerpf(3.0,width_px-3.0,passage_progress.x)
+        var right := lerpf(3.0,width_px-3.0,passage_progress.y)
+        var tint := PracticeTiming.PASSAGE_LOSS_COLOR
+        draw_rect(Rect2(left,1.0,right-left,height_px-2.0),Color(tint,0.48 if inside_passage else 0.28))
+        draw_line(Vector2(left,1.0),Vector2(right,1.0),tint,2.0)
     var opponent_index := 0
     for i in range(positions.size()):
         if i == player_id:
