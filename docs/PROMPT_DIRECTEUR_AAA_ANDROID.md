@@ -368,6 +368,14 @@ Base de comparaison GitHub `df7c18cf058b8b0e72d9f5956a25ad75d47dbd26`.
 - Dans trois courses complètes de Forge avec 40 billes et un pas fixe, le P95 des contrôles du pont passe de 153 à 33 µs, de 132 à 56 µs et de 98 à 47 µs. Les empreintes des trajectoires échantillonnées, les temps d’arrivée et les classements correspondent pour les trois variantes.
 - Sur un banc CPU sans rendu de 40 billes placées sur la piste principale, les contrôles du pont passent de 153 à 52 µs près du portail d’entrée et de 120 à 22 µs en amont de la jonction. La fenêtre excluait déjà cette grille à −104 m. Le temps médian du script d’animation des pistons baisse de 16 à 23 % sur le banc. Les positions, textes et couleurs comparés concordent. Les gains de FPS sur téléphone restent à mesurer.
 
+### 2026-11-17 — Prévision des obstacles par les bots (1.106.0-rc)
+
+Base de comparaison GitHub `086e4d09f3f973cf30d11f91701ddd4f2e4277f7`.
+
+- La prévision calcule une fois la phase du mécanisme à l’arrivée de la bille. Un piston enterré libère sa voie. Pour les obstacles qui peuvent bloquer le passage, le calcul réutilise la même formule latérale et la même précision que le collider, en écartant le calcul de hauteur.
+- Sur un banc CPU sans rendu, sept répétitions de 3 840 décisions par variante donnent une baisse médiane de 24 à 36 % pour cette fonction sur Forge, et de 35 à 43 % sur les deux autres circuits. Les 77 760 comparaisons autour des seuils de dégagement et de distance donnent des décisions identiques.
+- Les trois courses complètes de Forge avec 40 billes donnent les mêmes positions et vitesses échantillonnées, temps d’arrivée et classements. Le P95 de l’ensemble du pilotage et de l’arrivée varie selon le tracé, de 853 à 794 µs, de 947 à 803 µs et de 750 à 765 µs. Les FPS sur téléphone restent à mesurer.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Confirmer le temps d’image sur téléphone physique. Isoler le coût de la prévision des obstacles par les bots dans les passages de Forge les plus chargés.
+Confirmer le temps d’image sur téléphone physique. Mesurer le coût des prévisions liées aux bandes d’accélération, à la glace et aux évents dans les pelotons denses.

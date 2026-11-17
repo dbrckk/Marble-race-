@@ -351,7 +351,8 @@ func period() -> float:
     return SPEEDS[biome]
 
 func phase_at(index: int, elapsed: float) -> float:
-    return fposmod(elapsed+float(index)*1.71+float(variation)*1.29,period())/period()
+    var seconds := period()
+    return fposmod(elapsed+float(index)*1.71+float(variation)*1.29,seconds)/seconds
 
 func piston_extension(index: int, elapsed: float) -> float:
     if biome != 2:
@@ -378,15 +379,29 @@ func position_at(index: int, elapsed: float) -> Vector3:
 func _gate_position(index: int, phase: float, extension: float) -> Vector3:
     var z: float = event_z(index)
     var center: float = game.track_center_at(z)
-    var side: float = side_at(index)
+    var x := _gate_x(index,center,phase)
+    var height: float = game.height_at(z)
     if biome == 2:
         # Fully buried below the track when inactive. The circular warning
         # stays visible so competitors understand the timing of the piston.
-        return Vector3(center+side*3.26,
-            game.height_at(z)-1.08+1.48*extension,z)
+        return Vector3(x,height-1.08+1.48*extension,z)
+    return Vector3(x,height+0.42,z)
+
+func _gate_x(index: int, center: float, phase: float) -> float:
+    var side: float = side_at(index)
+    if biome == 2:
+        return center+side*3.26
     var radius: float = 0.85 if biome == 0 else 1.12
-    return Vector3(center+side*(3.22+radius*sin(phase*TAU)),
-        game.height_at(z)+0.42,z)
+    return center+side*(3.22+radius*sin(phase*TAU))
+
+func blocking_lane_offset_at(index: int, elapsed: float, gate_z: float) -> float:
+    var phase := phase_at(index,elapsed)
+    if biome == 2 and _piston_extension_at_phase(phase) <= PISTON_BLOCKING_EXTENSION:
+        return INF
+    var center: float = game.track_center_at(gate_z)
+    # Match the collider's Vector3 component precision at clearance boundaries.
+    var world_x := Vector2(_gate_x(index,center,phase),0.0).x
+    return world_x-center
 
 # The phone HUD uses the real collider trajectory, not just its biome phase.
 # A gate that blocks the far outside lane must not warn someone safely on

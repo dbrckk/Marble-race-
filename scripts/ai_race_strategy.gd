@@ -351,23 +351,15 @@ static func timed_gate_safe_lane(director: Node3D, own_z: float,
         -TRAFFIC_SAFE_LANE,TRAFFIC_SAFE_LANE)
     if not is_instance_valid(director) or not is_instance_valid(director.game):
         return preferred
+    var speed: float = clampf(-own_speed_z,6.0,24.0)
     for index in range(director.obstacles.size()):
         var gate_z: float = director.event_z(index)
         var distance: float = own_z-gate_z
         if distance < GATE_MIN_DISTANCE or distance > GATE_LOOKAHEAD:
             continue
-        var speed: float = clampf(-own_speed_z,6.0,24.0)
         var arrive_at: float = elapsed+distance/speed
-        # An inactive piston is below the deck and does not block passage.
-        # Evaluate its predicted rise, not whether it happens to be up now.
-        if director.biome == 2 and not director.piston_up(index,arrive_at):
-            # This gate is buried at arrival, but a second gate farther
-            # down the road may still be active. Do not stop the scan.
-            continue
-        var next_position: Vector3 = director.position_at(index,arrive_at)
-        var track_center: float = director.game.track_center_at(gate_z)
-        var obstacle_offset: float = next_position.x-track_center
-        if absf(preferred-obstacle_offset) >= GATE_CLEARANCE:
+        var obstacle_offset: float = director.blocking_lane_offset_at(index,arrive_at,gate_z)
+        if obstacle_offset == INF or absf(preferred-obstacle_offset) >= GATE_CLEARANCE:
             # This timed collider will not intersect the chosen line.
             # Other upcoming colliders may still need avoidance.
             continue
