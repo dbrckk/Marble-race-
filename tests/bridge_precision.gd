@@ -23,8 +23,18 @@ func _check() -> void:
         var art := route.get_node("BypassPrecisionEdgePosts") as MultiMeshInstance3D
         var arches := route.get_node("BypassPrecisionPortalArches") as MultiMeshInstance3D
         assert(art.multimesh.instance_count == 6)
-        var arch_pieces: int = [9,10,12][biome]
-        assert(arches.multimesh.instance_count == arch_pieces)
+        assert(arches.multimesh.instance_count == BYPASS.BRIDGE_POST_Z.size())
+        var frame: Mesh = arches.multimesh.mesh
+        assert(frame is ArrayMesh and frame.get_surface_count() == 1)
+        assert(arches.get_child_count() == 0)
+        var profile := frame.surface_get_arrays(0)
+        var vertices: PackedVector3Array = profile[Mesh.ARRAY_VERTEX]
+        var indices: PackedInt32Array = profile[Mesh.ARRAY_INDEX]
+        for offset in range(0,indices.size(),3):
+            var side := signf(vertices[indices[offset]].x)
+            for corner in range(3):
+                assert(side*vertices[indices[offset+corner]].x > 1.5,
+                    "Each portal wing must leave the central sightline open")
         assert(art.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
         assert(arches.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
         for station in range(BYPASS.BRIDGE_POST_Z.size()):
@@ -80,5 +90,5 @@ func _check() -> void:
         await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_bridge_precision.cfg"))
-    print("BRIDGE_PRECISION_PASS: 18 real raised edge colliders, batched arch pieces, three safe racing corridors, 40 marbles")
+    print("BRIDGE_PRECISION_PASS: 18 real raised edge colliders, open instanced frames, three safe racing corridors, 40 marbles")
     quit(0)

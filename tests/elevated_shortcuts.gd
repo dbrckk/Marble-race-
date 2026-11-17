@@ -33,6 +33,10 @@ func _check() -> void:
         assert(is_instance_valid(columns) and is_instance_valid(trusses))
         assert(columns.multimesh.instance_count == 12)
         assert(trusses.multimesh.instance_count == 6)
+        assert(columns.multimesh.mesh is ArrayMesh and columns.multimesh.mesh.get_surface_count() == 1)
+        assert(trusses.multimesh.mesh is ArrayMesh and trusses.multimesh.mesh.get_surface_count() == 1)
+        assert(columns.multimesh.mesh == game.course_sculptures.vault_posts.multimesh.mesh,
+            "Bridge and trackside piers share the same profile resource for their biome")
         assert(columns.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
         assert(trusses.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
         assert(road.guards.size() >= 20,

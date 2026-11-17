@@ -3,6 +3,7 @@ extends Node3D
 ## Eight real StaticBody3D ramps; all decorative arches are noncolliding
 ## GPU batches. The central lane remains clear for 40 physical racers.
 ## No impulses, speed cheats, animated collision or hidden client authority.
+const ARCHITECTURE = preload("res://scripts/course_architecture.gd")
 const BANK_SECTIONS := [2,7,12,15]
 const VAULT_SECTIONS := [4,9,14]
 const GLACIER_RETURN_SECTOR := 1
@@ -268,16 +269,14 @@ func _world_passage_vaults() -> void:
                 var origin := Vector3(center_x+side*flank_rib_x,rib_y,z)
                 vault_rib_roots.append(Transform3D(roof_basis.scaled_local(roof_scale),origin))
                 pillars.append(Transform3D(Basis().scaled(
-                    Vector3(1.0,support_height/VAULT_CLEARANCE,1.0)),
+                    Vector3(0.76,support_height,0.75)),
                     Vector3(center_x+side*post_x,
                     floor_y+support_height*0.5,z)))
             if not forge and not glacier_return and not open_junction:
                 highlights.append(Transform3D(Basis(),
                     Vector3(center_x,crest_y+0.08,z)))
-    var column_mesh := BoxMesh.new()
-    column_mesh.size = Vector3(0.43,VAULT_CLEARANCE,0.62)
-    vault_posts = _instanced("NineGatewayPillarPairs",column_mesh,
-        _material(COLOR_BODIES[biome].darkened(0.16)),pillars)
+    vault_posts = _instanced("NineGatewayPillarPairs",ARCHITECTURE.pier(biome),
+        ARCHITECTURE.material(biome),pillars)
     var roof_mesh := BoxMesh.new()
     roof_mesh.size = Vector3(FORGE_RIB_LENGTH if forge else VAULT_HALF_WIDTH+0.29,0.34,0.62)
     vault_roofs = _instanced("NineSculptedGatewayRidges",roof_mesh,

@@ -64,6 +64,9 @@ func _run() -> void:
                 geometry.vault_roofs.multimesh.instance_count == 18 and
                 geometry.vault_highlights.multimesh.instance_count == highlight_count,
                 "Lateral lighting reuses the existing GPU batch")
+            var pier: Mesh = geometry.vault_posts.multimesh.mesh
+            assert(pier is ArrayMesh and pier.get_surface_count() == 1)
+            assert(geometry.vault_posts.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
             assert(geometry.canopy_panels.multimesh.instance_count == 12 and
                 geometry.canopy_trims.multimesh.instance_count == 12,
                 "Three vaulted landmarks must include 12 open-sky roof bays")

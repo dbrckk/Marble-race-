@@ -3,6 +3,38 @@ extends RefCounted
 ## A rounded-box mesh has smooth edge normals; the BoxShape3D remains exact for physics.
 static var _cache: Dictionary = {}
 
+static func append_extruded_profile(surface: SurfaceTool, outline: PackedVector2Array,
+        z: float, thickness: float, paint: Color) -> void:
+    if Geometry2D.is_polygon_clockwise(outline):
+        outline.reverse()
+    var front := z+thickness*0.5
+    var back := z-thickness*0.5
+    var indices := Geometry2D.triangulate_polygon(outline)
+    for i in range(0,indices.size(),3):
+        var a := outline[indices[i]]
+        var b := outline[indices[i+1]]
+        var c := outline[indices[i+2]]
+        _triangle(surface,Vector3(a.x,a.y,front),Vector3(c.x,c.y,front),
+            Vector3(b.x,b.y,front),Vector3.BACK,paint)
+        _triangle(surface,Vector3(a.x,a.y,back),Vector3(b.x,b.y,back),
+            Vector3(c.x,c.y,back),Vector3.FORWARD,paint.darkened(0.11))
+    for i in range(outline.size()):
+        var a := outline[i]
+        var b := outline[(i+1)%outline.size()]
+        var normal := Vector3(b.y-a.y,a.x-b.x,0.0).normalized()
+        var edge := paint.lerp(Color.WHITE,0.06) if normal.y > 0.15 else paint.darkened(0.18)
+        _triangle(surface,Vector3(a.x,a.y,front),Vector3(b.x,b.y,front),
+            Vector3(b.x,b.y,back),normal,edge)
+        _triangle(surface,Vector3(a.x,a.y,front),Vector3(b.x,b.y,back),
+            Vector3(a.x,a.y,back),normal,edge)
+
+static func _triangle(surface: SurfaceTool, a: Vector3, b: Vector3,
+        c: Vector3, normal: Vector3, paint: Color) -> void:
+    for vertex in [a,b,c]:
+        surface.set_color(paint)
+        surface.set_normal(normal)
+        surface.add_vertex(vertex)
+
 static func rounded_box(size: Vector3, radius: float) -> ArrayMesh:
     var r: float = minf(radius, minf(size.x, minf(size.y, size.z)) * 0.48)
     var key := "%s:%0.3f" % [str(size), r]

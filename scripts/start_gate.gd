@@ -1,6 +1,7 @@
 extends Node3D
 ## Two open-sided starting towers with baked trim and six instanced lamps.
 ## The signal follows the existing countdown and has no authority over it.
+const Visuals = preload("res://scripts/visuals.gd")
 const TRACK_Z := 2.25
 const TOWER_X := 6.1
 const READY := Color("#ffc481")
@@ -134,32 +135,4 @@ static func _extrude(surface: SurfaceTool, points: Array, side: float,
     var outline := PackedVector2Array()
     for i in range(0,points.size(),2):
         outline.append(Vector2(side*(TOWER_X+float(points[i])),float(points[i+1])))
-    if Geometry2D.is_polygon_clockwise(outline):
-        outline.reverse()
-    var front := z+thickness*0.5
-    var back := z-thickness*0.5
-    var indices := Geometry2D.triangulate_polygon(outline)
-    for i in range(0,indices.size(),3):
-        var a := outline[indices[i]]
-        var b := outline[indices[i+1]]
-        var c := outline[indices[i+2]]
-        _triangle(surface,Vector3(a.x,a.y,front),Vector3(c.x,c.y,front),
-            Vector3(b.x,b.y,front),Vector3.BACK,paint)
-        _triangle(surface,Vector3(a.x,a.y,back),Vector3(b.x,b.y,back),
-            Vector3(c.x,c.y,back),Vector3.FORWARD,paint.darkened(0.11))
-    for i in range(outline.size()):
-        var a := outline[i]
-        var b := outline[(i+1)%outline.size()]
-        var normal := Vector3(b.y-a.y,a.x-b.x,0.0).normalized()
-        var edge := paint.lerp(Color.WHITE,0.06) if normal.y > 0.15 else paint.darkened(0.18)
-        _triangle(surface,Vector3(a.x,a.y,front),Vector3(b.x,b.y,front),
-            Vector3(b.x,b.y,back),normal,edge)
-        _triangle(surface,Vector3(a.x,a.y,front),Vector3(b.x,b.y,back),
-            Vector3(a.x,a.y,back),normal,edge)
-
-static func _triangle(surface: SurfaceTool, a: Vector3, b: Vector3,
-        c: Vector3, normal: Vector3, paint: Color) -> void:
-    for vertex in [a,b,c]:
-        surface.set_color(paint)
-        surface.set_normal(normal)
-        surface.add_vertex(vertex)
+    Visuals.append_extruded_profile(surface,outline,z,thickness,paint)

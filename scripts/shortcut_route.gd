@@ -2,6 +2,7 @@ extends Node3D
 ## v1.16: real, collidable alternate race road with two side-rail portals.
 ## Each course has a different exterior branch. Physics and rewards are
 ## evaluated by the offline game or authoritative dedicated server only.
+const ARCHITECTURE = preload("res://scripts/course_architecture.gd")
 const ENTRY_SECTION := 5
 const EXIT_SECTION := 9
 const ENTRY_Z := -48.0
@@ -31,7 +32,7 @@ const BRIDGE_POST_Z := [-65.0,-80.0,-90.0]
 const BRIDGE_POST_OFFSET := 1.76
 const BRIDGE_POST_RADIUS := 0.22
 const BRIDGE_POST_HEIGHT := 0.88
-const BRIDGE_ARCH_HEIGHT := 3.15
+const BRIDGE_ARCH_HALF_SPAN := WIDTH*0.5+0.62
 # Three real crossing planes embedded in the existing physical bridge.
 # Crossing in order, at speed and near the center of each pair of posts,
 # earns a single bounded skill reward. No decorative trigger volumes.
@@ -154,7 +155,7 @@ func setup(owner: Node3D, track: int) -> void:
             guard_art.append(Transform3D(basis.scaled(size),guard_pos))
     _batch("BatchedBypassDeck",deck_art,deck_material)
     _batch("BatchedBypassGuards",guard_art,edge_material)
-    _bridge_structure(deck_material,edge_material)
+    _bridge_structure()
     _launch_ramps(deck_material)
     _bridge_precision_corridor(edge_material)
     _racing_line(edge_material)
@@ -186,10 +187,8 @@ func bridge_grade_at(z: float) -> float:
     # main-road slope. The twin samples share the physics path generator.
     return point_at(z+0.5).y-point_at(z-0.5).y
 
-func _bridge_structure(deck_color: Material, edge_color: Material) -> void:
-    # Elevated paths need visible load-bearing structure. Ten pylons and
-    # five transverse braces use two GPU batches; no additional physics
-    # bodies, scripts, lights or dynamic shadows are created on Android.
+func _bridge_structure() -> void:
+    # Twelve piers and six transverse braces keep two render batches.
     var supports: Array[Transform3D] = []
     var braces: Array[Transform3D] = []
     for index in range(4,SEGMENTS-3,4):
@@ -202,13 +201,14 @@ func _bridge_structure(deck_color: Material, edge_color: Material) -> void:
         for cross_side in [-1.0,1.0]:
             var support_x: float = point.x+cross_side*(WIDTH*0.5+0.38)
             supports.append(Transform3D(
-                Basis().scaled(Vector3(0.38,height,0.40)),
+                Basis().scaled(Vector3(0.68,height,0.67)),
                 Vector3(support_x,center_y,z)))
         braces.append(Transform3D(
-            Basis().scaled(Vector3(WIDTH+1.10,0.18,0.38)),
-            point+Vector3(0.0,-0.57,0.0)))
-    _batch("BatchedBypassBridgePylons",supports,deck_color)
-    _batch("BatchedBypassBridgeTrusses",braces,edge_color)
+            Basis().scaled(Vector3(WIDTH+1.10,0.38,0.61)),
+            point+Vector3(0.0,-0.50,0.0)))
+    var paint := ARCHITECTURE.material(course_id)
+    _batch("BatchedBypassBridgePylons",supports,paint,ARCHITECTURE.pier(course_id))
+    _batch("BatchedBypassBridgeTrusses",braces,paint,ARCHITECTURE.truss(course_id))
 
 func bank_at(z: float) -> float:
     if z > OUTER_START or z < OUTER_END:
@@ -239,10 +239,8 @@ func _launch_ramps(material: Material) -> void:
     add_child(strip)
 
 func _bridge_precision_corridor(material: Material) -> void:
-    # A single shared GPU batch depicts all six physical edge posts.
-    # Three portal arches use the same batch, with no per-frame updates,
-    # extra lights or shadows. They make the elevated road readable from
-    # the chase camera while preserving a safe central racing lane.
+    # The six physical posts and three open decorative frames use one
+    # batch each. The frame wings leave the chase camera's centre clear.
     var post_art: Array[Transform3D] = []
     var arch_art: Array[Transform3D] = []
     for station in range(BRIDGE_POST_Z.size()):
@@ -262,24 +260,10 @@ func _bridge_precision_corridor(material: Material) -> void:
             post_art.append(Transform3D(Basis().scaled(Vector3(
                 BRIDGE_POST_RADIUS*2.0,BRIDGE_POST_HEIGHT,
                 BRIDGE_POST_RADIUS*2.0)),origin))
-            # Arch columns are noncolliding silhouettes, outside the
-            # physical narrow deck and high above any realistic marble jump.
-            arch_art.append(Transform3D(Basis().scaled(
-                Vector3(0.18,BRIDGE_ARCH_HEIGHT,0.22)),
-                center+Vector3(flank*(WIDTH*0.5+0.62),
-                    BRIDGE_ARCH_HEIGHT*0.5+0.32,0.0)))
-        var glacier_exit := course_id == 1 and station == BRIDGE_POST_Z.size()-1
-        if course_id == 2 or glacier_exit:
-            for flank in [-1.0,1.0]:
-                var cap := Basis(Vector3.FORWARD,-flank*0.20)
-                arch_art.append(Transform3D(cap.scaled_local(Vector3(1.36,0.19,0.24)),
-                    center+Vector3(flank*(WIDTH*0.5+0.18),BRIDGE_ARCH_HEIGHT+0.42,0)))
-        else:
-            arch_art.append(Transform3D(Basis().scaled(Vector3(
-                WIDTH+1.55,0.19,0.24)),
-                center+Vector3(0.0,BRIDGE_ARCH_HEIGHT+0.32,0.0)))
+        arch_art.append(Transform3D(Basis.IDENTITY,center))
     _batch("BypassPrecisionEdgePosts",post_art,material)
-    _batch("BypassPrecisionPortalArches",arch_art,material)
+    _batch("BypassPrecisionPortalArches",arch_art,ARCHITECTURE.material(course_id),
+        ARCHITECTURE.portal(course_id,BRIDGE_ARCH_HALF_SPAN))
     # Three lightweight, noncolliding deck stripes identify the EXACT
     # physical crossing planes. The existing trim material is reused.
     var marks: Array[Transform3D] = []
@@ -320,14 +304,12 @@ func _solid(label: String, origin: Vector3, basis: Basis, size: Vector3,
     return body
 
 func _batch(label: String, instances: Array[Transform3D],
-    material: Material) -> void:
+        material: Material, geometry: Mesh = null) -> void:
     if instances.is_empty():
         return
-    var mesh := BoxMesh.new()
-    mesh.size = Vector3.ONE
     var batch := MultiMesh.new()
     batch.transform_format = MultiMesh.TRANSFORM_3D
-    batch.mesh = mesh
+    batch.mesh = BoxMesh.new() if geometry == null else geometry
     batch.instance_count = instances.size()
     for i in range(instances.size()):
         batch.set_instance_transform(i,instances[i])

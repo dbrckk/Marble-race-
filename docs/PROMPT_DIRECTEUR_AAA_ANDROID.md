@@ -462,6 +462,10 @@ Base `be40a3fab9a449f2e46ac3d230977e31073f1cf2`. Le repère YOU de taille fixe s
 
 Base `09d244a0eae3310b7c52aee819484c92f90a1636`. Les bras de Woodworks sont en bois cerclé, les volets de Glacier ont une silhouette givrée à pans coupés et les pistons de Forge ont une tête nervurée. Chaque obstacle partage deux maillages par biome. Les chevrons de Woodworks et de Glacier utilisent les bonnes couleurs pour le fond sombre et la bande claire. Les six vues appariées en GL Compatibility conservent le même nombre d’appels de dessin.
 
+### 2026-11-17 — Portiques ouverts et supports des circuits (1.125.0-rc)
+
+Base `e19f7c76817b0714284c784d851f8cef6d3a6400`. Les ponts ont des portiques en bois courbé, en lames de glace ou en acier ajouré. Les nouvelles piles des ponts partagent leur maillage avec les piliers des voûtes de la piste principale. Les portiques dégagent l'axe de la caméra, avec des ailes à plus de 1,5 m du centre. Les potelets de précision conservent leurs collisions. Les neuf vues comparées en GL Compatibility gardent le même nombre d'appels de dessin.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Donner aux portiques et aux supports de piste une silhouette propre à chaque circuit. Mesurer la fluidité du peloton sur un appareil Android dès qu'il est disponible.
+Marquer par le son et le rendu de la bille le passage entre la piste principale et chaque pont. Mesurer la fluidité du peloton sur un appareil Android dès qu'il est disponible.
