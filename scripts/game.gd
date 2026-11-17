@@ -116,6 +116,7 @@ var starting_camera_target := Vector3(0, 0, 0)
 var player_marker: Label3D
 var contact_shadows: Node3D
 var workshop_lamps: Array[OmniLight3D] = []
+var secondary_showroom_art: Array[MeshInstance3D] = []
 var lamp_refresh := 0.0
 var kinetic_time := 0.0
 var obstacle_finish: Node3D
@@ -319,14 +320,19 @@ func toggle_fps_overlay() -> bool:
     return show_fps
 
 func _apply_graphics_quality() -> void:
+    var forge_balanced := selected_track == 2 and graphics_quality == 1
     if is_instance_valid(primary_light):
-        var forge_balanced := selected_track == 2 and graphics_quality == 1
         primary_light.shadow_enabled = graphics_quality > 0
         primary_light.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS if (
             forge_balanced) else DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
         primary_light.directional_shadow_split_1 = 0.30 if forge_balanced else 0.10
         primary_light.directional_shadow_max_distance = 33.0 if forge_balanced else (
             72.0 if graphics_quality == 2 else 47.0)
+    # The room's walls and overhead beam still shade the course.
+    var secondary_shadows := GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if (
+        forge_balanced) else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+    for art in secondary_showroom_art:
+        art.cast_shadow = secondary_shadows
     if is_instance_valid(camera):
         camera.far = [85.0,115.0,155.0][graphics_quality]
     if world_environment != null:
@@ -538,6 +544,7 @@ func _make_course() -> void:
         board.queue_free()
     hazard_beacons.clear()
     workshop_lamps.clear()
+    secondary_showroom_art.clear()
     board = Node3D.new()
     board.name = "HandcraftedWoodenCourse"
     board.set_meta("track_index",selected_track)
@@ -1001,6 +1008,11 @@ func _floating_sign(message: String, location: Vector3, parent: Node3D = null) -
     holder.add_child(label)
     return label
 
+func _secondary_showroom_box(location: Vector3, dimensions: Vector3,
+        material: Material, tilt := false) -> void:
+    var holder := _box(board,location,dimensions,material,false,tilt)
+    secondary_showroom_art.append(holder.get_child(0) as MeshInstance3D)
+
 func _decorations() -> void:
     # Cleaner studio: keep real structural supports, omit the bright unrelated
     # carton towers that previously obscured obstacles in the distance.
@@ -1008,36 +1020,35 @@ func _decorations() -> void:
         var z = 5.0 - k * 17.0
         for side in [-1,1]:
             var x = side * 5.0
-            _box(board, Vector3(x+track_center_at(z),height_at(z)-2.6,z),
-                Vector3(0.6, 4.4, 0.65), _mat(Color("#79523b")), false)
+            _secondary_showroom_box(Vector3(x+track_center_at(z),height_at(z)-2.6,z),
+                Vector3(0.6,4.4,0.65),_mat(Color("#79523b")))
 
 func _showroom() -> void:
     # Warm miniature workshop: walnut workbench, paneled walls, lit windows and
     # hanging display lamps. Deliberately sparse near the play area for 60fps.
     for i in range(SEGMENTS):
         var z = 8.0 - i * SEGMENT_LENGTH
-        _box(board,Vector3(0,height_at(z)-3.7,z),
-            Vector3(35.0,0.75,SEGMENT_LENGTH+0.12),_wood_mat(Color("#604535")),false,true)
+        _secondary_showroom_box(Vector3(0,height_at(z)-3.7,z),
+            Vector3(35.0,0.75,SEGMENT_LENGTH+0.12),_wood_mat(Color("#604535")),true)
         for side in [-1.0,1.0]:
             var base_x = side * 17.0
             _box(board,Vector3(base_x,height_at(z)+4.5,z),
                 Vector3(1.3,19.0,SEGMENT_LENGTH+0.05),_mat(Color("#37353a")),false)
             if i%2==0:
-                _box(board,Vector3(base_x-side*0.73,height_at(z)+0.5,z),
-                    Vector3(0.2,0.28,SEGMENT_LENGTH-0.6),
-                    _mat(Color("#957052"),0.64),false)
+                _secondary_showroom_box(Vector3(base_x-side*0.73,height_at(z)+0.5,z),
+                    Vector3(0.2,0.28,SEGMENT_LENGTH-0.6),_mat(Color("#957052"),0.64))
     # Exposed beams, side shelves and colored toy cartons.
     for i in range(8):
         var z = 7.5-i*25.0
         for side in [-1.0,1.0]:
             var x=side*15.5
-            _box(board,Vector3(x,height_at(z)+3.9,z),Vector3(2.5,0.28,8.5),
-                _wood_mat(Color("#91715a")),false)
+            _secondary_showroom_box(Vector3(x,height_at(z)+3.9,z),Vector3(2.5,0.28,8.5),
+                _wood_mat(Color("#91715a")))
             # One restrained branded trophy block per shelf (rather than
             # two random bright boxes) reduces clutter and draw calls.
             var trophy_color: Color = TRACK_COLORS[selected_track].darkened(0.34)
-            _box(board,Vector3(x-side*0.25,height_at(z)+4.5,z),
-                Vector3(0.80,0.85,1.15),_mat(trophy_color,0.37,0.22),false)
+            _secondary_showroom_box(Vector3(x-side*0.25,height_at(z)+4.5,z),
+                Vector3(0.80,0.85,1.15),_mat(trophy_color,0.37,0.22))
         var lamp=OmniLight3D.new()
         lamp.name="PendantLight_%02d" % i
         lamp.position=Vector3(0,height_at(z)+10.5,z)
@@ -1060,8 +1071,10 @@ func _showroom() -> void:
         glass.material_override=mat
         glass.position=lamp.position
         board.add_child(glass)
+        secondary_showroom_art.append(glass)
     # Deep charcoal overhead beam frames the miniature track without glare.
-    _box(board,Vector3(0,14,-80),Vector3(38,0.8,192),_mat(Color("#343339")),false)
+    var roof := _box(board,Vector3(0,14,-80),Vector3(38,0.8,192),_mat(Color("#343339")),false)
+    roof.name = "ShowroomRoofBeam"
 
 func _spawn_racers() -> void:
     for m in racers:

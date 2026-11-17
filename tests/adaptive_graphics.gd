@@ -46,14 +46,18 @@ func _test() -> void:
         is_equal_approx(key_light.directional_shadow_max_distance,33.0) and
         is_equal_approx(key_light.directional_shadow_split_1,0.30),
         "Forge Balanced keeps two shadow cascades close to the driving view")
+    assert(_check_showroom(game,GeometryInstance3D.SHADOW_CASTING_SETTING_OFF))
+    game.race_variation = 2
     game.start_race("Grip Tape")
     assert(key_light.directional_shadow_mode == DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS)
+    assert(_check_showroom(game,GeometryInstance3D.SHADOW_CASTING_SETTING_OFF))
     game.return_to_menu()
     game.set_graphics_quality(2)
     assert(key_light.shadow_enabled and
         key_light.directional_shadow_mode == DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS and
         is_equal_approx(key_light.directional_shadow_max_distance,72.0),
         "Ultra restores its longer shadow range on Forge")
+    assert(_check_showroom(game,GeometryInstance3D.SHADOW_CASTING_SETTING_ON))
     game.set_graphics_quality(0)
     assert(not key_light.shadow_enabled)
     game.set_graphics_quality(3)
@@ -64,8 +68,20 @@ func _test() -> void:
         is_equal_approx(key_light.directional_shadow_max_distance,47.0) and
         is_equal_approx(key_light.directional_shadow_split_1,0.10),
         "Changing tracks restores the other courses' Balanced shadow setup")
+    assert(_check_showroom(game,GeometryInstance3D.SHADOW_CASTING_SETTING_ON))
     print("ADAPTIVE_GRAPHICS_PASS: saved setting, stable hysteresis, 30fps recovery and profile/track shadows")
     game.queue_free()
     for i in range(4):
         await process_frame
     quit(0)
+
+
+func _check_showroom(game: Node3D, mode: GeometryInstance3D.ShadowCastingSetting) -> bool:
+    var roof: MeshInstance3D = game.board.get_node("ShowroomRoofBeam").get_child(0)
+    assert(roof.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_ON,
+        "The room's large shadow still defines the track lighting")
+    assert(game.secondary_showroom_art.size() == 64+game.SEGMENTS+2*ceili(game.SEGMENTS/2.0))
+    for art in game.secondary_showroom_art:
+        assert(game.board.is_ancestor_of(art) and art.visible and art.cast_shadow == mode,
+            "Only live decorative meshes change their casting mode")
+    return true

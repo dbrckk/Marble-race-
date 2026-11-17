@@ -210,6 +210,14 @@ Base de comparaison GitHub `b4cb5f61ebabb3dc93c03d9e657ead284fa2dcb5`.
 - Sur Godot 4.5.1 avec Mesa en OpenGL ES, quatre vues fixes et 40 billes sont comparées pour chacun des trois tracés de Forge. Les médianes des appels de rendu passent de 828 à 675 sur la grille, de 1 004 à 825 dans l’ouverture, de 957 à 779 à l’approche du retour du pont et de 915 à 717 après le retour. Les ombres proches restent visibles.
 - La régression de profil couvre la relance, Auto, Economy, Ultra et le changement de circuit. Les temps d’image sur Redmi restent à mesurer.
 
+### 2026-11-17 — Ombres des décors hors piste de Forge (1.86.0-rc)
+
+Base de comparaison GitHub `b41dccc954fc2d051db7a559126e75853edca19f`.
+
+- Balanced retire des passes d’ombre les supports sous la piste, l’établi, les garnitures, les étagères, les trophées et les globes des lampes. Les éléments restent visibles. Les ombres des murs et de la poutre continuent de modeler la piste. Ultra retrouve les ombres secondaires.
+- Sur 12 vues fixes avec 40 billes et trois tracés, les médianes d’appels de rendu passent de 779 à 726 à l’approche du retour de pont, puis de 717 à 660 après la jonction. Le retrait des ombres des murs et de la poutre modifie fortement l’image et a été écarté.
+- La régression couvre la reconstruction du tracé, le changement de profil et le passage à Glacier. Les temps d’image sur Redmi restent à mesurer.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Isoler le coût des ombres des décors hors piste sur les vues de retour du pont. Garder la priorité sur la lisibilité du relief et des obstacles proches.
+Profiler le rendu des billes dans le peloton à la jonction du pont. Chercher une réduction sur les billes éloignées en conservant la lisibilité des concurrents proches.
