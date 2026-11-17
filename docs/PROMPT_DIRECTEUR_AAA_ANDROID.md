@@ -414,6 +414,10 @@ Base `a53d68b8a718f956e85c1343faed6c1ad576fa58`. Depuis le bilan solo, **View Ma
 
 Base `1fa5a3a5bde78c1f04e5a7a2426723a094b4e372`. Après **Retry Same Layout**, le radar indique l’entrée du secteur identifié dans le bilan ou sur la carte. La distance apparaît à l’approche selon la vitesse de la bille. Le secteur 1 s’annonce pendant le compte à rebours. Les dangers et les notifications de course passent avant ce repère textuel. Le repère utilise le même point d’entrée que la carte et s’efface au franchissement.
 
+### 2026-11-17 — Écart sur le secteur ciblé après relance (1.113.0-rc)
+
+Base `1c54522c9ef74e43cef7cc8607537316848b3183`. Une relance guidée terminée affiche le temps précédent, le temps actuel et le gain ou la perte au centième sur le secteur ciblé. Un redémarrage depuis la pause reprend le même temps de référence. Une nouvelle relance depuis le bilan utilise la course tout juste terminée. Le bilan affiche aussi les écarts au fantôme dans les cases des secteurs.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Comparer dans le bilan le temps du secteur ciblé avec celui de la tentative précédente.
+Permettre de choisir sur la carte le secteur à travailler avant de relancer le tracé.

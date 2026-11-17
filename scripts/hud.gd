@@ -67,6 +67,7 @@ var sector_result_row: HBoxContainer
 var sector_result_times: Array[Label] = []
 var sector_result_gaps: Array[Label] = []
 var sector_result_hint: Button
+var sector_retry_comparison: Label
 var slowest_sector := -1
 var sector_map_panel: PanelContainer
 var sector_map_title: Label
@@ -1360,8 +1361,8 @@ func _build_results() -> void:
     var panel = _panel()
     panel.anchor_left = 0.23
     panel.anchor_right = 0.77
-    panel.anchor_top = 0.06
-    panel.anchor_bottom = 0.94
+    panel.anchor_top = 0.04
+    panel.anchor_bottom = 0.96
     results_layer.add_child(panel)
     results_card = panel
     var col = _column(11)
@@ -1463,6 +1464,10 @@ func _build_sector_results(parent: VBoxContainer) -> void:
         gap.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
         line.add_child(gap)
         sector_result_gaps.append(gap)
+    sector_retry_comparison = _text("",18)
+    sector_retry_comparison.name = "SectorRetryComparison"
+    sector_retry_comparison.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    sector_results.add_child(sector_retry_comparison)
     sector_result_hint = _action("",Color("#3e3027"),TIME_LOSS)
     sector_result_hint.name = "ViewSlowestSectorMap"
     sector_result_hint.custom_minimum_size.y = 48.0
@@ -2318,6 +2323,7 @@ func show_checkpoint(number: int, sector_time: float = 0.0, best_before: float =
 func _show_sector_results(status: Dictionary, finished_solo: bool) -> void:
     slowest_sector = -1
     sector_result_hint.hide()
+    sector_retry_comparison.hide()
     var times: Array = status.get("sector_times",[])
     var records: Array = status.get("sector_records",[])
     var crossings: Array = status.get("ghost_deltas",[])
@@ -2333,6 +2339,18 @@ func _show_sector_results(status: Dictionary, finished_solo: bool) -> void:
         sector_result_header.text = "SECTOR TIMES  •  " + finish_comparison if has_times else finish_comparison
     if not has_times:
         return
+    var practice: Dictionary = status.get("practice_comparison",{})
+    if not practice.is_empty():
+        var targeted := int(practice["sector"])
+        var previous := roundi(float(practice["previous"])*100.0)
+        var current := roundi(float(times[targeted])*100.0)
+        var difference := (current-previous)/100.0
+        var change := "SAME TIME" if current == previous else (
+            "%.2fs %s" % [absf(difference),"FASTER" if difference < 0.0 else "SLOWER"])
+        sector_retry_comparison.text = "SECTOR %d VS LAST TRY   %.2fs → %.2fs   •   %s" % [
+            targeted+1,previous/100.0,current/100.0,change]
+        sector_retry_comparison.add_theme_color_override("font_color",_gap_color(difference))
+        sector_retry_comparison.show()
     var has_ghost_sectors := crossings.size() == 4
     for crossing in crossings:
         has_ghost_sectors = has_ghost_sectors and is_finite(float(crossing))

@@ -148,6 +148,7 @@ func _verify() -> void:
     assert(game.built_variation == 1 and game.selected_perk == "Grip Tape")
     assert(is_equal_approx(game.best_ghost.crossing_delta(0,20.016),0.0))
     assert(game.practice_sector == 3 and hud.practice_entry_pending)
+    assert(is_equal_approx(game.practice_previous_time,float(splits[3])))
     var entry: float = game.CHECKPOINT_Z[2]
     assert(is_equal_approx(hud.race_radar.practice_progress,-entry/absf(game.FINISH_Z)))
     game.race_state = "RACING"
@@ -181,6 +182,14 @@ func _verify() -> void:
     hud.update_hud()
     assert(not hud.practice_sector_label.visible, "Crossing back must not rearm the cue")
 
+    game.checkpoint_splits.assign([20.0,44.0,78.0])
+    game.player.finished = true
+    game.player.finish_time = 96.0
+    game._end_race()
+    assert(hud.sector_retry_comparison.is_visible_in_tree())
+    assert(hud.sector_retry_comparison.text == "SECTOR 4 VS LAST TRY   18.98s → 18.00s   •   0.98s FASTER")
+    assert(hud.sector_result_header.text.contains("FINISH -2.00s VS GHOST"))
+
     result["ghost_deltas"] = [2.5,1.0,1.0,1.0]
     game.last_result = result
     game.race_state = "RESULTS"
@@ -193,11 +202,45 @@ func _verify() -> void:
     hud.pause_race()
     hud._restart_from_pause()
     assert(game.practice_sector == 0 and hud.practice_entry_pending)
+    assert(is_equal_approx(game.practice_previous_time,float(splits[0])))
+
+    game.checkpoint_splits.assign([21.0,45.0,79.0])
+    game.player.finished = true
+    game.player.finish_time = 98.9
+    game._end_race()
+    assert(hud.sector_retry_comparison.text == "SECTOR 1 VS LAST TRY   20.02s → 21.00s   •   0.98s SLOWER")
+    assert(hud.slowest_sector == 0)
+    game.show_fps = true
+    game.performance_budget.record_frame(1000000,0)
+    game.performance_budget.record_frame(1016000,0)
+    hud.show_results(game.player_rank(),98.9,game.get_rankings())
+    for frame in range(4):
+        await process_frame
+    assert(hud.performance_actions.is_visible_in_tree() and hud.sector_result_hint.is_visible_in_tree())
+    assert(hud.sector_retry_comparison.is_visible_in_tree() and hud.results_scroll.size.y > 70.0)
+    game.show_fps = false
+    hud.replay_button_ref.pressed.emit()
+    assert(is_equal_approx(game.practice_previous_time,21.0),"A second retry must use the latest completed run")
+    game.checkpoint_splits.assign([21.004,45.0,79.0])
+    game.player.finished = true
+    game.player.finish_time = 98.9
+    game._end_race()
+    assert(hud.sector_retry_comparison.text.ends_with("SAME TIME"))
+    game.net.role = "client"
+    hud.show_results(game.player_rank(),98.9,game.get_rankings())
+    assert(not hud.sector_retry_comparison.visible)
+    game.net.role = "offline"
+    hud.show_results(game.player_rank(),98.9,game.get_rankings())
+    hud.replay_button_ref.pressed.emit()
+    assert(is_finite(game.practice_previous_time))
+    game.player.eliminated = true
+    game._end_race()
+    assert(not game.last_result.has("practice_comparison") and not hud.sector_retry_comparison.visible)
 
     var first_best: float = game.career.best_sector(0,0)
     game.return_to_menu()
     game.start_race("Grip Tape")
-    assert(game.practice_sector == -1 and is_nan(hud.race_radar.practice_progress))
+    assert(game.practice_sector == -1 and is_nan(game.practice_previous_time) and is_nan(hud.race_radar.practice_progress))
     game.countdown = 0.01
     await process_frame
     for marble in game.racers:
@@ -213,7 +256,7 @@ func _verify() -> void:
     DirAccess.remove_absolute(ProjectSettings.globalize_path(game.best_ghost.save_path))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(c.save_path))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(game.career.save_path))
-    print("SECTOR_TIMING_PASS: split timing, physical sector map, retry guidance, legacy saves and DNF protection")
+    print("SECTOR_TIMING_PASS: sector timing, retry map and guidance, previous-attempt comparison, legacy saves and DNF protection")
     game.queue_free()
     for k in range(4):
         await process_frame
