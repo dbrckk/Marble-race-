@@ -10,6 +10,7 @@ const EXIT_Z := -104.0
 const PORTAL_HALF_LENGTH := 2.0
 const FORK_GUIDANCE_REACH := 32.0
 const MERGE_GUIDANCE_REACH := 23.0
+const FORK_ARROW_LEAD := 14.5
 const GLACIER_RETURN_COLOR := Color("#ffda8c")
 const FORGE_EDGE_COLOR := Color("#ffc86e")
 const FORGE_MAIN_COLOR := Color("#b6f6ed")
@@ -350,7 +351,7 @@ func _fork_signage(signs: Array[Transform3D], paint: Array[Transform3D], colors:
         paint.append(_road_arrow(z,-float(side)*1.55,0.0))
         colors.append(FORK_MAIN_COLOR)
     for i in range(4):
-        var z := ENTRY_PORTAL_Z+14.5-float(i)*3.1
+        var z := ENTRY_PORTAL_Z+FORK_ARROW_LEAD-float(i)*3.1
         paint.append(_road_arrow(z,float(side)*(1.7+float(i)*0.92),-float(side)*0.34))
         colors.append(FORK_BRIDGE_COLOR)
     for z in [-51.0,-56.7]:

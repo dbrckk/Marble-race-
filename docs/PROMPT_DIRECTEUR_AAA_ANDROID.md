@@ -422,6 +422,10 @@ Base `1c54522c9ef74e43cef7cc8607537316848b3183`. Une relance guidée terminée a
 
 Base `26ad686604047b15ea362d6806aadb834ca4a676`. Le bilan ouvre la carte d’une course solo avec quatre secteurs chronométrés. Chaque portion de la piste est tactile et les quatre boutons permettent aussi de choisir un secteur. La carte affiche sa durée, ses repères d’entrée et de sortie et son écart au fantôme lorsqu’il est disponible. La relance depuis la carte reprend le choix du joueur et son chrono de référence.
 
+### 2026-11-17 — Obstacles et approches du secteur choisi (1.115.0-rc)
+
+Base `18c8aa844325b026474448746128f1677f91708f`. Les obstacles du secteur choisi sont numérotés dans l’ordre de la course. Les chevrons reprennent les peintures d’approche des mécanismes et des ponts, les flèches avant la glace ou le bord d’entrée de la zone physique. La liste se met à jour à chaque sélection pour le tracé qui vient d’être couru.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Afficher sur la carte les principaux obstacles du secteur choisi et leurs repères d’approche.
+Réutiliser les repères du secteur en course pour préparer chaque obstacle lors d’une relance guidée.

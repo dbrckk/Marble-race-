@@ -242,7 +242,7 @@ func _mark_gate_approach(index: int, mesh: Mesh, paint: Material) -> void:
     var z: float = event_z(index)
     var side: float = side_at(index)
     for row in range(3):
-        var at_z := z+2.0+float(row)*0.95
+        var at_z := approach_row_z(z,row,biome)
         var x: float = game.track_center_at(at_z)+side*3.22
         var y: float = game.height_at(at_z)+0.07
         var pitch: float = -atan(game.track_grade_at(at_z))
@@ -289,7 +289,7 @@ func _mark_forge_approach(index: int, x: float, side: float,
     batch.mesh = unit_mesh
     batch.instance_count = 12
     for row in range(3):
-        var at_z := event_z(index)+1.52+1.51*row
+        var at_z := approach_row_z(event_z(index),row,biome)
         var deck := _forge_deck_frame(at_z,x)
         batch.set_instance_transform(row*4,deck*Transform3D(
             Basis.from_scale(Vector3(2.58,0.018,0.61)),Vector3(0,0.052,0)))
@@ -340,6 +340,9 @@ func flash_local_near_miss(z: float, strength: float = 1.0) -> bool:
 static func event_z_for(track: int, layout: int, index: int) -> float:
     return EVENT_Z[index]+LAYOUT_OFFSETS[posmod(layout,3)][index]+(
         BIOME_OFFSETS[clampi(track,0,2)][index])
+
+static func approach_row_z(z: float, row: int, track: int) -> float:
+    return z+(1.52+1.51*row if track == 2 else 2.0+0.95*row)
 
 func event_z(index: int) -> float:
     return event_z_for(biome,variation,index)

@@ -105,6 +105,7 @@ func _verify() -> void:
     assert(hud.sector_map_title.text.contains("LAYOUT 2") and hud.sector_map.variation == 1)
     assert(hud.sector_map.sector_bounds() == Vector2(game.CHECKPOINT_Z[0],game.CHECKPOINT_Z[1]))
     assert(hud.sector_map_boundaries.text.contains("EXIT  SECTOR 2 SIGN"))
+    assert(hud.sector_map_landmarks.text.contains("BRIDGE FORK") and hud.sector_map_landmarks.text.contains("BRIDGE MERGE"))
     assert(hud.sector_map.drawn_sections == 65 and hud.sector_map.mouse_filter == Control.MOUSE_FILTER_STOP)
     assert(hud.sector_map.get_global_rect().end.y < hud.sector_map_back.get_global_rect().position.y)
     assert(hud.sector_map_buttons[1].button_pressed)
@@ -118,6 +119,7 @@ func _verify() -> void:
     assert(hud.sector_map.focused_sector == 2 and hud.sector_map_buttons[2].button_pressed,
         "A touch between two checkpoints must select the physical sector")
     assert(not hud.sector_map_buttons[1].button_pressed and hud.sector_map_title.text.contains("SECTOR 3"))
+    assert(hud.sector_map_landmarks.text.contains("FINAL OBSTACLES") and not hud.sector_map_landmarks.text.contains("BRIDGE FORK"))
     var back := InputEventAction.new()
     back.action = "ui_cancel"
     back.pressed = true

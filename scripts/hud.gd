@@ -72,6 +72,7 @@ var slowest_sector := -1
 var sector_map_panel: PanelContainer
 var sector_map_title: Label
 var sector_map_boundaries: Label
+var sector_map_landmarks: Label
 var sector_map_back: Button
 var sector_map: COURSE_BRIEFING
 var sector_map_buttons: Array[Button] = []
@@ -1495,7 +1496,10 @@ func _build_sector_map() -> void:
     sector_map.size_flags_vertical = Control.SIZE_EXPAND_FILL
     sector_map.sector_selected.connect(_select_map_sector)
     column.add_child(sector_map)
-    column.add_child(_text("TAP A SECTOR TO FOCUS   •   RED DOTS: MOVING GATES   •   DIAMONDS: ITEMS   •   BRANCH: BRIDGE",18,DIM))
+    column.add_child(_text("TAP A SECTOR   •   NUMBERS = COURSE FEATURES   •   CHEVRONS = APPROACH",18,DIM))
+    sector_map_landmarks = _text("",18)
+    sector_map_landmarks.name = "SectorMapLandmarks"
+    column.add_child(sector_map_landmarks)
     var choices := HBoxContainer.new()
     choices.name = "SectorChoices"
     choices.add_theme_constant_override("separation",8)
@@ -1550,6 +1554,11 @@ func _select_map_sector(sector: int) -> void:
         sector_map_title.text += "  •  %s VS GHOST" % sector_result_gaps[sector].text
     sector_map_boundaries.text = "ENTRY  %s    →    EXIT  %s" % [entry,exit]
     sector_map.focus_sector(sector)
+    var landmark_names := PackedStringArray()
+    for landmark in sector_map.sector_landmarks:
+        landmark_names.append("%d  %s" % [landmark_names.size()+1,landmark["title"]])
+    sector_map_landmarks.text = "   •   ".join(landmark_names)
+    sector_map_landmarks.visible = not landmark_names.is_empty()
     sector_map_buttons[sector].button_pressed = true
     sector_map_buttons[sector].grab_focus()
 

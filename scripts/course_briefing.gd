@@ -10,6 +10,7 @@ const DIRECTOR = preload("res://scripts/race_director.gd")
 const KICKERS = preload("res://scripts/arcade_bumpers.gd")
 const RARE_ITEMS = preload("res://scripts/race_items.gd")
 const ZONES = preload("res://scripts/course_mechanics.gd")
+const OPENING = preload("res://scripts/opening_obstacles.gd")
 const START_Z := 12.0
 const TRACK_COLORS := [
     Color("#dfb77c"), Color("#9be4f1"), Color("#f4a079")]
@@ -26,6 +27,7 @@ var drawn_sections := 0
 var focused_sector := -1
 var allow_sector_selection := false
 var finish_z: float
+var sector_landmarks: Array[Dictionary] = []
 
 func _ready() -> void:
     name = "PhysicalCourseBriefingMap"
@@ -39,10 +41,12 @@ func configure(owner: Node3D, track: int, next_variation: int) -> void:
     variation = posmod(next_variation,3)
     finish_z = stage.FINISH_Z
     focused_sector = -1
+    sector_landmarks.clear()
     queue_redraw()
 
 func focus_sector(index: int) -> void:
     focused_sector = index
+    _collect_sector_landmarks()
     queue_redraw()
 
 func _gui_input(event: InputEvent) -> void:
@@ -65,6 +69,45 @@ func sector_bounds() -> Vector2:
     var exit: float = finish_z if focused_sector == stage.CHECKPOINT_Z.size() else (
         stage.sector_entry_z(focused_sector+1))
     return Vector2(stage.sector_entry_z(focused_sector),exit)
+
+func _collect_sector_landmarks() -> void:
+    sector_landmarks.clear()
+    var bounds := sector_bounds()
+    var opening: float = stage.first_obstacle_entry_z
+    if is_finite(opening):
+        var opening_edge := opening-OPENING.ENTRY_LEAD
+        _add_landmark(bounds,"OPENING OBSTACLES",opening_edge,TRACK_PATH.center_at(opening_edge,course),opening)
+    if is_instance_valid(stage.final_obstacle_art):
+        var approach: float = stage.final_obstacle_art.entry_z
+        var edge := approach-OPENING.ENTRY_LEAD
+        _add_landmark(bounds,"FINAL OBSTACLES",edge,TRACK_PATH.center_at(edge,course),approach)
+    for index in DIRECTOR.EVENT_Z.size():
+        var z := hazard_z_at(index)
+        _add_landmark(bounds,DIRECTOR.EVENT_NAMES[course],z,_gate_map_x(index),DIRECTOR.approach_row_z(z,2,course))
+    var zone_lead := [ZONES.ZONE_LENGTH*0.5,ZONES.GRIP_MARK_OFFSETS[0],sqrt(ZONES.VENT_RADIUS_SQUARED)]
+    for index in ZONES.ZONE_Z.size():
+        var zone := ZONES.placement_at(index,course,variation)
+        _add_landmark(bounds,["SPEED STRIP","ICE PATCH","HEAT VENT"][course],zone.z,zone.x,zone.z+float(zone_lead[course]))
+    for station in KICKERS.STATION_Z.size():
+        var left := KICKERS.placement_at(station,-1,course,variation,true)
+        var right := KICKERS.placement_at(station,1,course,variation,true)
+        _add_landmark(bounds,"SPRING POSTS",maxf(left.z,right.z),(left.x+right.x)*0.5,
+            maxf(left.z,right.z)+KICKERS.RADIUS)
+    var bridge: Node3D = stage.shortcut_route
+    if is_instance_valid(bridge):
+        _add_landmark(bounds,"BRIDGE FORK",SHORTCUT.ENTRY_PORTAL_Z,bridge.point_at(SHORTCUT.ENTRY_PORTAL_Z).x,
+            SHORTCUT.ENTRY_PORTAL_Z+SHORTCUT.FORK_ARROW_LEAD)
+        _add_landmark(bounds,"BRIDGE MERGE",SHORTCUT.EXIT_Z,bridge.point_at(SHORTCUT.EXIT_Z).x,
+            SHORTCUT.RETURN_ARROW_Z[0])
+    sector_landmarks.sort_custom(func(a: Dictionary,b: Dictionary) -> bool: return a["z"] > b["z"])
+
+func _add_landmark(bounds: Vector2, title: String, z: float, x: float, approach_z: float) -> void:
+    if z <= bounds.x and z > bounds.y:
+        sector_landmarks.append({"title":title,"z":z,"x":x,"approach_z":minf(stage.race_start_z,approach_z)})
+
+func _gate_map_x(index: int) -> float:
+    var z := hazard_z_at(index)
+    return TRACK_PATH.center_at(z,course)+float(hazard_side_at(index))*(3.26 if course == 2 else 3.22)
 
 static func hazard_side(track: int, next_variation: int, index: int) -> int:
     if index < 0 or index >= DIRECTOR.EVENT_Z.size():
@@ -179,9 +222,7 @@ func _draw() -> void:
         draw_circle(dot,3.4,Color("#e5f4eb"))
     for index in range(DIRECTOR.EVENT_Z.size()):
         var hazard_z: float = hazard_z_at(index)
-        var world_x: float = TRACK_PATH.center_at(hazard_z,course)+(
-            float(hazard_side_at(index))*3.22)
-        var marker: Vector2 = project(hazard_z,world_x)
+        var marker: Vector2 = project(hazard_z,_gate_map_x(index))
         draw_circle(marker,6.0,Color(0.15,0.03,0.03,0.9))
         draw_circle(marker,4.0,Color("#ff6d62"))
         draw_circle(marker,1.5,Color("#fff0db"))
@@ -217,6 +258,7 @@ func _draw() -> void:
     if focused_sector >= 0:
         _draw_sector_marker(sector_span.x,"ENTRY")
         _draw_sector_marker(sector_span.y,"EXIT")
+        _draw_sector_landmarks(chart_top)
     # A separate real terrain profile makes the biome's physical hills
     # visible before choosing a perk. This never changes race mechanics.
     draw_rect(Rect2(1.0,chart_top,w-2.0,h-chart_top-1.0),
@@ -243,3 +285,25 @@ func _draw_sector_marker(x: float, caption: String) -> void:
     var label_x := clampf(x-width*0.5,8.0,size.x-width-8.0)
     draw_string(font,Vector2(label_x,20.0),caption,HORIZONTAL_ALIGNMENT_LEFT,-1,16,SECTOR_ACCENT)
     draw_dashed_line(Vector2(x,25.0),Vector2(x,size.y*RELIEF_TOP_RATIO-2.0),SECTOR_ACCENT,2.0,6.0)
+
+func _draw_sector_landmarks(chart_top: float) -> void:
+    var badge_y := chart_top-25.0
+    var approach_y := chart_top-7.0
+    var next_badge_x := 12.0
+    var spacing := minf(23.0,(size.x-24.0)/maxi(1,sector_landmarks.size()))
+    var font := get_theme_default_font()
+    for index in sector_landmarks.size():
+        var landmark := sector_landmarks[index]
+        var point := project(landmark["z"],landmark["x"])
+        var remaining := sector_landmarks.size()-index-1
+        var badge := Vector2(clampf(point.x,next_badge_x,size.x-12.0-spacing*remaining),badge_y)
+        next_badge_x = badge.x+spacing
+        draw_circle(point,9.0,SECTOR_ACCENT,false,2.0,true)
+        draw_line(point+Vector2(0.0,9.0),badge,Color(SECTOR_ACCENT,0.75),1.2,true)
+        draw_circle(badge,10.0,BACKGROUND)
+        draw_circle(badge,10.0,SECTOR_ACCENT,false,1.4,true)
+        draw_string(font,badge+Vector2(-10.0,4.5),str(index+1),HORIZONTAL_ALIGNMENT_CENTER,20.0,13,SECTOR_ACCENT)
+        var lead := Vector2(project(landmark["approach_z"],0.0).x,approach_y)
+        draw_line(lead,Vector2(point.x,approach_y),Color(SECTOR_ACCENT,0.36),1.0)
+        draw_polyline(PackedVector2Array([lead+Vector2(-3.0,-4.0),lead+Vector2(2.0,0.0),
+            lead+Vector2(-3.0,4.0)]),SECTOR_ACCENT,1.7,true)

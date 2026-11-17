@@ -4,7 +4,7 @@ Original **3D Android marble-racing game** inspired by the look and mechanics sh
 
 Independent implementation in **Godot 4.5.1**, focused on real mobile playability, physics, and stylized toy-table graphics. No proprietary material from the reference game is redistributed.
 
-## Current state: Android QA build (v1.114.0-rc, versionCode 128)
+## Current state: Android QA build (v1.115.0-rc, versionCode 129)
 
 **Playable scope (October 2026):** three visually differentiated 3D worlds with physical elevation changes, nine repeatable obstacle layouts, forty individually simulated glass marbles, real banked and elevated side-route shortcuts, six player perks, progression, ghost comparisons and optional online races. Autonomous opponents use deterministic physical steering, real route choices, anticipatory passing and forecasts of moving hazards; human steering stays entirely manual. The phone HUD previews real course geometry and estimates when Forge pistons will be open or blocked on arrival, with a nonrepeating audio danger cue. The three pistons share an illuminated shoulder beacon and matched deck markings for their current phase.
 
@@ -27,6 +27,8 @@ The race checks where the marble crosses the finish plane between physics ticks.
 Solo checkpoints show the cumulative lead or gap against a ghost recorded with the same layout and perk. The results pin all four sector times, the time gained or lost in each sector, and the sector with the greatest loss. The finish comparison uses the ghost you started with, including when the race sets a new record. Older ghosts supply a finish comparison and acquire sector times when a new record with valid checkpoints is saved.
 
 Open **View Map** after completing all four timed sectors. Tap a section of the map or use the four sector buttons to see its time, entry and exit alongside the physical course features. The greatest loss to the ghost is selected when available. **Retry Same Layout** from the map targets your selection with the same obstacles and perk.
+
+The selected sector numbers its obstacle groups, moving gates, surface zones, spring posts and bridge transitions in race order. Approach chevrons mark the painted route cues or the leading edge of the corresponding physical feature.
 
 On that retry, the radar marks the sector entry. An approach cue displays the remaining distance and appears sooner at higher speed. Sector 1 is announced during the countdown. Hazard warnings and race feedback take priority in the HUD.
 
