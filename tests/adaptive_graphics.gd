@@ -64,10 +64,10 @@ func _test() -> void:
     assert(key_light.shadow_enabled and
         key_light.directional_shadow_mode == DirectionalLight3D.SHADOW_ORTHOGONAL)
     assert(game.set_track(1))
-    assert(key_light.directional_shadow_mode == DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS and
-        is_equal_approx(key_light.directional_shadow_max_distance,47.0) and
-        is_equal_approx(key_light.directional_shadow_split_1,0.10),
-        "Changing tracks restores the other courses' Balanced shadow setup")
+    assert(key_light.shadow_enabled and
+        key_light.directional_shadow_mode == DirectionalLight3D.SHADOW_ORTHOGONAL and
+        is_equal_approx(key_light.directional_shadow_max_distance,47.0),
+        "Glacier Balanced uses a single map at the ice and bridge shadow range")
     assert(_check_showroom(game,GeometryInstance3D.SHADOW_CASTING_SETTING_ON))
     assert(_check_marble_detail(game))
     game.set_graphics_quality(3)

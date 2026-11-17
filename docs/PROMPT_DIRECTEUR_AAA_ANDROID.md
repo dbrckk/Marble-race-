@@ -338,6 +338,13 @@ Base de comparaison GitHub `a3993048c32ed10d07079187acdad0f5c8c6d517`.
 - Les neuf approches de pistons couvrent les trois variantes, avec douze poses de caméra par approche et une référence sans ombre. Sur Mesa OpenGL ES logiciel à 640 × 360, la carte unique réduit de 34 à 64 les appels de rendu médians par approche. La variation temporelle des ombres augmente de 1,55 % en médiane appariée, et de 3,74 % sur l’approche la plus affectée. Le banc fige les pistons en position haute et isole la couche d’ombres directionnelles.
 - Le test de qualité adaptative couvre la sélection de Forge, le passage en course et le retour d’Auto à Balanced. [Protocole et captures Android 14](https://github.com/dbrckk/Marble-race-/pull/22).
 
+### 2026-11-17 — Ombres Balanced de Glacier (1.102.0-rc)
+
+Base de comparaison GitHub `204d123f78dd9a8df40d095c41a5ac8712b0cf43`.
+
+- Glacier en Balanced utilise une carte d’ombres à 47 m. Les trois circuits utilisent ainsi une seule carte en Balanced, chacun à la portée mesurée pour son tracé. Les éléments de décor de Glacier conservent leurs ombres.
+- Le banc rejoue douze poses de caméra par passage, aux abords de deux zones de glace et au retour du pont sur chacune des trois variantes. À 640 × 360 sous Mesa OpenGL ES, la carte unique économise de 123 à 184 appels de rendu médians par passage, soit 22,8 % en médiane appariée. La variation temporelle des ombres augmente de 1,05 % en médiane appariée. Le comparatif inclut deux cascades à la même portée et une référence sans ombre. [Protocole et captures Android 14](https://github.com/dbrckk/Marble-race-/pull/23).
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Comparer les ombres de Glacier en Balanced sur les approches de glace et le retour du pont. Relever le P95 du temps d’image sur téléphone physique pour quantifier le gain de Woodworks et Forge.
+Mesurer le P95 du temps d’image en peloton sur les trois circuits, notamment à la grille et lors des jonctions. Utiliser les relevés sur téléphone physique pour confirmer les gains dans ces conditions.

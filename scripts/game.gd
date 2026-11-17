@@ -58,6 +58,7 @@ const FINISH_AIR_CLEARANCE := 8.0
 const CHECKPOINT_Z := [-46.0,-106.0,-166.0]
 const RACE_TIMEOUT := 155.0
 const TRACK_NAMES := ["WOODWORKS","SWITCHBACK","GAUNTLET"]
+const BALANCED_SHADOW_RANGES := [36.0,47.0,33.0]
 const TRACK_SUBTITLES := [
     "Woodland workshop & flowing chicanes",
     "Glacier pass & moving gates",
@@ -324,22 +325,19 @@ func toggle_fps_overlay() -> bool:
     return show_fps
 
 func _apply_graphics_quality() -> void:
-    var woodworks_balanced := graphics_quality == 1 and selected_track == 0
-    var forge_balanced := graphics_quality == 1 and selected_track == 2
-    var compact_balanced := woodworks_balanced or forge_balanced
+    var balanced := graphics_quality == 1
     if is_instance_valid(primary_light):
         primary_light.shadow_enabled = graphics_quality > 0
-        if compact_balanced:
-            # One map covers nearby obstacles in Woodworks and Forge.
+        if balanced:
             primary_light.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
-            primary_light.directional_shadow_max_distance = 36.0 if woodworks_balanced else 33.0
+            primary_light.directional_shadow_max_distance = BALANCED_SHADOW_RANGES[selected_track]
         else:
             primary_light.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
             primary_light.directional_shadow_max_distance = 72.0 if graphics_quality == 2 else 47.0
         primary_light.directional_shadow_split_1 = 0.10
     # The room's walls and overhead beam still shade the course.
     var secondary_shadows := GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if (
-        compact_balanced) else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+        balanced and selected_track != 1) else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
     for art in secondary_showroom_art:
         art.cast_shadow = secondary_shadows
     if is_instance_valid(camera):
