@@ -872,7 +872,7 @@ func _build_race_hud() -> void:
     place_label = _small_panel_text("40th", 22, Rect2(0.016,0.115,0.155,0.082))
     speed_label = _small_panel_text("00  SPEED", 17, Rect2(0.016,0.21,0.155,0.066))
     remaining_label = _small_panel_text("WOODWORKS • 0 / 40", 19, Rect2(0.335,0.02,0.330,0.080), HORIZONTAL_ALIGNMENT_CENTER)
-    leaderboard = _small_panel_text("LEADERBOARD", 16, Rect2(0.79,0.025,0.195,0.28))
+    leaderboard = _small_panel_text("LEADERBOARD", 16, Rect2(0.79,0.025,0.195,0.18))
     network_quality_label = _small_panel_text("NET: CONNECTING",14,Rect2(0.79,0.32,0.195,0.060))
     network_quality_label.get_parent().visible = false
     ghost_label = _small_panel_text("",14,Rect2(0.02,0.31,0.265,0.051))
