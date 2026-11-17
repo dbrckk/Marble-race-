@@ -300,21 +300,24 @@ func _verify_fork_hud_priority(hud: CanvasLayer) -> void:
     hud.duel_label.show()
     hud.timed_gate_label.show()
     hud.timed_gate_backdrop.hide()
-    hud._trim_driving_cues(true,2.8,false)
+    hud._trim_driving_cues(true,2.8,12.0,false)
     assert(hud.shortcut_label.visible and hud.hazard_label.visible and
         not hud.timed_gate_label.visible and not hud.duel_label.visible,
         "At a busy fork, keep route and edge guidance ahead of low-priority text")
+    hud.duel_label.show()
+    hud._trim_driving_cues(true,2.8,0.0,false)
+    assert(hud.duel_label.visible,"The rival stays identifiable when the player is stationary")
     hud.timed_gate_label.show()
     hud.timed_gate_backdrop.show()
-    hud._trim_driving_cues(false,0.5,false)
+    hud._trim_driving_cues(false,0.5,12.0,false)
     assert(hud.timed_gate_label.visible and hud.shortcut_label.visible,
         "Real timed danger and the fork choice must both remain visible")
     hud.hazard_label.hide()
     hud.biome_lane_label.hide()
     hud.timed_gate_backdrop.hide()
-    hud._trim_driving_cues(true,0.8,false)
+    hud._trim_driving_cues(true,0.8,12.0,false)
     assert(hud.timed_gate_label.visible,"A clear gate about to be crossed remains useful")
-    hud._trim_driving_cues(true,2.8,false)
+    hud._trim_driving_cues(true,2.8,12.0,false)
     assert(not hud.timed_gate_label.visible and hud.shortcut_label.visible)
 
 func _verify_forge_feedback(game: Node3D) -> void:

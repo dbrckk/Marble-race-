@@ -2128,7 +2128,7 @@ func update_hud() -> void:
     if shortcut_label.visible and timed_gate_backdrop.visible and seconds_until > minf(
             urgent_gate_eta,minf(piston_contact_eta,vent_eta))+0.35:
         hazard_label.hide()
-    _trim_driving_cues(ordinary_gate_clear,gate_eta,glacier_return_panel)
+    _trim_driving_cues(ordinary_gate_clear,gate_eta,forward_speed,glacier_return_panel)
     _update_woodworks_guide(str(route_hint.get("mode","")),
         rare_item_label.visible and int(next_item.get("index",-1)) == 0,
         final_danger_active or is_finite(urgent_gate_eta))
@@ -2145,7 +2145,8 @@ func update_hud() -> void:
         _update_practice_sector(forward_speed)
         _refresh_race_notification()
 
-func _trim_driving_cues(ordinary_gate_clear: bool, gate_eta: float, glacier_return_panel: bool) -> void:
+func _trim_driving_cues(ordinary_gate_clear: bool, gate_eta: float,
+        forward_speed: float, glacier_return_panel: bool) -> void:
     if glacier_return_panel:
         duel_label.hide()
         return
@@ -2156,7 +2157,9 @@ func _trim_driving_cues(ordinary_gate_clear: bool, gate_eta: float, glacier_retu
     if ordinary_gate_clear and not timed_gate_backdrop.visible and (
             hazard_label.visible or biome_lane_label.visible or gate_eta > CLEAR_GATE_NEAR_SECONDS):
         timed_gate_label.hide()
-    if bridge_approach_active or hazard_label.visible or timed_gate_label.visible or biome_lane_label.visible:
+    var busy_approach := forward_speed >= 2.0 and (
+        hazard_label.visible or timed_gate_label.visible or biome_lane_label.visible)
+    if bridge_approach_active or busy_approach:
         duel_label.hide()
 
 func _refresh_driving_cue_background(cue: Label) -> void:
