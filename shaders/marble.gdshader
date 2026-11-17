@@ -31,10 +31,13 @@ void fragment() {
     float swirl = p.y * (10.0 + stripe_scale * 2.0);
     swirl += sin(theta * (3.0 + stripe_scale*1.2) + pattern_seed) * 1.6;
     swirl += sin(p.x * 16.0 + p.z * 12.0 + pattern_seed*4.2) * 0.43;
-    float primary = sin(swirl * 1.85 + pattern_seed * 3.2);
-    float secondary = sin(swirl*3.2 + sin(theta*7.0 + p.y*9.0)*0.55 + pattern_seed*2.3);
-    float layer = smoothstep(-0.18,0.58,primary)*0.79;
-    float milk = pow(smoothstep(0.38,0.92,secondary),2.1);
+    float main_phase = swirl*1.85 + pattern_seed*3.2;
+    float vein_phase = swirl*3.2 + sin(theta*7.0 + p.y*9.0)*0.55 + pattern_seed*2.3;
+    float layer = smoothstep(-0.18,0.58,sin(main_phase))*0.79;
+    float milk = pow(smoothstep(0.38,0.92,sin(vein_phase)),2.1);
+    // Unresolved bands converge to their cycle averages instead of flickering.
+    layer = mix(layer,0.34355,smoothstep(1.1,4.2,fwidth(main_phase)));
+    milk = mix(milk,0.23893,smoothstep(0.85,3.8,fwidth(vein_phase)));
     // Core seems to float just under a polished shell.
     vec3 glass = mix(base_color.rgb,accent_color.rgb,layer);
     glass = mix(glass,vein_color.rgb,milk*0.71);
@@ -49,8 +52,10 @@ void fragment() {
         stardust*skin_radiance*0.52);
     float inner_glow = 0.84+0.13*sin(swirl*0.37 + theta*2.0);
     glass *= inner_glow;
-    float sparkle = step(0.994,hash_13(floor(p*(68.0+visual_quality*14.0)+pattern_seed*7.0)));
-    glass += sparkle*vein_color.rgb*0.22;
+    vec3 grain = p*(68.0+visual_quality*14.0)+pattern_seed*7.0;
+    float sparkle = step(0.994,hash_13(floor(grain)));
+    float grain_coverage = 1.0-smoothstep(0.50,1.45,length(fwidth(grain)));
+    glass += sparkle*grain_coverage*vein_color.rgb*0.22;
     // Fake optical Fresnel: helps spheres read as glass without expensive transparency.
     float facing = clamp(dot(normalize(NORMAL),normalize(VIEW)),0.0,1.0);
     float fresnel = pow(1.0-facing,3.1);

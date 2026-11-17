@@ -251,6 +251,15 @@ Base de comparaison GitHub `bb15ead2a034ba98c7c311abc61a92c87dffd034`.
 - Sous Godot 4.5.1 en OpenGL ES logiciel, neuf vues fixes couvrent les trois tracés à la grille, dans le premier module et au deuxième secteur. La médiane des appels de rendu passe de 808 à 640, de 908 à 718 et de 840 à 647 selon la vue. La désactivation complète des ombres éclaircit fortement la piste. Les lampes, le brouillard et les ombres de contact ont été isolés séparément.
 - La régression vérifie Auto, les profils manuels, une relance et les transitions entre circuits. Les mesures d’appels de rendu ne donnent pas un gain en FPS sur téléphone.
 
+### 2026-11-17 — Verre en mouvement et ombres des billes (1.91.0-rc)
+
+Base de comparaison GitHub `f8af5c7e29428cb6b4b18da5941014c7f013a282`.
+
+- Le shader atténue les bandes et les étincelles lorsque leur fréquence dépasse la résolution locale à l’écran. Les bandes trop fines convergent vers leur couleur moyenne. Les motifs résolus, les reflets de studio et l’animation des motifs premium restent visibles.
+- À 640 × 360 sous Mesa OpenGL ES logiciel, les rotations identiques de 40 billes sur 18 images réduisent de 55 à 56 % la dérivée seconde moyenne de luminance à l’intérieur des billes en Balanced et Economy. Les appels de rendu et la géométrie restent identiques dans le comparatif de verre. Cet indicateur mesure la stabilité visuelle de la séquence.
+- À la grille de Woodworks en Balanced, réactiver les ombres directionnelles individuelles fait passer la vue de 597 à 677 appels de rendu et de 274 230 à 325 078 triangles. Le jeu conserve le lot d’ombres de contact.
+- [Mesures et séquences Android](https://github.com/dbrckk/Marble-race-/pull/11). Le gain de FPS sur téléphone reste à mesurer.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Mesurer le coût des billes visibles de près sur la grille et le premier module, notamment leur maillage dans les ombres et l’aliasing du verre sur Android.
+Profiler les matériaux de la piste et du décor proche à la grille. Vérifier la stabilité des textures sur un passage rapide avant d’ajuster le niveau de détail.
