@@ -243,6 +243,14 @@ Base de comparaison GitHub `bf9cf989d9c2829e02b985cb36a11c26f10a615a`.
 - Sous Mesa OpenGL ES logiciel à 640 × 360, avec la 3D, la médiane des deux séries de temps de pilotage des bots passe de 0,71 à 0,41 ms par pas au départ et de 0,72 à 0,42 ms au premier module. Les 39 requêtes par pas de simulation deviennent zéro dans les deux fenêtres. La variante avec 3D désactivée confirme la baisse du coût du pilotage. Le rendu domine la durée d’une image sur le banc logiciel. Ces mesures ne quantifient pas un gain de FPS sur téléphone.
 - [Banc reproductible et relevés Android](https://github.com/dbrckk/Marble-race-/pull/9).
 
+### 2026-11-17 — Ombres du départ de Woodworks (1.90.0-rc)
+
+Base de comparaison GitHub `bb15ead2a034ba98c7c311abc61a92c87dffd034`.
+
+- En Balanced, Woodworks utilise deux cascades directionnelles jusqu’à 39 m, avec la première séparation à 11,7 m. Les petits supports, étagères et globes restent visibles. Les murs, la poutre, les obstacles et les billes gardent leurs ombres de proximité.
+- Sous Godot 4.5.1 en OpenGL ES logiciel, neuf vues fixes couvrent les trois tracés à la grille, dans le premier module et au deuxième secteur. La médiane des appels de rendu passe de 808 à 640, de 908 à 718 et de 840 à 647 selon la vue. La désactivation complète des ombres éclaircit fortement la piste. Les lampes, le brouillard et les ombres de contact ont été isolés séparément.
+- La régression vérifie Auto, les profils manuels, une relance et les transitions entre circuits. Les mesures d’appels de rendu ne donnent pas un gain en FPS sur téléphone.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Isoler les passes de rendu les plus coûteuses sur la grille Woodworks en Balanced avec la caméra de course. Garder la signalisation et les silhouettes des obstacles dans les comparatifs.
+Mesurer le coût des billes visibles de près sur la grille et le premier module, notamment leur maillage dans les ombres et l’aliasing du verre sur Android.

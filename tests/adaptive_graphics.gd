@@ -71,6 +71,26 @@ func _test() -> void:
         "Changing tracks restores the other courses' Balanced shadow setup")
     assert(_check_showroom(game,GeometryInstance3D.SHADOW_CASTING_SETTING_ON))
     assert(_check_marble_detail(game))
+    game.set_graphics_quality(3)
+    assert(game.set_track(0))
+    assert(key_light.shadow_enabled and
+        key_light.directional_shadow_mode == DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS and
+        is_equal_approx(key_light.directional_shadow_max_distance,39.0) and
+        is_equal_approx(key_light.directional_shadow_split_1,0.30),
+        "Woodworks Auto uses the measured Balanced shadow range")
+    assert(_check_showroom(game,GeometryInstance3D.SHADOW_CASTING_SETTING_OFF))
+    game.race_variation = 2
+    game.start_race("Grip Tape")
+    assert(is_equal_approx(key_light.directional_shadow_max_distance,39.0))
+    assert(_check_showroom(game,GeometryInstance3D.SHADOW_CASTING_SETTING_OFF))
+    game.return_to_menu()
+    game.set_graphics_quality(2)
+    assert(key_light.shadow_enabled and
+        key_light.directional_shadow_mode == DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS and
+        is_equal_approx(key_light.directional_shadow_max_distance,72.0))
+    assert(_check_showroom(game,GeometryInstance3D.SHADOW_CASTING_SETTING_ON))
+    game.set_graphics_quality(0)
+    assert(not key_light.shadow_enabled)
     print("ADAPTIVE_GRAPHICS_PASS: saved setting, stable hysteresis, 30fps recovery, profile/track shadows and marble LOD")
     game.queue_free()
     for i in range(4):
