@@ -8,16 +8,15 @@ adb shell settings put secure immersive_mode_confirmations confirmed
 adb shell getprop ro.build.version.sdk
 adb shell dumpsys SurfaceFlinger | grep -i GLES | head -n 2 || true
 adb install build/marble-race-qa.apk
-adb logcat -c
-adb logcat -v brief >capture/logcat.txt &
-log_pid=$!
-trap 'kill "$log_pid" 2>/dev/null || true' EXIT
 package=com.dbrckk.marble_race
 adb shell wm user-rotation lock 1
 sleep 3
 for launch in 1 2 3; do
     adb shell am force-stop "$package"
-    : > capture/logcat.txt
+    adb logcat -c
+    adb logcat -v brief >capture/logcat.txt &
+    log_pid=$!
+    trap 'kill "$log_pid" 2>/dev/null || true' EXIT
     adb shell am start -W -n "$package/com.godot.game.GodotApp"
     for second in $(seq 1 22); do
         if grep -Fq SHADOW_SWEEP_DEVICE capture/logcat.txt; then
@@ -26,6 +25,8 @@ for launch in 1 2 3; do
         if ! adb shell pidof "$package" >/dev/null; then break; fi
         sleep 2
     done
+    kill "$log_pid" 2>/dev/null || true
+    wait "$log_pid" 2>/dev/null || true
     cp capture/logcat.txt "capture/start-attempt-$launch.txt"
 done
 for attempt in $(seq 1 66); do
