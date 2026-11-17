@@ -1772,8 +1772,10 @@ func update_hud() -> void:
             var merge_distance: float = game.player.global_position.z-SHORTCUT_ROUTE.EXIT_Z
             timed_gate_label.visible = merge_distance <= SHORTCUT_ROUTE.MERGE_GUIDANCE_REACH
             glacier_return_panel = timed_gate_label.visible
-            var merge: String = game.shortcut_route.route_guidance_text(
-                route_hint,game.player.global_position.z,forward_speed)
+            var merge: String = "MERGE RIGHT NOW" if (
+                merge_distance <= SHORTCUT_ROUTE.PORTAL_HALF_LENGTH) else (
+                game.shortcut_route.route_guidance_text(
+                    route_hint,game.player.global_position.z,forward_speed))
             timed_gate_label.text = "%s  •  THEN AIM CENTER" % merge
             if gate_eta <= 1.3:
                 timed_gate_label.text += "  •  SHUTTER %s" % gate_side
