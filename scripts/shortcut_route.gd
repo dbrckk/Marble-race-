@@ -540,12 +540,11 @@ static func valid_precision_line(horizontal: float, vertical: float,
         forward_speed >= PRECISION_GATE_MIN_SPEED and
         step > 0.0 and step <= PRECISION_GATE_MAX_STEP)
 
-func _precision_tick(marble: RigidBody3D, delta: float,
-        net: Node) -> void:
+func _precision_tick(marble: RigidBody3D, at: Vector3,
+        delta: float, net: Node) -> void:
     # One O(1) state update for a *real entrant* only, no extra raycasts
     # or 40-marble per-frame gate search. The authority alone can pay out.
     var id: int = marble.racer_id
-    var at: Vector3 = marble.global_position
     var previous_z: float = float(precision_last_z.get(id,at.z))
     precision_last_z[id] = at.z
     if not entered.has(id) or precision_failed.has(id) or (
@@ -580,49 +579,50 @@ func _precision_tick(marble: RigidBody3D, delta: float,
     else:
         _feedback(marble,net,"bridge_gate_%d" % score)
 
-func tick(_delta: float, racers: Array[RigidBody3D], net: Node) -> void:
+func tick(delta: float, racers: Array[RigidBody3D], net: Node) -> void:
     # Never apply gameplay effects from a rendering-only client replica.
     effect_candidates_last_tick = 0
     if net.role == "client":
         return
+    var jump_z: float = JUMP_Z[course_id]
     for marble in racers:
         if not is_instance_valid(marble) or marble.finished or marble.eliminated or marble.freeze:
             continue
-        var z: float = marble.global_position.z
-        # Broad phase is conservative: every physics interaction remains in
-        # the covered interval on each of the three tracks. Outside it, no
-        # marble can earn an entry, ramp impulse or shortcut reward.
+        var at: Vector3 = marble.global_position
+        var z := at.z
+        # Outside this interval, no marble can earn a bridge interaction.
         if not inside_effect_window(z):
             continue
         effect_candidates_last_tick += 1
-        var point := point_at(z)
-        var horizontal_error: float = absf(marble.global_position.x-point.x)
-        var vertical_error: float = absf(marble.global_position.y-point.y)
-        # Check the *outside* of the physical railing, not merely the
-        # adjacent main-road shoulder. This is also a truthful race metric.
-        var outside_portal: bool = float(side)*(
-            marble.global_position.x-stage.track_center_at(z)) > 6.68
-        if z <= ENTRY_Z+1.5 and z >= ENTRY_Z-ENTRY_WINDOW and outside_portal and (
-            horizontal_error < WIDTH*0.5+1.1 and vertical_error < 2.3):
-            entered[marble.racer_id] = true
-        if not entered.has(marble.racer_id):
+        var id: int = marble.racer_id
+        if not entered.has(id):
+            if z > ENTRY_Z+1.5 or z < ENTRY_Z-ENTRY_WINDOW:
+                continue
+            # Check the outside of the actual railing before sampling the deck.
+            if not (float(side)*(at.x-stage.track_center_at(z)) > 6.68):
+                continue
+            var entry_point := point_at(z)
+            if not (absf(at.x-entry_point.x) < WIDTH*0.5+1.1 and
+                    absf(at.y-entry_point.y) < 2.3):
+                continue
+            entered[id] = true
+        _precision_tick(marble,at,delta,net)
+        var launch_due := not jumped.has(id) and absf(z-jump_z) <= 1.5
+        var reward_due := not triggered.has(id) and absf(z-REWARD_Z) < 2.25
+        if not launch_due and not reward_due:
             continue
-        _precision_tick(marble,_delta,net)
-        var jump_z: float = JUMP_Z[course_id]
-        if not jumped.has(marble.racer_id) and absf(z-jump_z) <= 1.5 and (
-            horizontal_error < 1.38 and vertical_error < 1.65):
-            jumped[marble.racer_id] = true
+        var point := point_at(z)
+        var horizontal_error := absf(at.x-point.x)
+        var vertical_error := absf(at.y-point.y)
+        if launch_due and horizontal_error < 1.38 and vertical_error < 1.65:
+            jumped[id] = true
             marble.apply_central_impulse(Vector3(0.0,2.15,-1.65)*marble.mass)
             _feedback(marble,net,"jump")
-        if triggered.has(marble.racer_id) or absf(z-REWARD_Z) >= 2.25:
-            continue
-        if horizontal_error > REWARD_RADIUS or vertical_error > 1.55:
-            continue
-        triggered[marble.racer_id] = true
-        # The side route is longer, with risk at its launch pad. Reward earned
-        # by actually entering the fork, not by spawning on the midpoint.
-        marble.apply_central_impulse(Vector3(0.0,0.32,-4.25)*marble.mass)
-        _feedback(marble,net,"shortcut")
+        if reward_due and not (horizontal_error > REWARD_RADIUS or vertical_error > 1.55):
+            triggered[id] = true
+            # Reward a verified fork entry and the actual line down the deck.
+            marble.apply_central_impulse(Vector3(0.0,0.32,-4.25)*marble.mass)
+            _feedback(marble,net,"shortcut")
 
 func _feedback(marble: RigidBody3D, net: Node, kind: String) -> void:
     if net.role == "server":

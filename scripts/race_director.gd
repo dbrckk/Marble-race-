@@ -356,7 +356,9 @@ func phase_at(index: int, elapsed: float) -> float:
 func piston_extension(index: int, elapsed: float) -> float:
     if biome != 2:
         return 1.0
-    var phase: float = phase_at(index,elapsed)
+    return _piston_extension_at_phase(phase_at(index,elapsed))
+
+static func _piston_extension_at_phase(phase: float) -> float:
     if phase < 0.10:
         return smoothstep(0.0,0.10,phase)
     if phase < 0.34:
@@ -369,15 +371,19 @@ func piston_up(index: int, elapsed: float) -> bool:
     return piston_extension(index,elapsed) > PISTON_BLOCKING_EXTENSION
 
 func position_at(index: int, elapsed: float) -> Vector3:
+    var phase := phase_at(index,elapsed)
+    var extension := _piston_extension_at_phase(phase) if biome == 2 else 1.0
+    return _gate_position(index,phase,extension)
+
+func _gate_position(index: int, phase: float, extension: float) -> Vector3:
     var z: float = event_z(index)
     var center: float = game.track_center_at(z)
     var side: float = side_at(index)
-    var phase: float = phase_at(index,elapsed)
     if biome == 2:
         # Fully buried below the track when inactive. The circular warning
         # stays visible so competitors understand the timing of the piston.
         return Vector3(center+side*3.26,
-            game.height_at(z)-1.08+1.48*piston_extension(index,elapsed),z)
+            game.height_at(z)-1.08+1.48*extension,z)
     var radius: float = 0.85 if biome == 0 else 1.12
     return Vector3(center+side*(3.22+radius*sin(phase*TAU)),
         game.height_at(z)+0.42,z)
@@ -447,9 +453,10 @@ static func hazard_phase_cue(track: int, extension: float,
 func animate(elapsed: float) -> void:
     clock = maxf(0.0,elapsed)
     for i in range(obstacles.size()):
-        var point: Vector3 = position_at(i,clock)
+        var phase := phase_at(i,clock)
+        var extension := _piston_extension_at_phase(phase) if biome == 2 else 1.0
+        var point := _gate_position(i,phase,extension)
         obstacles[i].position = point
-        var extension := piston_extension(i,clock)
         var tint: Color = EVENT_COLORS[biome]
         var earned_flash := 0.0
         if clock < ring_flash_end[i]:
@@ -458,7 +465,6 @@ func animate(elapsed: float) -> void:
         var motion: float
         var preparing := false
         if biome == 2:
-            var phase := phase_at(i,clock)
             preparing = phase > PISTON_PREPARE_PHASE or (phase < 0.10 and extension < 0.15)
             motion = piston_extension(i,clock+0.08)-extension
             if extension > PISTON_BLOCKING_EXTENSION:
@@ -488,7 +494,8 @@ func animate(elapsed: float) -> void:
         var sign_text: String = EVENT_NAMES[biome]+separator+cue
         if signs[i].text != sign_text:
             signs[i].text = sign_text
-        signs[i].modulate = tint
+        if signs[i].modulate != tint:
+            signs[i].modulate = tint
 
 func reset_round() -> void:
     awarded.clear()

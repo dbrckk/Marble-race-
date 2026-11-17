@@ -360,6 +360,14 @@ Base de comparaison GitHub `42b289afb1c948a84c4addf8a825e1a328b62fb0`.
 - Le pilotage utilise la position et la vitesse au début de son étape et réutilise le centre de la piste pour les vérifications de proximité des rails. La vitesse est relue après une éventuelle impulsion de récupération. La gestion du trafic propre à Glacier s’exécute sur ce circuit.
 - Sur un banc CPU sans rendu avec 40 billes, le pilotage est l’étape la plus coûteuse du script de simulation de Forge. Le P95 du pilotage et de la vérification d’arrivée passe de 855 à 756 µs, de 805 à 717 µs et de 792 à 640 µs sur les trois variantes. Le comparatif suit trois courses complètes à pas fixe. Les empreintes des positions et vitesses échantillonnées toutes les 60 étapes, les temps d’arrivée et les classements correspondent.
 
+### 2026-11-17 — Contrôles du pont et animation des pistons (1.105.0-rc)
+
+Base de comparaison GitHub `df7c18cf058b8b0e72d9f5956a25ad75d47dbd26`.
+
+- Les contrôles du pont écartent les billes restées sur la piste principale avant de calculer les coordonnées du tablier. Les vérifications de saut et de récompense calculent ces coordonnées lorsqu’une bille est dans leur fenêtre. Les pistons réutilisent leur phase et leur hauteur d’extension dans la même mise à jour.
+- Dans trois courses complètes de Forge avec 40 billes et un pas fixe, le P95 des contrôles du pont passe de 153 à 33 µs, de 132 à 56 µs et de 98 à 47 µs. Les empreintes des trajectoires échantillonnées, les temps d’arrivée et les classements correspondent pour les trois variantes.
+- Sur un banc CPU sans rendu de 40 billes placées sur la piste principale, les contrôles du pont passent de 153 à 52 µs près du portail d’entrée et de 120 à 22 µs en amont de la jonction. La fenêtre excluait déjà cette grille à −104 m. Le temps médian du script d’animation des pistons baisse de 16 à 23 % sur le banc. Les positions, textes et couleurs comparés concordent. Les gains de FPS sur téléphone restent à mesurer.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Confirmer le temps d’image sur téléphone physique. Sur Forge, mesurer le coût des mécanismes mobiles et du pont dans les passages les plus chargés.
+Confirmer le temps d’image sur téléphone physique. Isoler le coût de la prévision des obstacles par les bots dans les passages de Forge les plus chargés.
