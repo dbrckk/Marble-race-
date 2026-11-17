@@ -253,6 +253,11 @@ static func human_steering_force(axis: float, speed_z: float,
 func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> void:
     if finished or eliminated or sleeping:
         return
+    var origin := position
+    var velocity := linear_velocity
+    var has_course := is_instance_valid(course_owner)
+    var course_id: int = course_owner.selected_track if has_course else 0
+    var main_center := NAN
     if is_player:
         boost_glow = move_toward(boost_glow,1.0 if boosting else 0.0,delta*4.4)
         if is_instance_valid(glass_material):
@@ -271,9 +276,7 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
     var following_bypass := false
     if is_player or network_controlled:
         # Steering retains authority at high speed, without making tiny inputs twitchy.
-        side_force = human_steering_force(steering,linear_velocity.z,
-            linear_velocity.x,course_owner.selected_track if (
-                is_instance_valid(course_owner)) else 0)
+        side_force = human_steering_force(steering,velocity.z,velocity.x,course_id)
     else:
         # Predictable seeded weave prevents the AI from blindly hugging one rail.
         # Other marbles still interact solely through physical collisions.
@@ -284,41 +287,44 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
             ai_lane_goal = sin(phase) * (2.0 + float(racer_id % 4) * 0.5)
         # Look ahead into the next bend: AI follows the physical winding road,
         # rather than steering towards the old straight-world X=0.
-        var center_ahead: float = course_owner.track_center_at(position.z-5.0) if is_instance_valid(course_owner) else 0.0
-        var lane_error: float = ai_lane_goal + center_ahead - position.x
-        side_force = clampf(lane_error*1.0 - linear_velocity.x*0.18,-4.5,4.5)
+        var center_ahead: float = course_owner.track_center_at(origin.z-5.0) if has_course else 0.0
+        var lane_error: float = ai_lane_goal + center_ahead - origin.x
+        side_force = clampf(lane_error*1.0 - velocity.x*0.18,-4.5,4.5)
         # A small, deterministic field of rivals takes the optional road.
         # AI must physically steer through its fork: no teleports, and the
         # server remains the sole source of racing physics.
-        if wants_shortcut() and is_instance_valid(course_owner.shortcut_route):
+        var shortcut_racer := wants_shortcut()
+        if shortcut_racer and is_instance_valid(course_owner.shortcut_route):
             var road: Node3D = course_owner.shortcut_route
             var entered: bool = road.entered.has(racer_id)
-            if AIPath.pursue_bypass(position.z,entered,
+            if AIPath.pursue_bypass(origin.z,entered,
                 road.ENTRY_Z,road.EXIT_Z,road.ENTRY_WINDOW):
-                var aim_x: float = AIPath.bypass_target_x(road,position.z)
-                side_force = AIPath.bypass_steering(aim_x,position.x,
-                    linear_velocity.x,course_owner.selected_track == 1)
+                var aim_x: float = AIPath.bypass_target_x(road,origin.z)
+                side_force = AIPath.bypass_steering(aim_x,origin.x,
+                    velocity.x,course_id == 1)
                 following_bypass = true
-        if not following_bypass and is_instance_valid(course_owner):
+        if not following_bypass and has_course:
             # Safety-first line selection: specialist shortcuts always keep
             # their previously verified physics, while ordinary marbles only
             # attempt an overtake from the central open part of the road.
             # General passing yields to hazards. Glacier's return has a
             # dedicated passing line wholly beyond its shutter's sweep.
-            var traffic_center: float = course_owner.track_center_at(position.z)
+            main_center = course_owner.track_center_at(origin.z)
             # Keep start-grid collisions, both route portals, jumps and
             # their AI approach entirely unchanged. Tactical side choices
             # belong in the run home where a passing duel matters most.
-            var traffic_safe: bool = position.z < -108.0 and (
-                not wants_shortcut()) and (
-                absf(position.x-traffic_center) < 2.15) and (
+            var traffic_safe: bool = origin.z < -108.0 and (
+                not shortcut_racer) and (
+                absf(origin.x-main_center) < 2.15) and (
                 absf(ai_lane_goal) < 1.9)
             if traffic_safe:
                 # Only racers eligible to pass need the traffic hazard forecast.
-                var next_hazard: Dictionary = course_owner.upcoming_hazard(position.z)
+                var next_hazard: Dictionary = course_owner.upcoming_hazard(origin.z)
                 var hazard_near: bool = not next_hazard.is_empty() and (
                     float(next_hazard.get("distance",999.0)) < 3.5)
                 traffic_safe = not hazard_near
+            var temperament := AIPath.temperament(
+                racer_id,course_id,course_owner.built_variation)
             if traffic_safe:
                 # Staggered 2.5-3 Hz scans; no physics simulation or network
                 # traffic added. Blend rather than snapping between lines.
@@ -327,15 +333,12 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
                     ai_traffic_timer = AIPath.TRAFFIC_SCAN_PERIOD+(
                         float(racer_id%4)*0.05)
                     ai_traffic_goal = AIPath.traffic_lane(self,
-                        course_owner.racers,center_ahead,ai_lane_goal,
-                        AIPath.temperament(racer_id,
-                            course_owner.selected_track,
-                            course_owner.built_variation))
+                        course_owner.racers,center_ahead,ai_lane_goal,temperament)
                 ai_traffic_offset = move_toward(ai_traffic_offset,
                     ai_traffic_goal,delta*4.5)
                 side_force = clampf((
-                    center_ahead+ai_traffic_offset-position.x)*1.0-(
-                    linear_velocity.x*0.18),-4.5,4.5)
+                    center_ahead+ai_traffic_offset-origin.x)*1.0-(
+                    velocity.x*0.18),-4.5,4.5)
             else:
                 # Preserve the proven original control whenever a marble is
                 # already near a railing, a kinetic hazard or a shortcut.
@@ -350,47 +353,46 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
             var planned_offset: float = ai_traffic_offset if traffic_safe else ai_lane_goal
             if is_instance_valid(course_owner.course_mechanics):
                 var zone_offset: float = AIPath.biome_zone_safe_lane(
-                    course_owner.course_mechanics,position.z,
-                    linear_velocity.z,planned_offset,
-                    AIPath.temperament(racer_id,course_owner.selected_track,
-                        course_owner.built_variation))
+                    course_owner.course_mechanics,origin.z,
+                    velocity.z,planned_offset,temperament)
                 if absf(zone_offset-planned_offset) > 0.10:
                     side_force = clampf((
-                        center_ahead+zone_offset-position.x)*2.2-
-                        linear_velocity.x*0.48,-8.5,8.5)
+                        center_ahead+zone_offset-origin.x)*2.2-
+                        velocity.x*0.48,-8.5,8.5)
                     planned_offset = zone_offset
             # The physical timed-gate collider overrides a lucrative boost
             # or tempting drift when both appear in the same approach.
             if is_instance_valid(course_owner.race_director):
                 var safe_offset: float = AIPath.timed_gate_safe_lane(
-                    course_owner.race_director,position.z,
-                    linear_velocity.z,elapsed,planned_offset)
+                    course_owner.race_director,origin.z,
+                    velocity.z,elapsed,planned_offset)
                 if absf(safe_offset-planned_offset) > 0.10:
                     side_force = clampf((
-                        center_ahead+safe_offset-position.x)*2.25-
-                        linear_velocity.x*0.55,-9.5,9.5)
-            var glacier_lane := _glacier_return_pass(delta,traffic_center)
-            var glacier_passing := glacier_pass_remaining > 0.0 and glacier_lane != INF
-            if glacier_lane != INF:
-                if not glacier_passing:
-                    glacier_lane = AIPath.timed_gate_safe_lane(course_owner.race_director,
-                        position.z,linear_velocity.z,elapsed,glacier_lane)
-                var lateral_error := traffic_center+glacier_lane-position.x
-                if glacier_passing:
-                    side_force = clampf(lateral_error*13.0-linear_velocity.x*4.2,-19.0,19.0)
-                else:
-                    side_force = clampf(lateral_error*22.0-linear_velocity.x*6.0,-26.0,26.0)
-            var return_x := traffic_center+glacier_return_offset if glacier_abort_remaining > 0.0 else INF
-            drive_force = _glacier_follow_force(drive_force,glacier_passing,return_x)
-            if glacier_abort_remaining > 0.0 and is_instance_valid(glacier_cut_in_rider):
-                # Even a partly alongside bot must yield longitudinal space
-                # while the other marble still has inward momentum.
-                var rider_speed := -glacier_cut_in_rider.linear_velocity.z
-                var gap := position.z-glacier_cut_in_rider.position.z
-                var safe_speed := maxf(1.0,rider_speed+minf(0.0,(gap-1.65)*3.0))
-                drive_force = minf(drive_force,maxf(-35.0,(safe_speed+linear_velocity.z)*10.0))
-            drive_force = _glacier_merge_force(delta,drive_force)
-            side_force += AIPath.baffle_dodge(position,traffic_center)
+                        center_ahead+safe_offset-origin.x)*2.25-
+                        velocity.x*0.55,-9.5,9.5)
+            if course_id == 1:
+                var glacier_lane := _glacier_return_pass(delta,main_center)
+                var glacier_passing := glacier_pass_remaining > 0.0 and glacier_lane != INF
+                if glacier_lane != INF:
+                    if not glacier_passing:
+                        glacier_lane = AIPath.timed_gate_safe_lane(course_owner.race_director,
+                            origin.z,velocity.z,elapsed,glacier_lane)
+                    var lateral_error := main_center+glacier_lane-origin.x
+                    if glacier_passing:
+                        side_force = clampf(lateral_error*13.0-velocity.x*4.2,-19.0,19.0)
+                    else:
+                        side_force = clampf(lateral_error*22.0-velocity.x*6.0,-26.0,26.0)
+                var return_x := main_center+glacier_return_offset if glacier_abort_remaining > 0.0 else INF
+                drive_force = _glacier_follow_force(drive_force,glacier_passing,return_x)
+                if glacier_abort_remaining > 0.0 and is_instance_valid(glacier_cut_in_rider):
+                    # Even a partly alongside bot must yield longitudinal space
+                    # while the other marble still has inward momentum.
+                    var rider_speed := -glacier_cut_in_rider.linear_velocity.z
+                    var gap := origin.z-glacier_cut_in_rider.position.z
+                    var safe_speed := maxf(1.0,rider_speed+minf(0.0,(gap-1.65)*3.0))
+                    drive_force = minf(drive_force,maxf(-35.0,(safe_speed+velocity.z)*10.0))
+                drive_force = _glacier_merge_force(delta,drive_force)
+            side_force += AIPath.baffle_dodge(origin,main_center)
         elif following_bypass:
             # Real shortcut steering retains full priority over crowd
             # strategy, especially at Glacier's narrow entry portal.
@@ -401,26 +403,27 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
     # velocity, fooling speed-based stall detection. Measure net forward progress.
     progress_stall_seconds += delta
     if progress_stall_seconds >= 2.0:
-        if position.z > progress_anchor_z - 0.7:
+        if origin.z > progress_anchor_z - 0.7:
             stuck_seconds += 1.35
         else:
             recovery_count = maxi(0,recovery_count-1)
-        progress_anchor_z = position.z
+        progress_anchor_z = origin.z
         progress_stall_seconds = 0.0
     # Real physics recovery: give a marble a small nudge if trapped against a
     # rail/post for >2 sec. No teleportation, no fake position interpolation.
     # Let a marble keep its chosen outside lane instead of forcing it back.
-    var center_now: float = course_owner.recovery_center_at(position) if is_instance_valid(course_owner) else 0.0
-    var relative_x: float = position.x-center_now
+    var center_now: float = course_owner.recovery_center_at(origin,main_center) if (
+        has_course) else 0.0
+    var relative_x: float = origin.x-center_now
     var wall_proximity := clampf((absf(relative_x)-4.70)/1.05,0.0,1.0)
     if following_bypass and AIPath.inside_shortcut_gate(
-        course_owner.shortcut_route,position):
+        course_owner.shortcut_route,origin):
         # A selected AI specialist may steer through the REAL open gate.
         # Previously the 31N recovery force cancelled its 18N steering.
         # Never relax the wall on ordinary racers or human input.
         wall_proximity = 0.0
     side_force += -signf(relative_x) * 31.0 * wall_proximity
-    if linear_velocity.length() < 0.65 or (absf(linear_velocity.z) < 0.30 and absf(relative_x) > 3.5):
+    if velocity.length() < 0.65 or (absf(velocity.z) < 0.30 and absf(relative_x) > 3.5):
         stuck_seconds += delta
     else:
         stuck_seconds = maxf(0.0,stuck_seconds - delta*3.0)
@@ -429,10 +432,10 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
         var effort := minf(2.8,1.0+float(recovery_count)*0.35)
         var impulse := Vector3(side_direction*3.6*effort,1.4*effort,-6.5*effort)
         if recovery_count >= 2 and not network_controlled and (
-            not is_player or absf(steering) < 0.22) and is_instance_valid(course_owner) and (
+            not is_player or absf(steering) < 0.22) and has_course and (
             course_owner.net.role == "offline" and
-            position.z < course_owner.FINAL_OBSTACLE_Z+course_owner.SEGMENT_LENGTH+2.0 and
-            position.z > course_owner.CHECKPOINT_Z[-1]):
+            origin.z < course_owner.FINAL_OBSTACLE_Z+course_owner.SEGMENT_LENGTH+2.0 and
+            origin.z > course_owner.CHECKPOINT_Z[-1]):
             # Release the contact with the front face before trying another
             # forward recovery between the final modules' posts and ramps.
             # Alternate sides near the center; keep the usual rail protection.
@@ -441,14 +444,14 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
                 escape_side = -1.0 if recovery_count%2 == 0 else 1.0
             impulse = Vector3(escape_side*6.2,4.4,7.2)
         elif recovery_count >= 3 and is_player and absf(steering) < 0.22 and not network_controlled and (
-            is_instance_valid(course_owner) and course_owner.selected_track > 0 and
+            has_course and course_id > 0 and
             not course_owner.net.is_active() and absf(relative_x) > 2.4):
             # Repeated forward kicks can pin a marble against a rail and baffle.
             # Forge's staggered blocks also need a brief backward release.
-            var release_z := 4.0 if course_owner.selected_track == 2 else 0.0
-            var lift := 5.8 if course_owner.selected_track == 2 else 2.1
+            var release_z := 4.0 if course_id == 2 else 0.0
+            var lift := 5.8 if course_id == 2 else 2.1
             impulse = Vector3(-signf(relative_x)*6.3,lift,release_z)
-            if course_owner.selected_track == 2 and recovery_count >= 5 and recovery_count%2 == 1:
+            if course_id == 2 and recovery_count >= 5 and recovery_count%2 == 1:
                 # A slalom block can also stop an immediate inward nudge.
                 # Back up along the edge on alternating attempts to clear it.
                 impulse = Vector3(-signf(relative_x)*1.3,4.2,8.5)
@@ -456,15 +459,16 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
         stuck_seconds = 0.0
         recovery_count += 1
     apply_central_force(Vector3(side_force, 0.0, -drive_force) * mass)
-    if linear_velocity.length() > 24.0:
-        linear_velocity = linear_velocity.limit_length(24.0)
-    if position.y < -55.0 or absf(relative_x) > 26.0:
+    # Recovery may have applied an impulse since the steering snapshot.
+    var driving_velocity := linear_velocity
+    if driving_velocity.length() > 24.0:
+        linear_velocity = driving_velocity.limit_length(24.0)
+    if origin.y < -55.0 or absf(relative_x) > 26.0:
         eliminated = true
         fell_off.emit(self)
 
 func _glacier_return_pass(delta: float, center_x: float) -> float:
-    if course_owner.selected_track != 1 or not is_instance_valid(course_owner.race_director) or (
-        not is_instance_valid(course_owner.shortcut_route)):
+    if not is_instance_valid(course_owner.race_director) or not is_instance_valid(course_owner.shortcut_route):
         return INF
     var director: Node3D = course_owner.race_director
     var gate: int = director.GLACIER_RETURN_GATE
@@ -539,7 +543,7 @@ func _glacier_return_pass(delta: float, center_x: float) -> float:
 
 func _glacier_merge_force(delta: float, drive_force: float) -> float:
     var route: Node3D = course_owner.shortcut_route
-    if course_owner.selected_track != 1 or not is_instance_valid(route):
+    if not is_instance_valid(route):
         return drive_force
     var past_exit: float = route.EXIT_Z-position.z
     if past_exit < -0.5 or past_exit > 16.0 or route.entered.is_empty() or route.entered.has(racer_id):

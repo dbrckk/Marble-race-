@@ -455,8 +455,8 @@ func point_at(z: float) -> Vector3:
         stage.track_center_at(z)+float(side)*offset,
         stage.height_at(z)-0.28+lift,z)
 
-func recovery_center_at(location: Vector3) -> float:
-    var main: float = stage.track_center_at(location.z)
+func recovery_center_at(location: Vector3, main_center := NAN) -> float:
+    var main: float = stage.track_center_at(location.z) if is_nan(main_center) else main_center
     if location.z > ENTRY_Z+1.0 or location.z < EXIT_Z-1.0:
         return main
     var relative: float = float(side)*(location.x-main)

@@ -438,10 +438,11 @@ func track_center_at(z: float) -> float:
     # Identical centerline across local clients, bots and authoritative server.
     return TrackPath.center_at(z,selected_track)
 
-func recovery_center_at(location: Vector3) -> float:
+func recovery_center_at(location: Vector3, main_center := NAN) -> float:
+    var center := track_center_at(location.z) if is_nan(main_center) else main_center
     if is_instance_valid(shortcut_route):
-        return shortcut_route.recovery_center_at(location)
-    return track_center_at(location.z)
+        return shortcut_route.recovery_center_at(location,center)
+    return center
 
 func _mat(color: Color, roughness := 0.74, metalness := 0.0) -> StandardMaterial3D:
     var key = color.to_html() + "_" + str(roughness) + "_" + str(metalness)

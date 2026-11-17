@@ -353,6 +353,13 @@ Base de comparaison GitHub `c88768b238498ada0e98ed6b242c3c753c7b4815`.
 - Les calculs de trafic lisent la position et la vitesse de chaque rival une fois par examen. La recherche du rival de tête sur Glacier écarte les billes hors de la fenêtre longitudinale avant le calcul latéral. Les règles de franchissement, de freinage et de dépassement utilisent les mêmes seuils.
 - Sur un banc local sans rendu avec 40 billes, six répétitions de 7 200 appels par densité donnent un temps médian inférieur de 59 à 69 % pour la recherche du rival de tête et de 41 à 49 % pour le choix de voie. Ce banc mesure ces fonctions isolées. Un comparatif de 57 600 décisions vérifie les voies, la sélection des rivaux et le freinage utilisés au retour du pont.
 
+### 2026-11-17 — Pilotage du peloton sur Forge (1.104.0-rc)
+
+Base de comparaison GitHub `42b289afb1c948a84c4addf8a825e1a328b62fb0`.
+
+- Le pilotage utilise la position et la vitesse au début de son étape et réutilise le centre de la piste pour les vérifications de proximité des rails. La vitesse est relue après une éventuelle impulsion de récupération. La gestion du trafic propre à Glacier s’exécute sur ce circuit.
+- Sur un banc CPU sans rendu avec 40 billes, le pilotage est l’étape la plus coûteuse du script de simulation de Forge. Le P95 du pilotage et de la vérification d’arrivée passe de 855 à 756 µs, de 805 à 717 µs et de 792 à 640 µs sur les trois variantes. Le comparatif suit trois courses complètes à pas fixe. Les empreintes des positions et vitesses échantillonnées toutes les 60 étapes, les temps d’arrivée et les classements correspondent.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Confirmer le temps d’image sur téléphone physique. Profiler la simulation en course sur le reste de Glacier et les deux autres circuits pour isoler le prochain coût important.
+Confirmer le temps d’image sur téléphone physique. Sur Forge, mesurer le coût des mécanismes mobiles et du pont dans les passages les plus chargés.
