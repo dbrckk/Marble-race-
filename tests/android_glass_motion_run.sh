@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+mkdir -p capture
+adb shell wm size 360x640
+adb shell wm density 160
+adb shell settings put secure immersive_mode_confirmations confirmed
+adb shell getprop ro.build.version.sdk
+adb shell dumpsys SurfaceFlinger | grep -i GLES | head -n 2 || true
+adb install build/marble-race-qa.apk
+package=com.dbrckk.marble_race
+adb shell wm user-rotation lock 1
+sleep 3
+for launch in 1 2 3; do
+    adb shell am force-stop "$package"
+    adb logcat -c
+    adb logcat -v brief >capture/logcat.txt &
+    log_pid=$!
+    trap 'kill "$log_pid" 2>/dev/null || true' EXIT
+    adb shell am start -W -n "$package/com.godot.game.GodotApp"
+    for second in $(seq 1 22); do
+        if grep -Fq GLASS_MOTION_DEVICE capture/logcat.txt; then
+            break 2
+        fi
+        if ! adb shell pidof "$package" >/dev/null; then break; fi
+        sleep 2
+    done
+    kill "$log_pid" 2>/dev/null || true
+    wait "$log_pid" 2>/dev/null || true
+    cp capture/logcat.txt "capture/start-attempt-$launch.txt"
+done
+for attempt in $(seq 1 105); do
+    if grep -Eq 'GLASS_MOTION_PASS|SCRIPT ERROR|FATAL EXCEPTION' capture/logcat.txt; then
+        break
+    fi
+    if ! adb shell pidof "$package" >/dev/null; then break; fi
+    sleep 5
+done
+adb exec-out screencap -p >capture/results.png || true
+adb exec-out run-as "$package" cat files/glass-motion.jsonl >capture/glass-motion.jsonl || true
+for quality in 0 1; do
+    for revision in 0 1; do
+        for frame in $(seq -w 0 17); do
+            file="glass-$quality-$revision-$frame.png"
+            adb exec-out run-as "$package" cat "files/$file" >"capture/$file" || true
+        done
+    done
+done
+grep -E 'GLASS_MOTION|SCRIPT ERROR|FATAL EXCEPTION|Shader compilation' capture/logcat.txt |
+    tee capture/measurements.txt
+shader_errors="$(grep -Ec 'GL_MAX_FRAGMENT_UNIFORM_VECTORS|ShaderGLES3: Program linking failed' capture/logcat.txt || true)"
+echo "GLES shader link diagnostics: $shader_errors"
+grep -Fq GLASS_MOTION_PASS capture/measurements.txt
+test "$(grep -c 'GLASS_MOTION_QUALITY ' capture/measurements.txt)" = 2
+python - <<'PY'
+from pathlib import Path
+from collections import Counter
+import json
+
+directory = Path("capture")
+rows = [json.loads(line) for line in (directory/"glass-motion.jsonl").read_text().splitlines()]
+kinds = Counter(r["kind"] for r in rows)
+assert kinds == {"timing":8,"shadow":3}
+assert len({(r["quality"],r["revision"],r["block"]) for r in rows if r["kind"]=="timing"})==8
+shadows = [r for r in rows if r["kind"]=="shadow"]
+assert [r["individual"] for r in shadows] == [False,True,False]
+assert shadows[0] == shadows[2]
+assert shadows[0]["draws"] < shadows[1]["draws"]
+frames = list(directory.glob("glass-*.png"))
+assert len(frames) == 72
+assert all(p.read_bytes().startswith(b"\x89PNG\r\n\x1a\n") for p in frames)
+PY
+if grep -Eq 'SCRIPT ERROR|FATAL EXCEPTION|Shader compilation failed' capture/logcat.txt; then exit 1; fi
+test "$shader_errors" = 0
