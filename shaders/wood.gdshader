@@ -14,10 +14,19 @@ void fragment() {
     vec2 uv = vec2(local_pos.x*0.27+grain_offset, local_pos.z*0.16+grain_offset*0.4);
     vec3 fibers = texture(oak_albedo,uv).rgb;
     ALBEDO = timber_color.rgb * mix(vec3(0.80),fibers*1.54,0.73);
-    NORMAL_MAP = texture(oak_normal,uv).rgb;
-    NORMAL_MAP_DEPTH = 0.27;
-    // Thin growth-ring fibres and grazing-light polish without extra textures.
-    float filaments = sin(uv.x * 115.0 + sin(uv.y * 9.0) * 1.3);
-    ROUGHNESS = clamp(0.68 + filaments * 0.045 + (1.0 - fibers.r) * 0.12, 0.53, 0.91);
+    // Fade the small-scale relief before dropping its texture lookup.
+    float detail = 1.0-smoothstep(14.0,28.0,-VERTEX.z);
+    // Explicit gradients stay valid where nearby fragments enter different branches.
+    vec2 uv_dx = dFdx(uv);
+    vec2 uv_dy = dFdy(uv);
+    NORMAL_MAP = vec3(0.5,0.5,1.0);
+    NORMAL_MAP_DEPTH = 0.27*detail;
+    float filament_roughness = 0.0;
+    if (detail > 0.0) {
+        NORMAL_MAP = textureGrad(oak_normal,uv,uv_dx,uv_dy).rgb;
+        float filaments = sin(uv.x * 115.0 + sin(uv.y * 9.0) * 1.3);
+        filament_roughness = filaments*0.045*detail;
+    }
+    ROUGHNESS = clamp(0.68 + filament_roughness + (1.0 - fibers.r) * 0.12, 0.53, 0.91);
     SPECULAR = 0.18;
 }

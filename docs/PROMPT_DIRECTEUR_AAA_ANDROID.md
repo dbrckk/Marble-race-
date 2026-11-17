@@ -268,6 +268,14 @@ Base de comparaison GitHub `5a45d696d51ab34208258a2025b3736d24454712`.
 - À 640 × 360 sous OpenGL ES logiciel, les quatorze poses suivent la caméra de course de Woodworks à 22 m/s. Pour chaque pose, deux décalages latéraux de ±2 mm sollicitent les textures sous le pixel. Sur la zone de bois mesurée, la variation absolue moyenne de luminance passe de 1,33 à 0,42 sur une échelle de 255. Les appels de rendu restent à 644 sur la grille du banc.
 - Les variantes à bois et à vernis unis isolent le travail de leurs shaders. Les intervalles entre images fluctuent entre séries sous émulation logicielle. Les FPS sur téléphone restent à mesurer. [Relevés et captures](https://github.com/dbrckk/Marble-race-/pull/12).
 
+### 2026-11-17 — Relief et brillance du bois selon la profondeur (1.93.0-rc)
+
+Base de comparaison GitHub `320bf99ab051a8080d838536b245677ecd8103d7`.
+
+- Le relief et les fibres de rugosité gardent leur intensité dans les 14 premiers mètres de profondeur de vue. Ils s’atténuent jusqu’à 28 m. Au-delà, le shader saute la lecture de la carte de normales et les calculs des fibres. Le bois garde sa couleur et ses mipmaps à toutes les profondeurs.
+- Le banc à un plan conserve la même surface affichée à 8 et 36 m à 640 × 360 sous Mesa OpenGL ES logiciel. À 36 m, la médiane des huit médianes d’intervalle passe de 5,18 à 4,37 ms. La variante descend sous la base dans les huit séries. Les variantes sans relief et sans fibres ont été mesurées séparément.
+- Quatre cadrages Woodworks couvrent la grille, un plan au ras du bois, le premier obstacle et le deuxième repère. Le premier plan au ras des planches est identique pixel par pixel dans la zone mesurée. Les temps de la scène complète varient selon les séries, les appels de rendu et triangles concordent. [Captures et relevés Android](https://github.com/dbrckk/Marble-race-/pull/13). Les FPS sur téléphone restent à mesurer.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Comparer les détails de brillance du bois au ras des planches et dans les secteurs rapides. Mesurer si le relief de proximité peut être conservé avec une contribution moins coûteuse à distance.
+Profiler les surimpressions transparentes et indicateurs du HUD au premier obstacle. Cibler les éléments qui couvrent la piste et vérifier leur lisibilité à pleine vitesse.
