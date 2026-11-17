@@ -20,7 +20,7 @@ const SIDE_DUEL_Y_LIMIT := 1.25
 const SIDE_DUEL_MIN_SPEED := 8.0
 const SIDE_DUEL_HOLD := 0.34
 # One cheap same-deck proximity count piggybacks on the existing 10 Hz
-# local race-direction scan. Its only consumers are camera and audio.
+# local race-direction scan, shared by camera, audio and the player locator.
 const PACK_Z_RANGE := 9.0
 const PACK_X_RANGE := 3.8
 const PACK_Y_RANGE := 1.45

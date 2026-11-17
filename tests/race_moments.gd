@@ -67,6 +67,31 @@ func _run() -> void:
     for quad in stage.ui.speed_stripes:
         assert(quad.mouse_filter == Control.MOUSE_FILTER_IGNORE,
             "Speed FX must never steal joystick or boost touches")
+    var locator: Control = stage.ui.player_locator
+    var camera_pose: Transform3D = stage.camera.global_transform
+    stage.race_state = "COUNTDOWN"
+    locator.refresh(0.2)
+    assert(locator.is_visible_in_tree() and locator.bracket_strength == 1.0,
+        "Identify the local marble on the crowded grid")
+    stage.race_state = "RACING"
+    stage.race_time = 0.9
+    stage.race_moments.nearby_pack_count = 2
+    locator.refresh(0.2)
+    assert(locator.bracket_strength == 1.0,"Keep the outline in a physical pack")
+    var center: Vector2 = locator.screen_center
+    p.rotation.y += 0.8
+    locator.refresh(0.2)
+    assert(locator.screen_center.is_equal_approx(center),"Rolling cannot move the locator")
+    stage.race_moments.nearby_pack_count = 0
+    locator.refresh(0.2)
+    assert(locator.is_visible_in_tree() and locator.bracket_strength == 0.0,
+        "The solo badge should stay while the crowd outline clears")
+    stage.camera.look_at(stage.camera.global_position+(stage.camera.global_position-p.global_position),
+        Vector3.UP)
+    locator.refresh(0.2)
+    assert(not locator.visible,"Avoid clamped or mirrored markers for a racer behind the camera")
+    stage.camera.global_transform = camera_pose
+    stage.race_time = 0.0
     var rival: RigidBody3D = stage.racers[0]
     var second_rival: RigidBody3D = stage.racers[1]
     var third_rival: RigidBody3D = stage.racers[2]

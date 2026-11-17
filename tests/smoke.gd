@@ -139,11 +139,17 @@ func _run_checks() -> void:
     await process_frame
     assert(race.boosting, "Boost controls do not work")
     assert(race.audio.spatial_channels[0] is AudioStreamPlayer3D, "Impacts must be positional")
-    assert(race.player_marker.top_level, "Player marker must not roll with the marble")
+    var locator: Control = race.ui.player_locator
+    locator.refresh(0.2)
+    assert(locator.is_visible_in_tree() and locator.mouse_filter == Control.MOUSE_FILTER_IGNORE,
+        "The fixed-size locator must follow the local driver without capturing touch")
+    assert(locator.screen_center.is_equal_approx(race.camera.unproject_position(race.player.global_position)),
+        "The cue must land on the projected marble even after changing camera")
     race.change_boost(false)
     race.return_to_menu()
     assert(race.race_state == "MENU", "Menu return failed")
     assert(race.contact_shadows.pool.visible_instance_count == 0, "Menu should release race shadows")
+    assert(not locator.is_visible_in_tree(),"The player locator must be hidden outside the race")
     print("SMOKE_PASS: 40 racers, 646 GPU-instanced track parts, AA/LOD profiles, cached geometry, audio, controls")
     race.queue_free()
     for i in range(4):

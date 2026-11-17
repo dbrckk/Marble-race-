@@ -1,0 +1,114 @@
+extends Control
+## A local, screen-space locator above the physical player. The badge
+## stays readable when the marble rotates or disappears behind rivals.
+const Racer = preload("res://scripts/marble.gd")
+const FONT = preload("res://assets/fonts/Rajdhani-Bold.ttf")
+const INK := Color("#111722")
+const ACCENT := Color("#fff1b2")
+const FONT_SIZE := 23
+const BADGE_HEIGHT := 27.0
+const GRID_HANDOFF := 0.5
+
+var game: Node3D
+var screen_center := Vector2.ZERO
+var screen_radius := 0.0
+var bracket_strength := 0.0
+var badge_text := "YOU"
+var badge_width := 58.0
+var badge := StyleBoxFlat.new()
+var bracket_mesh: ArrayMesh
+
+func configure(stage: Node3D) -> void:
+    game = stage
+    mouse_filter = Control.MOUSE_FILTER_IGNORE
+    set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    badge.bg_color = Color(INK,0.95)
+    badge.border_color = Color(ACCENT,0.88)
+    badge.set_border_width_all(1)
+    badge.set_corner_radius_all(7)
+    bracket_mesh = _make_brackets()
+    hide()
+
+func begin_round() -> void:
+    bracket_strength = 0.0
+    badge_text = "YOU"
+    if not game.net.is_active() and game.career.league_tier() >= 1:
+        badge_text += "  •  "+game.career.league_name()
+    badge_width = maxf(58.0,FONT.get_string_size(badge_text,HORIZONTAL_ALIGNMENT_LEFT,-1,FONT_SIZE).x+18.0)
+    hide()
+
+func refresh(delta: float) -> void:
+    var marble: RigidBody3D = game.player
+    var camera: Camera3D = game.camera
+    if game.net.role == "server" or not is_instance_valid(marble) or not is_instance_valid(camera) or (
+            marble.finished or marble.eliminated or (
+                game.race_state != "COUNTDOWN" and game.race_state != "RACING")):
+        hide()
+        return
+    var center := marble.global_position
+    if camera.is_position_behind(center):
+        hide()
+        return
+    var projected := camera.unproject_position(center)
+    if not projected.is_finite() or not Rect2(Vector2.ZERO,size).has_point(projected):
+        hide()
+        return
+
+    screen_center = projected
+    var edge := camera.unproject_position(center+camera.global_basis.x*Racer.RADIUS)
+    screen_radius = clampf(projected.distance_to(edge),4.0,80.0)
+    var moments: RefCounted = game.race_moments
+    var raised: bool = game.race_state == "COUNTDOWN" or game.race_time < GRID_HANDOFF or (
+        moments != null and (moments.nearby_pack_count >= 2 or moments.closest_rival_gap <= 1.6))
+    bracket_strength = move_toward(bracket_strength,1.0 if raised else 0.0,maxf(0.0,delta)*7.0)
+    show()
+    queue_redraw()
+
+func _draw() -> void:
+    var y := maxf(4.0,screen_center.y-screen_radius-BADGE_HEIGHT-12.0)
+    var x := clampf(screen_center.x-badge_width*0.5,4.0,maxf(4.0,size.x-badge_width-4.0))
+    var label_rect := Rect2(Vector2(x,y),Vector2(badge_width,BADGE_HEIGHT))
+    var pointer := Vector2(clampf(screen_center.x,x+7.0,x+badge_width-7.0),label_rect.end.y)
+    if pointer.y < screen_center.y-screen_radius:
+        draw_colored_polygon(PackedVector2Array([pointer+Vector2(-6.0,-1.0),
+            pointer+Vector2(6.0,-1.0),pointer+Vector2(0.0,7.0)]),INK)
+        draw_colored_polygon(PackedVector2Array([pointer+Vector2(-3.2,0.0),
+            pointer+Vector2(3.2,0.0),pointer+Vector2(0.0,4.8)]),ACCENT)
+    draw_style_box(badge,label_rect)
+    var baseline := (BADGE_HEIGHT+FONT.get_ascent(FONT_SIZE)-FONT.get_descent(FONT_SIZE))*0.5
+    draw_string(FONT,label_rect.position+Vector2(0.0,baseline),badge_text,
+        HORIZONTAL_ALIGNMENT_CENTER,badge_width,FONT_SIZE,ACCENT)
+
+    if bracket_strength > 0.0:
+        var scale := Vector2.ONE*(screen_radius+5.0)
+        draw_mesh(bracket_mesh,null,Transform2D(0.0,scale,0.0,screen_center),
+            Color(1.0,1.0,1.0,bracket_strength))
+
+static func _make_brackets() -> ArrayMesh:
+    # One canvas batch for both bands, with a feathered dark outline.
+    var radii := PackedFloat32Array([0.80,0.84,0.92,0.95,1.05,1.08,1.16,1.20])
+    var colors := [Color(INK,0.0),INK,INK,ACCENT,ACCENT,INK,INK,Color(INK,0.0)]
+    var points := PackedVector2Array()
+    var tints := PackedColorArray()
+    var indices := PackedInt32Array()
+    const STEPS := 12
+    for side: float in [0.0,PI]:
+        var base := points.size()
+        for step in STEPS+1:
+            var axis := Vector2.from_angle(side+lerpf(-0.52,0.52,float(step)/STEPS))
+            for band in radii.size():
+                points.append(axis*radii[band])
+                tints.append(colors[band])
+                if step < STEPS and band < radii.size()-1:
+                    var vertex := base+step*radii.size()+band
+                    var next := vertex+radii.size()
+                    indices.append_array(PackedInt32Array([
+                        vertex,next,vertex+1,next,next+1,vertex+1]))
+    var arrays := []
+    arrays.resize(Mesh.ARRAY_MAX)
+    arrays[Mesh.ARRAY_VERTEX] = points
+    arrays[Mesh.ARRAY_COLOR] = tints
+    arrays[Mesh.ARRAY_INDEX] = indices
+    var mesh := ArrayMesh.new()
+    mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,arrays)
+    return mesh

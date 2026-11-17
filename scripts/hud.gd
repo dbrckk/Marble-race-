@@ -6,6 +6,7 @@ const CAREER_TRANSFER = preload("res://scripts/career_transfer.gd")
 const RACE_MOMENTS = preload("res://scripts/race_moments.gd")
 const PracticeTiming = preload("res://scripts/practice_timing.gd")
 const COURSE_BRIEFING = preload("res://scripts/course_briefing.gd")
+const PLAYER_LOCATOR = preload("res://scripts/player_locator.gd")
 const PROGRESS_RADAR = preload("res://scripts/race_progress_radar.gd")
 const RARE_ITEMS = preload("res://scripts/race_items.gd")
 const SHORTCUT_ROUTE = preload("res://scripts/shortcut_route.gd")
@@ -45,6 +46,7 @@ var skin_ad_button: Button
 var skin_purchase_button: Button
 var perks_layer: Control
 var hud_layer: Control
+var player_locator: Control
 var results_layer: Control
 var pause_layer: Control
 var pause_details: Label
@@ -889,6 +891,10 @@ func _build_race_hud() -> void:
     hud_layer = Control.new()
     hud_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
     root.add_child(hud_layer)
+    player_locator = PLAYER_LOCATOR.new()
+    player_locator.name = "LocalMarbleLocator"
+    hud_layer.add_child(player_locator)
+    player_locator.configure(game)
 
     clock_label = _small_panel_text("00:00.00", 23, Rect2(0.016,0.025,0.155,0.081))
     place_label = _small_panel_text("40th", 22, Rect2(0.016,0.115,0.155,0.082))
@@ -1756,6 +1762,7 @@ func show_race_ui() -> void:
         practice_passage_bounds = PracticeTiming.passage_span(practice_bounds,game.practice_passage)
         race_radar.set_practice_passage(practice_passage_bounds)
     hud_layer.visible = true
+    player_locator.begin_round()
     network_quality_label.get_parent().visible = game.net.role == "client"
     if is_instance_valid(pause_button_ref):
         pause_button_ref.text = "LEAVE" if game.net.is_active() else "Ⅱ"
@@ -1846,6 +1853,7 @@ func _update_woodworks_guide(route_mode: String, turbo_ahead: bool, urgent: bool
 
 func update_hud() -> void:
     var elapsed: float = get_process_delta_time()
+    player_locator.refresh(elapsed)
     overtake_chain_seconds = maxf(0.0,overtake_chain_seconds-elapsed)
     _update_rival_marker()
     if is_instance_valid(race_radar):

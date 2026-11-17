@@ -454,6 +454,10 @@ Base `d2ae8dcee1bf26b261b94a18850da5568dd02ca5`. Le bilan solo compare au centi�
 
 Base `4bcaad09c4fab266557f16fd22bcbb7643e7f57e`. Le briefing affiche les six avantages avant la carte. Le nom du circuit, le tracé, le côté du pont et le conseil de conduite sont agrandis et restent visibles pendant le défilement. En course, les prévisions de passage libre et le texte du duel cèdent la place à la direction du pont et aux dangers pertinents. Aux mêmes positions avant les bifurcations, les lignes centrales passent de 4 à 3 sur Woodworks, de 3 à 2 sur Glacier, et de 4 à 2 sur Forge.
 
+### 2026-11-17 — Bille du joueur repérable dans le peloton (1.123.0-rc)
+
+Base `be40a3fab9a449f2e46ac3d230977e31073f1cf2`. Le repère YOU de taille fixe suit la projection de la bille. Deux arcs contrastés la délimitent au départ ou à proximité d’adversaires, puis disparaissent lorsque le peloton s’écarte. Les trois circuits ont été capturés aux mêmes positions avant et après. Le coût total augmente d’au plus un appel de dessin par image dans les neuf échantillons de bureau comparés.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Rendre la bille du joueur plus facile à suivre dans les pelotons et les passages chargés. Mesurer la fluidité du peloton sur un appareil Android dès qu'il est disponible.
+Renforcer les silhouettes des obstacles caractéristiques des trois circuits et leurs repères visuels à l’approche. Mesurer la fluidité du peloton sur un appareil Android dès qu'il est disponible.

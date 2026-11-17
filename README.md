@@ -4,11 +4,13 @@ Original **3D Android marble-racing game** inspired by the look and mechanics sh
 
 Independent implementation in **Godot 4.5.1**, focused on real mobile playability, physics, and stylized toy-table graphics. No proprietary material from the reference game is redistributed.
 
-## Current state: Android QA build (v1.122.0-rc, versionCode 136)
+## Current state: Android QA build (v1.123.0-rc, versionCode 137)
 
 **Playable scope (October 2026):** three visually differentiated 3D worlds with physical elevation changes, nine repeatable obstacle layouts, forty individually simulated glass marbles, real banked and elevated side-route shortcuts, six player perks, progression, ghost comparisons and optional online races. Autonomous opponents use deterministic physical steering, real route choices, anticipatory passing and forecasts of moving hazards; human steering stays entirely manual. The phone HUD previews real course geometry and estimates when Forge pistons will be open or blocked on arrival, with a nonrepeating audio danger cue. The three pistons share an illuminated shoulder beacon and matched deck markings for their current phase.
 
 The briefing keeps the circuit name, layout and leading driving advice above the perk choices. All six perks appear before the map, with the full map and reference notes underneath. Start and Back remain pinned when the player scrolls. In race, fork guidance takes precedence over distant clear-gate forecasts and rival labels, while physical gate warnings and the rival's world-space marker stay available.
+
+A fixed-size **YOU** badge projects from the local marble onto the driving view. Two contrast brackets appear at the starting grid and in close traffic, then fade as the pack opens. The overlay uses the existing 10 Hz rivalry sample, leaves camera and touch controls available, and preserves the look of equipped skins.
 
 In solo races, a single in-world marker and the HUD identify the relevant nearby rival by name and side. A stable side-by-side contest gains slightly wider chase framing. Actual same-level passes show the overtaken racer or combine quickly successive passes into one callout.
 

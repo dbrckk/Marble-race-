@@ -126,7 +126,6 @@ var trail: CPUParticles3D
 var skins: Node
 var monetization: Node
 var starting_camera_target := Vector3(0, 0, 0)
-var player_marker: Label3D
 var contact_shadows: Node3D
 var rival_render: Node3D
 var workshop_lamps: Array[OmniLight3D] = []
@@ -1109,7 +1108,6 @@ func _spawn_racers() -> void:
             m.queue_free()
     racers.clear()
     racer_finish_order.clear()
-    player_marker = null
     player = null
     var player_slot: int = net.local_slot if net.match_running else MARBLE_COUNT-1
     for i in range(MARBLE_COUNT):
@@ -1133,9 +1131,6 @@ func _spawn_racers() -> void:
             player = m
             m.contact_monitor = true
             m.max_contacts_reported = 6
-            _add_player_marker(m)
-            if not net.is_active() and is_instance_valid(player_marker):
-                player_marker.modulate = Racer.PLAYER_STYLE_BASE[career.selected_style].lightened(0.14)
             _add_player_trail(m)
             PremiumSkinVisuals.apply(self)
 
@@ -1151,23 +1146,6 @@ func _spawn_racers() -> void:
         contact_shadows.bind_racers(racers)
     if net.role != "server":
         rival_render.refresh(racers,camera)
-
-func _add_player_marker(m: RigidBody3D) -> void:
-    var tag = Label3D.new()
-    tag.text = "▼ YOU"
-    if not net.is_active() and career.league_tier() >= 1:
-        tag.text += "  •  " + career.league_name()
-    tag.name = "PlayerTag"
-    tag.font_size = 41
-    tag.pixel_size = 0.014
-    tag.outline_size = 8
-    tag.modulate = Color("#ffcb70")
-    tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-    tag.no_depth_test = true
-    tag.position = Vector3(0, 1.23, 0)
-    m.add_child(tag)
-    tag.top_level = true
-    player_marker = tag
 
 func _add_player_trail(m: RigidBody3D) -> void:
     trail = CPUParticles3D.new()
@@ -1342,7 +1320,6 @@ func return_to_menu() -> void:
             remove_child(m)
             m.queue_free()
     racers.clear()
-    player_marker = null
     player = null
     if is_instance_valid(contact_shadows):
         contact_shadows.clear_racers()
@@ -1383,8 +1360,6 @@ func _process(delta: float) -> void:
             if is_instance_valid(lamp) and lamp.is_inside_tree():
                 var illumination_range := 0.0 if graphics_quality == 0 else (42.0 if graphics_quality == 2 else 29.0)
                 lamp.visible = absf(lamp.global_position.z - view_z) < illumination_range
-    if is_instance_valid(player_marker) and is_instance_valid(player):
-        player_marker.global_position = player.global_position + Vector3(0.0,1.22 + sin(world_time*3.6)*0.075,0.0)
     if race_state == "COUNTDOWN":
         countdown -= delta
         if countdown > 0.0:
