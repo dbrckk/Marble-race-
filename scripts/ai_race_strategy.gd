@@ -21,26 +21,30 @@ static func temperament(racer_id: int, track: int, variation: int) -> int:
 static func _lane_occupancy(target_x: float, own: RigidBody3D,
     rivals: Array[RigidBody3D], sweep_crossings := false) -> float:
     var penalty := 0.0
+    var origin := own.position
+    var own_speed_z := own.linear_velocity.z
     for other in rivals:
         if other == own or not is_instance_valid(other) or (
             other.finished or other.eliminated):
             continue
-        var dz: float = absf(other.position.z-own.position.z)
-        var dy: float = absf(other.position.y-own.position.y)
-        if dz > 5.5 or dy > TRAFFIC_HEIGHT:
+        var other_at := other.position
+        var behind := other_at.z-origin.z
+        var dz := absf(behind)
+        if dz > 5.5 or absf(other_at.y-origin.y) > TRAFFIC_HEIGHT:
             continue
         # A rival changing lanes is dangerous before its current sphere
         # overlaps the intended corridor. Predict only a short, bounded
         # window from authoritative velocity; no physics or RNG is added.
-        var current_dx: float = absf(other.position.x-target_x)
-        var predicted_x: float = other.position.x+clampf(
-            other.linear_velocity.x,-5.0,5.0)*0.42
+        var other_speed := other.linear_velocity
+        var current_dx: float = absf(other_at.x-target_x)
+        var predicted_x: float = other_at.x+clampf(
+            other_speed.x,-5.0,5.0)*0.42
         var future_dx: float = absf(predicted_x-target_x)
         var dx: float = minf(current_dx,future_dx)
         if sweep_crossings:
             # A sideways rival can cross the line between both samples.
-            var crossed_x := clampf(target_x,minf(other.position.x,predicted_x),
-                maxf(other.position.x,predicted_x))
+            var crossed_x := clampf(target_x,minf(other_at.x,predicted_x),
+                maxf(other_at.x,predicted_x))
             dx = absf(crossed_x-target_x)
         if dx < 1.10:
             penalty += (1.10-dx)*2.4*(
@@ -48,8 +52,7 @@ static func _lane_occupancy(target_x: float, own: RigidBody3D,
             # A faster racer approaching from behind has right of way.
             # Avoid cutting across their lane even if they are still
             # several metres back. Uses only existing velocity snapshots.
-            var behind: float = other.position.z-own.position.z
-            var closing_speed: float = own.linear_velocity.z-other.linear_velocity.z
+            var closing_speed := own_speed_z-other_speed.z
             if behind > 0.0 and closing_speed > 2.0:
                 var time_to_contact: float = behind/closing_speed
                 penalty += (1.10-dx)*clampf(
@@ -73,17 +76,20 @@ static func side_duel_safe_lane(own: RigidBody3D,
         -TRAFFIC_SAFE_LANE,TRAFFIC_SAFE_LANE)
     if not is_instance_valid(own):
         return preferred
+    var origin := own.position
+    var own_speed_x := own.linear_velocity.x
     for other in rivals:
         if not is_instance_valid(other) or other == own or (
             other.finished or other.eliminated or other.freeze):
             continue
-        var dz: float = absf(other.position.z-own.position.z)
-        if dz > DUEL_Z_WINDOW or absf(other.position.y-own.position.y) > DUEL_Y_WINDOW:
+        var other_at := other.position
+        var dz := absf(other_at.z-origin.z)
+        if dz > DUEL_Z_WINDOW or absf(other_at.y-origin.y) > DUEL_Y_WINDOW:
             continue
-        var dx: float = other.position.x-own.position.x
+        var dx: float = other_at.x-origin.x
         if absf(dx) < 0.72 or absf(dx) > 2.75:
             continue
-        var relative_x_speed: float = other.linear_velocity.x-own.linear_velocity.x
+        var relative_x_speed: float = other.linear_velocity.x-own_speed_x
         # If lateral separation will not close, a harmless parallel duel
         # cannot make the bot suddenly weave or obstruct the human.
         if relative_x_speed*signf(dx) > -0.45:
@@ -97,8 +103,8 @@ static func side_duel_safe_lane(own: RigidBody3D,
             -TRAFFIC_SAFE_LANE,TRAFFIC_SAFE_LANE)
         # Only yield if the rival is closer to the proposed lane than the
         # old lane, and the change actually opens useful physical space.
-        var current_gap: float = absf(other.position.x-(center_x+preferred))
-        var improved_gap: float = absf(other.position.x-(center_x+alternative))
+        var current_gap: float = absf(other_at.x-(center_x+preferred))
+        var improved_gap: float = absf(other_at.x-(center_x+alternative))
         if improved_gap >= current_gap+0.45 and (
             absf(alternative-preferred) >= 0.55):
             return alternative
@@ -114,18 +120,21 @@ static func traffic_lane(own: RigidBody3D, rivals: Array[RigidBody3D],
     var desired_x: float = center_x+preferred
     var leader: RigidBody3D = null
     var nearest_gap := INF
+    var origin := own.position
+    var own_speed_z := own.linear_velocity.z
     for other in rivals:
         if other == own or not is_instance_valid(other) or (
             other.finished or other.eliminated):
             continue
-        var ahead: float = own.position.z-other.position.z
+        var other_at := other.position
+        var ahead := origin.z-other_at.z
         if ahead < 0.65 or ahead > TRAFFIC_AHEAD:
             continue
-        if absf(other.position.y-own.position.y) > TRAFFIC_HEIGHT or (
-            absf(other.position.x-desired_x) > TRAFFIC_WIDTH):
+        if absf(other_at.y-origin.y) > TRAFFIC_HEIGHT or (
+            absf(other_at.x-desired_x) > TRAFFIC_WIDTH):
             continue
         # A faster marble approaching from behind is not an obstruction.
-        var speed_gain: float = other.linear_velocity.z-own.linear_velocity.z
+        var speed_gain: float = other.linear_velocity.z-own_speed_z
         if speed_gain < 0.4 and ahead > 2.5:
             continue
         if ahead < nearest_gap:
@@ -211,7 +220,9 @@ static func glacier_merge_drive(own: RigidBody3D, rivals: Array[RigidBody3D],
     var entries: Dictionary = route.entered
     var bridge_side: float = route.side
     var exit_z: float = route.EXIT_Z
-    var speed := -own.linear_velocity.z
+    var origin := own.position
+    var velocity := own.linear_velocity
+    var speed := -velocity.z
     # Racers are indexed by slot in the authoritative race roster.
     for slot: int in entries:
         if slot < 0 or slot >= rivals.size():
@@ -220,17 +231,19 @@ static func glacier_merge_drive(own: RigidBody3D, rivals: Array[RigidBody3D],
         if not is_instance_valid(other) or other.freeze or other.finished or other.eliminated or (
                 not other.is_player and not other.network_controlled):
             continue
-        if other.position.z > exit_z+2.0 or absf(other.position.y-own.position.y) > TRAFFIC_HEIGHT:
+        var other_at := other.position
+        if other_at.z > exit_z+2.0 or absf(other_at.y-origin.y) > TRAFFIC_HEIGHT:
             continue
-        var lateral_gap := (other.position.x-own.position.x)*bridge_side
-        var inward_speed := (own.linear_velocity.x-other.linear_velocity.x)*bridge_side
+        var lateral_gap := (other_at.x-origin.x)*bridge_side
+        var other_velocity := other.linear_velocity
+        var inward_speed := (velocity.x-other_velocity.x)*bridge_side
         if lateral_gap <= 0.0 or inward_speed < 1.6:
             continue
         var time_to_merge := maxf(0.0,(lateral_gap-1.0)/inward_speed)
         if time_to_merge > 0.48:
             continue
-        var gap := own.position.z-other.position.z
-        var other_speed := -other.linear_velocity.z
+        var gap := origin.z-other_at.z
+        var other_speed := -other_velocity.z
         var closing := speed-other_speed
         var merge_gap := gap-closing*time_to_merge
         # Do not brake a bot that will already be through the crossing.
@@ -245,6 +258,7 @@ static func glacier_merge_drive(own: RigidBody3D, rivals: Array[RigidBody3D],
 # Detect closing paths before the ordinary lane occupancy scan runs again.
 static func glacier_pass_cut_in(own: RigidBody3D, rivals: Array[RigidBody3D],
         entries: Dictionary, target_x: float) -> RigidBody3D:
+    var origin := own.position
     for slot: int in entries:
         if slot < 0 or slot >= rivals.size():
             continue
@@ -252,10 +266,11 @@ static func glacier_pass_cut_in(own: RigidBody3D, rivals: Array[RigidBody3D],
         if not is_instance_valid(rider) or rider == own or rider.freeze or rider.finished or (
                 rider.eliminated or (not rider.is_player and not rider.network_controlled)):
             continue
-        var lateral: float = rider.position.x-target_x
+        var rider_at := rider.position
+        var lateral := rider_at.x-target_x
         var inward_speed := -signf(lateral)*rider.linear_velocity.x
-        var gap: float = own.position.z-rider.position.z
-        if gap < -0.9 or gap > 5.0 or absf(rider.position.y-own.position.y) > TRAFFIC_HEIGHT:
+        var gap: float = origin.z-rider_at.z
+        if gap < -0.9 or gap > 5.0 or absf(rider_at.y-origin.y) > TRAFFIC_HEIGHT:
             continue
         if absf(lateral) > 0.7 and inward_speed >= 1.0 and absf(lateral)-inward_speed*0.42 < 0.85:
             return rider
@@ -269,24 +284,31 @@ static func glacier_return_leader(own: RigidBody3D, rivals: Array[RigidBody3D],
         return_x := INF) -> RigidBody3D:
     var nearest: RigidBody3D
     var nearest_gap := 10.0
+    var origin := own.position
     for other in rivals:
-        if not is_instance_valid(other) or not glacier_leader_in_line(own,other,return_x):
+        if other == own or not is_instance_valid(other) or (
+            other.finished or other.eliminated or other.freeze):
             continue
-        var ahead: float = own.position.z-other.position.z
-        if ahead < nearest_gap:
+        var other_at := other.position
+        var ahead := origin.z-other_at.z
+        if ahead > 0.0 and ahead < nearest_gap and _glacier_lane_contains(origin,other_at,return_x):
             nearest_gap = ahead
             nearest = other
     return nearest
 
 static func glacier_leader_in_line(own: RigidBody3D, other: RigidBody3D,
         return_x := INF) -> bool:
-    var line_x := own.position.x
+    if other == own or other.finished or other.eliminated or other.freeze:
+        return false
+    var origin := own.position
+    var other_at := other.position
+    return origin.z-other_at.z > 0.0 and _glacier_lane_contains(origin,other_at,return_x)
+
+static func _glacier_lane_contains(origin: Vector3, other_at: Vector3, return_x: float) -> bool:
+    var line_x := origin.x
     if is_finite(return_x):
-        line_x = clampf(other.position.x,minf(line_x,return_x),maxf(line_x,return_x))
-    return other != own and not other.finished and not other.eliminated and not other.freeze and (
-        own.position.z-other.position.z > 0.0 and
-        absf(other.position.y-own.position.y) <= TRAFFIC_HEIGHT and
-        absf(other.position.x-line_x) < 1.15)
+        line_x = clampf(other_at.x,minf(line_x,return_x),maxf(line_x,return_x))
+    return absf(other_at.y-origin.y) <= TRAFFIC_HEIGHT and absf(other_at.x-line_x) < 1.15
 
 static func glacier_return_pass_is_clear(own: RigidBody3D, rivals: Array[RigidBody3D],
         leader: RigidBody3D, center_x: float, shutter_side: float,

@@ -345,6 +345,14 @@ Base de comparaison GitHub `204d123f78dd9a8df40d095c41a5ac8712b0cf43`.
 - Glacier en Balanced utilise une carte d’ombres à 47 m. Les trois circuits utilisent ainsi une seule carte en Balanced, chacun à la portée mesurée pour son tracé. Les éléments de décor de Glacier conservent leurs ombres.
 - Le banc rejoue douze poses de caméra par passage, aux abords de deux zones de glace et au retour du pont sur chacune des trois variantes. À 640 × 360 sous Mesa OpenGL ES, la carte unique économise de 123 à 184 appels de rendu médians par passage, soit 22,8 % en médiane appariée. La variation temporelle des ombres augmente de 1,05 % en médiane appariée. Le comparatif inclut deux cascades à la même portée et une référence sans ombre. [Protocole et captures Android 14](https://github.com/dbrckk/Marble-race-/pull/23).
 
+### 2026-11-17 — Calculs de trafic en peloton (1.103.0-rc)
+
+Base de comparaison GitHub `c88768b238498ada0e98ed6b242c3c753c7b4815`.
+
+- Le [banc Android 14 avec 40 billes](https://github.com/dbrckk/Marble-race-/pull/24) mesure un P95 inférieur de 8,8 à 18,7 % avec les réglages d’ombres livrés. Les gains sur téléphone physique restent à établir.
+- Les calculs de trafic lisent la position et la vitesse de chaque rival une fois par examen. La recherche du rival de tête sur Glacier écarte les billes hors de la fenêtre longitudinale avant le calcul latéral. Les règles de franchissement, de freinage et de dépassement utilisent les mêmes seuils.
+- Sur un banc local sans rendu avec 40 billes, six répétitions de 7 200 appels par densité donnent un temps médian inférieur de 59 à 69 % pour la recherche du rival de tête et de 41 à 49 % pour le choix de voie. Ce banc mesure ces fonctions isolées. Un comparatif de 57 600 décisions vérifie les voies, la sélection des rivaux et le freinage utilisés au retour du pont.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Mesurer le P95 du temps d’image en peloton sur les trois circuits, notamment à la grille et lors des jonctions. Utiliser les relevés sur téléphone physique pour confirmer les gains dans ces conditions.
+Confirmer le temps d’image sur téléphone physique. Profiler la simulation en course sur le reste de Glacier et les deux autres circuits pour isoler le prochain coût important.
