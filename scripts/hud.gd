@@ -126,7 +126,7 @@ var copy_performance: Button
 var compare_performance: Button
 var performance_text := ""
 var performance_copy_request := 0
-var performance_report_dialog: AcceptDialog
+var performance_report_dialog: Control
 var performance_report_input: TextEdit
 var sensitivity_index := 1
 var left_handed := false
@@ -1360,25 +1360,36 @@ func _copy_fps_report() -> void:
 
 func _show_fps_report(report: String) -> void:
     if not is_instance_valid(performance_report_dialog):
-        performance_report_dialog = AcceptDialog.new()
-        performance_report_dialog.title = "FPS REPORT"
-        performance_report_dialog.ok_button_text = "CLOSE"
-        performance_report_dialog.exclusive = true
+        performance_report_dialog = Control.new()
+        performance_report_dialog.name = "FpsReportDialog"
+        performance_report_dialog.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
         root.add_child(performance_report_dialog)
+        performance_report_dialog.add_child(_shade())
+        var panel := _panel()
+        panel.anchor_left = 0.09
+        panel.anchor_right = 0.91
+        panel.anchor_top = 0.11
+        panel.anchor_bottom = 0.89
+        performance_report_dialog.add_child(panel)
         var column := _column(10)
-        performance_report_dialog.add_child(column)
-        var status := _text("Clipboard unconfirmed. The full report is below.", 18)
-        status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-        column.add_child(status)
+        panel.add_child(column)
+        column.add_child(_text("FPS REPORT",29,ORANGE))
+        column.add_child(_text("Clipboard unconfirmed. The full report is below.",18))
         performance_report_input = TextEdit.new()
         performance_report_input.editable = false
         performance_report_input.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
-        performance_report_input.custom_minimum_size.y = 225.0
         performance_report_input.size_flags_vertical = Control.SIZE_EXPAND_FILL
+        performance_report_input.add_theme_font_override("font",FONT_REGULAR)
         performance_report_input.add_theme_font_size_override("font_size",19)
+        performance_report_input.add_theme_color_override("font_readonly_color",TEXT)
         column.add_child(performance_report_input)
+        var close := _action("CLOSE REPORT")
+        close.name = "CloseFpsReport"
+        close.pressed.connect(performance_report_dialog.hide)
+        column.add_child(close)
     performance_report_input.text = report
-    performance_report_dialog.popup_centered_ratio(0.82)
+    performance_report_dialog.show()
+    performance_report_input.grab_focus()
 
 func _continue_championship() -> void:
     var next_index: int = game.selected_track + 1
