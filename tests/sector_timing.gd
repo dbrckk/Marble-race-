@@ -27,6 +27,14 @@ func _verify() -> void:
     await process_frame
     game.career.save_path = "user://test_live_splits_v14.cfg"
     game.career.sector_best.fill(0.0)
+    game.best_ghost.save_path = "user://test_live_ghost_splits.cfg"
+    var ghost_key: String = game.best_ghost.storage_key(0,game.race_variation,"Grip Tape")
+    var ghost := ConfigFile.new()
+    ghost.set_value(ghost_key,"best_time",100.0)
+    ghost.set_value(ghost_key,"checkpoints",PackedFloat64Array([21.0,44.0,80.0]))
+    ghost.set_value(ghost_key,"points",PackedVector3Array([Vector3(0,1,8),Vector3(0,1,6),Vector3(0,1,4)]))
+    assert(ghost.save(game.best_ghost.save_path) == OK)
+    game.set_graphics_quality(0)
     game.start_race("Grip Tape")
     game.countdown = 0.01
     await process_frame
@@ -43,6 +51,9 @@ func _verify() -> void:
         assert(game.checkpoint_splits.size() == k+1,"Sector not captured")
         assert(game.last_checkpoint == k,"Sector number incorrect")
         assert(game.ui.checkpoint_label.text.contains("SECTOR %d" % (k+1)))
+        var expected := "+1.02s" if k == 1 else "-0.98s"
+        assert(game.ui.checkpoint_label.text.contains(expected + " VS GHOST"),
+            "HUD must compare cumulative crossings even in Economy")
     game.player.finished = true
     game.player.finish_time = 98.0
     game._end_race()
@@ -54,6 +65,12 @@ func _verify() -> void:
     assert(game.career.best_sector(0,3) > 18.9)
     var summary = game.ui.results_layer.find_child("Summary",true,false) as Label
     assert(summary.text.contains("SECTORS 1"),"Results screen missing split summary")
+    assert(summary.text.contains("S1 -0.98s") and summary.text.contains("S2 +1.02s"))
+    assert(summary.text.contains("S3 -0.98s") and summary.text.contains("FINISH -2.00s"),
+        "Show the old ghost difference even after replacing it")
+    assert(bool(result["ghost_record"]) and is_equal_approx(game.best_ghost.best_time,98.0))
+    game.retry_current_layout()
+    assert(is_equal_approx(game.best_ghost.crossing_delta(0,20.016),0.0))
 
     var first_best: float = game.career.best_sector(0,0)
     game.return_to_menu()
@@ -69,6 +86,8 @@ func _verify() -> void:
     assert(game.checkpoint_splits.is_empty(),"Skipped checkpoints must invalidate splits")
     game._end_race()
     assert(game.career.best_sector(0,0) == first_best,"DNF must retain previous record")
+    assert(game.last_result["ghost_deltas"].is_empty() and not summary.text.contains("VS GHOST"))
+    DirAccess.remove_absolute(ProjectSettings.globalize_path(game.best_ghost.save_path))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(c.save_path))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(game.career.save_path))
     print("SECTOR_TIMING_PASS: 4 timed sectors, finish split, PB persistence, skip/DNF protection")

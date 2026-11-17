@@ -2133,10 +2133,19 @@ func show_item_pickup(kind: String) -> void:
     toast_remaining = 1.8
     _refresh_race_notification()
 
-func show_checkpoint(number: int, sector_time: float = 0.0, best_before: float = 0.0) -> void:
+func _gap_time(seconds: float) -> String:
+    return "0.00s" if absf(seconds) < 0.005 else "%+.2fs" % seconds
+
+func show_checkpoint(number: int, sector_time: float = 0.0, best_before: float = 0.0,
+        ghost_delta: float = NAN) -> void:
     var timing := "  •  %.2fs" % sector_time if sector_time > 0.0 else ""
     var comparison := ""
-    if best_before > 0.0 and sector_time > 0.0:
+    if is_finite(ghost_delta):
+        comparison = "\n%s VS GHOST" % _gap_time(ghost_delta)
+        checkpoint_label.add_theme_color_override("font_color",
+            Color("#a7f4d3") if ghost_delta <= -0.005 else (
+                Color("#ffc18d") if ghost_delta >= 0.005 else TEXT))
+    elif best_before > 0.0 and sector_time > 0.0:
         var delta := sector_time-best_before
         comparison = "  %+.2fs" % delta
         checkpoint_label.add_theme_color_override("font_color",
@@ -2144,7 +2153,7 @@ func show_checkpoint(number: int, sector_time: float = 0.0, best_before: float =
     else:
         checkpoint_label.add_theme_color_override("font_color",ORANGE)
     checkpoint_label.text = "SECTOR %d / 3%s%s" % [number,timing,comparison]
-    toast_remaining = 2.15
+    toast_remaining = 2.5 if is_finite(ghost_delta) else 2.15
     _refresh_race_notification()
 
 func show_results(place: int, time: float, ranking: Array) -> void:
@@ -2229,6 +2238,17 @@ func show_results(place: int, time: float, ranking: Array) -> void:
             sector_text += "  %.1fs%s" % [
                 float(sector_times[sector]),
                 " ★" if sector_records.size() == 4 and bool(sector_records[sector]) else ""]
+    var ghost_deltas: Array = status.get("ghost_deltas",[])
+    if ghost_deltas.size() == 4:
+        var gaps := PackedStringArray()
+        for sector in range(4):
+            var gap := float(ghost_deltas[sector])
+            if is_finite(gap):
+                var marker := "S%d" % (sector+1) if sector < 3 else "FINISH"
+                gaps.append("%s %s" % [marker,_gap_time(gap)])
+        if not gaps.is_empty():
+            var comparison := "VS GHOST  " + "  •  ".join(gaps)
+            sector_text = comparison if sector_text.is_empty() else sector_text + "\n" + comparison
     if summary:
         summary.text = "CLEAN PASSES  %d / 3  •  OVERTAKES %d\nBANKED APEXES  %d / 4\nBRIDGE GATES  %d / 3%s\nREAL LANDINGS  %d  •  BEST AIR %.2fs\n%s\n%s\n%s\n%s\n%s\n%s\n%s\nBEST  #%s\n\nTOP 5\n%s" % [
             clean_passes,overtakes,apex_passes,bridge_gates,

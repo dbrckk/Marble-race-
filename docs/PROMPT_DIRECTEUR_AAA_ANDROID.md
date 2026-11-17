@@ -396,6 +396,12 @@ Base de comparaison GitHub `1730ecc614a6cff3797f80d70fd2e3915bf0cc5c`. Le [banc 
 
 Les scénarios locaux couvrent le menu, le premier départ, le rejeu, les résultats, la pause et la sortie, la progression, les secteurs d’arrivée et les neuf tracés. Les écrans de résultats et de confirmation ont été rendus à 640 × 360 en OpenGL Compatibility. La vérification sur téléphone est reportée à la demande de l’utilisateur.
 
+### 2026-11-17 — Écarts au fantôme aux secteurs (1.109.0-rc)
+
+Base `e21135c51b9c30d40bdbb89e67c22494bfe84f95`. Le fantôme solo enregistre les trois temps cumulés de passage avec le tracé et l’avantage déjà associés au replay. En course et dans le bilan, un écart négatif indique une avance. Le bilan compare toujours au fantôme chargé au départ, avant le remplacement éventuel du record. L’affichage fonctionne aussi en Économie, qui masque le modèle 3D.
+
+Les anciens fantômes restent lisibles et comparables à l’arrivée. Ils acquièrent les temps intermédiaires lors d’un nouveau record avec trois passages valides. Aux secteurs, le jeu continue d’afficher les temps habituels tant que le fantôme n’a pas de temps intermédiaires. Les tests de replay et de secteurs couvrent la sauvegarde, la relance, le nouveau record, les courses incomplètes et l’isolement du mode en ligne.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Vérifier le rythme des premières courses après une relance sur le même tracé, puis rendre l’écart au fantôme plus lisible aux points intermédiaires.
+Rendre le résultat de chaque secteur plus facile à retrouver après la course et repérer celui où le plus de temps a été perdu sur le fantôme.

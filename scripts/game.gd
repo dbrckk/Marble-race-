@@ -1385,7 +1385,10 @@ func _process(delta: float) -> void:
                     var duration: float = maxf(0.01,race_time-previous)
                     checkpoint_splits.append(race_time)
                     var prior_best: float = career.best_sector(selected_track,sector)
-                    ui.show_checkpoint(sector+1,duration,prior_best)
+                    var ghost_delta: float = NAN
+                    if not net.is_active() and checkpoint_splits.size() == sector+1:
+                        ghost_delta = best_ghost.crossing_delta(sector,race_time)
+                    ui.show_checkpoint(sector+1,duration,prior_best,ghost_delta)
                     audio.tone("checkpoint")
                     var cosmetics := board.get_node_or_null("PolishedToyDetails")
                     if is_instance_valid(cosmetics):
@@ -1694,10 +1697,18 @@ func _end_race() -> void:
         var outcome := "FINISHED" if completed else "DNF"
         if not completed and not net.is_active():
             outcome = "OFF TRACK" if is_instance_valid(player) and player.eliminated else "TIME OUT"
+        var ghost_deltas: Array[float] = []
         var ghost_record: bool = false
-        if is_instance_valid(best_ghost):
-            ghost_record = best_ghost.finish(
-                player.finish_time if completed else race_time,completed)
+        if not net.is_active() and is_instance_valid(best_ghost):
+            if completed and best_ghost.replay_available:
+                for sector in CHECKPOINT_Z.size():
+                    # Compare to the ghost that started this race, before saving a new PB.
+                    var gap: float = best_ghost.crossing_delta(sector,checkpoint_splits[sector]) if (
+                        checkpoint_splits.size() == CHECKPOINT_Z.size()) else NAN
+                    ghost_deltas.append(gap)
+                ghost_deltas.append(best_ghost.crossing_delta(CHECKPOINT_Z.size(),player.finish_time))
+            ghost_record = best_ghost.finish(player.finish_time if completed else race_time,
+                completed,PackedFloat64Array(checkpoint_splits))
         if net.is_active():
             # Network races have physical results but never rewrite solo career.
             last_result = {"finished":completed,"stars":0,"record":false,"unlocked":false}
@@ -1717,6 +1728,7 @@ func _end_race() -> void:
             if is_finite(finish_at) and finish_at > previous_split:
                 durations.append(finish_at-previous_split)
         last_result["ghost_record"] = ghost_record
+        last_result["ghost_deltas"] = ghost_deltas
         last_result["clean_passes"] = race_director.clean_pass_count(player.racer_id) if (
             is_instance_valid(race_director) and is_instance_valid(player)) else 0
         last_result["apex_passes"] = course_sculptures.apex_pass_count(
