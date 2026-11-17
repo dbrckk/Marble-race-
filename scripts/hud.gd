@@ -1774,11 +1774,9 @@ func update_hud() -> void:
             glacier_return_panel = timed_gate_label.visible
             var merge: String = game.shortcut_route.route_guidance_text(
                 route_hint,game.player.global_position.z,forward_speed)
-            timed_gate_label.text = "%s  •  AIM CENTER" % merge
+            timed_gate_label.text = "%s  •  THEN AIM CENTER" % merge
             if gate_eta <= 1.3:
-                timed_gate_label.text = "%s  •  SHUTTER %s" % [
-                    "MERGE RIGHT  •  AIM CENTER" if merge_distance <= SHORTCUT_ROUTE.PORTAL_HALF_LENGTH
-                    else merge,gate_side]
+                timed_gate_label.text += "  •  SHUTTER %s" % gate_side
         elif game.selected_track == 2:
             var bypass := "LEFT" if gate_side == "RIGHT" else "RIGHT"
             var action := "DODGE! GO "+bypass if player_threatened else lane_verdict
@@ -1871,6 +1869,9 @@ func update_hud() -> void:
         elif game.selected_track == 1:
             route_tint = SHORTCUT_ROUTE.GLACIER_RETURN_COLOR
         shortcut_label.add_theme_color_override("font_color",route_tint)
+    if bridge_approach_active and (shortcut_label.visible or glacier_return_panel):
+        # Keep the physical rival marked while the player reads the return line.
+        duel_label.hide()
     _update_woodworks_guide(str(route_hint.get("mode","")),
         rare_item_label.visible and int(next_item.get("index",-1)) == 0,
         final_danger_active or is_finite(urgent_gate_eta))

@@ -541,9 +541,10 @@ func _verify_glacier_bridge_return(game: Node3D) -> bool:
 
     game.audio.warned_timed_gates.clear()
     game.audio.hazard_cooldown = 0.0
+    game.race_moments.closest_rival = game.racers[0]
     _update_at(game,road.point_at(ROUTE.EXIT_Z+30.0)+Vector3.UP*0.73,velocity)
     assert(hud.bridge_approach_active and not hud.shortcut_label.visible and
-        not hud.timed_gate_label.visible)
+        not hud.timed_gate_label.visible and hud.duel_label.visible)
     _update_at(game,road.point_at(ROUTE.EXIT_Z+16.0)+Vector3.UP*0.73,velocity)
     var preview: String = hud.timed_gate_label.text
     assert(hud.timed_gate_label.visible and preview.contains("MERGE RIGHT") and
@@ -554,9 +555,11 @@ func _verify_glacier_bridge_return(game: Node3D) -> bool:
     assert(road.shortcut_hint(lip).is_empty(),"The shared lip alone does not establish bridge context")
     _update_at(game,lip,velocity)
     assert(hud.bridge_approach_active and not hud.shortcut_label.visible and
-        hud.timed_gate_label.visible and hud.timed_gate_label.text.contains("AIM CENTER") and
+        hud.timed_gate_label.visible and hud.timed_gate_label.text.contains("THEN AIM CENTER") and
         hud.timed_gate_label.text.contains("MERGE RIGHT") and
         hud.timed_gate_label.text.contains("SHUTTER") and not hud.hazard_label.visible)
+    assert(not hud.duel_label.visible and hud.rival_marker.visible,
+        "The rival remains marked while merge and shutter advice share the screen")
     assert(not game.audio.warned_timed_gates.has(gate),
         "A bridge preview must leave the immediate collision sound available")
 
@@ -566,6 +569,9 @@ func _verify_glacier_bridge_return(game: Node3D) -> bool:
     _update_at(game,Vector3(blocked_x,game.height_at(z)+0.64,z),velocity)
     assert(not hud.bridge_approach_active and not hud.shortcut_label.visible and
         hud.timed_gate_label.visible and hud.timed_gate_label.text.contains("DODGE!"))
+    assert(hud.duel_label.visible and hud.rival_marker.visible,
+        "Restore the rival description after the bridge handoff")
+    game.race_moments.closest_rival = null
     assert(game.audio.warned_timed_gates.has(gate),
         "The real collision warning is still available after the join")
     assert(_verify_glacier_crossing_window(game,director,gate),
@@ -677,6 +683,7 @@ func _verify_forge_exit(game: Node3D) -> void:
     var at: Vector3 = game.shortcut_route.point_at(z)+Vector3.UP*0.73
     game.audio.warned_timed_gates.clear()
     game.audio.hazard_cooldown = 0.0
+    game.race_moments.closest_rival = game.racers[0]
     director.animate(playhead)
     _update_at(game,at,Vector3(0,0,-speed))
     var hud: CanvasLayer = game.ui
@@ -688,6 +695,8 @@ func _verify_forge_exit(game: Node3D) -> void:
         "A piston that rises after the merge must give advance lane advice")
     assert(not game.audio.warned_timed_gates.has(gate),
         "A bridge preview must leave the immediate collision cue available")
+    assert(not hud.duel_label.visible and hud.rival_marker.visible,
+        "The merge and the piston receive the central HUD while the rival stays marked")
     director.animate(clear_window)
     _update_at(game,at,Vector3(0,0,-speed))
     assert(hud.timed_gate_label.text.contains("OPEN") and not hud.timed_gate_backdrop.visible,
@@ -712,6 +721,8 @@ func _verify_forge_exit(game: Node3D) -> void:
     assert(not hud.shortcut_label.visible and not hud.bridge_approach_active and
         not hud.timed_gate_label.text.contains("AFTER BRIDGE"),
         "After the join, use the regular live racing line")
+    assert(hud.duel_label.visible and hud.rival_marker.visible)
+    game.race_moments.closest_rival = null
 
 func _verify_forge_encounter_order(game: Node3D) -> void:
     var hud: CanvasLayer = game.ui

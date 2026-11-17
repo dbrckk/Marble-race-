@@ -313,6 +313,7 @@ jobs:
         run: |
           set -euo pipefail
           timeout 95s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 1150 --path . --script res://tests/timed_gate_hud.gd 2>&1 | tee timed-gate-hud.log
+          if grep -Eq 'SCRIPT ERROR|Parse Error' timed-gate-hud.log; then exit 1; fi
           grep -Fq "TIMED_HUD_PASS:" timed-gate-hud.log
       - name: Glacier bridge return, queue recovery, ten-marble traffic and shutter phases
         shell: bash

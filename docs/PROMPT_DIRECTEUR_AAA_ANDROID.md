@@ -299,6 +299,13 @@ Base de comparaison GitHub `3484ded54bc587d464072a623f01444253a6aa1d`.
 - Le repère des objets rares occupe un emplacement fixe sous le classement. Les alertes de pilotage gardent le centre et la priorité en fonction de l’ordre des obstacles. Avec les mêmes positions d’objets, les 1 620 échantillons aux abords des objets sur les neuf tracés à 83 km/h conservent les mêmes fenêtres d’affichage.
 - La crête recoupait la ligne du dernier diamant solo de Glacier sur le premier tracé. L’objet se trouve 1,5 m plus tôt, sur la même voie. Le test de collecte au sol échoue désormais dans GitHub Actions si Godot signale une assertion, même si le script affiche son marqueur de fin.
 
+### 2026-11-17 — Lecture du retour des ponts (1.97.0-rc)
+
+Base de comparaison GitHub `76b6635205c88decdba9ed6e4a42bcedec703727`.
+
+- Le texte de duel s’efface pendant le guidage du retour sur la piste. Le losange continue de suivre le rival et le texte revient après la jonction. Le repère de bifurcation garde son comportement à l’entrée du pont.
+- À Glacier, l’alerte indique de rejoindre la piste à droite puis de viser le centre. À Forge, le repère de retour et la prévision du piston gardent chacun leur emplacement. Les tests couvrent les trois tracés de ces deux circuits, le guidage hors du pont et les commandes tactiles.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Vérifier la lecture de la trajectoire au retour des ponts sur petit écran, avec le rival, le repère de fusion et le danger de sortie affichés ensemble.
+Vérifier que le premier obstacle et le premier diamant restent visibles pendant un passage de la caméra dans un peloton dense, puis vérifier le cadrage lors d’un saut.
