@@ -7,6 +7,12 @@ func _ready() -> void:
 
 func _run() -> void:
     await get_tree().process_frame
+    var focus_deadline := Time.get_ticks_msec()+18000
+    while not get_window().has_focus() and Time.get_ticks_msec() < focus_deadline:
+        await get_tree().process_frame
+    if not get_window().has_focus():
+        _fail("Android did not give the game window focus")
+        return
     var game = get_parent()
     if not game.show_fps:
         game.toggle_fps_overlay()

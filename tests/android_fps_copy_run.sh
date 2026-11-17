@@ -4,6 +4,8 @@ set -euo pipefail
 mkdir -p capture
 adb shell wm size 540x960
 adb shell wm density 240
+# Equivalent to accepting Android's first-run full-screen tutorial on the test device.
+adb shell settings put secure immersive_mode_confirmations confirmed
 adb shell getprop ro.build.version.sdk
 adb install build/marble-race-qa.apk
 adb logcat -c
