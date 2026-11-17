@@ -434,6 +434,10 @@ Base `809c98300b71292208a25f464cba34cfe4487122`. Le radar et le panneau latéral
 
 Base `28b6d944a329549db2b207eb7b2b629342e734ab`. Captures natives en 640 × 360 avec 40 billes, sur le menu, le briefing, le départ, les premières sections des trois circuits et le bilan de Forge. Le panneau des circuits recouvrait le bouton des skins et les alertes encombraient le centre de la piste. Les options occupent maintenant une grille sous le sélecteur. La caméra de poursuite amortit son écart à la bille pendant la descente. Le joystick indique sa course réelle et le bouton de boost affiche la charge en anneau. Les obstacles d'ouverture et de fin se détachent sur le plateau grâce à des marquages bordés, intégrés aux maillages existants. Les alertes proches ont la priorité quand plusieurs indications se disputent la vue.
 
+### 2026-11-17 — Rendu du peloton par instances (1.118.0-rc)
+
+Base `5240a9d63eb285673069bed74458056b75c40825`. Les 39 adversaires gardent leurs corps physiques et leurs motifs de verre. Leur rendu utilise deux lots selon la taille à l'écran, avec culling par bille. La bille du joueur conserve son matériau pour les skins et le boost. Sur les départs capturés à 640 × 360 en Balanced, les appels de dessin passent de 590 à 552 sur Woodworks, de 719 à 681 sur Glacier et de 636 à 598 sur Forge. Le changement a été comparé avec le rendu GL Compatibility sur ordinateur.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Mesurer le suivi caméra, la prise en main du boost et la lisibilité du premier obstacle sur un appareil Android. Reprendre ensuite le bilan de la relance guidée.
+Reprendre le bilan de la relance guidée et situer dans le secteur ciblé le passage ayant coûté le plus de temps. Mesurer la fluidité du peloton sur un appareil Android dès qu'il est disponible.

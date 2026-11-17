@@ -103,8 +103,9 @@ func _run_checks() -> void:
     race.start_race("Lead Core")
     await process_frame
     assert(race.racers.size() == 40, "40 racers must spawn")
-    assert(race.racers[0].mesh.mesh == race.racers[1].mesh.mesh,
-        "NPC marbles should share cached geometry instead of allocating 40 identical meshes")
+    assert(race.racers[0].mesh == null and race.rival_render.pools.size() == 2,
+        "Opponents must use the two instanced glass meshes instead of individual draw objects")
+    assert(race.rival_render.pools[0].visible_instance_count > 0,"Glass must appear on the grid")
     assert(race.racers[0].physics_material_override == race.racers[1].physics_material_override,
         "Regular racers should share the same immutable physics material")
     assert(is_instance_valid(race.player), "Missing controlled racer")

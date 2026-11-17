@@ -36,13 +36,10 @@ func set_render_quality(quality: int) -> void:
             glass_material.set_shader_parameter("visual_quality",float(render_quality))
 
 func update_render_detail(projected_diameter: float, keep_detail: bool) -> void:
-    if is_player or render_quality != 1 or not is_instance_valid(mesh):
+    if is_player or render_quality != 1:
         return
     var threshold := DETAIL_RETURN_PIXELS if using_distant_mesh else DETAIL_REDUCE_PIXELS
-    var distant := not keep_detail and projected_diameter < threshold
-    if distant != using_distant_mesh:
-        using_distant_mesh = distant
-        mesh.mesh = get_sphere(false,0 if distant else 1)
+    using_distant_mesh = not keep_detail and projected_diameter < threshold
 
 const RADIUS := 0.39
 # Projected diameter at the game's 720 px reference height.
@@ -164,30 +161,23 @@ func setup(index: int, player: bool, base_position: Vector3, chosen_perk: String
     elif perk == "Aerodynamic":
         linear_damp = 0.045
 
-    mesh = MeshInstance3D.new()
-    mesh.name = "ArtGlass"
-    mesh.mesh = get_sphere(is_player,1)
-    var material = ShaderMaterial.new()
-    material.shader = SHADER
-    var base: Color = PALETTE[index % PALETTE.size()]
-    var accent: Color = PALETTE[(index * 7 + 5) % PALETTE.size()]
-    if player:
-        base = Color("#f29b48")
-        accent = Color("#542b1d")
-    material.set_shader_parameter("base_color", base)
-    material.set_shader_parameter("accent_color", accent)
-    material.set_shader_parameter("vein_color", Color(0.98, 0.94, 0.82) if index % 3 == 0 else Color(0.75, 0.92, 0.93))
-    material.set_shader_parameter("pattern_seed", seed_value)
-    material.set_shader_parameter("stripe_scale", 0.3 + float(index % 7) * 0.29)
-    glass_material = material
-    material.set_shader_parameter("visual_quality",1.0)
-    mesh.material_override = material
-    # One cheap blended contact-shadow batch already grounds all marbles.
-    # Rendering individual moving shadow maps here costs a second geometry pass.
-    mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-    add_child(mesh)
-
     if is_player:
+        mesh = MeshInstance3D.new()
+        mesh.name = "ArtGlass"
+        mesh.mesh = get_sphere(true,1)
+        glass_material = ShaderMaterial.new()
+        glass_material.shader = SHADER
+        glass_material.set_shader_parameter("base_color",Color("#f29b48"))
+        glass_material.set_shader_parameter("accent_color",Color("#542b1d"))
+        glass_material.set_shader_parameter("vein_color",Color(0.98,0.94,0.82) if (
+            index%3 == 0) else Color(0.75,0.92,0.93))
+        glass_material.set_shader_parameter("pattern_seed",seed_value)
+        glass_material.set_shader_parameter("stripe_scale",0.3+float(index%7)*0.29)
+        mesh.material_override = glass_material
+        # The contact-shadow batch already grounds every racer.
+        mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+        add_child(mesh)
+
         boost_ring = MeshInstance3D.new()
         boost_ring.name = "TurboHalo"
         var halo = TorusMesh.new()

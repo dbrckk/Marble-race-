@@ -123,27 +123,43 @@ func _check_marble_detail(game: Node3D) -> bool:
     featured.global_position = Vector3(1,0,-32)
     game.race_moments.closest_rival = featured
     var original_shape: Shape3D = far.collision.shape
-    var original_material: Material = far.mesh.material_override
+    var glass: Node3D = game.rival_render
     game._update_marble_detail(1.0)
-    assert(far.mesh.mesh == RACER.get_sphere(false,0))
-    assert(near.mesh.mesh == RACER.get_sphere(false,1) and
-        featured.mesh.mesh == RACER.get_sphere(false,1) and
+    glass.refresh(game.racers,game.camera)
+    assert(far.using_distant_mesh and glass.pools[1].mesh == RACER.get_sphere(false,0))
+    assert(not near.using_distant_mesh and not featured.using_distant_mesh and
         game.player.mesh.mesh == RACER.get_sphere(true,1))
+    assert(glass.pools[0].visible_instance_count == 2 and glass.pools[1].visible_instance_count == 1,
+        "Visible near and distant rivals must populate just their own draw pools")
+    assert(glass.slot_ids[0] == near.racer_id and glass.slot_ids[1] == featured.racer_id and
+        glass.slot_ids[glass.CAPACITY] == far.racer_id,
+        "Frustum culling must retain each opponent's glass identity")
+    var custom_material: ShaderMaterial = game.player.glass_material
+    assert(glass.material != custom_material and far.mesh == null,
+        "Player skins need their own material while rivals share the two batches")
     var scale: float = 720.0*RACER.RADIUS/tan(deg_to_rad(game.camera.fov*0.5))
     far.global_position.z = -scale/25.0
     game._update_marble_detail(1.0)
     assert(far.using_distant_mesh,"A rival between the two thresholds keeps its current geometry")
     far.global_position.z = -scale/29.0
     game._update_marble_detail(1.0)
-    assert(not far.using_distant_mesh and far.mesh.mesh == RACER.get_sphere(false,1))
+    glass.refresh(game.racers,game.camera)
+    assert(not far.using_distant_mesh and glass.pools[0].visible_instance_count == 3 and
+        glass.pools[1].visible_instance_count == 0)
     far.global_position.z = -32.0
     game._update_marble_detail(1.0)
     assert(far.using_distant_mesh and far.collision.shape == original_shape and
-        far.mesh.material_override == original_material and game.racers.size() == 40)
+        game.player.glass_material == custom_material and game.racers.size() == 40)
     game.set_graphics_quality(2)
     game._update_marble_detail(1.0)
-    assert(far.mesh.mesh == RACER.get_sphere(false,2) and not far.using_distant_mesh)
+    glass.refresh(game.racers,game.camera)
+    assert(glass.pools[0].mesh == RACER.get_sphere(false,2) and not far.using_distant_mesh)
+    assert(glass.pools[1].visible_instance_count == 0)
     game.set_graphics_quality(0)
-    assert(far.mesh.mesh == RACER.get_sphere(false,0) and not far.using_distant_mesh)
+    assert(glass.pools[0].mesh == RACER.get_sphere(false,0) and not far.using_distant_mesh)
+    far.hide()
+    glass.refresh(game.racers,game.camera)
+    assert(glass.pools[0].visible_instance_count == 2,"Hidden rivals cannot leave phantom glass")
     game.return_to_menu()
+    assert(glass.pools[0].visible_instance_count == 0 and glass.pools[1].visible_instance_count == 0)
     return true

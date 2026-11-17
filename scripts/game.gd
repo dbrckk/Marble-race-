@@ -11,6 +11,7 @@ const Audio = preload("res://scripts/audio.gd")
 const Visuals = preload("res://scripts/visuals.gd")
 const TrackFX = preload("res://scripts/track_fx.gd")
 const ContactShadows = preload("res://scripts/contact_shadows.gd")
+const RivalRenderBatch = preload("res://scripts/rival_render_batch.gd")
 const LACQUER_SHADER = preload("res://shaders/lacquer.gdshader")
 const LACQUER_MICRO = preload("res://assets/textures/lacquer_micro.png")
 const MechanismArt = preload("res://scripts/mechanism_art.gd")
@@ -123,6 +124,7 @@ var monetization: Node
 var starting_camera_target := Vector3(0, 0, 0)
 var player_marker: Label3D
 var contact_shadows: Node3D
+var rival_render: Node3D
 var workshop_lamps: Array[OmniLight3D] = []
 var secondary_showroom_art: Array[MeshInstance3D] = []
 var lamp_refresh := 0.0
@@ -192,6 +194,9 @@ func _ready() -> void:
     camera.near = 0.16
     camera.far = 140.0
     add_child(camera)
+    rival_render = RivalRenderBatch.new()
+    rival_render.name = "InstancedRivalGlass"
+    add_child(rival_render)
     audio = Audio.new()
     audio.name = "RaceAudio"
     add_child(audio)
@@ -393,6 +398,7 @@ func _apply_graphics_quality() -> void:
     for marble in racers:
         if is_instance_valid(marble):
             marble.set_render_quality(graphics_quality)
+    rival_render.set_quality(graphics_quality)
 
 func set_track(index: int) -> bool:
     if index < 0 or index >= TRACK_NAMES.size() or not career.is_unlocked(index):
@@ -1139,6 +1145,8 @@ func _spawn_racers() -> void:
         trail.amount = [12,22,36][graphics_quality]
     if is_instance_valid(contact_shadows):
         contact_shadows.bind_racers(racers)
+    if net.role != "server":
+        rival_render.refresh(racers,camera)
 
 func _add_player_marker(m: RigidBody3D) -> void:
     var tag = Label3D.new()
@@ -1315,6 +1323,7 @@ func return_to_menu() -> void:
     player = null
     if is_instance_valid(contact_shadows):
         contact_shadows.clear_racers()
+    rival_render.clear()
     start_gate.set_signal(-1)
     race_state = "MENU"
     audio.menu_music()
@@ -1447,6 +1456,8 @@ func _process(delta: float) -> void:
             race_moments.tick(delta)
         _update_marble_detail(delta)
         ui.update_hud()
+    if not racers.is_empty() and net.role != "server":
+        rival_render.refresh(racers,camera)
     # Audio tension reads the local HUD's existing 10Hz physics snapshot.
     # No extra 40-racer scans, AI updates or online rewards.
     if is_instance_valid(audio):
