@@ -322,6 +322,14 @@ Base de comparaison GitHub `68725090e8a42dbc2316cceaee35ea43c479e457`.
 - Sur Mesa OpenGL ES logiciel à 640 × 360, dix courses de 40 billes reproduisent la même trajectoire. Le P95 médian par paire au premier obstacle est de 34,8 ms en Economy et de 111,7 ms en Balanced. Les médianes d’appels de rendu sont 358 et 627. En Balanced avec les ombres directionnelles coupées, le P95 est de 92,3 ms. Avec la 3D désactivée, il se situe entre 8,1 et 10,1 ms selon le profil. La comparaison neutralise les plafonds d’images natifs des profils.
 - Ces intervalles concernent le banc logiciel. Le banc Android rejoue les 79 mêmes poses pour les deux profils et les variantes d’isolation. [Protocole et résultats](https://github.com/dbrckk/Marble-race-/pull/19). Les mesures sur téléphone physique restent à faire.
 
+### 2026-11-17 — Ombres Balanced de Woodworks (1.100.0-rc)
+
+Base de comparaison GitHub `4fb9b4a5d2812a5b21a86bee2bb5bd3fac03a1e6`.
+
+- Woodworks en Balanced utilise une carte d’ombres directionnelles sur 36 m. Les ombres de contact restent actives sous les billes. Les captures comparatives couvrent la grille, la mise en mouvement et l’entrée du premier obstacle.
+- Sur Mesa OpenGL ES logiciel à 640 × 360 et 40 billes, le P95 au premier obstacle passe de 114,0 à 88,8 ms, en prenant la médiane de deux essais par réglage. Avec deux cascades, réduire la portée à 31 m puis à 29 m donne respectivement 105,1 et 98,4 ms. Les médianes d’appels de rendu sont de 626,5 avant et 609 avec la carte unique.
+- Les essais isolés des lampes, ombres de contact, du brouillard et du décor donnent des résultats variables selon la phase. [Protocole, mesures et captures Android 14](https://github.com/dbrckk/Marble-race-/pull/20). Les gains sur téléphone physique restent à mesurer.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Isoler les autres passes coûteuses en Balanced, puis tester un budget d’ombres qui garde les repères du premier obstacle lisibles.
+Comparer le réglage Woodworks sur téléphone physique avec le rapport FPS, puis contrôler la netteté des ombres dans les autres variantes de parcours.

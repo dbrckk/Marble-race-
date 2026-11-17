@@ -324,15 +324,21 @@ func toggle_fps_overlay() -> bool:
     return show_fps
 
 func _apply_graphics_quality() -> void:
-    var compact_balanced := graphics_quality == 1 and (selected_track == 0 or selected_track == 2)
+    var woodworks_balanced := graphics_quality == 1 and selected_track == 0
+    var forge_balanced := graphics_quality == 1 and selected_track == 2
+    var compact_balanced := woodworks_balanced or forge_balanced
     if is_instance_valid(primary_light):
         primary_light.shadow_enabled = graphics_quality > 0
-        primary_light.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS if (
-            compact_balanced) else DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
-        primary_light.directional_shadow_split_1 = 0.30 if compact_balanced else 0.10
-        var balanced_shadow_range := 39.0 if selected_track == 0 else 33.0
-        primary_light.directional_shadow_max_distance = balanced_shadow_range if (
-            compact_balanced) else (72.0 if graphics_quality == 2 else 47.0)
+        if woodworks_balanced:
+            # A single map covers the near obstacles and the workshop shell.
+            primary_light.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
+            primary_light.directional_shadow_max_distance = 36.0
+        else:
+            primary_light.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS if (
+                forge_balanced) else DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
+            primary_light.directional_shadow_max_distance = 33.0 if (
+                forge_balanced) else (72.0 if graphics_quality == 2 else 47.0)
+        primary_light.directional_shadow_split_1 = 0.30 if forge_balanced else 0.10
     # The room's walls and overhead beam still shade the course.
     var secondary_shadows := GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if (
         compact_balanced) else GeometryInstance3D.SHADOW_CASTING_SETTING_ON

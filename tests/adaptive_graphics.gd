@@ -74,14 +74,15 @@ func _test() -> void:
     game.set_graphics_quality(3)
     assert(game.set_track(0))
     assert(key_light.shadow_enabled and
-        key_light.directional_shadow_mode == DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS and
-        is_equal_approx(key_light.directional_shadow_max_distance,39.0) and
-        is_equal_approx(key_light.directional_shadow_split_1,0.30),
-        "Woodworks Auto uses the measured Balanced shadow range")
+        key_light.directional_shadow_mode == DirectionalLight3D.SHADOW_ORTHOGONAL and
+        is_equal_approx(key_light.directional_shadow_max_distance,36.0),
+        "Woodworks Auto uses the measured single-map Balanced shadow budget")
     assert(_check_showroom(game,GeometryInstance3D.SHADOW_CASTING_SETTING_OFF))
     game.race_variation = 2
     game.start_race("Grip Tape")
-    assert(is_equal_approx(key_light.directional_shadow_max_distance,39.0))
+    assert(key_light.directional_shadow_mode == DirectionalLight3D.SHADOW_ORTHOGONAL and
+        is_equal_approx(key_light.directional_shadow_max_distance,36.0) and
+        game.contact_shadows.visible)
     assert(_check_showroom(game,GeometryInstance3D.SHADOW_CASTING_SETTING_OFF))
     game.return_to_menu()
     game.set_graphics_quality(2)
