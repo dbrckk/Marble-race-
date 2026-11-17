@@ -1697,6 +1697,16 @@ func _end_race() -> void:
         var outcome := "FINISHED" if completed else "DNF"
         if not completed and not net.is_active():
             outcome = "OFF TRACK" if is_instance_valid(player) and player.eliminated else "TIME OUT"
+        var durations: Array[float] = []
+        var previous_split := 0.0
+        for elapsed in checkpoint_splits:
+            durations.append(maxf(0.01,elapsed-previous_split))
+            previous_split = elapsed
+        if completed and checkpoint_splits.size() == CHECKPOINT_Z.size():
+            var finish_at: float = player.finish_time
+            if is_finite(finish_at) and finish_at > previous_split:
+                durations.append(finish_at-previous_split)
+        var complete_sectors := durations.size() == CHECKPOINT_Z.size()+1
         var ghost_deltas: Array[float] = []
         var ghost_record: bool = false
         if not net.is_active() and is_instance_valid(best_ghost):
@@ -1704,7 +1714,7 @@ func _end_race() -> void:
                 for sector in CHECKPOINT_Z.size():
                     # Compare to the ghost that started this race, before saving a new PB.
                     var gap: float = best_ghost.crossing_delta(sector,checkpoint_splits[sector]) if (
-                        checkpoint_splits.size() == CHECKPOINT_Z.size()) else NAN
+                        complete_sectors) else NAN
                     ghost_deltas.append(gap)
                 ghost_deltas.append(best_ghost.crossing_delta(CHECKPOINT_Z.size(),player.finish_time))
             ghost_record = best_ghost.finish(player.finish_time if completed else race_time,
@@ -1716,17 +1726,6 @@ func _end_race() -> void:
             last_result = career.complete(selected_track,player_rank(),
                 player.finish_time if completed else race_time,completed)
         last_result["outcome"] = outcome
-        var durations: Array[float] = []
-        var previous_split := 0.0
-        for elapsed in checkpoint_splits:
-            durations.append(maxf(0.01,elapsed-previous_split))
-            previous_split = elapsed
-        # Fourth and final sector is measured at the actual finish crossing,
-        # not at the later presentation of the results screen.
-        if completed and checkpoint_splits.size() == 3:
-            var finish_at: float = player.finish_time
-            if is_finite(finish_at) and finish_at > previous_split:
-                durations.append(finish_at-previous_split)
         last_result["ghost_record"] = ghost_record
         last_result["ghost_deltas"] = ghost_deltas
         last_result["clean_passes"] = race_director.clean_pass_count(player.racer_id) if (

@@ -63,12 +63,57 @@ func _verify() -> void:
     var splits: Array = result["sector_times"]
     assert(absf(float(splits[3])-19.0) < 0.05,"Finish sector must use actual finish time")
     assert(game.career.best_sector(0,3) > 18.9)
-    var summary = game.ui.results_layer.find_child("Summary",true,false) as Label
-    assert(summary.text.contains("SECTORS 1"),"Results screen missing split summary")
-    assert(summary.text.contains("S1 -0.98s") and summary.text.contains("S2 +1.02s"))
-    assert(summary.text.contains("S3 -0.98s") and summary.text.contains("FINISH -2.00s"),
+    var hud = game.ui
+    assert(hud.sector_results.is_visible_in_tree() and hud.sector_result_row.is_visible_in_tree())
+    assert(hud.sector_result_times[0].text == "20.02s ★")
+    assert(hud.sector_result_times[3].text == "18.98s ★")
+    var expected_gaps := ["-0.98s","+2.00s","-2.00s","-1.02s"]
+    for sector in expected_gaps.size():
+        assert(hud.sector_result_gaps[sector].text == expected_gaps[sector],
+            "Results must show time gained or lost in this sector")
+    assert(hud.sector_result_hint.is_visible_in_tree() and
+        hud.sector_result_hint.text.contains("SECTOR 2  +2.00s"))
+    assert(hud.sector_result_header.text.contains("FINISH -2.00s VS GHOST"),
         "Show the old ghost difference even after replacing it")
+    var summary := hud.results_scroll.get_node("Summary") as Label
+    assert(summary.text.contains("S1 -0.98s  •  S2 +1.02s  •  S3 -0.98s"),
+        "The detailed report should retain cumulative checkpoint gaps")
     assert(bool(result["ghost_record"]) and is_equal_approx(game.best_ghost.best_time,98.0))
+
+    game.career.unlocked = 2
+    game.show_fps = true
+    game.performance_budget.reset()
+    game.performance_budget.record_frame(1000000,0)
+    game.performance_budget.record_frame(1016000,0)
+    hud.show_results(game.player_rank(),98.0,game.get_rankings())
+    for frame in range(4):
+        await process_frame
+    assert(hud.performance_actions.is_visible_in_tree() and hud.next_course_button.is_visible_in_tree())
+    var sectors_rect: Rect2 = hud.sector_results.get_global_rect()
+    var report_rect: Rect2 = hud.results_scroll.get_global_rect()
+    assert(sectors_rect.end.y <= report_rect.position.y and report_rect.size.y > 70.0,
+        "Pinned sectors must leave the report scrollable with all actions visible")
+    assert(hud.replay_button_ref.get_global_rect().end.y <= hud.next_course_button.get_global_rect().position.y)
+    game.show_fps = false
+
+    game.net.role = "client"
+    hud.show_results(game.player_rank(),98.0,game.get_rankings())
+    assert(not hud.sector_results.visible and summary.text.begins_with("TOP FINISHERS"))
+    game.net.role = "offline"
+
+    result["ghost_deltas"] = [-1.0,-1.5,-1.51,-1.51]
+    hud.show_results(game.player_rank(),98.0,game.get_rankings())
+    assert(not hud.sector_result_hint.visible and hud.sector_result_gaps[3].text == "0.00s")
+    result["ghost_deltas"] = [NAN,NAN,NAN,-0.25]
+    hud.show_results(game.player_rank(),98.0,game.get_rankings())
+    assert(hud.sector_result_row.is_visible_in_tree() and
+        hud.sector_result_header.text.contains("FINISH -0.25s VS GHOST"))
+    for gap_label in hud.sector_result_gaps:
+        assert(not gap_label.visible, "Legacy ghosts only supply a finish gap")
+    result["ghost_deltas"] = []
+    hud.show_results(game.player_rank(),98.0,game.get_rankings())
+    assert(hud.sector_result_header.text == "SECTOR TIMES" and not hud.sector_result_hint.visible)
+
     game.retry_current_layout()
     assert(is_equal_approx(game.best_ghost.crossing_delta(0,20.016),0.0))
 
@@ -86,11 +131,11 @@ func _verify() -> void:
     assert(game.checkpoint_splits.is_empty(),"Skipped checkpoints must invalidate splits")
     game._end_race()
     assert(game.career.best_sector(0,0) == first_best,"DNF must retain previous record")
-    assert(game.last_result["ghost_deltas"].is_empty() and not summary.text.contains("VS GHOST"))
+    assert(game.last_result["ghost_deltas"].is_empty() and not hud.sector_results.visible)
     DirAccess.remove_absolute(ProjectSettings.globalize_path(game.best_ghost.save_path))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(c.save_path))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(game.career.save_path))
-    print("SECTOR_TIMING_PASS: 4 timed sectors, finish split, PB persistence, skip/DNF protection")
+    print("SECTOR_TIMING_PASS: pinned splits, greatest ghost loss, legacy saves, PB and DNF protection")
     game.queue_free()
     for k in range(4):
         await process_frame

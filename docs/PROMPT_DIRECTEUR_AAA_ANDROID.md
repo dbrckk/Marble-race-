@@ -402,6 +402,10 @@ Base `e21135c51b9c30d40bdbb89e67c22494bfe84f95`. Le fantôme solo enregistre les
 
 Les anciens fantômes restent lisibles et comparables à l’arrivée. Ils acquièrent les temps intermédiaires lors d’un nouveau record avec trois passages valides. Aux secteurs, le jeu continue d’afficher les temps habituels tant que le fantôme n’a pas de temps intermédiaires. Les tests de replay et de secteurs couvrent la sauvegarde, la relance, le nouveau record, les courses incomplètes et l’isolement du mode en ligne.
 
+### 2026-11-17 — Bilan des secteurs face au fantôme (1.110.0-rc)
+
+Base `fcdfe07f258bef2ee98b6a89f9fe82c00260fbe2`. Le bilan solo affiche d’entrée les quatre durées au centième, les records de secteur, l’écart à l’arrivée et le secteur où le joueur a perdu le plus de temps. Chaque écart de secteur soustrait les avances ou retards déjà accumulés avant son entrée. Les écarts cumulés aux trois repères restent dans le rapport détaillé. Les anciens fantômes affichent leur écart à l’arrivée. Les résultats en ligne et les abandons gardent leur présentation propre.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Rendre le résultat de chaque secteur plus facile à retrouver après la course et repérer celui où le plus de temps a été perdu sur le fantôme.
+Associer le secteur le plus coûteux aux repères de la carte du tracé pour préparer la prochaine tentative.

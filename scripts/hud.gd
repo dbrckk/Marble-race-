@@ -20,6 +20,9 @@ const DIM := Color("#c8bbb0")
 const ORANGE := Color("#ffb449")
 const PANEL := Color(0.085, 0.09, 0.115, 0.93)
 const CARD := Color(0.13, 0.14, 0.17, 0.97)
+const TIME_GAIN := Color("#a7f4d3")
+const TIME_LOSS := Color("#ffc18d")
+const VISIBLE_TIME_GAP := 0.005
 const PERKS := [
     ["Lead Core", "HEAVY & STEADY", "Extra mass to push through traffic."],
     ["Grip Tape", "STICK TO THE TRACK", "Grip the wood and hold your line."],
@@ -57,6 +60,12 @@ var replay_button_ref: Button
 var next_layout_button: Button
 var result_overview: Label
 var results_scroll: ScrollContainer
+var sector_results: VBoxContainer
+var sector_result_header: Label
+var sector_result_row: HBoxContainer
+var sector_result_times: Array[Label] = []
+var sector_result_gaps: Array[Label] = []
+var sector_result_hint: Label
 var online_leave_layer: Control
 var online_stay_button: Button
 var clock_label: Label
@@ -1335,8 +1344,8 @@ func _build_results() -> void:
     var panel = _panel()
     panel.anchor_left = 0.23
     panel.anchor_right = 0.77
-    panel.anchor_top = 0.12
-    panel.anchor_bottom = 0.89
+    panel.anchor_top = 0.075
+    panel.anchor_bottom = 0.925
     results_layer.add_child(panel)
     var col = _column(11)
     panel.add_child(col)
@@ -1348,8 +1357,8 @@ func _build_results() -> void:
     result_overview.name = "RaceResultOverview"
     result_overview.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     col.add_child(result_overview)
-    # Mastery, split records and five finishers can exceed 720p height.
-    # Keep replay/menu buttons visible and make only the race report swipeable.
+    _build_sector_results(col)
+    # Keep the timing and race actions in view while mastery and rankings scroll.
     var detail_scroll := ScrollContainer.new()
     detail_scroll.name = "RaceResultsScroll"
     results_scroll = detail_scroll
@@ -1408,6 +1417,42 @@ func _build_results() -> void:
     var menu = _action("MAIN MENU", Color("#343b47"))
     menu.pressed.connect(_leave_multiplayer)
     col.add_child(menu)
+
+func _build_sector_results(parent: VBoxContainer) -> void:
+    sector_results = _column(4)
+    sector_results.name = "SectorResults"
+    sector_results.hide()
+    parent.add_child(sector_results)
+    sector_result_header = _text("",18,DIM)
+    sector_result_header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    sector_results.add_child(sector_result_header)
+    sector_result_row = HBoxContainer.new()
+    sector_result_row.add_theme_constant_override("separation",6)
+    sector_results.add_child(sector_result_row)
+    for sector in range(4):
+        var cell := PanelContainer.new()
+        cell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        var style := _surface(CARD,Color(1,1,1,0.09),8)
+        style.content_margin_top = 4
+        style.content_margin_bottom = 4
+        cell.add_theme_stylebox_override("panel",style)
+        sector_result_row.add_child(cell)
+        var line := _column(0)
+        cell.add_child(line)
+        var caption := _text("SECTOR %d" % (sector+1),16,DIM)
+        caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+        line.add_child(caption)
+        var time := _text("",23)
+        time.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+        line.add_child(time)
+        sector_result_times.append(time)
+        var gap := _text("",18)
+        gap.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+        line.add_child(gap)
+        sector_result_gaps.append(gap)
+    sector_result_hint = _text("",18,TIME_LOSS)
+    sector_result_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    sector_results.add_child(sector_result_hint)
 
 func _copy_fps_report() -> void:
     if copy_performance.disabled or performance_text.is_empty() or not results_layer.is_visible_in_tree():
@@ -2134,7 +2179,12 @@ func show_item_pickup(kind: String) -> void:
     _refresh_race_notification()
 
 func _gap_time(seconds: float) -> String:
-    return "0.00s" if absf(seconds) < 0.005 else "%+.2fs" % seconds
+    return "0.00s" if absf(seconds) < VISIBLE_TIME_GAP else "%+.2fs" % seconds
+
+func _gap_color(seconds: float) -> Color:
+    if seconds <= -VISIBLE_TIME_GAP:
+        return TIME_GAIN
+    return TIME_LOSS if seconds >= VISIBLE_TIME_GAP else TEXT
 
 func show_checkpoint(number: int, sector_time: float = 0.0, best_before: float = 0.0,
         ghost_delta: float = NAN) -> void:
@@ -2142,9 +2192,7 @@ func show_checkpoint(number: int, sector_time: float = 0.0, best_before: float =
     var comparison := ""
     if is_finite(ghost_delta):
         comparison = "\n%s VS GHOST" % _gap_time(ghost_delta)
-        checkpoint_label.add_theme_color_override("font_color",
-            Color("#a7f4d3") if ghost_delta <= -0.005 else (
-                Color("#ffc18d") if ghost_delta >= 0.005 else TEXT))
+        checkpoint_label.add_theme_color_override("font_color",_gap_color(ghost_delta))
     elif best_before > 0.0 and sector_time > 0.0:
         var delta := sector_time-best_before
         comparison = "  %+.2fs" % delta
@@ -2155,6 +2203,49 @@ func show_checkpoint(number: int, sector_time: float = 0.0, best_before: float =
     checkpoint_label.text = "SECTOR %d / 3%s%s" % [number,timing,comparison]
     toast_remaining = 2.5 if is_finite(ghost_delta) else 2.15
     _refresh_race_notification()
+
+func _show_sector_results(status: Dictionary, finished_solo: bool) -> void:
+    var times: Array = status.get("sector_times",[])
+    var records: Array = status.get("sector_records",[])
+    var crossings: Array = status.get("ghost_deltas",[])
+    var finish_gap := float(crossings[3]) if finished_solo and crossings.size() == 4 else NAN
+    var has_times := finished_solo and times.size() == 4
+    sector_results.visible = has_times or is_finite(finish_gap)
+    if not sector_results.visible:
+        return
+    sector_result_row.visible = has_times
+    sector_result_hint.hide()
+    sector_result_header.text = "SECTOR TIMES" if has_times else ""
+    if is_finite(finish_gap):
+        var finish_comparison := "FINISH %s VS GHOST" % _gap_time(finish_gap)
+        sector_result_header.text = "SECTOR TIMES  •  " + finish_comparison if has_times else finish_comparison
+    if not has_times:
+        return
+    var has_ghost_sectors := crossings.size() == 4
+    for crossing in crossings:
+        has_ghost_sectors = has_ghost_sectors and is_finite(float(crossing))
+    var previous_gap := 0.0
+    var largest_loss := 0.0
+    var sector_with_loss := -1
+    for sector in range(4):
+        var time_label := sector_result_times[sector]
+        var record := records.size() == 4 and bool(records[sector])
+        time_label.text = "%.2fs%s" % [float(times[sector])," ★" if record else ""]
+        time_label.add_theme_color_override("font_color",ORANGE if record else TEXT)
+        var gap_label := sector_result_gaps[sector]
+        gap_label.visible = has_ghost_sectors
+        if has_ghost_sectors:
+            var gap := float(crossings[sector])-previous_gap
+            previous_gap = float(crossings[sector])
+            gap_label.text = _gap_time(gap)
+            gap_label.add_theme_color_override("font_color",_gap_color(gap))
+            if gap >= VISIBLE_TIME_GAP and gap > largest_loss:
+                largest_loss = gap
+                sector_with_loss = sector
+    sector_result_hint.visible = sector_with_loss >= 0
+    if sector_result_hint.visible:
+        sector_result_hint.text = "MOST TIME LOST  •  SECTOR %d  %s" % [
+            sector_with_loss+1,_gap_time(largest_loss)]
 
 func show_results(place: int, time: float, ranking: Array) -> void:
     if get_tree().paused:
@@ -2176,6 +2267,7 @@ func show_results(place: int, time: float, ranking: Array) -> void:
         leaders = "No finishers yet\n"
     var status: Dictionary = game.last_result
     var finished: bool = bool(status.get("finished",false))
+    _show_sector_results(status,finished and not game.net.is_active())
     var outcome: String = str(status.get("outcome", "FINISHED" if finished else "DNF"))
     var course := "LAYOUT %d / 3" % (game.built_variation + 1)
     result_overview.text = "%s  •  %.2fs  •  %s" % [
@@ -2229,31 +2321,19 @@ func show_results(place: int, time: float, ranking: Array) -> void:
         int(status.get("league_earned",0))]
     if bool(status.get("league_promoted",false)):
         league_text += "  •  LICENSE PROMOTED!"
-    var sector_text := ""
-    var sector_times: Array = status.get("sector_times",[])
-    var sector_records: Array = status.get("sector_records",[])
-    if sector_times.size() == 4:
-        sector_text = "SECTORS 1—4"
-        for sector in range(4):
-            sector_text += "  %.1fs%s" % [
-                float(sector_times[sector]),
-                " ★" if sector_records.size() == 4 and bool(sector_records[sector]) else ""]
+    var checkpoint_text := ""
     var ghost_deltas: Array = status.get("ghost_deltas",[])
-    if ghost_deltas.size() == 4:
-        var gaps := PackedStringArray()
-        for sector in range(4):
-            var gap := float(ghost_deltas[sector])
-            if is_finite(gap):
-                var marker := "S%d" % (sector+1) if sector < 3 else "FINISH"
-                gaps.append("%s %s" % [marker,_gap_time(gap)])
-        if not gaps.is_empty():
-            var comparison := "VS GHOST  " + "  •  ".join(gaps)
-            sector_text = comparison if sector_text.is_empty() else sector_text + "\n" + comparison
+    if finished and not game.net.is_active() and ghost_deltas.size() == 4 and (
+        is_finite(float(ghost_deltas[0])) and is_finite(float(ghost_deltas[1]))
+        and is_finite(float(ghost_deltas[2]))):
+        checkpoint_text = "\nGAP AT CHECKPOINTS  •  S1 %s  •  S2 %s  •  S3 %s" % [
+            _gap_time(float(ghost_deltas[0])),_gap_time(float(ghost_deltas[1])),
+            _gap_time(float(ghost_deltas[2]))]
     if summary:
-        summary.text = "CLEAN PASSES  %d / 3  •  OVERTAKES %d\nBANKED APEXES  %d / 4\nBRIDGE GATES  %d / 3%s\nREAL LANDINGS  %d  •  BEST AIR %.2fs\n%s\n%s\n%s\n%s\n%s\n%s\n%s\nBEST  #%s\n\nTOP 5\n%s" % [
+        summary.text = "CLEAN PASSES  %d / 3  •  OVERTAKES %d\nBANKED APEXES  %d / 4\nBRIDGE GATES  %d / 3%s\nREAL LANDINGS  %d  •  BEST AIR %.2fs\n%s\n%s\n%s\n%s%s\n%s\n%s\nBEST  #%s\n\nTOP 5\n%s" % [
             clean_passes,overtakes,apex_passes,bridge_gates,
             "  •  PERFECT!" if perfect_bridge else "",landings,best_air,
-            precision_text,league_text,mastery_text,stars_text,sector_text,
+            precision_text,league_text,mastery_text,stars_text,checkpoint_text,
             record_text,unlock_text,
             str(game.career.track_best[game.selected_track]) if game.career.track_best[game.selected_track] > 0 else "—",
             leaders]
