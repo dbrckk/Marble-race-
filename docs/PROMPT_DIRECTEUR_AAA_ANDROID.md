@@ -384,6 +384,18 @@ Base de comparaison GitHub `8ee663bfe28989ec555217b7e2de5cdb21673822`.
 - Sur un banc CPU sans rendu, sept répétitions de 6 400 décisions par tracé donnent une baisse médiane du temps de prévision de 63 à 77 % sur Woodworks, de 71 à 76 % sur Glacier et de 38 à 60 % sur Forge. Les 204 120 comparaisons autour des seuils de distance, de largeur, de phase et de vitesse donnent les mêmes décisions.
 - Une comparaison à 40 billes sur chacun des neuf tracés retrouve les mêmes trajectoires échantillonnées, temps d’arrivée et classements. Le P95 du pilotage et du contrôle d’arrivée baisse de 7 à 21 % selon le tracé dans ces essais CPU. Le temps d’image sur téléphone reste à mesurer.
 
+### 2026-11-17 — Relance, résultats et fiabilité de la course (1.108.0-rc)
+
+Base de comparaison GitHub `1730ecc614a6cff3797f80d70fd2e3915bf0cc5c`. Le [banc Android émulé et son contrôle CPU](https://github.com/dbrckk/Marble-race-/pull/25) précèdent ce lot.
+
+1. En solo, Recommencer depuis la pause ou les résultats rejoue le même tracé, avec le même avantage et le fantôme correspondant. Les mécanismes reviennent à leur phase de départ. Tracé suivant sélectionne explicitement la variante suivante.
+2. En ligne, Quitter demande confirmation et relâche les commandes locales. Reprendre redonne la main pendant que la course continue.
+3. Le résultat principal reste visible au-dessus du rapport. Il affiche le rang d’arrivée, le temps à deux décimales et la variante. Une sortie de piste et une limite de temps ont des états distincts en solo. Les premiers du tableau sont réellement arrivés.
+4. La carrière est écrite dans un fichier temporaire du même dossier, puis vérifiée et remplacée par renommage. Une écriture volontairement bloquée laisse les octets précédents intacts. La sauvegarde se recharge au format existant après une écriture réussie.
+5. Woodworks et Glacier lisent une fois la position des billes éligibles à chaque étape physique. Forge parcourt les évents actifs sans créer ce relevé. Les tests de zone, de force, de recharge et d’anticipation couvrent les trois univers.
+
+Les scénarios locaux couvrent le menu, le premier départ, le rejeu, les résultats, la pause et la sortie, la progression, les secteurs d’arrivée et les neuf tracés. Les écrans de résultats et de confirmation ont été rendus à 640 × 360 en OpenGL Compatibility. La vérification sur téléphone est reportée à la demande de l’utilisateur.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Comparer le temps d’image sur Android à 40 billes et isoler la part des effets physiques des zones dans les passages chargés.
+Vérifier le rythme des premières courses après une relance sur le même tracé, puis rendre l’écart au fantôme plus lisible aux points intermédiaires.

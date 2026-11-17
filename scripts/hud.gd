@@ -54,6 +54,11 @@ var lan_start_button: Button
 var lan_leave_button: Button
 var pause_button_ref: Button
 var replay_button_ref: Button
+var next_layout_button: Button
+var result_overview: Label
+var results_scroll: ScrollContainer
+var online_leave_layer: Control
+var online_stay_button: Button
 var clock_label: Label
 var place_label: Label
 var remaining_label: Label
@@ -148,6 +153,7 @@ func attach_game(owner_game: Node3D) -> void:
     _build_results()
     _build_pause_menu()
     _build_online_lobby()
+    _build_online_leave_dialog()
     _build_backup_dialog()
     game.net.lobby_changed.connect(_lan_status_update)
     game.net.session_closed.connect(_lan_status_update)
@@ -1246,7 +1252,7 @@ func resume_race() -> void:
 
 func _restart_from_pause() -> void:
     resume_race()
-    game.restart_race()
+    game.retry_current_layout()
 
 func _leave_from_pause() -> void:
     resume_race()
@@ -1254,7 +1260,15 @@ func _leave_from_pause() -> void:
 
 func _toggle_pause() -> void:
     if game.net.is_active():
-        _leave_multiplayer()
+        if online_leave_layer.visible:
+            _close_online_leave()
+        elif game.race_state in ["RACING", "COUNTDOWN"]:
+            touch_controls.release_all()
+            game.change_steer(0.0)
+            game.change_boost(false)
+            touch_controls.enabled = false
+            online_leave_layer.show()
+            online_stay_button.grab_focus()
         return
     if get_tree().paused and pause_layer.visible:
         resume_race()
@@ -1276,6 +1290,43 @@ func _notification(what: int) -> void:
             else:
                 pause_race()
 
+func _build_online_leave_dialog() -> void:
+    online_leave_layer = Control.new()
+    online_leave_layer.name = "OnlineLeaveDialog"
+    online_leave_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    online_leave_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+    root.add_child(online_leave_layer)
+    online_leave_layer.add_child(_shade())
+
+    var panel := _panel()
+    panel.anchor_left = 0.29
+    panel.anchor_right = 0.71
+    panel.anchor_top = 0.30
+    panel.anchor_bottom = 0.70
+    online_leave_layer.add_child(panel)
+    var column := _column(12)
+    panel.add_child(column)
+    var title := _text("LEAVE ONLINE RACE?", 34, ORANGE)
+    title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    column.add_child(title)
+    var description := _text("The race keeps running while this menu is open.", 21, DIM)
+    description.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    column.add_child(description)
+    online_stay_button = _action("KEEP RACING", ORANGE, Color("#251b0d"))
+    online_stay_button.pressed.connect(_close_online_leave)
+    column.add_child(online_stay_button)
+    var leave := _action("LEAVE RACE")
+    leave.name = "ConfirmLeaveRace"
+    leave.pressed.connect(_leave_multiplayer)
+    column.add_child(leave)
+    online_leave_layer.hide()
+
+func _close_online_leave() -> void:
+    if not online_leave_layer.visible:
+        return
+    online_leave_layer.hide()
+    touch_controls.enabled = true
+
 func _build_results() -> void:
     results_layer = Control.new()
     results_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -1287,16 +1338,21 @@ func _build_results() -> void:
     panel.anchor_top = 0.12
     panel.anchor_bottom = 0.89
     results_layer.add_child(panel)
-    var col = _column(17)
+    var col = _column(11)
     panel.add_child(col)
     var title = _text("RACE RESULTS", 40, ORANGE)
     title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     col.add_child(title)
     result_header = title
+    result_overview = _text("", 24)
+    result_overview.name = "RaceResultOverview"
+    result_overview.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    col.add_child(result_overview)
     # Mastery, split records and five finishers can exceed 720p height.
     # Keep replay/menu buttons visible and make only the race report swipeable.
     var detail_scroll := ScrollContainer.new()
     detail_scroll.name = "RaceResultsScroll"
+    results_scroll = detail_scroll
     detail_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
     detail_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     detail_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -1322,22 +1378,30 @@ func _build_results() -> void:
     compare_performance.add_theme_font_size_override("font_size",17)
     compare_performance.pressed.connect(func():
         var quality := int(game.graphics_setting == 0)
-        game.race_variation = game.built_variation
         game.set_graphics_quality(quality)
         quality_button.text = "GRAPHICS: " + game.graphics_mode_label()
-        game.restart_race()
+        game.retry_current_layout()
     )
     performance_actions.add_child(compare_performance)
-    var replay = _action("RACE AGAIN", ORANGE, Color("#251b0d"))
+    var race_actions := HBoxContainer.new()
+    race_actions.add_theme_constant_override("separation", 10)
+    col.add_child(race_actions)
+    var replay = _action("RETRY SAME LAYOUT", ORANGE, Color("#251b0d"))
     replay.name = "Replay"
     replay.pressed.connect(func():
         if game.net.is_active():
             show_online_lobby()
         else:
-            game.restart_race()
+            game.retry_current_layout()
     )
-    col.add_child(replay)
+    replay.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    race_actions.add_child(replay)
     replay_button_ref = replay
+    next_layout_button = _action("NEXT LAYOUT", Color("#454c5a"))
+    next_layout_button.name = "NextLayout"
+    next_layout_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    next_layout_button.pressed.connect(func(): game.restart_race())
+    race_actions.add_child(next_layout_button)
     next_course_button = _action("NEXT CIRCUIT  →",Color("#4c6b67"))
     next_course_button.pressed.connect(_continue_championship)
     col.add_child(next_course_button)
@@ -1415,6 +1479,8 @@ func _hide_all() -> void:
     rival_marker.hide()
     if is_instance_valid(touch_controls):
         touch_controls.release_all()
+    if is_instance_valid(online_leave_layer):
+        _close_online_leave()
     menu_layer.visible = false
     perks_layer.visible = false
     hud_layer.visible = false
@@ -2087,11 +2153,24 @@ func show_results(place: int, time: float, ranking: Array) -> void:
     _hide_all()
     results_layer.visible = true
     var summary = results_layer.find_child("Summary", true, false) as Label
-    var leaders = ""
-    for i in range(min(5, ranking.size())):
-        leaders += "%s  %s\n" % [str(i+1).pad_zeros(2), ranking[i].display_name]
+    results_scroll.set_deferred("scroll_vertical", 0)
+    var leaders := ""
+    var finisher_count := 0
+    for marble in ranking:
+        if not marble.finished:
+            break
+        finisher_count += 1
+        leaders += "%02d  %s  %.2fs\n" % [finisher_count, marble.display_name, marble.finish_time]
+        if finisher_count == 5:
+            break
+    if leaders.is_empty():
+        leaders = "No finishers yet\n"
     var status: Dictionary = game.last_result
     var finished: bool = bool(status.get("finished",false))
+    var outcome: String = str(status.get("outcome", "FINISHED" if finished else "DNF"))
+    var course := "LAYOUT %d / 3" % (game.built_variation + 1)
+    result_overview.text = "%s  •  %.2fs  •  %s" % [
+        "P%d / %d" % [place, game.MARBLE_COUNT] if finished else outcome, time, course]
     var measurements: String = game.performance_budget.race_summary() if game.show_fps else ""
     performance_text = measurements
     performance_actions.visible = not measurements.is_empty()
@@ -2109,7 +2188,7 @@ func show_results(place: int, time: float, ranking: Array) -> void:
         award = "3 STARS" if place <= 3 else ("2 STARS" if place <= 10 else "1 STAR")
     if is_instance_valid(result_header):
         result_header.text = "%s  •  %s" % [game.track_title(),("ONLINE RACE" if game.net.is_active() else award)]
-    var record_text := "NEW PERSONAL BEST!" if bool(status.get("record",false)) else (
+    var record_text := "NEW BEST FINISH!" if bool(status.get("record",false)) else (
         "NEW GHOST RECORD!" if bool(status.get("ghost_record",false)) else "")
     var unlock_text := "NEXT CIRCUIT UNLOCKED!" if bool(status.get("unlocked",false)) else ""
     var earned_stars: int = int(status.get("stars",0))
@@ -2151,8 +2230,8 @@ func show_results(place: int, time: float, ranking: Array) -> void:
                 float(sector_times[sector]),
                 " ★" if sector_records.size() == 4 and bool(sector_records[sector]) else ""]
     if summary:
-        summary.text = "POSITION  #%d / 40   •   %s\nTIME  %.1fs\nCLEAN PASSES  %d / 3  •  OVERTAKES %d\nBANKED APEXES  %d / 4\nBRIDGE GATES  %d / 3%s\nREAL LANDINGS  %d  •  BEST AIR %.2fs\n%s\n%s\n%s\n%s\n%s\n%s\n%s\nBEST  #%s\n\nTOP 5\n%s" % [
-            place,"FINISHED" if finished else "TIME OUT",time,clean_passes,overtakes,apex_passes,bridge_gates,
+        summary.text = "CLEAN PASSES  %d / 3  •  OVERTAKES %d\nBANKED APEXES  %d / 4\nBRIDGE GATES  %d / 3%s\nREAL LANDINGS  %d  •  BEST AIR %.2fs\n%s\n%s\n%s\n%s\n%s\n%s\n%s\nBEST  #%s\n\nTOP 5\n%s" % [
+            clean_passes,overtakes,apex_passes,bridge_gates,
             "  •  PERFECT!" if perfect_bridge else "",landings,best_air,
             precision_text,league_text,mastery_text,stars_text,sector_text,
             record_text,unlock_text,
@@ -2162,11 +2241,11 @@ func show_results(place: int, time: float, ranking: Array) -> void:
         # Solo challenge counters are not available on a display-only
         # multiplayer client: never show a false zero instead of the
         # server-authoritative remote clean-pass count.
-        summary.text = "WORLDWIDE ONLINE RACE   •   40 MARBLES\nPOSITION #%d / 40   •   %s\nTIME %.1fs\n\nTOP FINISHERS\n%s" % [
-            place,"FINISHED" if finished else "DNF",time,leaders]
+        summary.text = "TOP FINISHERS\n%s" % leaders
         replay_button_ref.text = "ONLINE LOBBY — AUTO REMATCH"
         replay_button_ref.disabled = false
     else:
-        replay_button_ref.text = "RACE AGAIN"
+        replay_button_ref.text = "RETRY SAME LAYOUT"
         replay_button_ref.disabled = false
+    next_layout_button.visible = not game.net.is_active()
     next_course_button.visible = not game.net.is_active() and game.selected_track < 2 and game.career.is_unlocked(game.selected_track+1)

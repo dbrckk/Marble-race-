@@ -1267,6 +1267,14 @@ func start_race(perk_name: String) -> void:
 func restart_race() -> void:
     start_race(selected_perk)
 
+func retry_current_layout() -> void:
+    race_variation = built_variation
+    kinetic_time = 0.0
+    for obstacle in moving_obstacles:
+        if is_instance_valid(obstacle):
+            obstacle.rotation = Vector3.ZERO
+    restart_race()
+
 func return_to_menu() -> void:
     if race_moments != null:
         race_moments.reset_round()
@@ -1624,7 +1632,7 @@ func change_boost(value: bool) -> void:
     boosting = value and boost_energy > 0.03
 
 func _unhandled_input(event: InputEvent) -> void:
-    if race_state != "RACING":
+    if race_state != "RACING" or ui.online_leave_layer.visible:
         return
     if event is InputEventKey:
         if event.echo:
@@ -1683,6 +1691,9 @@ func _end_race() -> void:
     if not result_saved:
         result_saved = true
         var completed: bool = is_instance_valid(player) and player.finished
+        var outcome := "FINISHED" if completed else "DNF"
+        if not completed and not net.is_active():
+            outcome = "OFF TRACK" if is_instance_valid(player) and player.eliminated else "TIME OUT"
         var ghost_record: bool = false
         if is_instance_valid(best_ghost):
             ghost_record = best_ghost.finish(
@@ -1693,6 +1704,7 @@ func _end_race() -> void:
         else:
             last_result = career.complete(selected_track,player_rank(),
                 player.finish_time if completed else race_time,completed)
+        last_result["outcome"] = outcome
         var durations: Array[float] = []
         var previous_split := 0.0
         for elapsed in checkpoint_splits:

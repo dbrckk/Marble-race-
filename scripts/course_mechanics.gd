@@ -36,6 +36,8 @@ var ice_exit_shutters: Array[int] = []
 var collected: Dictionary = {}
 var last_burst: Dictionary = {}
 var race_clock := 0.0
+var zone_racers: Array[RigidBody3D] = []
+var zone_samples := PackedVector3Array()
 
 static func lane_offset(index: int, track: int, layout: int) -> float:
     if index < 0 or index >= ZONE_Z.size():
@@ -388,56 +390,70 @@ func _process(_delta: float) -> void:
 
 func tick(delta: float, racers: Array[RigidBody3D], net: Node) -> void:
     race_clock += delta
+    if track_id == 2:
+        _tick_vents(racers, net)
+        return
+    # Surface impulses and continuous grip only change velocity. Sample each
+    # eligible racer once and keep the original zone and racer ordering.
+    zone_samples.resize(racers.size())
+    for marble in racers:
+        if is_instance_valid(marble) and not marble.finished and not marble.eliminated and not marble.freeze:
+            zone_samples[zone_racers.size()] = marble.global_position
+            zone_racers.append(marble)
+    var ice := track_id == 1
     for i in range(zones.size()):
         var zone := zones[i]
         if not is_instance_valid(zone):
             continue
-        if track_id == 2 and not vent_active(i,race_clock):
-            continue
-        var zone_position: Vector3 = zone.global_position
-        # The long ribbons and circular forge vents are bounded in Z. Most
-        # of the forty racers are nowhere near any of the five zones.
-        var extent_z: float = sqrt(VENT_RADIUS_SQUARED) if track_id == 2 else ZONE_LENGTH*0.5
-        for marble in racers:
-            if not is_instance_valid(marble) or marble.finished or marble.eliminated or marble.freeze:
+        var center := zone.global_position
+        var side := signf(lane_offset(i, track_id, variation))
+        for racer_index in range(zone_racers.size()):
+            var at := zone_samples[racer_index]
+            if absf(at.z-center.z) >= ZONE_LENGTH*0.5:
                 continue
-            var marble_position: Vector3 = marble.global_position
-            if absf(marble_position.z-zone_position.z) >= extent_z:
+            var offset := at-center
+            if absf(offset.y) > 1.7 or not (absf(offset.x) < ZONE_WIDTH*0.5):
                 continue
-            var offset: Vector3 = marble_position-zone_position
-            if absf(offset.y) > 1.7:
-                continue
-            var within := absf(offset.x) < ZONE_WIDTH*0.5
-            if track_id == 2:
-                within = offset.x*offset.x+offset.z*offset.z < VENT_RADIUS_SQUARED
-            if not within:
-                continue
+            var marble := zone_racers[racer_index]
+            if ice:
+                marble.apply_central_force(Vector3(side*2.3,0.0,0.0)*marble.mass)
             var key := "%d:%d" % [i,marble.racer_id]
-            if track_id == 1:
-                # Continuous, bounded lateral drift in an icy lane. This is
-                # recoverable by player steering and also applies to bots.
-                marble.apply_central_force(Vector3(
-                    signf(lane_offset(i,track_id,variation))*2.3,0.0,0.0)*marble.mass)
-            elif track_id == 2:
-                if race_clock-float(last_burst.get(key,-100.0)) < LAVA_CYCLE-0.3:
-                    continue
-                last_burst[key] = race_clock
-                marble.apply_central_impulse(Vector3(
-                    signf(lane_offset(i,track_id,variation))*1.35,
-                    1.05,1.75)*marble.mass)
-                _feedback(marble,net,"vent")
-                continue
             if collected.has(key):
                 continue
             collected[key] = true
-            if track_id == 0:
+            if ice:
+                marble.apply_central_impulse(Vector3(side*1.2,0.05,-0.4)*marble.mass)
+                _feedback(marble,net,"ice")
+            else:
                 marble.apply_central_impulse(Vector3(0.0,0.15,-4.6)*marble.mass)
                 _feedback(marble,net,"speed")
-            else:
-                marble.apply_central_impulse(Vector3(
-                    signf(lane_offset(i,track_id,variation))*1.2,
-                    0.05,-0.4)*marble.mass)
-                _feedback(marble,net,"ice")
+    zone_racers.clear()
+
+func _tick_vents(racers: Array[RigidBody3D], net: Node) -> void:
+    # Most Forge ticks have only one active vent, so skip the batch snapshot.
+    var depth := sqrt(VENT_RADIUS_SQUARED)
+    for i in range(zones.size()):
+        var zone := zones[i]
+        if not is_instance_valid(zone) or not vent_active(i,race_clock):
+            continue
+        var center := zone.global_position
+        var side := signf(lane_offset(i, track_id, variation))
+        for marble in racers:
+            if not is_instance_valid(marble) or marble.finished or marble.eliminated or marble.freeze:
+                continue
+            var at := marble.global_position
+            if absf(at.z-center.z) >= depth:
+                continue
+            var offset := at-center
+            if absf(offset.y) > 1.7 or not (
+                offset.x*offset.x+offset.z*offset.z < VENT_RADIUS_SQUARED):
+                continue
+            var key := "%d:%d" % [i,marble.racer_id]
+            if race_clock-float(last_burst.get(key,-100.0)) < LAVA_CYCLE-0.3:
+                continue
+            last_burst[key] = race_clock
+            marble.apply_central_impulse(Vector3(side*1.35,1.05,1.75)*marble.mass)
+            _feedback(marble,net,"vent")
 
 func _feedback(marble: RigidBody3D, net: Node, kind: String) -> void:
     if net.role == "server":

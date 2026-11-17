@@ -109,7 +109,24 @@ func save() -> int:
         file.set_value("league","runs_%d" % index,league_runs[index])
         file.set_value("league","passes_%d" % index,league_clean_passes[index])
         file.set_value("league","shortcuts_%d" % index,league_shortcuts[index])
-    return file.save(save_path)
+    # Stage each write next to the live save so a partial write cannot truncate it.
+    var temporary := save_path + (".saving-%d" % OS.get_process_id())
+    var writer := FileAccess.open(temporary, FileAccess.WRITE)
+    if writer == null:
+        return FileAccess.get_open_error()
+    var content := file.encode_to_text().to_utf8_buffer()
+    writer.store_buffer(content)
+    writer.flush()
+    var write_error := writer.get_error()
+    writer.close()
+    if write_error == OK and FileAccess.get_file_as_bytes(temporary) != content:
+        write_error = ERR_FILE_CANT_WRITE
+    var staged := ProjectSettings.globalize_path(temporary)
+    if write_error == OK:
+        write_error = DirAccess.rename_absolute(staged, ProjectSettings.globalize_path(save_path))
+    if write_error != OK:
+        DirAccess.remove_absolute(staged)
+    return write_error
 
 func begin() -> void:
     starts += 1

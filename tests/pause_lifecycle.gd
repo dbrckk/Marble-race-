@@ -34,7 +34,12 @@ func _verify() -> void:
     assert(not paused and not scene.ui.pause_layer.visible, "Resume should unpause")
     scene.ui.pause_race()
     assert(paused, "Pause should be repeatable")
+    var previous_board: Node3D = scene.board
+    var previous_layout: int = scene.built_variation
     scene.ui._restart_from_pause()
+    assert(scene.board == previous_board and scene.built_variation == previous_layout,
+        "Restart from pause must replay the selected layout")
+    assert(is_zero_approx(scene.kinetic_time), "Retry must reset the course mechanism clock")
     assert(not paused and scene.race_state == "COUNTDOWN",
         "Restart must rebuild a live race")
     assert(scene.racers.size() == 40 and not scene.ui.pause_layer.visible,
@@ -49,6 +54,21 @@ func _verify() -> void:
     assert(not paused and scene.race_state == "MENU", "Exit should return to menu")
     assert(not scene.ui.pause_layer.visible and not scene.ui.touch_controls.boost_pressed,
         "Leaving paused race must clear overlays and controls")
+    scene.net.role = "client"
+    scene.net.connected = true
+    scene.start_race("Grip Tape")
+    scene.race_state = "RACING"
+    scene.ui.touch_controls._set_steer(-0.8)
+    scene.ui.touch_controls._set_boost(true)
+    scene.ui.pause_button_ref.pressed.emit()
+    assert(scene.ui.online_leave_layer.visible and not paused and scene.net.is_active())
+    assert(not scene.ui.touch_controls.enabled and not scene.boosting and scene.steer_target == 0.0)
+    scene.ui.online_stay_button.pressed.emit()
+    assert(not scene.ui.online_leave_layer.visible and scene.ui.touch_controls.enabled and scene.net.is_active())
+    scene.ui.pause_button_ref.pressed.emit()
+    var leave := scene.ui.online_leave_layer.find_child("ConfirmLeaveRace", true, false) as Button
+    leave.pressed.emit()
+    assert(scene.race_state == "MENU" and not scene.net.is_active() and scene.ui.touch_controls.enabled)
     print("PAUSE_LIFECYCLE_PASS: race-time freeze, controls, resume, restart, Android background, menu")
     scene.queue_free()
     for n in range(4):

@@ -4,7 +4,7 @@ Original **3D Android marble-racing game** inspired by the look and mechanics sh
 
 Independent implementation in **Godot 4.5.1**, focused on real mobile playability, physics, and stylized toy-table graphics. No proprietary material from the reference game is redistributed.
 
-## Current state: Android QA build (v1.107.0-rc, versionCode 121)
+## Current state: Android QA build (v1.108.0-rc, versionCode 122)
 
 **Playable scope (October 2026):** three visually differentiated 3D worlds with physical elevation changes, nine repeatable obstacle layouts, forty individually simulated glass marbles, real banked and elevated side-route shortcuts, six player perks, progression, ghost comparisons and optional online races. Autonomous opponents use deterministic physical steering, real route choices, anticipatory passing and forecasts of moving hazards; human steering stays entirely manual. The phone HUD previews real course geometry and estimates when Forge pistons will be open or blocked on arrival, with a nonrepeating audio danger cue. The three pistons share an illuminated shoulder beacon and matched deck markings for their current phase.
 
@@ -20,11 +20,13 @@ At the first fork, pale mint arrows trace the main road and amber arrows lead th
 
 Bridge exits now share deck-aligned return arrows and a sign at the lip. Woodworks keeps the camera clear at the second checkpoint and keeps the merge cue through the lip. Glacier presents the merge direction and upcoming shutter in one panel, then hands off to the normal collision warning when the marble rejoins the track.
 
-The finish is marked by a two-row checker stripe and lateral oak, ice or steel pylons. The third checkpoint keeps its signs beside the track so the finish remains visible. Results display the recorded crossing time, and Race Again starts the next layout.
+The finish is marked by a two-row checker stripe and lateral oak, ice or steel pylons. The third checkpoint keeps its signs beside the track so the finish remains visible. Results pin the recorded crossing time, rank and layout above the scrollable details. A fall and a timeout have separate outcomes. Retry restarts the current layout with the same perk and its matching personal ghost, while Next Layout rotates the obstacles.
 
 The race checks where the marble crosses the finish plane between physics ticks. Rolling and airborne crossings above the deck count. Passes beneath the deck or beside it do not enter the standings. Offline Forge leaves more space between the rotating paddle and hammer where their combined contacts could push a marble through the deck.
 
 Enable **FPS DISPLAY** before racing to collect frame pacing by course phase. Results offer **COPY FPS REPORT** and an Economy/Balanced comparison on the same layout and perk in solo races.
+
+During an online race, Leave opens a confirmation without pausing the match. Career saves are staged and checked before replacing the live file. Woodworks and Glacier share one snapshot of eligible marble positions per physics tick. Forge checks the active vents directly.
 
 In solo races, a marble trapped after repeated recovery attempts near the final obstacles can back away briefly and roll around the obstruction. A crowded physics replay checks that the player crosses the stripe on all nine layouts.
 
