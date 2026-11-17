@@ -450,6 +450,10 @@ Base `2419255f8fbedad49b80b8231923a9f56077f64a`. Une relance du secteur surlign�
 
 Base `d2ae8dcee1bf26b261b94a18850da5568dd02ca5`. Le bilan solo compare au centième le temps du passage ciblé avec celui de la tentative précédente sur le même tracé. La carte continue de signaler la plus grosse perte de la course qui vient de se terminer. Sur Woodworks, le passage ciblé 4 est passé de 3,56 s à 2,66 s alors que la perte la plus importante concernait le passage 3.
 
+### 2026-11-17 — Briefing plus lisible et alertes de course (1.122.0-rc)
+
+Base `4bcaad09c4fab266557f16fd22bcbb7643e7f57e`. Le briefing affiche les six avantages avant la carte. Le nom du circuit, le tracé, le côté du pont et le conseil de conduite sont agrandis et restent visibles pendant le défilement. En course, les prévisions de passage libre et le texte du duel cèdent la place à la direction du pont et aux dangers pertinents. Aux mêmes positions avant les bifurcations, les lignes centrales passent de 4 à 3 sur Woodworks, de 3 à 2 sur Glacier, et de 4 à 2 sur Forge.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Alléger les annonces au centre de l'écran à l'approche des obstacles et améliorer la lecture du briefing en format paysage compact. Mesurer la fluidité du peloton sur un appareil Android dès qu'il est disponible.
+Rendre la bille du joueur plus facile à suivre dans les pelotons et les passages chargés. Mesurer la fluidité du peloton sur un appareil Android dès qu'il est disponible.

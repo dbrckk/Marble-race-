@@ -14,6 +14,7 @@ const FINAL_OBSTACLE_WARNING_SECONDS := 1.40
 const SURFACE_CUE_TOP := 0.350
 const SURFACE_CUE_BOTTOM := 0.396
 const PISTON_WARNING_SECONDS := 2.20
+const CLEAR_GATE_NEAR_SECONDS := 2.0
 const FONT_HEAVY = preload("res://assets/fonts/Rajdhani-Bold.ttf")
 const FONT_REGULAR = preload("res://assets/fonts/Rajdhani-Medium.ttf")
 const TEXT := Color("#fff1dc")
@@ -145,7 +146,9 @@ var style_button: Button
 var perk_scroll: ScrollContainer
 var perk_panel: PanelContainer
 var course_briefing
+var briefing_title: Label
 var course_strategy_label: Label
+var briefing_notes: Label
 var next_course_button: Button
 var backup_layer: Control
 var backup_status: Label
@@ -740,9 +743,9 @@ func _build_perks() -> void:
     perks_layer.add_child(_shade())
     perk_panel = _panel()
     perk_panel.name = "PerkSelectionPanel"
-    perk_panel.anchor_left = 0.125
+    perk_panel.anchor_left = 0.09
     perk_panel.anchor_top = 0.055
-    perk_panel.anchor_right = 0.875
+    perk_panel.anchor_right = 0.91
     perk_panel.anchor_bottom = 0.945
     perks_layer.add_child(perk_panel)
 
@@ -750,9 +753,13 @@ func _build_perks() -> void:
     # Only the course preview and the six perk descriptions can scroll.
     var shell := _column(8)
     perk_panel.add_child(shell)
-    var header := _text("PICK YOUR PERK",32,ORANGE)
-    header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    shell.add_child(header)
+    briefing_title = _text("",34,ORANGE)
+    briefing_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    shell.add_child(briefing_title)
+    course_strategy_label = _text("",23,TEXT)
+    course_strategy_label.name = "RealCourseStrategy"
+    course_strategy_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    shell.add_child(course_strategy_label)
     perk_scroll = ScrollContainer.new()
     perk_scroll.name = "PerkSelectionScroll"
     perk_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -765,22 +772,7 @@ func _build_perks() -> void:
     var col := _column(8)
     col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     perk_scroll.add_child(col)
-    var sub := _text("Read the course. Choose a marble power. Roll for the podium.",16,DIM)
-    sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    col.add_child(sub)
-
-    course_briefing = COURSE_BRIEFING.new()
-    course_briefing.name = "PhysicalCourseBriefingMap"
-    course_briefing.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    col.add_child(course_briefing)
-    course_strategy_label = _text("",15,DIM)
-    course_strategy_label.name = "RealCourseStrategy"
-    course_strategy_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    col.add_child(course_strategy_label)
-    mastery_label = _text("",15,DIM)
-    mastery_label.name = "MasteryChallenges"
-    mastery_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    col.add_child(mastery_label)
+    col.add_child(_text("CHOOSE A PERK",21,TEXT))
     var grid := GridContainer.new()
     grid.name = "SixSelectablePerks"
     grid.columns = 3
@@ -790,15 +782,27 @@ func _build_perks() -> void:
     col.add_child(grid)
     for info in PERKS:
         var item := _action(info[0].to_upper() + "\n" + info[1],CARD)
-        item.custom_minimum_size = Vector2(215,101)
+        item.custom_minimum_size = Vector2(215,67)
         item.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-        item.add_theme_font_size_override("font_size",16)
+        item.add_theme_font_size_override("font_size",20)
         item.pressed.connect(_choose_perk.bind(info[0]))
         grid.add_child(item)
         select_buttons.append(item)
-    selected_description = _text("Select one of the six perks.",16,DIM)
+    selected_description = _text("",19,TEXT)
+    selected_description.hide()
     selected_description.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     col.add_child(selected_description)
+    course_briefing = COURSE_BRIEFING.new()
+    course_briefing.name = "PhysicalCourseBriefingMap"
+    course_briefing.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    col.add_child(course_briefing)
+    briefing_notes = _text("",18,DIM)
+    briefing_notes.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    col.add_child(briefing_notes)
+    mastery_label = _text("",18,DIM)
+    mastery_label.name = "MasteryChallenges"
+    mastery_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    col.add_child(mastery_label)
     style_button = _action("MARBLE STYLE: COPPER",Color("#35475a"))
     style_button.name = "UnlockedMarbleStyles"
     style_button.add_theme_font_size_override("font_size",17)
@@ -848,6 +852,7 @@ func _choose_perk(value: String) -> void:
     for p in PERKS:
         if p[0] == value:
             selected_description.text = value.to_upper() + "  —  " + p[2]
+            selected_description.show()
     start_button.disabled = false
 
 func _small_panel_text(initial: String, size: int, anchor: Rect2, align: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT) -> Label:
@@ -941,7 +946,7 @@ func _build_race_hud() -> void:
     race_radar.anchor_bottom = 0.150
     race_radar.configure(game)
     hud_layer.add_child(race_radar)
-    hazard_label = _text("",19,Color("#ffd39c"))
+    hazard_label = _text("",21,Color("#ffd39c"))
     hazard_label.name = "UpcomingHazard"
     hazard_label.anchor_left = 0.32
     hazard_label.anchor_right = 0.68
@@ -950,7 +955,7 @@ func _build_race_hud() -> void:
     hazard_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     hazard_label.visible = false
     hud_layer.add_child(hazard_label)
-    shortcut_label = _text("",19,Color("#f9d79a"))
+    shortcut_label = _text("",21,Color("#f9d79a"))
     shortcut_label.name = "ForkAndMergePreview"
     shortcut_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     shortcut_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -1684,25 +1689,18 @@ func show_perks() -> void:
     _refresh_mastery_preview()
     if is_instance_valid(course_briefing):
         course_briefing.configure(game,game.selected_track,game.race_variation)
-        course_strategy_label.text = course_briefing.describe() + (
-            "\nRED = GATES   •   COLORED BRANCH = SHORTCUT   •   DIAMONDS = RARE HUMAN ITEMS   •   LAYOUT %d / 3"
-            % (game.race_variation+1))
+        briefing_title.text = game.track_title()
+        var bridge := "RIGHT" if SHORTCUT_ROUTE.side_for(game.selected_track) > 0 else "LEFT"
+        var driving_tip: String = [
+            "Center all three bridge gates to earn a dash.",
+            "Blue strips are slippery. Steer gently or use the grippy lane.",
+            "Use the open side of pistons and watch the vent forecasts."
+        ][game.selected_track]
+        course_strategy_label.text = "LAYOUT %d / 3   •   BRIDGE %s\n%s" % [
+            game.race_variation+1,bridge,driving_tip]
+        briefing_notes.text = "RED = MOVING GATES   •   BRANCH = SHORTCUT   •   DIAMONDS = RARE ITEMS"
         if not game.net.is_active():
-            course_strategy_label.text += (
-                "\nSOLO: FOLLOW A RIVAL TO EARN DRAFT BOOST RECHARGE"
-                +"\nPRECISION: CLEANLY SKIM 1 / 2 / 3 MOVING GATES FOR BRONZE / SILVER / GOLD")
-        if game.selected_track == 0:
-            course_strategy_label.text += (
-                "\nSTAY ON THE MAIN TRACK OR TAKE THE RIGHT BRIDGE."
-                + " CENTER ALL THREE BRIDGE GATES FOR A DASH.")
-        elif game.selected_track == 1:
-            course_strategy_label.text += (
-                "\nBLUE STRIPS ARE SLIPPERY. KEEP TO THE OPEN LANE FOR GRIP"
-                + " OR HOLD YOUR LINE THROUGH THE ICE. THE BRIDGE FORKS LEFT.")
-        else:
-            course_strategy_label.text += (
-                "\nTAKE THE PISTON LANE WHEN OPEN OR PASS ON ITS OTHER SIDE."
-                + " WATCH THE VENT FORECAST. THE BRIDGE FORKS RIGHT.")
+            briefing_notes.text += "\nFollow a rival to recharge boost. Skim 1 / 2 / 3 moving gates for bronze / silver / gold."
     if is_instance_valid(perk_scroll):
         perk_scroll.scroll_vertical = 0
     perks_layer.visible = true
@@ -1976,6 +1974,7 @@ func update_hud() -> void:
     var gate_eta := INF
     var piston_contact_eta := INF
     var bridge_piston_warning := false
+    var ordinary_gate_clear := false
     var glacier_return_panel := false
     var audible_gate_eta := INF
     var shutter_side := ""
@@ -2007,6 +2006,7 @@ func update_hud() -> void:
             gate_id == game.race_director.FORGE_EXIT_GATE)
         var glacier_exit_preview: bool = game.selected_track == 1 and bridge_approach_active and (
             gate_id == game.race_director.GLACIER_RETURN_GATE)
+        ordinary_gate_clear = not player_threatened and not bridge_exit_preview and not glacier_exit_preview
         var lane_verdict: String = "DODGE!" if player_threatened else "LINE CLEAR"
         if not bridge_exit_preview and not glacier_exit_preview and player_threatened and gate_eta <= 1.45:
             urgent_gate_eta = gate_eta
@@ -2128,9 +2128,7 @@ func update_hud() -> void:
     if shortcut_label.visible and timed_gate_backdrop.visible and seconds_until > minf(
             urgent_gate_eta,minf(piston_contact_eta,vent_eta))+0.35:
         hazard_label.hide()
-    if bridge_approach_active and (shortcut_label.visible or glacier_return_panel):
-        # Keep the physical rival marked while the player reads the return line.
-        duel_label.hide()
+    _trim_driving_cues(ordinary_gate_clear,gate_eta,glacier_return_panel)
     _update_woodworks_guide(str(route_hint.get("mode","")),
         rare_item_label.visible and int(next_item.get("index",-1)) == 0,
         final_danger_active or is_finite(urgent_gate_eta))
@@ -2146,6 +2144,20 @@ func update_hud() -> void:
     if practice_entry_pending or not practice_landmarks.is_empty() or practice_passage_bounds != Vector2.ZERO:
         _update_practice_sector(forward_speed)
         _refresh_race_notification()
+
+func _trim_driving_cues(ordinary_gate_clear: bool, gate_eta: float, glacier_return_panel: bool) -> void:
+    if glacier_return_panel:
+        duel_label.hide()
+        return
+    if not shortcut_label.visible:
+        return
+    # Keep the decision at the fork plus any useful obstacle warning.
+    # Calm forecasts and rival text can yield while the road is busy.
+    if ordinary_gate_clear and not timed_gate_backdrop.visible and (
+            hazard_label.visible or biome_lane_label.visible or gate_eta > CLEAR_GATE_NEAR_SECONDS):
+        timed_gate_label.hide()
+    if bridge_approach_active or hazard_label.visible or timed_gate_label.visible or biome_lane_label.visible:
+        duel_label.hide()
 
 func _refresh_driving_cue_background(cue: Label) -> void:
     var background := driving_cue_backgrounds[cue]

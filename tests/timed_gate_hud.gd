@@ -27,6 +27,7 @@ func _verify() -> void:
         "The threat predictor needs its own driving row")
     assert(game.ui.race_notification_backdrop.anchor_right < game.ui.duel_label.anchor_left,
         "Sector and overtake notifications must stay beside the driving view")
+    _verify_fork_hud_priority(game.ui)
     for biome in range(3):
         game.return_to_menu()
         assert(game.set_track(biome))
@@ -292,6 +293,29 @@ func _verify_final_approach(game: Node3D) -> bool:
     assert(not hud.final_danger_active and not hud.timed_gate_label.visible and
         not hud.timed_gate_backdrop.visible)
     return true
+
+func _verify_fork_hud_priority(hud: CanvasLayer) -> void:
+    hud.shortcut_label.show()
+    hud.hazard_label.show()
+    hud.duel_label.show()
+    hud.timed_gate_label.show()
+    hud.timed_gate_backdrop.hide()
+    hud._trim_driving_cues(true,2.8,false)
+    assert(hud.shortcut_label.visible and hud.hazard_label.visible and
+        not hud.timed_gate_label.visible and not hud.duel_label.visible,
+        "At a busy fork, keep route and edge guidance ahead of low-priority text")
+    hud.timed_gate_label.show()
+    hud.timed_gate_backdrop.show()
+    hud._trim_driving_cues(false,0.5,false)
+    assert(hud.timed_gate_label.visible and hud.shortcut_label.visible,
+        "Real timed danger and the fork choice must both remain visible")
+    hud.hazard_label.hide()
+    hud.biome_lane_label.hide()
+    hud.timed_gate_backdrop.hide()
+    hud._trim_driving_cues(true,0.8,false)
+    assert(hud.timed_gate_label.visible,"A clear gate about to be crossed remains useful")
+    hud._trim_driving_cues(true,2.8,false)
+    assert(not hud.timed_gate_label.visible and hud.shortcut_label.visible)
 
 func _verify_forge_feedback(game: Node3D) -> void:
     var ui: CanvasLayer = game.ui

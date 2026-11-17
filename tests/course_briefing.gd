@@ -42,12 +42,39 @@ func _run() -> void:
     var button_bottom: float = game.ui.start_button.get_global_rect().end.y
     assert(button_bottom <= panel_end+1.0 and button_bottom > 0.0,
         "The pinned start action must not be clipped outside the card")
+    assert(not scroll.is_ancestor_of(game.ui.course_strategy_label) and
+        game.ui.course_strategy_label.get_theme_font_size("font_size") >= 23,
+        "Main driving advice must be large and stay in view while scrolling")
+    assert(game.ui.briefing_title.text == game.track_title())
+    for button: Button in game.ui.select_buttons:
+        assert(scroll.get_global_rect().encloses(button.get_global_rect()),
+            "All six perk choices must be visible on entry before scrolling")
+        assert(button.get_theme_font_size("font_size") >= 20)
+    assert(overview.get_global_rect().position.y >= game.ui.select_buttons[-1].get_global_rect().end.y)
+    var last_perk: Button = game.ui.select_buttons[-1]
+    var pointer := InputEventMouseMotion.new()
+    pointer.position = last_perk.get_global_rect().get_center()
+    root.push_input(pointer,true)
+    var click := InputEventMouseButton.new()
+    click.position = pointer.position
+    click.button_index = MOUSE_BUTTON_LEFT
+    click.pressed = true
+    root.push_input(click,true)
+    var release := click.duplicate() as InputEventMouseButton
+    release.pressed = false
+    root.push_input(release,true)
+    await process_frame
+    assert(game.ui.selected_name == "Head Start" and not game.ui.start_button.disabled,
+        "The last visible perk must respond to a tap at its centre")
     var track_colors := []
     for track in range(3):
         assert(game.set_track(track))
         game.ui.show_perks()
         await process_frame
         assert(overview.course == track and overview.variation == game.race_variation)
+        assert(game.ui.briefing_title.text == game.track_title())
+        assert(game.ui.course_strategy_label.text.contains(
+            "BRIDGE RIGHT" if ROUTE.side_for(track) > 0 else "BRIDGE LEFT"))
         assert(overview.describe().contains(
             "RIGHT SHORTCUT" if ROUTE.side_for(track) > 0 else "LEFT SHORTCUT"))
         track_colors.append(MAP.TRACK_COLORS[track])
