@@ -81,6 +81,7 @@ var camera: Camera3D
 var board: Node3D
 var moving_obstacles: Array[Node3D] = []
 var final_obstacle_art: MeshInstance3D
+var first_obstacle_entry_z := INF
 var final_straight_z := 0.0
 var racers: Array[RigidBody3D] = []
 var player: RigidBody3D
@@ -549,6 +550,7 @@ func _make_course() -> void:
     hazard_beacons.clear()
     workshop_lamps.clear()
     secondary_showroom_art.clear()
+    first_obstacle_entry_z = INF
     board = Node3D.new()
     board.name = "HandcraftedWoodenCourse"
     board.set_meta("track_index",selected_track)
@@ -622,7 +624,9 @@ func _make_course() -> void:
                 # Paint the visible approach from the same collider geometry.
                 art.build(section_node,self,center_z,section)
                 section_node.add_child(art)
-                if section == FINAL_OBSTACLE_SECTION:
+                if section == 1:
+                    first_obstacle_entry_z = art.entry_z
+                else:
                     final_obstacle_art = art
 
     _connect_winding_sections()
@@ -1295,12 +1299,15 @@ func _process(delta: float) -> void:
         airtime.advance_visuals(delta)
     if race_state == "RACING" and is_instance_valid(course_sculptures):
         course_sculptures.advance_visuals(delta)
-    if show_fps and race_state == "RACING" and is_instance_valid(player) and (
-        not player.finished and not player.eliminated):
-        var z := player.position.z
-        var phase := 2 if z <= CHECKPOINT_Z[-1] else int(z <= CHECKPOINT_Z[0])
-        var focus := PerformanceBudget.focus_at(race_time,z,ShortcutRoute.EXIT_Z)
-        performance_budget.record_frame(Time.get_ticks_usec(),phase,focus)
+    if show_fps and is_instance_valid(player) and not player.finished and not player.eliminated:
+        if race_state == "COUNTDOWN" and countdown <= PerformanceBudget.GRID_SECONDS:
+            performance_budget.record_frame(Time.get_ticks_usec(),-1,PerformanceBudget.Focus.GRID)
+        elif race_state == "RACING":
+            var z := player.position.z
+            var phase := 2 if z <= CHECKPOINT_Z[-1] else int(z <= CHECKPOINT_Z[0])
+            var focus := PerformanceBudget.focus_at(race_time,z,ShortcutRoute.EXIT_Z)
+            var near_opening := PerformanceBudget.near_first_obstacle(z,first_obstacle_entry_z)
+            performance_budget.record_frame(Time.get_ticks_usec(),phase,focus,near_opening)
     world_time += delta
     feedback_cooldown = maxf(0.0,feedback_cooldown-delta)
     obstacle_notice = maxf(0.0,obstacle_notice-delta)

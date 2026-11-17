@@ -57,6 +57,21 @@ func _run() -> void:
         "Only the preceding frame's window receives the interval")
     assert(model.focus_windows[Budget.Focus.BRIDGE_RETURN].monitor_samples == 1,
         "Short windows get a monitor sample even between periodic reports")
+    assert(Budget.near_first_obstacle(-10.0,-6.0))
+    assert(not Budget.near_first_obstacle(-10.01,-6.0))
+    assert(not Budget.near_first_obstacle(0.0,INF))
+    model.reset()
+    model.record_frame(0,-1,Budget.Focus.GRID)
+    model.record_frame(32000,-1,Budget.Focus.GRID)
+    model.record_frame(48000,0,Budget.Focus.LAUNCH,true)
+    model.record_frame(95000,0,Budget.Focus.LAUNCH)
+    model.record_frame(110000,0)
+    measurements = model.race_summary()
+    assert(measurements.contains("GRID LAST 1.15s | 2 frames | P95 32 ms"))
+    assert(measurements.contains("FIRST OBSTACLE ±4 m | 1 frames | P95 47 ms"))
+    assert(measurements.contains("FIRST 5s | 2 frames | P95 47 ms") and
+        measurements.contains("START | 2 frames | P95 47 ms"),
+        "Grid stays separate and the obstacle window overlaps the launch")
 
     var game = load("res://scenes/main.tscn").instantiate()
     root.add_child(game)
@@ -76,7 +91,21 @@ func _run() -> void:
     assert(game.racers.size() == 40, "Maintain all 40 real rigid-body marbles")
     assert(game.performance_budget.frame_ms.is_empty(),
         "New races reset frame pacing samples")
+    var entry: MeshInstance3D = game.board.find_child("OpeningObstacleArt",true,false)
+    assert(is_equal_approx(game.first_obstacle_entry_z,entry.entry_z))
+    game.countdown = 0.70
+    game._process(1.0/60.0)
+    game._process(1.0/60.0)
     game.race_state = "RACING"
+    var grid_position: Vector3 = game.player.global_position
+    game.player.global_position = Vector3(game.track_center_at(entry.entry_z),
+        game.height_at(entry.entry_z)+0.65,entry.entry_z)
+    game._process(1.0/60.0)
+    game._process(1.0/60.0)
+    assert(game.performance_budget.focus_windows[Budget.Focus.GRID].frames == 2 and
+        game.performance_budget.focus_windows[Budget.Focus.FIRST_OBSTACLE].frames == 1)
+    game.player.global_position = grid_position
+    game.performance_budget.reset()
     for i in range(120):
         game.performance_budget.tick(1.0/60.0)
     game.ui.label_timer = 0.5

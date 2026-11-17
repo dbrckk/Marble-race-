@@ -7,9 +7,11 @@ const MAX_VALID_FRAME_SECONDS := 0.25
 const PHASE_NAMES := ["START","MID-RACE","FINAL SECTOR"]
 const FRAME_BUCKET_LIMIT_MS := 250
 const LAUNCH_SECONDS := 5.0
+const GRID_SECONDS := 1.15
+const FIRST_OBSTACLE_HALF_LENGTH := 4.0
 const BRIDGE_RETURN_HALF_LENGTH := 8.0
-const FOCUS_NAMES := ["FIRST 5s","BRIDGE RETURN ±8 m"]
-enum Focus { LAUNCH, BRIDGE_RETURN, NONE }
+const FOCUS_NAMES := ["FIRST 5s","BRIDGE RETURN ±8 m","GRID LAST 1.15s","FIRST OBSTACLE ±4 m"]
+enum Focus { LAUNCH, BRIDGE_RETURN, GRID, FIRST_OBSTACLE, NONE }
 
 class PhaseSamples:
     var durations := PackedInt32Array()
@@ -60,6 +62,7 @@ var focus_windows: Array[PhaseSamples] = []
 var previous_frame_us := -1
 var current_phase := 0
 var current_focus := Focus.NONE
+var current_near_first_obstacle := false
 
 func reset() -> void:
     frame_ms.clear()
@@ -71,6 +74,7 @@ func reset() -> void:
     focus_windows.clear()
     current_phase = 0
     current_focus = Focus.NONE
+    current_near_first_obstacle = false
     suspend()
 
 func suspend() -> void:
@@ -83,7 +87,11 @@ static func focus_at(race_time: float, z: float, bridge_exit_z: float) -> Focus:
         return Focus.BRIDGE_RETURN
     return Focus.NONE
 
-func record_frame(now_us: int, phase: int, focus: Focus = Focus.NONE) -> void:
+static func near_first_obstacle(z: float, entry_z: float) -> bool:
+    return absf(z-entry_z) <= FIRST_OBSTACLE_HALF_LENGTH
+
+func record_frame(now_us: int, phase: int, focus: Focus = Focus.NONE,
+        near_opening := false) -> void:
     if phases.is_empty():
         for i in PHASE_NAMES.size():
             phases.append(PhaseSamples.new())
@@ -93,21 +101,29 @@ func record_frame(now_us: int, phase: int, focus: Focus = Focus.NONE) -> void:
     previous_frame_us = now_us
     if before >= 0 and now_us > before:
         var seconds := float(now_us-before)/1000000.0
-        var samples := phases[current_phase]
-        samples.add_frame(seconds)
         var monitor_updated := tick(minf(seconds,MAX_VALID_FRAME_SECONDS))
-        if monitor_updated:
-            samples.add_monitors(float(report["physics_ms"]),int(report["draw_calls"]))
-        if current_focus != Focus.NONE:
-            var window := focus_windows[current_focus]
-            window.add_frame(seconds)
+        if current_phase >= 0:
+            var samples := phases[current_phase]
+            samples.add_frame(seconds)
             if monitor_updated:
-                window.add_monitors(float(report["physics_ms"]),int(report["draw_calls"]))
-            elif window.monitor_samples == 0:
-                # A fast crossing can be shorter than the one-second monitor interval.
-                window.add_monitors(_physics_ms(),_draw_calls())
-    current_phase = maxi(current_phase,clampi(phase,0,PHASE_NAMES.size()-1))
+                samples.add_monitors(float(report["physics_ms"]),int(report["draw_calls"]))
+        if current_focus != Focus.NONE:
+            _record_window(current_focus,seconds,monitor_updated)
+        if current_near_first_obstacle:
+            _record_window(Focus.FIRST_OBSTACLE,seconds,monitor_updated)
+    # Countdown adds to the grid observation, outside official race timing.
+    current_phase = -1 if phase < 0 else maxi(current_phase,mini(phase,PHASE_NAMES.size()-1))
     current_focus = focus
+    current_near_first_obstacle = near_opening
+
+func _record_window(focus: Focus, seconds: float, monitor_updated: bool) -> void:
+    var window := focus_windows[focus]
+    window.add_frame(seconds)
+    if monitor_updated:
+        window.add_monitors(float(report["physics_ms"]),int(report["draw_calls"]))
+    elif window.monitor_samples == 0:
+        # A fast crossing can be shorter than the one-second monitor interval.
+        window.add_monitors(_physics_ms(),_draw_calls())
 
 func race_summary() -> String:
     var any_frames := false

@@ -314,6 +314,14 @@ Base de comparaison GitHub `ad37972b0d864e11193fc7db3f8938628f3e62ba`.
 - Dans 99 poses contrôlées à 83 km/h sur les trois variantes de Woodworks, les billes masquent 85 des 231 points échantillonnés sur les flèches d’entrée, contre 92 auparavant. Le centre du diamant et le sommet de la barrière de gauche gardent une ligne de vue dégagée dans ce banc. À 2,4 m de hauteur de saut, le point de piste à 14 m devant la bille passe d’environ 54,5 % à 52,7 % de la hauteur d’image.
 - Le banc utilise les positions des billes et le rayon du modèle physique pour mesurer les masquages. Les régressions du peloton, de l’atterrissage et des trois caméras vérifient les transitions et le pilotage.
 
+### 2026-11-17 — Temps d’image à la grille et au premier obstacle (1.99.0-rc)
+
+Base de comparaison GitHub `68725090e8a42dbc2316cceaee35ea43c479e457`.
+
+- Le rapport FPS ajoute la dernière 1,15 s sur la grille et la traversée à ±4 m de l’entrée du premier obstacle. Le relevé des cinq premières secondes englobe toujours le franchissement quand celui-ci survient dans cette fenêtre. Les nouveaux relevés utilisent le rapport copiable et le bouton de comparaison existants.
+- Sur Mesa OpenGL ES logiciel à 640 × 360, dix courses de 40 billes reproduisent la même trajectoire. Le P95 médian par paire au premier obstacle est de 34,8 ms en Economy et de 111,7 ms en Balanced. Les médianes d’appels de rendu sont 358 et 627. En Balanced avec les ombres directionnelles coupées, le P95 est de 92,3 ms. Avec la 3D désactivée, il se situe entre 8,1 et 10,1 ms selon le profil. La comparaison neutralise les plafonds d’images natifs des profils.
+- Ces intervalles concernent le banc logiciel. Le banc Android rejoue les 79 mêmes poses pour les deux profils et les variantes d’isolation. [Protocole et résultats](https://github.com/dbrckk/Marble-race-/pull/19). Les mesures sur téléphone physique restent à faire.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Mesurer les saccades entre la grille et le premier obstacle en profil Economy et Balanced, au moment où les billes se resserrent.
+Isoler les autres passes coûteuses en Balanced, puis tester un budget d’ombres qui garde les repères du premier obstacle lisibles.
