@@ -5,6 +5,7 @@ extends Node3D
 # Three physical gates remain; their placement varies by biome and layout.
 # All offsets are bounded away from shortcut entry and exit portals.
 const EVENT_Z := [-34.0,-118.0,-154.0]
+const HAZARD_ART = preload("res://scripts/timed_obstacle_art.gd")
 const VISUALS = preload("res://scripts/visuals.gd")
 const FEEDBACK = preload("res://scripts/race_feedback.gd")
 const LAYOUT_OFFSETS := [[0.0,0.0,0.0],[-4.0,5.0,-4.0],[4.0,-5.0,4.0]]
@@ -60,9 +61,10 @@ func setup(owner: Node3D, track: int, layout: int) -> void:
     variation = posmod(layout,3)
     name = "ReactiveRaceDirector"
     var metal := StandardMaterial3D.new()
-    metal.albedo_color = EVENT_COLORS[biome].darkened(0.23)
-    metal.metallic = 0.48
-    metal.roughness = 0.29
+    metal.vertex_color_use_as_albedo = true
+    metal.vertex_color_is_srgb = true
+    metal.metallic = [0.12,0.24,0.54][biome]
+    metal.roughness = [0.56,0.34,0.42][biome]
     var glow := StandardMaterial3D.new()
     glow.albedo_color = EVENT_COLORS[biome]
     glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -70,12 +72,7 @@ func setup(owner: Node3D, track: int, layout: int) -> void:
     glow.emission = EVENT_COLORS[biome]
     glow.emission_energy_multiplier = 0.65
     var dimensions := Vector3(BODY_WIDTH,BODY_HEIGHT,BODY_DEPTH)
-    var mesh: Mesh = VISUALS.rounded_box(dimensions,0.10)
-    var caution_paint := StandardMaterial3D.new()
-    caution_paint.albedo_color = Color("#f3c36b") if biome == 0 else Color("#dafbff")
-    caution_paint.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-    var band_mesh := BoxMesh.new()
-    band_mesh.size = Vector3(0.18,0.018,0.53)
+    var obstacle_meshes := HAZARD_ART.build(biome,dimensions)
     var floor_plate := BoxMesh.new()
     floor_plate.size = Vector3.ONE
     var floor_paint := StandardMaterial3D.new()
@@ -90,15 +87,12 @@ func setup(owner: Node3D, track: int, layout: int) -> void:
     ring_mesh.outer_radius = 1.04
     ring_mesh.rings = 18
     ring_mesh.ring_segments = 7
-    var piston_cap: Mesh
     var piston_sockets: Array[Mesh] = []
     var piston_signals: Array[Mesh] = []
     if biome == 2:
-        piston_cap = _forge_piston_cap(floor_plate)
         for side in [-1.0,1.0]:
             piston_sockets.append(_forge_piston_frame(floor_plate,false,side))
             piston_signals.append(_forge_piston_frame(floor_plate,true,side))
-        metal.albedo_color = Color("#9d5541")
         steel.albedo_color = Color("#797d80")
         steel.metallic = 0.54
     for i in range(EVENT_Z.size()):
@@ -122,33 +116,17 @@ func setup(owner: Node3D, track: int, layout: int) -> void:
         body.add_child(collider)
         var art := MeshInstance3D.new()
         art.name = "TimedObstacleArt"
-        art.mesh = mesh
+        art.mesh = obstacle_meshes[0]
         art.material_override = metal
         art.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
         body.add_child(art)
-        if biome != 2:
-            var bands := MultiMesh.new()
-            bands.transform_format = MultiMesh.TRANSFORM_3D
-            bands.mesh = band_mesh
-            bands.instance_count = 3
-            for stripe in range(bands.instance_count):
-                var turn := Basis(Vector3.UP,0.38 if biome == 0 else -0.56)
-                bands.set_instance_transform(stripe,Transform3D(turn,Vector3(
-                    (float(stripe)-1.0)*0.35,BODY_HEIGHT*0.5+0.006,0.0)))
-            var inlays := MultiMeshInstance3D.new()
-            inlays.name = "SweepingArmCautionBands" if biome == 0 else "IceShutterFrostInlays"
-            inlays.multimesh = bands
-            inlays.material_override = caution_paint
-            inlays.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-            body.add_child(inlays)
-        else:
-            var cap := MeshInstance3D.new()
-            cap.name = "PistonSteelCap"
-            cap.mesh = piston_cap
-            cap.material_override = steel
-            cap.position.y = BODY_HEIGHT*0.5+0.01
-            cap.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-            body.add_child(cap)
+        var detail := MeshInstance3D.new()
+        detail.name = ["SweepingArmCautionBands","IceShutterFrostInlays","PistonSteelCap"][biome]
+        detail.mesh = obstacle_meshes[1]
+        detail.material_override = metal
+        detail.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+        body.add_child(detail)
+        if biome == 2:
             var socket := MeshInstance3D.new()
             socket.name = "PistonSocket_%02d" % i
             socket.mesh = piston_sockets[flank]
@@ -189,17 +167,6 @@ func setup(owner: Node3D, track: int, layout: int) -> void:
     ring_flash_end.resize(obstacles.size())
     ring_flash_strength.resize(obstacles.size())
     reset_round()
-
-func _forge_piston_cap(unit: Mesh) -> Mesh:
-    var crown := SurfaceTool.new()
-    crown.append_from(VISUALS.rounded_box(Vector3(1.57,0.068,0.70),0.025),0,Transform3D.IDENTITY)
-    for side in [-1.0,1.0]:
-        crown.append_from(unit,0,Transform3D(Basis.from_scale(Vector3(0.15,0.036,0.52)),
-            Vector3(side*0.60,0.047,0.0)))
-    for rib in range(3):
-        crown.append_from(unit,0,Transform3D(Basis.from_scale(Vector3(0.13,0.024,0.37)),
-            Vector3((rib-1)*0.26,0.04,0.0)))
-    return crown.commit()
 
 func _forge_piston_frame(unit: Mesh, illuminated: bool, shoulder: float) -> Mesh:
     # The deck brackets and shoulder beacon share a surface and phase.
@@ -256,7 +223,7 @@ func _mark_gate_approach(index: int, mesh: Mesh, paint: Material) -> void:
             batch.set_instance_color(slot,Color("#15202b"))
             mark.origin.y += 0.019
             batch.set_instance_transform(slot+1,mark)
-            batch.set_instance_color(slot,EVENT_COLORS[biome].lightened(0.20))
+            batch.set_instance_color(slot+1,EVENT_COLORS[biome].lightened(0.20))
     var marks := MultiMeshInstance3D.new()
     marks.name = "GateApproachMarkings_%02d" % index
     marks.multimesh = batch

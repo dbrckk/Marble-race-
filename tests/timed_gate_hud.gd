@@ -41,6 +41,12 @@ func _verify() -> void:
             var gate_index := 1
             var marking: MultiMeshInstance3D = director.get_node("GateApproachMarkings_01")
             assert(marking.multimesh.instance_count == 12 and marking.get_child_count() == 0)
+            if biome < 2 and DisplayServer.get_name() != "headless":
+                var border := marking.multimesh.get_instance_color(0)
+                var stripe := marking.multimesh.get_instance_color(1)
+                assert(border.srgb_to_linear().get_luminance() < 0.1 and
+                    stripe.srgb_to_linear().get_luminance() > 0.55,
+                    "Paint and its dark outline must occupy separate instances")
             if biome == 1:
                 assert(director.obstacles[gate_index].has_node("IceShutterFrostInlays"))
             var gate_z: float = director.event_z(gate_index)

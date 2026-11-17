@@ -458,6 +458,10 @@ Base `4bcaad09c4fab266557f16fd22bcbb7643e7f57e`. Le briefing affiche les six ava
 
 Base `be40a3fab9a449f2e46ac3d230977e31073f1cf2`. Le repère YOU de taille fixe suit la projection de la bille. Deux arcs contrastés la délimitent au départ ou à proximité d’adversaires, puis disparaissent lorsque le peloton s’écarte. Les trois circuits ont été capturés aux mêmes positions avant et après. Le coût total augmente d’au plus un appel de dessin par image dans les neuf échantillons de bureau comparés. Le plafond conserve son ombre et libère la piste lorsque la caméra s’élève au-dessus du plateau.
 
+### 2026-11-17 — Silhouettes des obstacles mobiles (1.124.0-rc)
+
+Base `09d244a0eae3310b7c52aee819484c92f90a1636`. Les bras de Woodworks sont en bois cerclé, les volets de Glacier ont une silhouette givrée à pans coupés et les pistons de Forge ont une tête nervurée. Chaque obstacle partage deux maillages par biome. Les chevrons de Woodworks et de Glacier utilisent les bonnes couleurs pour le fond sombre et la bande claire. Les six vues appariées en GL Compatibility conservent le même nombre d’appels de dessin.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Renforcer les silhouettes des obstacles caractéristiques des trois circuits et leurs repères visuels à l’approche. Mesurer la fluidité du peloton sur un appareil Android dès qu'il est disponible.
+Donner aux portiques et aux supports de piste une silhouette propre à chaque circuit. Mesurer la fluidité du peloton sur un appareil Android dès qu'il est disponible.
