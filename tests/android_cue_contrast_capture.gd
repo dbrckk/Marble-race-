@@ -109,6 +109,7 @@ func _position_at_merge() -> void:
         marble.linear_velocity = Vector3(vx, 0.0, -13.0 - float(slot % 3) * 0.6)
         marble.freeze = false
         marble.sleeping = false
+    # Keep the field live even if the player hits the moving Woodworks obstacle.
     game.change_steer(-float(route.side) * 0.36)
     game._update_camera(STEP, true)
     game.contact_shadows.update_shadows()

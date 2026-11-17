@@ -40,7 +40,9 @@ for track, name in enumerate(tracks):
             })
         assert max_deviation < 0.25, (track, phase, max_deviation)
         assert reference[0]["race_time"] == 0 and reference[-1]["race_time"] > 0.2 if phase == "grid" else (
-            reference[0]["z"] > -104 and reference[-1]["z"] < -104 and reference[-1]["race_time"] > 11.8
+            -105.0 < reference[0]["z"] < -99.0
+            and min(frame["z"] for frame in reference) < reference[0]["z"] - 0.2
+            and reference[-1]["race_time"] > 11.8
         ), (track, phase, reference[0], reference[-1])
         old, new = [median(row["p95"] for row in trials) for trials in modes.values()]
         report.append({

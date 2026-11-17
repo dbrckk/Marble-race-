@@ -8,6 +8,7 @@ on:
       - tests/android_cue_contrast_capture.gd
       - tests/android_cue_contrast_run.sh
       - tests/instrument_cue_contrast.py
+      - tests/analyze_frame_pacing.py
       - scripts/hud.gd
 
 permissions:
