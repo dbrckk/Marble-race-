@@ -19,6 +19,7 @@ const SIDE_COLORS := [
 const BACKGROUND := Color(0.065,0.088,0.12,0.95)
 const SECTOR_ACCENT := Color("#ffc18d")
 const RELIEF_TOP_RATIO := 0.752
+enum LandmarkRoute { MAIN, BRIDGE }
 
 var stage: Node3D
 var course := 0
@@ -46,7 +47,7 @@ func configure(owner: Node3D, track: int, next_variation: int) -> void:
 
 func focus_sector(index: int) -> void:
     focused_sector = index
-    _collect_sector_landmarks()
+    sector_landmarks = landmarks_for(stage,index)
     queue_redraw()
 
 func _gui_input(event: InputEvent) -> void:
@@ -66,48 +67,56 @@ func _gui_input(event: InputEvent) -> void:
     accept_event()
 
 func sector_bounds() -> Vector2:
-    var exit: float = finish_z if focused_sector == stage.CHECKPOINT_Z.size() else (
-        stage.sector_entry_z(focused_sector+1))
-    return Vector2(stage.sector_entry_z(focused_sector),exit)
+    return sector_bounds_for(stage,focused_sector)
 
-func _collect_sector_landmarks() -> void:
-    sector_landmarks.clear()
-    var bounds := sector_bounds()
+static func sector_bounds_for(owner: Node3D, sector: int) -> Vector2:
+    var exit: float = owner.FINISH_Z if sector == owner.CHECKPOINT_Z.size() else owner.sector_entry_z(sector+1)
+    return Vector2(owner.sector_entry_z(sector),exit)
+
+static func landmarks_for(stage: Node3D, sector: int) -> Array[Dictionary]:
+    var landmarks: Array[Dictionary] = []
+    var bounds := sector_bounds_for(stage,sector)
+    var course: int = stage.selected_track
+    var variation: int = stage.built_variation
     var opening: float = stage.first_obstacle_entry_z
     if is_finite(opening):
         var opening_edge := opening-OPENING.ENTRY_LEAD
-        _add_landmark(bounds,"OPENING OBSTACLES",opening_edge,TRACK_PATH.center_at(opening_edge,course),opening)
+        _add_landmark(landmarks,bounds,"OPENING OBSTACLES",opening_edge,TRACK_PATH.center_at(opening_edge,course),opening)
     if is_instance_valid(stage.final_obstacle_art):
         var approach: float = stage.final_obstacle_art.entry_z
         var edge := approach-OPENING.ENTRY_LEAD
-        _add_landmark(bounds,"FINAL OBSTACLES",edge,TRACK_PATH.center_at(edge,course),approach)
+        _add_landmark(landmarks,bounds,"FINAL OBSTACLES",edge,TRACK_PATH.center_at(edge,course),approach)
     for index in DIRECTOR.EVENT_Z.size():
-        var z := hazard_z_at(index)
-        _add_landmark(bounds,DIRECTOR.EVENT_NAMES[course],z,_gate_map_x(index),DIRECTOR.approach_row_z(z,2,course))
+        var z: float = DIRECTOR.event_z_for(course,variation,index)
+        _add_landmark(landmarks,bounds,DIRECTOR.EVENT_NAMES[course],z,gate_x(course,variation,index,z),
+            DIRECTOR.approach_row_z(z,2,course))
     var zone_lead := [ZONES.ZONE_LENGTH*0.5,ZONES.GRIP_MARK_OFFSETS[0],sqrt(ZONES.VENT_RADIUS_SQUARED)]
     for index in ZONES.ZONE_Z.size():
         var zone := ZONES.placement_at(index,course,variation)
-        _add_landmark(bounds,["SPEED STRIP","ICE PATCH","HEAT VENT"][course],zone.z,zone.x,zone.z+float(zone_lead[course]))
+        _add_landmark(landmarks,bounds,["SPEED STRIP","ICE PATCH","HEAT VENT"][course],zone.z,zone.x,zone.z+float(zone_lead[course]))
     for station in KICKERS.STATION_Z.size():
         var left := KICKERS.placement_at(station,-1,course,variation,true)
         var right := KICKERS.placement_at(station,1,course,variation,true)
-        _add_landmark(bounds,"SPRING POSTS",maxf(left.z,right.z),(left.x+right.x)*0.5,
+        _add_landmark(landmarks,bounds,"SPRING POSTS",maxf(left.z,right.z),(left.x+right.x)*0.5,
             maxf(left.z,right.z)+KICKERS.RADIUS)
     var bridge: Node3D = stage.shortcut_route
     if is_instance_valid(bridge):
-        _add_landmark(bounds,"BRIDGE FORK",SHORTCUT.ENTRY_PORTAL_Z,bridge.point_at(SHORTCUT.ENTRY_PORTAL_Z).x,
+        _add_landmark(landmarks,bounds,"BRIDGE FORK",SHORTCUT.ENTRY_PORTAL_Z,bridge.point_at(SHORTCUT.ENTRY_PORTAL_Z).x,
             SHORTCUT.ENTRY_PORTAL_Z+SHORTCUT.FORK_ARROW_LEAD)
-        _add_landmark(bounds,"BRIDGE MERGE",SHORTCUT.EXIT_Z,bridge.point_at(SHORTCUT.EXIT_Z).x,
-            SHORTCUT.RETURN_ARROW_Z[0])
-    sector_landmarks.sort_custom(func(a: Dictionary,b: Dictionary) -> bool: return a["z"] > b["z"])
+        _add_landmark(landmarks,bounds,"BRIDGE MERGE",SHORTCUT.EXIT_Z,bridge.point_at(SHORTCUT.EXIT_Z).x,
+            SHORTCUT.RETURN_ARROW_Z[0],LandmarkRoute.BRIDGE)
+    for landmark in landmarks:
+        landmark["approach_z"] = minf(stage.race_start_z,landmark["approach_z"])
+    landmarks.sort_custom(func(a: Dictionary,b: Dictionary) -> bool: return a["z"] > b["z"])
+    return landmarks
 
-func _add_landmark(bounds: Vector2, title: String, z: float, x: float, approach_z: float) -> void:
+static func _add_landmark(landmarks: Array[Dictionary], bounds: Vector2, title: String,
+        z: float, x: float, approach_z: float, route := LandmarkRoute.MAIN) -> void:
     if z <= bounds.x and z > bounds.y:
-        sector_landmarks.append({"title":title,"z":z,"x":x,"approach_z":minf(stage.race_start_z,approach_z)})
+        landmarks.append({"title":title,"z":z,"x":x,"approach_z":approach_z,"route":route})
 
-func _gate_map_x(index: int) -> float:
-    var z := hazard_z_at(index)
-    return TRACK_PATH.center_at(z,course)+float(hazard_side_at(index))*(3.26 if course == 2 else 3.22)
+static func gate_x(course: int, variation: int, index: int, z: float) -> float:
+    return TRACK_PATH.center_at(z,course)+float(hazard_side(course,variation,index))*(3.26 if course == 2 else 3.22)
 
 static func hazard_side(track: int, next_variation: int, index: int) -> int:
     if index < 0 or index >= DIRECTOR.EVENT_Z.size():
@@ -222,7 +231,7 @@ func _draw() -> void:
         draw_circle(dot,3.4,Color("#e5f4eb"))
     for index in range(DIRECTOR.EVENT_Z.size()):
         var hazard_z: float = hazard_z_at(index)
-        var marker: Vector2 = project(hazard_z,_gate_map_x(index))
+        var marker: Vector2 = project(hazard_z,gate_x(course,variation,index,hazard_z))
         draw_circle(marker,6.0,Color(0.15,0.03,0.03,0.9))
         draw_circle(marker,4.0,Color("#ff6d62"))
         draw_circle(marker,1.5,Color("#fff0db"))

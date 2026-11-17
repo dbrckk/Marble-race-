@@ -4,7 +4,7 @@ Original **3D Android marble-racing game** inspired by the look and mechanics sh
 
 Independent implementation in **Godot 4.5.1**, focused on real mobile playability, physics, and stylized toy-table graphics. No proprietary material from the reference game is redistributed.
 
-## Current state: Android QA build (v1.115.0-rc, versionCode 129)
+## Current state: Android QA build (v1.116.0-rc, versionCode 130)
 
 **Playable scope (October 2026):** three visually differentiated 3D worlds with physical elevation changes, nine repeatable obstacle layouts, forty individually simulated glass marbles, real banked and elevated side-route shortcuts, six player perks, progression, ghost comparisons and optional online races. Autonomous opponents use deterministic physical steering, real route choices, anticipatory passing and forecasts of moving hazards; human steering stays entirely manual. The phone HUD previews real course geometry and estimates when Forge pistons will be open or blocked on arrival, with a nonrepeating audio danger cue. The three pistons share an illuminated shoulder beacon and matched deck markings for their current phase.
 
@@ -31,6 +31,8 @@ Open **View Map** after completing all four timed sectors. Tap a section of the 
 The selected sector numbers its obstacle groups, moving gates, surface zones, spring posts and bridge transitions in race order. Approach chevrons mark the painted route cues or the leading edge of the corresponding physical feature.
 
 On that retry, the radar marks the sector entry. An approach cue displays the remaining distance and appears sooner at higher speed. Sector 1 is announced during the countdown. Hazard warnings and race feedback take priority in the HUD.
+
+The radar and HUD then follow the next numbered feature on the chosen route, using its approach and obstacle positions from the map. The bridge merge appears on the bridge route. Passed features clear as the marble advances.
 
 Finish the guided retry to see the targeted sector's previous time, current time and time gained or lost in **VS LAST TRY**. Restarting that retry from pause keeps its reference time. Returning to the same layout again from the results uses the just-completed attempt.
 

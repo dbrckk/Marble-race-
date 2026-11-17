@@ -40,8 +40,11 @@ func reset() -> void:
 static func progress_at(z: float) -> float:
     return clampf(-z / -FINISH_Z,0.0,1.0)
 
-func set_practice_entry(z: float) -> void:
-    practice_progress = progress_at(z) if is_finite(z) else NAN
+func set_practice_marker(z: float) -> void:
+    var progress := progress_at(z) if is_finite(z) else NAN
+    if (is_nan(progress) and is_nan(practice_progress)) or is_equal_approx(progress,practice_progress):
+        return
+    practice_progress = progress
     queue_redraw()
 
 func sample(delta: float) -> void:

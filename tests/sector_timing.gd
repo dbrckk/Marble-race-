@@ -164,6 +164,8 @@ func _verify() -> void:
     assert(is_equal_approx(game.best_ghost.crossing_delta(0,20.016),0.0))
     assert(game.practice_sector == 3 and hud.practice_entry_pending)
     assert(is_equal_approx(game.practice_previous_time,float(splits[3])))
+    assert(hud.practice_landmarks == hud.sector_map.sector_landmarks,
+        "The guided retry must reuse the landmarks shown on the map")
     var entry: float = game.CHECKPOINT_Z[2]
     assert(is_equal_approx(hud.race_radar.practice_progress,-entry/absf(game.FINISH_Z)))
     game.race_state = "RACING"
@@ -191,11 +193,24 @@ func _verify() -> void:
     game.player.position.z = entry-0.1
     hud.label_timer = 0.12
     hud.update_hud()
-    assert(not hud.practice_entry_pending and is_nan(hud.race_radar.practice_progress))
+    assert(not hud.practice_entry_pending and hud.practice_sector_label.text.begins_with("1  SPEED STRIP"))
+    assert(is_equal_approx(hud.race_radar.practice_progress,168.0/absf(game.FINISH_Z)))
+    game.player.position.z = -168.1
+    hud.label_timer = 0.12
+    hud.update_hud()
+    assert(hud.practice_sector_label.text.begins_with("2  SPRING POSTS"))
+    hud.timed_gate_backdrop.show()
+    hud._refresh_race_notification()
+    assert(not hud.practice_sector_label.visible and is_finite(hud.race_radar.practice_progress))
     game.player.position.z = entry+3.0
     hud.label_timer = 0.12
     hud.update_hud()
-    assert(not hud.practice_sector_label.visible, "Crossing back must not rearm the cue")
+    assert(not hud.practice_entry_pending and hud.practice_sector_label.text.begins_with("2  SPRING POSTS"),
+        "Crossing back must not rearm an earlier landmark or sector entry")
+    game.player.position.z = game.FINISH_Z-0.1
+    hud.label_timer = 0.12
+    hud.update_hud()
+    assert(hud.practice_landmarks.is_empty() and is_nan(hud.race_radar.practice_progress))
 
     game.checkpoint_splits.assign([20.0,44.0,78.0])
     game.player.finished = true
@@ -252,6 +267,20 @@ func _verify() -> void:
     game._end_race()
     assert(not game.last_result.has("practice_comparison") and not hud.sector_retry_comparison.visible)
 
+    game.retry_current_layout(1)
+    game.race_state = "RACING"
+    game.player.position = game.shortcut_route.point_at(-80.0)+Vector3.UP*0.6
+    game.player.linear_velocity = Vector3(0.0,0.0,-22.0)
+    hud.label_timer = 0.12
+    hud.update_hud()
+    assert(hud.bridge_approach_active and hud.practice_sector_label.text.contains("BRIDGE MERGE"))
+    assert(is_equal_approx(hud.race_radar.practice_progress,89.0/absf(game.FINISH_Z)))
+    game.player.position = Vector3(game.track_center_at(-80.0),game.height_at(-80.0)+0.6,-80.0)
+    hud.label_timer = 0.12
+    hud.update_hud()
+    assert(not hud.bridge_approach_active and hud.practice_sector_label.text.contains("SPEED STRIP"))
+    assert(not hud.practice_sector_label.text.contains("MERGE"))
+
     var first_best: float = game.career.best_sector(0,0)
     game.return_to_menu()
     game.start_race("Grip Tape")
@@ -271,7 +300,7 @@ func _verify() -> void:
     DirAccess.remove_absolute(ProjectSettings.globalize_path(game.best_ghost.save_path))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(c.save_path))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(game.career.save_path))
-    print("SECTOR_TIMING_PASS: sector timing, touch selection, retry guidance, prior-attempt comparison, legacy saves and DNF protection")
+    print("SECTOR_TIMING_PASS: shared map landmarks, route-aware retry guidance, timing, legacy saves and DNF protection")
     game.queue_free()
     for k in range(4):
         await process_frame

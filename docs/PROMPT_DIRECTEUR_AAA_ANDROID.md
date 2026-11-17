@@ -426,6 +426,10 @@ Base `26ad686604047b15ea362d6806aadb834ca4a676`. Le bilan ouvre la carte d’une
 
 Base `18c8aa844325b026474448746128f1677f91708f`. Les obstacles du secteur choisi sont numérotés dans l’ordre de la course. Les chevrons reprennent les peintures d’approche des mécanismes et des ponts, les flèches avant la glace ou le bord d’entrée de la zone physique. La liste se met à jour à chaque sélection pour le tracé qui vient d’être couru.
 
+### 2026-11-17 — Repères en course pendant la relance guidée (1.116.0-rc)
+
+Base `809c98300b71292208a25f464cba34cfe4487122`. Le radar et le panneau latéral reprennent le prochain obstacle numéroté de la carte et sa distance d’approche. Les repères suivent la piste principale ou le pont et indiquent le retour sur la piste à la sortie du pont. Ils s’effacent au fil du parcours. Les alertes de danger et les temps intermédiaires prennent la priorité sur le panneau latéral.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Réutiliser les repères du secteur en course pour préparer chaque obstacle lors d’une relance guidée.
+Mettre en évidence au bilan le passage où la relance guidée a coûté le plus de temps.
