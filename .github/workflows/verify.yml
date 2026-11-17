@@ -525,8 +525,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          version="$(sed -n 's|^version/name="\\(.*\\)"|\\1|p' export_presets.cfg | head -n 1)"
-          code="$(sed -n 's|^version/code=\\([0-9]*\\)|\\1|p' export_presets.cfg | head -n 1)"
+          badging="$(grep -m 1 '^package: ' build/apk-badging.txt)"
+          version="$(sed -n "s/.* versionName='\([^']*\)'.*/\1/p" <<<"$badging")"
+          code="$(sed -n "s/.* versionCode='\([0-9][0-9]*\)'.*/\1/p" <<<"$badging")"
+          test -n "$version" && test -n "$code"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs --verbose build/marble-race-debug.apk > "$RUNNER_TEMP/debug-apksigner.txt"
           signer="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/debug-apksigner.txt" | head -n 1)"
           test -n "$signer"
