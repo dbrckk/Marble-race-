@@ -20,6 +20,7 @@ const JumpGuides = preload("res://scripts/jump_guides.gd")
 const ShortcutRoute = preload("res://scripts/shortcut_route.gd")
 const EVASION_ACCENT := Color("#9bf4e5")
 const TURBO_ACCENT := Color("#63efff")
+const MERGE_ACCENT := Color("#ffd383")
 
 var game: Node3D
 var screen_center := Vector2.ZERO
@@ -39,6 +40,7 @@ var ice_impact_center := Vector2.INF
 var turbo_center := Vector2.INF
 var fork_main_center := Vector2.INF
 var fork_bridge_center := Vector2.INF
+var merge_rival_center := Vector2.INF
 
 func configure(stage: Node3D) -> void:
     game = stage
@@ -61,6 +63,7 @@ func begin_round() -> void:
     turbo_center = Vector2.INF
     fork_main_center = Vector2.INF
     fork_bridge_center = Vector2.INF
+    merge_rival_center = Vector2.INF
     badge_text = "YOU"
     if not game.net.is_active() and game.career.league_tier() >= 1:
         badge_text += "  •  "+game.career.league_name()
@@ -77,6 +80,7 @@ func refresh(delta: float) -> void:
     turbo_center = Vector2.INF
     fork_main_center = Vector2.INF
     fork_bridge_center = Vector2.INF
+    merge_rival_center = Vector2.INF
     var marble: RigidBody3D = game.player
     var camera: Camera3D = game.camera
     if game.net.role == "server" or not is_instance_valid(marble) or not is_instance_valid(camera) or (
@@ -168,6 +172,19 @@ func refresh(delta: float) -> void:
             if fork_bridge_center.is_finite() and fork_main_center.is_finite() and (
                     fork_main_center.distance_to(fork_bridge_center) < 32.0):
                 fork_main_center = Vector2.INF
+        if freshness and game.selected_track == 0 and moments.merge_traffic != 0:
+            var rival: RigidBody3D = moments.merge_rival
+            var road: Node3D = game.shortcut_route
+            if is_instance_valid(rival) and not rival.finished and not rival.eliminated and (
+                    road.merge_traffic_lane(center) == moments.merge_traffic and (
+                        road.merge_traffic_lane(rival.global_position) == -moments.merge_traffic)):
+                var target := rival.global_position+Vector3.UP*0.74
+                if not camera.is_position_behind(target):
+                    var pin := camera.unproject_position(target)
+                    if safe.has_point(pin) and not _badge_rect().grow(14.0).has_point(pin) and (
+                            pin.distance_to(screen_center) > screen_radius+21.0 and (
+                                pin.distance_to(hazard_center) > 35.0 and pin.distance_to(evasion_center) > 35.0)):
+                        merge_rival_center = pin
     var raised: bool = game.race_state == "COUNTDOWN" or game.race_time < GRID_HANDOFF or (
         moments != null and (moments.nearby_pack_count >= 2 or moments.closest_rival_gap <= 1.6))
     bracket_strength = move_toward(bracket_strength,1.0 if raised else 0.0,maxf(0.0,delta)*7.0)
@@ -225,6 +242,16 @@ func _draw() -> void:
         _draw_fork_arrow(fork_main_center,Vector2.UP,ShortcutRoute.FORK_MAIN_COLOR)
     if fork_bridge_center.is_finite():
         _draw_fork_arrow(fork_bridge_center,Vector2(0.59,-0.81),ShortcutRoute.FORK_BRIDGE_COLOR)
+    if merge_rival_center.is_finite():
+        var point := merge_rival_center
+        var left := PackedVector2Array([point+Vector2(-6,-8),point+Vector2(-13,-8),
+            point+Vector2(-13,8),point+Vector2(-6,8)])
+        var right := PackedVector2Array([point+Vector2(6,-8),point+Vector2(13,-8),
+            point+Vector2(13,8),point+Vector2(6,8)])
+        draw_polyline(left,INK,7.0,true)
+        draw_polyline(right,INK,7.0,true)
+        draw_polyline(left,MERGE_ACCENT,3.5,true)
+        draw_polyline(right,MERGE_ACCENT,3.5,true)
     var label_rect := _badge_rect()
     var pointer := Vector2(clampf(screen_center.x,label_rect.position.x+7.0,label_rect.end.x-7.0),label_rect.end.y)
     if pointer.y < screen_center.y-screen_radius:

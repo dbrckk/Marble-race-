@@ -296,8 +296,13 @@ func _verify_fork_cues(game: Node3D, side: int) -> bool:
     marble.global_position = road.point_at(BypassScript.EXIT_Z+28.0)+Vector3.UP*0.7
     hud.label_timer = 0.25
     hud.update_hud()
-    assert(hud.bridge_approach_active and not hud.shortcut_label.visible,
-        "The detached deck is recognized before the merge direction is needed")
+    assert(hud.bridge_approach_active)
+    if game.selected_track == 0:
+        assert(hud.shortcut_label.visible and hud.shortcut_label.text.contains("GATE 2 / 3"))
+        _verify_woodworks_gates(game)
+    else:
+        assert(not hud.shortcut_label.visible,
+            "The detached deck is recognized before the merge direction is needed")
     marble.global_position = return_point
     hud.label_timer = 0.25
     hud.update_hud()
@@ -336,6 +341,7 @@ func _verify_merge_cues(game: Node3D, side: int) -> bool:
     player.linear_velocity = Vector3(0,0,-16)
     other.global_position = bridge
     other.freeze = false
+    other.linear_velocity = Vector3(0,0,-16)
     var moments: RefCounted = game.race_moments
     moments.reset_round()
     moments.tick(0.1)
@@ -352,4 +358,45 @@ func _verify_merge_cues(game: Node3D, side: int) -> bool:
     other.global_position.y += 3.0
     moments.tick(0.1)
     assert(moments.merge_traffic == 0,"A marble falling below or flying above the junction is not merge traffic")
+    if game.selected_track == 0:
+        z = BypassScript.EXIT_Z+3.0
+        player.global_position = Vector3(game.track_center_at(z)-1.3,game.height_at(z)+0.44,z)
+        player.linear_velocity.z = -8.0
+        other.global_position = road.point_at(BypassScript.EXIT_Z+9.5)+Vector3.UP*0.65
+        other.linear_velocity.z = -24.0
+        moments.reset_round()
+        moments.tick(0.12)
+        assert(moments.merge_traffic == 1 and moments.merge_rival == other,
+            "Predict crossing time when a fast outside rival is still 6.5m behind")
+        game._update_camera(0.12,true)
+        hud.label_timer = 0.25
+        hud.update_hud()
+        assert(hud.shortcut_label.text.contains("BRIDGE TRAFFIC RIGHT"))
+        other.linear_velocity.z = -4.0
+        moments.tick(0.12)
+        hud.label_timer = 0.25
+        hud.update_hud()
+        assert(moments.merge_traffic == 0 and not is_instance_valid(moments.merge_rival) and (
+            not hud.player_locator.merge_rival_center.is_finite()),
+            "The same rival no longer reaches the merge within the player's window")
     return true
+
+func _verify_woodworks_gates(game: Node3D) -> void:
+    var road: Node3D = game.shortcut_route
+    var hud: CanvasLayer = game.ui
+    var player: RigidBody3D = game.player
+    for i in range(BypassScript.BRIDGE_POST_Z.size()):
+        var z: float = BypassScript.BRIDGE_POST_Z[i]+5.0
+        player.global_position = road.point_at(z)+Vector3.UP*0.65
+        hud.label_timer = 0.25
+        hud.update_hud()
+        assert(hud.shortcut_label.text.contains("GATE %d / 3" % (i+1)))
+        assert(hud.shortcut_label.text.contains("HOLD CENTER"))
+    player.global_position.x += 1.20
+    hud.label_timer = 0.25
+    hud.update_hud()
+    assert(hud.shortcut_label.text.contains("AIM LEFT"))
+    player.global_position.y += 3.5
+    hud.label_timer = 0.25
+    hud.update_hud()
+    assert(not hud.shortcut_label.visible or not hud.shortcut_label.text.contains("GATE"))

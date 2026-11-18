@@ -57,7 +57,7 @@ func _check() -> void:
             var marks := road.get_node_or_null(
                 "BypassPrecisionSkillStripes") as MultiMeshInstance3D
             assert(is_instance_valid(marks) and
-                marks.multimesh.instance_count == 3 and
+                marks.multimesh.instance_count == (9 if biome == 0 else 3) and
                 marks.get_child_count() == 0)
             assert(marks.cast_shadow ==
                 GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)

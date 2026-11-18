@@ -560,6 +560,10 @@ Dans les derniers dixièmes de seconde, un diamant à portée garde la priorité
 
 Les flèches ont été déplacées entre les rangées d’obstacles des trois tracés. La flèche ambrée pointe franchement vers le pont après la barrière de droite. Le test d’ouverture vérifie la place d’une bille sur les repères avec les colliders actifs.
 
+### 2026-11-18 — Portes et jonction du pont de Woodworks (1.149.0-rc)
+
+Les trois bandes de précision suivent le tablier et encadrent la largeur réellement prise en compte pour valider une porte. Le HUD annonce le numéro de la prochaine porte et indique comment se recentrer. À la jonction, le repère ambre suit la bille de l’autre voie. En solo, l’alerte compare les temps d’arrivée au raccord des deux voies. Les clients utilisent la proximité des billes répliquées. Le serveur conserve le calcul des portes franchies et des récompenses.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Affiner la lecture des trois portes du pont de Woodworks et de la circulation à sa jonction. Mesurer le mix et la fluidité sur un téléphone Android dès qu’il est disponible.
+Vérifier la transition entre la jonction du pont de Woodworks et le premier obstacle du retour sur la piste principale en peloton. Mesurer le mix et la fluidité sur un téléphone Android dès qu’il est disponible.

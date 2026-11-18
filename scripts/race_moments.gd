@@ -60,6 +60,7 @@ var nearby_pack_count := 0
 var pack_pressure := 0.0
 var turn_weight := 0.0
 var merge_traffic := 0
+var merge_rival: RigidBody3D
 var occluded_hazard := Vector3.INF
 var occluded_hazard_kind := ""
 var occluded_shutter_mark := Vector3.INF
@@ -171,6 +172,7 @@ func reset_round() -> void:
     pack_pressure = 0.0
     turn_weight = 0.0
     merge_traffic = 0
+    merge_rival = null
     occluded_hazard = Vector3.INF
     occluded_hazard_kind = ""
     occluded_shutter_mark = Vector3.INF
@@ -272,6 +274,7 @@ func tick(delta: float) -> void:
         pack_pressure = 0.0
         turn_weight = 0.0
         merge_traffic = 0
+        merge_rival = null
         occluded_hazard = Vector3.INF
         occluded_hazard_kind = ""
         occluded_shutter_mark = Vector3.INF
@@ -312,7 +315,9 @@ func tick(delta: float) -> void:
     var player_on_bridge: bool = is_instance_valid(road) and road.on_separate_deck(p)
     var merge_lane := 0
     var merge_distance := 0.0
+    var merge_score := INF
     merge_traffic = 0
+    merge_rival = null
     occluded_hazard = Vector3.INF
     occluded_hazard_kind = ""
     occluded_shutter_mark = Vector3.INF
@@ -426,10 +431,16 @@ func tick(delta: float) -> void:
             crossed_nearby.erase(id)
             previous_offsets.erase(id)
             continue
-        if merge_lane != 0 and merge_traffic == 0 and absf(gap) <= merge_distance and (
-                absf(offset.y) <= 1.5 and (not local_race or not marble.freeze)):
-            if road.merge_traffic_lane(opponent) == -merge_lane:
+        if merge_lane != 0 and absf(offset.y) <= 1.5 and (not local_race or not marble.freeze):
+            var score := INF
+            if game.selected_track == 0 and local_race:
+                score = road.merge_conflict_score(p.z,own_forward,opponent.z,-marble.linear_velocity.z)
+            elif merge_traffic == 0 and absf(gap) <= merge_distance:
+                score = absf(gap)
+            if score < merge_score and road.merge_traffic_lane(opponent) == -merge_lane:
+                merge_score = score
                 merge_traffic = merge_lane
+                merge_rival = marble
         if same_route:
             if road_mark.is_finite() and gap < -0.20 and opponent.z >= road_mark.z-0.40 and (
                     covers_hazard(eyes,road_mark,opponent)):

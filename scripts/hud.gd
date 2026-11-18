@@ -2253,16 +2253,27 @@ func update_hud() -> void:
             RARE_ITEMS.COLORS.size())
         rare_item_label.add_theme_color_override("font_color",
             RARE_ITEMS.COLORS[color_index].lightened(0.20))
+    var bridge_gate: Dictionary = game.shortcut_route.precision_gate_ahead(game.player.global_position,velocity) if (
+        still_racing and bridge_approach_active and merge_traffic == 0 and not final_danger_active and (
+            not timed_gate_backdrop.visible)) else {}
     shortcut_label.visible = still_racing and not route_hint.is_empty() and not glacier_return_panel and (
         not finish_turbo_approach)
-    if shortcut_label.visible:
+    if not bridge_gate.is_empty():
+        shortcut_label.text = "GATE %d / %d  •  %s  •  %dm" % [bridge_gate["number"],
+            SHORTCUT_ROUTE.BRIDGE_POST_Z.size(),bridge_gate["action"],bridge_gate["distance"]]
+        shortcut_label.add_theme_color_override("font_color",SHORTCUT_ROUTE.FORK_BRIDGE_COLOR)
+        if seconds_until > 1.15:
+            hazard_label.hide()
+        if ordinary_gate_clear and gate_eta > 0.8:
+            timed_gate_label.hide()
+    elif shortcut_label.visible:
         shortcut_label.text = game.shortcut_route.route_guidance_text(
             route_hint,game.player.global_position.z,forward_speed)
         shortcut_label.visible = not shortcut_label.text.is_empty()
         var route_tint := SHORTCUT_ROUTE.FORK_BRIDGE_COLOR if route_hint["mode"] == "fork" else (
             SHORTCUT_ROUTE.GLACIER_RETURN_COLOR)
         if bridge_approach_active and merge_traffic < 0:
-            shortcut_label.text += "  •  TRAFFIC"
+            shortcut_label.text += "  •  MAIN TRAFFIC" if game.selected_track == 0 else "  •  TRAFFIC"
         shortcut_label.add_theme_color_override("font_color",route_tint)
     elif merge_traffic > 0 and not final_danger_active and not timed_gate_backdrop.visible:
         var bridge_side := "LEFT" if game.shortcut_route.side < 0 else "RIGHT"

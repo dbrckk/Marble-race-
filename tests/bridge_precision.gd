@@ -22,8 +22,10 @@ func _check() -> void:
         assert(route.precision_post_positions.size() == 6)
         var art := route.get_node("BypassPrecisionEdgePosts") as MultiMeshInstance3D
         var arches := route.get_node("BypassPrecisionPortalArches") as MultiMeshInstance3D
+        var stripes := route.get_node("BypassPrecisionSkillStripes") as MultiMeshInstance3D
         assert(art.multimesh.instance_count == 6)
         assert(arches.multimesh.instance_count == BYPASS.BRIDGE_POST_Z.size())
+        assert(stripes.multimesh.instance_count == (9 if biome == 0 else 3))
         var frame: Mesh = arches.multimesh.mesh
         assert(frame is ArrayMesh and frame.get_surface_count() == 1)
         assert(arches.get_child_count() == 0)

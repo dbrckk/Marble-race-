@@ -4,6 +4,7 @@ extends Node3D
 ## evaluated by the offline game or authoritative dedicated server only.
 const ARCHITECTURE = preload("res://scripts/course_architecture.gd")
 const TrackSurface = preload("res://scripts/track_surface.gd")
+const RaceFeedback = preload("res://scripts/race_feedback.gd")
 const ENTRY_SECTION := 5
 const EXIT_SECTION := 9
 const ENTRY_Z := -48.0
@@ -14,6 +15,8 @@ const FORK_GUIDANCE_REACH := 32.0
 const MERGE_GUIDANCE_REACH := 23.0
 const MERGE_TRAFFIC_NEAR := EXIT_Z+10.0
 const MERGE_TRAFFIC_FAR := EXIT_Z-2.0
+const MERGE_CONFLICT_HORIZON := 1.15
+const MERGE_CONFLICT_GAP := 0.55
 const MAIN_MERGE_Z := [EXIT_Z+11.0,EXIT_Z+8.1,EXIT_Z+5.2,EXIT_Z+2.3]
 const MAIN_MERGE_INK := Color("#a7f4ed")
 const FORK_ARROW_LEAD := 14.5
@@ -317,10 +320,16 @@ func _bridge_precision_corridor(material: Material) -> void:
     # physical crossing planes. The existing trim material is reused.
     var marks: Array[Transform3D] = []
     for station in range(BRIDGE_POST_Z.size()):
-        var center: Vector3 = point_at(BRIDGE_POST_Z[station])
-        marks.append(Transform3D(
-            Basis().scaled(Vector3(2.07,0.013,0.23)),
-            center+Vector3.UP*0.324))
+        var z: float = BRIDGE_POST_Z[station]
+        if course_id == 0:
+            var pose := _deck_arrow(z,0.0)
+            pose.origin.y -= 0.075
+            marks.append(pose.scaled_local(Vector3(2.0*PRECISION_GATE_HALF_WIDTH,0.014,0.28)))
+            for flank in [-1.0,1.0]:
+                var edge := pose.translated_local(Vector3(flank*PRECISION_GATE_HALF_WIDTH,0,0.74))
+                marks.append(edge.scaled_local(Vector3(0.11,0.014,1.38)))
+        else:
+            marks.append(Transform3D(Basis().scaled(Vector3(2.07,0.013,0.23)),point_at(z)+Vector3.UP*0.324))
     _batch("BypassPrecisionSkillStripes",marks,material)
 
 func _racing_line(material: Material) -> void:
@@ -542,6 +551,41 @@ func merge_traffic_lane(at: Vector3) -> int:
     if lateral >= -3.6 and lateral <= 2.85 and absf(at.y-stage.height_at(at.z)-0.47) <= 0.85:
         return 1
     return 0
+
+func merge_conflict_score(z: float, forward: float, rival_z: float, rival_forward: float) -> float:
+    if not is_finite(forward) or forward < 3.0 or not is_finite(rival_forward) or rival_forward < 3.0 or (
+            z < EXIT_Z-1.0 or rival_z < EXIT_Z-1.0):
+        return INF
+    var own_eta := maxf(0.0,z-EXIT_Z)/forward
+    var rival_eta := maxf(0.0,rival_z-EXIT_Z)/rival_forward
+    if maxf(own_eta,rival_eta) > MERGE_CONFLICT_HORIZON or absf(own_eta-rival_eta) > MERGE_CONFLICT_GAP:
+        return INF
+    return own_eta+absf(own_eta-rival_eta)
+
+func precision_gate_ahead(at: Vector3, velocity: Vector3) -> Dictionary:
+    if course_id != 0 or not at.is_finite() or not velocity.is_finite() or (
+            -velocity.z < PRECISION_GATE_MIN_SPEED or at.z <= BRIDGE_POST_Z.back() or (
+                at.z > BRIDGE_POST_Z[0]+13.5)):
+        return {}
+    var deck := point_at(at.z)
+    var height := at.y-deck.y
+    if height < 0.20 or height > 1.85 or absf(at.x-deck.x) > WIDTH*0.5+0.25 or (
+            at.z > OUTER_START and side*(at.x-stage.track_center_at(at.z)) <= 6.68):
+        return {}
+    var speed := -velocity.z
+    for i in range(BRIDGE_POST_Z.size()):
+        var z: float = BRIDGE_POST_Z[i]
+        var distance := at.z-z
+        if distance <= 0.0:
+            continue
+        if distance > clampf(speed*0.9,5.5,13.5):
+            break
+        var lateral := RaceFeedback.projected_lane_x(at.x,velocity.x,distance/speed)-point_at(z).x
+        var action := "HOLD CENTER"
+        if absf(lateral) > PRECISION_GATE_HALF_WIDTH*0.80:
+            action = "AIM LEFT" if lateral > 0.0 else "AIM RIGHT"
+        return {"number":i+1,"action":action,"distance":maxi(1,ceili(distance))}
+    return {}
 
 func shortcut_hint(location: Vector3, continuing_merge := false) -> Dictionary:
     # Retain bridge context on the overlapping deck only for a racer
