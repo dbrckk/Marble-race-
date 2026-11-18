@@ -90,6 +90,24 @@ func setup(owner: Node3D, track: int, next_layout: int) -> void:
     metal.emission = COLORS[biome]
     metal.emission_energy_multiplier = 0.27
     cylinders = _batch("BouncyLacquerColumns",barrel,metal,posts)
+    # Distinctive recessed metallic waistbands, shared across all six posts.
+    # GPU-instanced, non-colliding and shadowless: no additional physics cost.
+    var trim_mesh := TorusMesh.new()
+    trim_mesh.inner_radius = 0.64
+    trim_mesh.outer_radius = 0.705
+    trim_mesh.rings = 14
+    trim_mesh.ring_segments = 5
+    var trim_material := StandardMaterial3D.new()
+    trim_material.albedo_color = [Color("#e2c99a"),
+        Color("#c1e6f4"),Color("#d9a78c")][biome]
+    trim_material.metallic = 0.82
+    trim_material.roughness = 0.28
+    var trim_transforms: Array[Transform3D] = []
+    for post_transform in posts:
+        trim_transforms.append(Transform3D(Basis(),
+            post_transform.origin+Vector3(0.0,0.0,0.0)))
+    _batch("SpringMachinedWaistbands",trim_mesh,trim_material,
+        trim_transforms)
     var torus := TorusMesh.new()
     torus.inner_radius = 0.71
     torus.outer_radius = 0.85
