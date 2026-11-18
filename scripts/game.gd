@@ -284,6 +284,9 @@ func _auto_quality_sample(fps: float, seconds: float) -> void:
 func _tick_auto_quality(delta: float) -> void:
     if graphics_setting != 3 or not OS.has_feature("mobile") or race_state != "RACING":
         return
+    # Resume/background spikes must not force an unwanted quality downgrade.
+    if not is_finite(delta) or delta <= 0.0 or delta > 0.25:
+        return
     auto_fps_seconds += delta
     auto_fps_accum += delta * Engine.get_frames_per_second()
     if auto_fps_seconds >= 1.0:
@@ -313,6 +316,13 @@ func _apply_graphics_quality() -> void:
     if world_environment != null:
         world_environment.glow_enabled = graphics_quality > 0
         world_environment.fog_enabled = graphics_quality > 0
+        # Keep luminous obstacle and marble accents readable without
+        # washing out the track on mid-range Android screens. No extra
+        # lights, draw calls, or post-processing passes are introduced.
+        world_environment.glow_intensity = [0.0,0.19,0.27][graphics_quality]
+        # High quality retains distant scenery depth; medium uses gentler
+        # fog so small hazards stay distinguishable in landscape mode.
+        world_environment.fog_density = [0.0,0.0035,0.0045][graphics_quality]
     if is_instance_valid(contact_shadows):
         contact_shadows.visible = graphics_quality > 0
         contact_shadows.set_update_rate(60 if graphics_quality == 2 else 30)
