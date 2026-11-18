@@ -26,9 +26,17 @@ func _run() -> void:
             assert(is_instance_valid(kickers) and kickers.get_parent() == game.board)
             assert(kickers.bodies.size() == 6,
                 "Every course variant requires six genuine bumpers")
-            assert(kickers.cylinders.multimesh.instance_count == 6 and
+            assert(kickers.get_child_count() == 10 and
+                kickers.cylinders.multimesh.instance_count == 6 and
+                kickers.waistbands.multimesh.instance_count == 12 and
+                kickers.approach_markers.multimesh.instance_count == 6 and
                 kickers.glow_rings.multimesh.instance_count == 12,
-                "18 pieces of pinball artwork must use just two GPU batches")
+                "Six physical posts and four instanced art batches are required")
+            for art in [kickers.cylinders,kickers.waistbands,
+                    kickers.approach_markers,kickers.glow_rings]:
+                assert(art.cast_shadow ==
+                    GeometryInstance3D.SHADOW_CASTING_SETTING_OFF,
+                    "Extra bumper art must not create shadow passes")
             assert(kickers.cylinders.cast_shadow ==
                 GeometryInstance3D.SHADOW_CASTING_SETTING_OFF,
                 "Never create individual shadow passes for spring posts")
@@ -39,13 +47,19 @@ func _run() -> void:
                 assert(body is StaticBody3D and
                     body.physics_material_override is PhysicsMaterial,
                     "Spring rebounds require real physical collision material")
+                var station: int = int(body.get_meta("station"))
+                var side: int = int(body.get_meta("side"))
+                var spring_phase: int = posmod(station+layout+int(side > 0),3)
+                var expected_bounce: float = clampf(
+                    KICKERS.BOUNCE[biome]*[0.86,0.94,1.0][spring_phase],
+                    0.0,0.98)
                 assert(is_equal_approx(body.physics_material_override.bounce,
-                    KICKERS.BOUNCE[biome]),"Each biome needs its own rebound feel")
+                    expected_bounce) and is_equal_approx(
+                    float(body.get_meta("spring_bounce")),expected_bounce),
+                    "Each real spring tier and biome needs its own rebound feel")
                 var collider: CollisionShape3D = body.get_node("RealSpringCollider")
                 assert(collider.shape is CylinderShape3D)
                 assert(is_equal_approx(collider.shape.radius,KICKERS.RADIUS))
-                var station: int = int(body.get_meta("station"))
-                var side: int = int(body.get_meta("side"))
                 assert(side == -1 or side == 1)
                 assert(body.position.distance_to(kickers.location_at(station,side)) < 0.001)
                 var z: float = body.position.z
@@ -97,20 +111,27 @@ func _run() -> void:
                 kickers.pulse_strength[0] > 0.0,
                 "Impact light must decay smoothly without changing the collider")
             game.set_graphics_quality(0)
-            assert(not kickers.glow_rings.visible and kickers.bodies.size() == 6,
-                "ECONOMY hides only cosmetic neon and preserves all impacts")
+            assert(not kickers.glow_rings.visible and
+                not kickers.waistbands.visible and
+                kickers.approach_markers.visible and kickers.bodies.size() == 6,
+                "ECONOMY keeps warning marks and collisions but hides decorative trim")
             flash_before = kickers.pulse_strength[0]
             kickers.advance_visuals(0.10)
             assert(kickers.pulse_strength[0] < flash_before,
                 "ECONOMY still retires old flashes without GPU ring writes")
             game.set_graphics_quality(1)
-            assert(kickers.glow_rings.visible)
+            assert(kickers.glow_rings.visible and
+                kickers.waistbands.visible and
+                kickers.approach_markers.visible)
             assert(kickers.pulse_events == 1,
                 "Quality switching cannot synthesize extra contact events")
             assert(kickers.notify_contact(kickers.bodies[1],0.7),
                 "Distinct genuine post contact must activate its own light")
             assert(kickers.pulse_events == 2)
-            kickers.advance_visuals(2.0)
+            # Visual decay deliberately limits a single long resume frame
+            # to 100 ms; exercise the full two seconds of ordinary frames.
+            for tick in range(20):
+                kickers.advance_visuals(0.10)
             for strength in kickers.pulse_strength:
                 assert(is_zero_approx(strength),
                     "Expired contact pulses must not linger after a finish")
@@ -124,5 +145,5 @@ func _run() -> void:
         await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_spring_post_career.cfg"))
-    print("PINBALL_BUMPERS_PASS: 9 layouts, 54 physical posts checks, 2 GPU batches, authenticated contacts, pulse cooldowns, mobile tiers")
+    print("PINBALL_BUMPERS_PASS: 9 layouts, 54 physical posts checks, 4 GPU batches, authenticated contacts, pulse cooldowns, mobile tiers")
     quit(0)
