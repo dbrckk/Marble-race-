@@ -594,7 +594,9 @@ func precision_gate_ahead(at: Vector3, velocity: Vector3) -> Dictionary:
         return {}
     var deck := point_at(at.z)
     var height := at.y-deck.y
-    if height < 0.20 or height > 1.85 or absf(at.x-deck.x) > WIDTH*0.5+0.25 or (
+    # Keep the second-gate landing cue available during a legitimate
+    # launch arc; the old 1.85 m ceiling hid it at the jump apex.
+    if height < 0.20 or height > 3.0 or absf(at.x-deck.x) > WIDTH*0.5+0.25 or (
             at.z > OUTER_START and side*(at.x-stage.track_center_at(at.z)) <= 6.68):
         return {}
     var speed := -velocity.z
