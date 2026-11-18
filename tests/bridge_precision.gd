@@ -25,7 +25,22 @@ func _check() -> void:
         var stripes := route.get_node("BypassPrecisionSkillStripes") as MultiMeshInstance3D
         assert(art.multimesh.instance_count == 6)
         assert(arches.multimesh.instance_count == BYPASS.BRIDGE_POST_Z.size())
-        assert(stripes.multimesh.instance_count == (9 if biome == 0 else 3))
+        var stripe_count := 9 if biome == 0 else 3
+        if biome == 2:
+            stripe_count += BYPASS.FORGE_FIRST_GATE_APPROACH.size()*2
+        assert(stripes.multimesh.instance_count == stripe_count)
+        # The dummy renderer exposes instance counts but no transform data.
+        if biome == 2 and DisplayServer.get_name() != "headless":
+            for i in range(BYPASS.FORGE_FIRST_GATE_APPROACH.size()):
+                var z: float = BYPASS.BRIDGE_POST_Z[0]+BYPASS.FORGE_FIRST_GATE_APPROACH[i]
+                var left := stripes.multimesh.get_instance_transform(1+i*2).origin
+                var right := stripes.multimesh.get_instance_transform(2+i*2).origin
+                var center := (left+right)*0.5
+                var deck: Vector3 = route.point_at(z)
+                assert(absf(center.z-z) < 0.001 and absf(center.x-deck.x) < 0.001)
+                assert(absf(left.distance_to(right)-2.0*BYPASS.PRECISION_GATE_HALF_WIDTH) < 0.001)
+                assert(center.y-deck.y > 0.20 and center.y-deck.y < 0.40,
+                    "The lead paint must sit on the banked bridge")
         var frame: Mesh = arches.multimesh.mesh
         assert(frame is ArrayMesh and frame.get_surface_count() == 1)
         assert(arches.get_child_count() == 0)

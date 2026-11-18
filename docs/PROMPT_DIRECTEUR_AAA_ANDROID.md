@@ -616,6 +616,10 @@ La prévision locale utilise la phase du bras tournant. En ligne, sa zone de bal
 
 Le HUD tient compte du mouvement des billes sur la ligne principale et à l’entrée du pont. Il met en avant la piste lorsque l’entrée du pont est occupée et que la bille est alignée sur la piste. Il rappelle la direction du pont quand la ligne principale est occupée et que le pont reste à portée de braquage. Si le trafic ferme ces options, le conseil est de garder le turbo. En ligne, une prévision dépend de vitesses de répliques suffisamment récentes. Si un obstacle menace la trajectoire avant la bifurcation, le HUD indique le trafic et réserve la consigne de pilotage à l’obstacle. L’essai sur téléphone Android reste à faire.
 
+### 2026-11-18 — Du pont au premier portique de Gauntlet (1.160.0-rc)
+
+Une fois la bifurcation franchie vers le pont, le HUD affiche le premier portique et donne le conseil de centrage d’après la courbe réelle. Le conseil reste visible au bord du tablier pendant la transition, puis s’efface au franchissement du portique. Deux lignes de pointillés ambre reprennent la largeur de la zone qui valide le passage. Leur géométrie suit le dévers du pont et réutilise le lot de marquages existant. L’essai sur téléphone Android reste à faire.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Vérifier la lisibilité et la continuité du guidage de Gauntlet entre l’entrée du pont et le premier portique de précision.
+Adapter le guidage du premier portique du pont de Gauntlet aux billes qui occupent le couloir de précision.

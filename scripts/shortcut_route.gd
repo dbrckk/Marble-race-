@@ -42,6 +42,9 @@ const REWARD_RADIUS := 2.15
 # Each elevated route is a deliberate precision corridor: the outer edge
 # catches sloppy lines, while the middle 2.8 metres stay unobstructed for AI.
 const BRIDGE_POST_Z := [-65.0,-80.0,-90.0]
+const FORGE_FIRST_GATE_APPROACH := [8.0,6.0,4.0,2.0,0.8]
+const BRIDGE_ENTRY_X := 6.68
+const FORGE_BRIDGE_EDGE_X := 6.35
 const BRIDGE_POST_OFFSET := 1.76
 const BRIDGE_POST_RADIUS := 0.22
 const BRIDGE_POST_HEIGHT := 0.88
@@ -325,13 +328,22 @@ func _bridge_precision_corridor(material: Material) -> void:
     var marks: Array[Transform3D] = []
     for station in range(BRIDGE_POST_Z.size()):
         var z: float = BRIDGE_POST_Z[station]
-        if course_id == 0:
+        if course_id == 0 or (course_id == 2 and station == 0):
             var pose := _deck_arrow(z,0.0)
             pose.origin.y -= 0.075
             marks.append(pose.scaled_local(Vector3(2.0*PRECISION_GATE_HALF_WIDTH,0.014,0.28)))
-            for flank in [-1.0,1.0]:
-                var edge := pose.translated_local(Vector3(flank*PRECISION_GATE_HALF_WIDTH,0,0.74))
-                marks.append(edge.scaled_local(Vector3(0.11,0.014,1.38)))
+            if course_id == 0:
+                for flank in [-1.0,1.0]:
+                    var edge := pose.translated_local(Vector3(flank*PRECISION_GATE_HALF_WIDTH,0,0.74))
+                    marks.append(edge.scaled_local(Vector3(0.11,0.014,1.38)))
+            else:
+                for distance: float in FORGE_FIRST_GATE_APPROACH:
+                    # Set the height on the real banked deck at each stripe.
+                    var approach := _deck_arrow(z+distance,0.0)
+                    approach.origin.y -= 0.075
+                    for flank in [-1.0,1.0]:
+                        var edge := approach.translated_local(Vector3(flank*PRECISION_GATE_HALF_WIDTH,0,0))
+                        marks.append(edge.scaled_local(Vector3(0.15,0.014,0.86)))
         else:
             marks.append(Transform3D(Basis().scaled(Vector3(2.07,0.013,0.23)),point_at(z)+Vector3.UP*0.324))
     _batch("BypassPrecisionSkillStripes",marks,material)
@@ -567,6 +579,8 @@ func merge_conflict_score(z: float, forward: float, rival_z: float, rival_forwar
     return own_eta+absf(own_eta-rival_eta)
 
 func precision_gate_ahead(at: Vector3, velocity: Vector3) -> Dictionary:
+    if course_id == 2:
+        return _forge_first_gate_ahead(at,velocity)
     if course_id != 0 or not at.is_finite() or not velocity.is_finite() or (
             -velocity.z < PRECISION_GATE_MIN_SPEED or at.z <= BRIDGE_POST_Z.back() or (
                 at.z > BRIDGE_POST_Z[0]+13.5)):
@@ -591,6 +605,28 @@ func precision_gate_ahead(at: Vector3, velocity: Vector3) -> Dictionary:
         return {"number":i+1,"action":action,"distance":maxi(1,ceili(distance))}
     return {}
 
+func _forge_first_gate_ahead(at: Vector3, velocity: Vector3) -> Dictionary:
+    var gate_z: float = BRIDGE_POST_Z[0]
+    var speed := -velocity.z
+    if not at.is_finite() or not velocity.is_finite() or speed < PRECISION_GATE_MIN_SPEED or (
+            at.z <= gate_z or at.z > ENTRY_PORTAL_Z+PORTAL_HALF_LENGTH):
+        return {}
+    var deck := point_at(at.z)
+    var height := at.y-deck.y
+    if height < 0.24 or height > 1.35 or absf(at.x-deck.x) > WIDTH*0.5 or (
+            side*(at.x-stage.track_center_at(at.z)) < FORGE_BRIDGE_EDGE_X):
+        return {}
+    # Look along the bend first. Extrapolating directly to the gate from
+    # the portal would ask the player to steer through the outer rail.
+    var distance := at.z-gate_z
+    var look_time := minf(0.32,distance/speed)
+    var look_z := maxf(gate_z,at.z-speed*look_time)
+    var lateral := at.x+velocity.x*look_time-point_at(look_z).x
+    var action := "FOLLOW CURVE" if at.z > OUTER_START else "HOLD CENTER"
+    if absf(lateral) > PRECISION_GATE_HALF_WIDTH*0.72:
+        action = "AIM LEFT" if lateral > 0.0 else "AIM RIGHT"
+    return {"number":1,"action":action,"distance":maxi(1,ceili(distance))}
+
 func shortcut_hint(location: Vector3, continuing_merge := false) -> Dictionary:
     # Retain bridge context on the overlapping deck only for a racer
     # already seen on the exterior approach.
@@ -600,7 +636,10 @@ func shortcut_hint(location: Vector3, continuing_merge := false) -> Dictionary:
         var relative_x: float = float(side)*(location.x-stage.track_center_at(z))
         var following_bridge_exit: bool = continuing_merge and (
             z <= OUTER_END and relative_x >= 3.35)
-        var bridge_threshold := 6.68 if z > OUTER_START else 5.65
+        var bridge_threshold := BRIDGE_ENTRY_X if z > OUTER_START else 5.65
+        if course_id == 2 and continuing_merge and z <= ENTRY_PORTAL_Z and z > OUTER_START:
+            # Keep the just-confirmed bridge cue across the edge of the shared deck.
+            bridge_threshold = FORGE_BRIDGE_EDGE_X
         if relative_x > bridge_threshold or following_bridge_exit:
             var deck := point_at(z)
             if absf(location.x-deck.x) < WIDTH*0.5+1.7 and location.y >= deck.y-0.25:

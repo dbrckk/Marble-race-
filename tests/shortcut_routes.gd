@@ -253,6 +253,7 @@ func _run() -> void:
             assert(_verify_fork_cues(game,side))
             if course == 2:
                 assert(_verify_forge_fork_traffic(game))
+                assert(_verify_forge_first_gate(game))
             if not _verify_merge_cues(game,side):
                 quit(1)
                 return
@@ -264,6 +265,7 @@ func _run() -> void:
     print("SHORTCUT_ROUTES_PASS: three collidable, rewarded fork/merge alternatives")
     print("MERGE_GUIDANCE_PASS: nine layouts, real inside-lane markings, opposing decks and alert clearance")
     print("FORGE_FORK_TRAFFIC_PASS: three layouts, both branches, cut-ins, stale snapshots and HUD handoff")
+    print("FORGE_FIRST_GATE_PASS: three layouts, confirmed bridge, curve, real gate alignment and immediate handoff")
     print("WOODWORKS_RETURN_PASS: clear bridge lip, physical warnings, visible gaps and HUD handoff on three layouts")
     game.queue_free()
     await process_frame
@@ -364,6 +366,59 @@ func _verify_forge_fork_traffic(game: Node3D) -> bool:
     assert(not hud.shortcut_label.visible and not hud.bridge_approach_active)
     bridge_rival.freeze = true
     return true
+
+func _verify_forge_first_gate(game: Node3D) -> bool:
+    var road: Node3D = game.shortcut_route
+    var hud: CanvasLayer = game.ui
+    var player: RigidBody3D = game.player
+    var z := -55.0
+    var at: Vector3 = road.point_at(z)+Vector3.UP*0.67
+    var velocity := Vector3(0,0,-12.0)
+    var main := Vector3(game.track_center_at(z),game.height_at(z)+0.43,z)
+    _refresh_bridge_hud(hud,player,main,velocity)
+    assert(not hud.bridge_approach_active and not hud.shortcut_label.visible)
+
+    velocity.x = (road.point_at(z-12.0*0.32).x-at.x)/0.32
+    _refresh_bridge_hud(hud,player,at,velocity)
+    assert(hud.bridge_approach_active and hud.shortcut_label.visible and
+        hud.shortcut_label.text == "GATE 1 / 3  •  FOLLOW CURVE  •  10m")
+    var edge_z := -53.5
+    var edge := Vector3(game.track_center_at(edge_z)+6.5,road.point_at(edge_z).y+0.67,edge_z)
+    _refresh_bridge_hud(hud,player,edge,velocity)
+    assert(hud.bridge_approach_active and hud.shortcut_label.text.contains("GATE 1 / 3"),
+        "A confirmed bridge line keeps its guidance over the shared edge")
+    _refresh_bridge_hud(hud,player,at,Vector3(0,0,-12.0))
+    assert(hud.shortcut_label.text.contains("AIM RIGHT"),
+        "A marble coasting straight on the bend must follow the deck outward")
+
+    var gate_z: float = BypassScript.BRIDGE_POST_Z[0]
+    var approach: Vector3 = road.point_at(gate_z+2.2)+Vector3.UP*0.67
+    velocity.x = 0.0
+    for offset: float in [0.0,-1.2,1.2]:
+        var lane := approach+Vector3.RIGHT*offset
+        _refresh_bridge_hud(hud,player,lane,velocity)
+        var action := "HOLD CENTER" if offset == 0.0 else ("AIM RIGHT" if offset < 0.0 else "AIM LEFT")
+        assert(hud.shortcut_label.visible and hud.shortcut_label.text.contains(action))
+        assert(player.global_position.is_equal_approx(lane) and player.linear_velocity.is_equal_approx(velocity),
+            "Guide text must leave the racer in control")
+    _refresh_bridge_hud(hud,player,approach+Vector3.UP*2.5,velocity)
+    assert(not hud.shortcut_label.visible)
+    game.net.role = "client"
+    game.net.match_running = true
+    _refresh_bridge_hud(hud,player,approach,velocity)
+    assert(not hud.shortcut_label.visible,"A missing network velocity cannot establish gate alignment")
+    game.net.match_running = false
+    game.net.role = "offline"
+    _refresh_bridge_hud(hud,player,road.point_at(gate_z-0.35)+Vector3.UP*0.67,velocity)
+    assert(hud.bridge_approach_active and not hud.shortcut_label.visible,
+        "Retire the first-gate instruction as soon as the player crosses it")
+    return true
+
+func _refresh_bridge_hud(hud: CanvasLayer, player: RigidBody3D, at: Vector3, velocity: Vector3) -> void:
+    player.global_position = at
+    player.linear_velocity = velocity
+    hud.label_timer = 0.25
+    hud.update_hud()
 
 func _verify_fork_cues(game: Node3D, side: int) -> bool:
     var road: Node3D = game.shortcut_route
