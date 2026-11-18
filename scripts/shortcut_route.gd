@@ -5,6 +5,7 @@ extends Node3D
 const ARCHITECTURE = preload("res://scripts/course_architecture.gd")
 const TrackSurface = preload("res://scripts/track_surface.gd")
 const RaceFeedback = preload("res://scripts/race_feedback.gd")
+const Racer = preload("res://scripts/marble.gd")
 const ENTRY_SECTION := 5
 const EXIT_SECTION := 9
 const ENTRY_Z := -48.0
@@ -26,6 +27,9 @@ const FORGE_EDGE_COLOR := Color("#ffc86e")
 const FORGE_MAIN_COLOR := Color("#b6f6ed")
 const FORK_MAIN_COLOR := FORGE_MAIN_COLOR
 const FORK_BRIDGE_COLOR := FORGE_EDGE_COLOR
+const FORK_CHECK_END := ENTRY_PORTAL_Z-3.0
+const FORK_REACTION := 0.10
+const FORK_TRAFFIC_CLEARANCE := Racer.RADIUS*2.0+0.16
 const RETURN_ARROW_Z := [-89.0,-93.0,-97.0,-100.0,-103.0]
 const OUTER_START := -60.0
 const OUTER_END := -92.0
@@ -606,6 +610,83 @@ func shortcut_hint(location: Vector3, continuing_merge := false) -> Dictionary:
         return {"mode":"fork","side":"LEFT" if side < 0 else "RIGHT",
             "distance":maxi(0,int(round(z-ENTRY_PORTAL_Z)))}
     return {}
+
+func forge_fork_advice(at: Vector3, velocity: Vector3) -> Dictionary:
+    var speed := -velocity.z
+    if course_id != 2 or not at.is_finite() or not velocity.is_finite() or (
+            speed < 5.0 or stage.airtime.airborne or (
+                absf(at.y-stage.height_at(at.z)-Racer.RADIUS) > 0.65)):
+        return {}
+    var eta := (at.z-ENTRY_PORTAL_Z)/speed
+    if eta < 0.24 or eta > 1.05 or at.z > ENTRY_PORTAL_Z+14.0:
+        return {}
+    var origins := PackedVector2Array()
+    var motions := PackedVector2Array()
+    var online: bool = stage.net.is_client()
+    for rival in stage.racers:
+        if not is_instance_valid(rival) or rival == stage.player or rival.finished or rival.eliminated:
+            continue
+        var pos: Vector3 = rival.global_position
+        if pos.z < FORK_CHECK_END-1.0 or pos.z > at.z+8.0 or (
+                absf(pos.x-stage.track_center_at(pos.z)) > 12.0 or
+                absf(pos.y-stage.height_at(pos.z)-Racer.RADIUS) > 0.95):
+            continue
+        var motion: Vector3 = stage.net.replica_velocity(rival) if online else (
+            Vector3.ZERO if rival.freeze else rival.linear_velocity)
+        if not motion.is_finite():
+            return {}
+        origins.append(Vector2(pos.x,pos.z))
+        motions.append(Vector2(motion.x,motion.z))
+    if origins.is_empty():
+        return {}
+
+    # Compare traffic over the length of the opening. The bridge reference
+    # follows the narrow deck. The main reference follows the player's line.
+    var first_z := minf(at.z,ENTRY_PORTAL_Z+2.8)
+    var first_time := (at.z-first_z)/speed
+    var end_time := (at.z-FORK_CHECK_END)/speed
+    var main_x: float = stage.track_center_at(ENTRY_PORTAL_Z)
+    var drift := RaceFeedback.projected_lane_x(at.x,velocity.x,eta)
+    var main_aligned := absf(drift-main_x) <= 4.8
+    var duration := eta-FORK_REACTION
+    var edge := float(side)*(point_at(ENTRY_PORTAL_Z).x-main_x)-WIDTH*0.25
+    var accel := Racer.human_steering_force(1.0,velocity.z,velocity.x,course_id)*0.72
+    var outside_reach := float(side)*(at.x+velocity.x*eta-main_x)+0.5*accel*duration*duration
+    var bridge_in_reach := outside_reach >= edge
+    var main_busy := _forge_fork_traffic(at,velocity,first_time,end_time,false,origins,motions)
+    var bridge_busy := _forge_fork_traffic(at,velocity,first_time,end_time,true,origins,motions)
+    if bridge_busy and not main_busy and main_aligned:
+        return {"text":"↑ MAIN TRACK  /  BRIDGE BUSY","tint":FORK_MAIN_COLOR}
+    if main_busy and not bridge_busy and bridge_in_reach:
+        return {"text":"MAIN BUSY  /  BRIDGE RIGHT ↗","tint":FORK_BRIDGE_COLOR}
+    if main_busy and bridge_busy:
+        return {"text":"BOTH BUSY  •  SAVE BOOST","tint":FORK_BRIDGE_COLOR}
+    if main_busy or bridge_busy:
+        return {"text":("MAIN BUSY" if main_busy else "BRIDGE BUSY")+"  •  SAVE BOOST",
+            "tint":FORK_BRIDGE_COLOR}
+    return {}
+
+func _forge_fork_traffic(at: Vector3, velocity: Vector3, first: float, last: float,
+        bridge: bool, origins: PackedVector2Array, motions: PackedVector2Array) -> bool:
+    var previous := Vector2.ZERO
+    var previous_time := first
+    # Split the bridge curve and the capped lateral drift into short spans
+    # so cutting across the entrance between samples still counts.
+    var clearance := FORK_TRAFFIC_CLEARANCE+(0.48 if bridge else 0.0)
+    for step in range(7):
+        var t := lerpf(first,last,float(step)/6.0)
+        var z := at.z+velocity.z*t
+        var center: float = stage.track_center_at(z)
+        var x := clampf(RaceFeedback.projected_lane_x(at.x,velocity.x,t),center-4.8,center+4.8)
+        if bridge:
+            x = point_at(z).x
+        var next := Vector2(x,z)
+        if step > 0 and not RaceFeedback.traffic_span_clear(previous,next,previous_time,t,
+                origins,motions,clearance):
+            return true
+        previous = next
+        previous_time = t
+    return false
 
 func route_guidance_text(hint: Dictionary, z: float, forward_speed: float) -> String:
     var distance := int(hint["distance"])

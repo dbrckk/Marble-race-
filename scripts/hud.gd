@@ -2466,6 +2466,12 @@ func update_hud() -> void:
             SHORTCUT_ROUTE.GLACIER_RETURN_COLOR)
         if bridge_approach_active and merge_traffic < 0:
             shortcut_label.text += "  •  MAIN TRAFFIC" if game.selected_track == 0 else "  •  TRAFFIC"
+        if route_hint["mode"] == "fork":
+            var advice: Dictionary = game.shortcut_route.forge_fork_advice(game.player.global_position,velocity)
+            if not advice.is_empty():
+                shortcut_label.text = advice["text"]
+                route_tint = advice["tint"]
+                duel_label.hide()
         shortcut_label.add_theme_color_override("font_color",route_tint)
     elif merge_traffic > 0 and not final_danger_active and not timed_gate_backdrop.visible:
         var bridge_side := "LEFT" if game.shortcut_route.side < 0 else "RIGHT"

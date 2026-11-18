@@ -612,6 +612,10 @@ Un chevron menthe confirme une ligne dégagée ou signale un écart atteignable.
 
 La prévision locale utilise la phase du bras tournant. En ligne, sa zone de balayage complète sert de marge quand la phase du serveur est inconnue. Les trois variantes sont vérifiées avec voie dégagée et voie occupée. L’essai sur téléphone Android reste à faire.
 
+### 2026-11-18 — Trafic à la bifurcation de Gauntlet (1.159.0-rc)
+
+Le HUD tient compte du mouvement des billes sur la ligne principale et à l’entrée du pont. Il met en avant la piste lorsque l’entrée du pont est occupée et que la bille est alignée sur la piste. Il rappelle la direction du pont quand la ligne principale est occupée et que le pont reste à portée de braquage. Si le trafic ferme ces options, le conseil est de garder le turbo. En ligne, une prévision dépend de vitesses de répliques suffisamment récentes. Les alertes d’obstacle conservent leur emplacement. L’essai sur téléphone Android reste à faire.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Améliorer le choix entre piste et pont à la bifurcation de Gauntlet quand le peloton arrive groupé.
+Vérifier la lisibilité et la continuité du guidage de Gauntlet entre l’entrée du pont et le premier portique de précision.

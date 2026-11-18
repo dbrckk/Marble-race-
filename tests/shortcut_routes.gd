@@ -251,6 +251,8 @@ func _run() -> void:
             for frame in range(4):
                 await physics_frame
             assert(_verify_fork_cues(game,side))
+            if course == 2:
+                assert(_verify_forge_fork_traffic(game))
             if not _verify_merge_cues(game,side):
                 quit(1)
                 return
@@ -261,10 +263,98 @@ func _run() -> void:
             await process_frame
     print("SHORTCUT_ROUTES_PASS: three collidable, rewarded fork/merge alternatives")
     print("MERGE_GUIDANCE_PASS: nine layouts, real inside-lane markings, opposing decks and alert clearance")
+    print("FORGE_FORK_TRAFFIC_PASS: three layouts, both branches, cut-ins, stale snapshots and HUD handoff")
     print("WOODWORKS_RETURN_PASS: clear bridge lip, physical warnings, visible gaps and HUD handoff on three layouts")
     game.queue_free()
     await process_frame
     quit()
+
+func _verify_forge_fork_traffic(game: Node3D) -> bool:
+    var road: Node3D = game.shortcut_route
+    var hud: CanvasLayer = game.ui
+    var player: RigidBody3D = game.player
+    var main_rival: RigidBody3D = game.racers[0]
+    var bridge_rival: RigidBody3D = game.racers[1]
+    for rival in game.racers:
+        if rival != player:
+            rival.global_position = Vector3(80.0,0.0,20.0)
+            rival.freeze = true
+    game.airtime.reset_round()
+    player.freeze = false
+    var z := BypassScript.ENTRY_PORTAL_Z+9.0
+    var x: float = game.track_center_at(z)+2.8
+    var fork_z := BypassScript.ENTRY_PORTAL_Z-0.2
+    var bridge: Vector3 = road.point_at(fork_z)+Vector3.UP*0.67
+    var main := Vector3(x+0.8,game.height_at(fork_z)+0.43,fork_z)
+    player.global_position = Vector3(x,game.height_at(z)+0.43,z)
+    player.linear_velocity = Vector3(2.0,0.0,-12.0)
+    hud.label_timer = 0.25
+    hud.update_hud()
+    assert(hud.shortcut_label.text.contains("MAIN TRACK") and
+        hud.shortcut_label.text.contains("BRIDGE RIGHT"))
+
+    bridge_rival.global_position = bridge
+    hud.label_timer = 0.25
+    hud.update_hud()
+    assert(hud.shortcut_label.visible and hud.shortcut_label.text == "↑ MAIN TRACK  /  BRIDGE BUSY")
+    main_rival.global_position = main
+    hud.label_timer = 0.25
+    hud.update_hud()
+    assert(hud.shortcut_label.text == "BOTH BUSY  •  SAVE BOOST")
+    bridge_rival.global_position.y += 4.0
+    hud.label_timer = 0.25
+    hud.update_hud()
+    assert(hud.shortcut_label.text == "MAIN BUSY  /  BRIDGE RIGHT ↗",
+        "A rival above the rolling surface must not mark the bridge as occupied")
+    player.linear_velocity = Vector3(2.0,0.0,-23.0)
+    hud.label_timer = 0.25
+    hud.update_hud()
+    assert(hud.shortcut_label.text == "MAIN BUSY  •  SAVE BOOST",
+        "A late crossing stays out of the advice when speed removes steering time")
+    player.linear_velocity.z = -12.0
+
+    # A rival starts away from the path and moves into it at arrival.
+    main_rival.global_position = Vector3(80.0,0.0,20.0)
+    var start_z := fork_z+5.0
+    bridge_rival.global_position = Vector3(bridge.x-2.4,game.height_at(start_z)+0.43,start_z)
+    bridge_rival.freeze = false
+    bridge_rival.linear_velocity = Vector3(6.0,0.0,-6.5)
+    assert(road.forge_fork_advice(player.global_position,player.linear_velocity).get("text","").contains("BRIDGE BUSY"))
+    bridge_rival.linear_velocity.x = -6.0
+    assert(road.forge_fork_advice(player.global_position,player.linear_velocity).is_empty())
+
+    game.net.role = "client"
+    game.net.match_running = true
+    var packet := PackedFloat32Array()
+    var approach := player.global_position
+    var speed := player.linear_velocity
+    var cut_in := Vector3(6.0,0.0,-6.5)
+    for racer in game.racers:
+        var at: Vector3 = racer.global_position
+        var motion := speed if racer == player else (cut_in if racer == bridge_rival else Vector3.ZERO)
+        at -= motion*0.10
+        packet.append_array(PackedFloat32Array([at.x,at.y,at.z,0,0,0,1,0,0]))
+    game.net._receive_snapshot(packet,1.0,PackedFloat32Array())
+    var stride: int = game.net.FLOATS_PER_RACER
+    for offset in [0,2]:
+        packet[player.racer_id*stride+offset] += speed[offset]*0.10
+        packet[bridge_rival.racer_id*stride+offset] += cut_in[offset]*0.10
+    game.net._receive_snapshot(packet,1.1,PackedFloat32Array())
+    player.global_position = approach
+    bridge_rival.global_position += cut_in*0.10
+    assert(road.forge_fork_advice(approach,game.net.replica_velocity(player)).get(
+        "text","").contains("BRIDGE BUSY"),"Forecast the replicated cut-in using its server velocity")
+    game.net.snapshot_age_seconds = game.net.PRESENTATION_MAX_AGE+0.01
+    assert(road.forge_fork_advice(player.global_position,player.linear_velocity).is_empty())
+    game.net.role = "offline"
+    game.net.match_running = false
+    game.net._clear_snapshots()
+    player.global_position.z = BypassScript.ENTRY_PORTAL_Z-2.1
+    hud.label_timer = 0.25
+    hud.update_hud()
+    assert(not hud.shortcut_label.visible and not hud.bridge_approach_active)
+    bridge_rival.freeze = true
+    return true
 
 func _verify_fork_cues(game: Node3D, side: int) -> bool:
     var road: Node3D = game.shortcut_route
