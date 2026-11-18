@@ -90,6 +90,7 @@ var audio: Node3D
 var camera: Camera3D
 var board: Node3D
 var moving_obstacles: Array[Node3D] = []
+var opening_obstacle_art: MeshInstance3D
 var final_obstacle_art: MeshInstance3D
 var first_obstacle_entry_z := INF
 var final_straight_z := 0.0
@@ -478,6 +479,9 @@ func pack_hazard_ahead(at: Vector3, velocity: Vector3) -> Vector3:
         target = center
     return target
 
+func woodworks_opening_cleared(z: float) -> bool:
+    return selected_track == 0 and is_instance_valid(opening_obstacle_art) and z < opening_obstacle_art.clear_z
+
 func forge_merge_threat(at: Vector3, velocity: Vector3, bridge_merge: bool) -> Dictionary:
     # Preview the hazards around the Forge join using the same clocks and
     # entry times as the HUD. The bridge bypasses the main-track vent.
@@ -858,6 +862,7 @@ func _make_course() -> void:
     glacier_exit_obstacles.clear()
     workshop_lamps.clear()
     secondary_showroom_art.clear()
+    opening_obstacle_art = null
     first_obstacle_entry_z = INF
     board = Node3D.new()
     board.name = "HandcraftedWoodenCourse"
@@ -939,6 +944,7 @@ func _make_course() -> void:
                 art.build(section_node,self,center_z,section)
                 section_node.add_child(art)
                 if section == 1:
+                    opening_obstacle_art = art
                     first_obstacle_entry_z = art.entry_z
                 else:
                     final_obstacle_art = art
@@ -1947,9 +1953,13 @@ func _update_camera(delta: float, force := false) -> void:
     var racer_z := player.global_position.z
     var forge_view: bool = selected_track == 2 and cam_mode == 0 and race_state == "RACING" and (
         not player.finished and not player.eliminated and is_instance_valid(final_obstacle_art))
-    if forge_view and racer_z >= final_obstacle_art.clear_z:
-        var release := 1.0-smoothstep(0.0,3.5,racer_z-final_obstacle_art.clear_z)
-        var module_distance := maxf(racer_z-final_obstacle_art.entry_z,release*RaceFeedback.HAZARD_MAX_PREVIEW)
+    var woodworks_view: bool = selected_track == 0 and cam_mode == 0 and race_state == "RACING" and (
+        not player.finished and not player.eliminated and is_instance_valid(opening_obstacle_art))
+    var reading_art: MeshInstance3D = final_obstacle_art if forge_view else (
+        opening_obstacle_art if woodworks_view else null)
+    if reading_art != null and racer_z >= reading_art.clear_z:
+        var release := 1.0-smoothstep(0.0,3.5,racer_z-reading_art.clear_z)
+        var module_distance := maxf(racer_z-reading_art.entry_z,release*RaceFeedback.HAZARD_MAX_PREVIEW)
         distance = minf(distance,module_distance) if distance >= 0.0 else module_distance
     var pose: Dictionary = RaceFeedback.camera_pose(
         player.global_position,velocity,

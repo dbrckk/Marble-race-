@@ -550,6 +550,10 @@ Des chevrons turquoise indiquent des ouvertures locales entre les obstacles du d
 
 Les deux pans du dernier relevé portent des liserés turquoise côté piste et ambrés côté extérieur. Ils suivent le sol physique et réutilisent le lot des marques de saut, y compris en mode Économie. En caméra de poursuite, la vue se relève à l’approche et se centre sur le duo lorsqu’un duel est confirmé. La ligne d’arrivée entre dans le cadrage à la sortie du relevé. Le cadrage de réception garde la priorité en cas de saut.
 
+### 2026-11-18 — Départ, premier passage et diamant turbo de Woodworks (1.147.0-rc)
+
+La caméra de poursuite tient compte de l’entrée réelle du premier module pour dégager la vue au milieu du peloton. Après les commandes, le guide désigne les chevrons du passage. Un chevron à l’écran peut relayer le marquage s’il est masqué. Le HUD annonce le premier diamant après le module. Un éclair cyan indique sa ligne d’accès quand le peloton la masque et qu’aucun danger proche ne prend la priorité.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Affiner la première minute de Woodworks en peloton, du départ au premier obstacle et au premier turbo. Mesurer le mix et la fluidité sur un téléphone Android dès qu’il est disponible.
+Vérifier l’enchaînement du premier turbo et de la bifurcation de Woodworks dans les pelotons qui se séparent. Mesurer le mix et la fluidité sur un téléphone Android dès qu’il est disponible.

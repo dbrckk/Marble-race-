@@ -1849,6 +1849,8 @@ func _update_woodworks_guide(route_mode: String, turbo_ahead: bool, urgent: bool
         prompt = "DRAG LEFT OR RIGHT TO STEER" if OS.has_feature("mobile") else "A / D OR DRAG TO STEER"
     elif not woodworks_boosted:
         prompt = "HOLD BOOST WITH YOUR OTHER THUMB" if OS.has_feature("mobile") else "HOLD SPACE OR BOOST TO ACCELERATE"
+    elif at.z > game.first_obstacle_entry_z and at.z <= game.first_obstacle_entry_z+12.0:
+        prompt = "AIM FOR THE MINT CHEVRONS"
     elif turbo_ahead:
         prompt = "ROLL THROUGH THE DIAMOND TO ACTIVATE IT"
     elif route_mode == "fork":
@@ -2229,12 +2231,14 @@ func update_hud() -> void:
         game.player.global_position,game.player.racer_id,item_reach,bridge_approach_active) if (
         is_instance_valid(game.race_items) and still_racing) else {}
     var pickup_eta := float(next_item.get("distance",INF))/maxf(2.0,forward_speed)
-    rare_item_label.visible = not final_danger_active and not next_item.is_empty() and pickup_eta < pickup_limit
+    var opening_turbo: bool = game.selected_track == 0 and int(next_item.get("index",-1)) == 0
+    rare_item_label.visible = not final_danger_active and not next_item.is_empty() and pickup_eta < pickup_limit and (
+        not opening_turbo or game.woodworks_opening_cleared(player_z))
     if rare_item_label.visible:
         rare_item_label.text = "RARE %s  •  %s  •  %dm" % [
             str(next_item["label"]),str(next_item["side"]),
             int(ceil(float(next_item["distance"])))]
-        if woodworks_guide_active and int(next_item["index"]) == 0:
+        if woodworks_guide_active and opening_turbo:
             rare_item_label.text = "INSTANT TURBO DIAMOND  •  %s  •  %dm" % [
                 str(next_item["side"]),int(ceil(float(next_item["distance"])))]
         var color_index: int = posmod(int(next_item["index"])+game.selected_track,

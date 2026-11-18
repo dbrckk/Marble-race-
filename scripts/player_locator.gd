@@ -18,6 +18,7 @@ const ICE_IMPACT_ACCENT := Color("#ffb2b9")
 const Air = preload("res://scripts/airtime_director.gd")
 const JumpGuides = preload("res://scripts/jump_guides.gd")
 const EVASION_ACCENT := Color("#9bf4e5")
+const TURBO_ACCENT := Color("#63efff")
 
 var game: Node3D
 var screen_center := Vector2.ZERO
@@ -34,6 +35,7 @@ var evasion_tint := EVASION_ACCENT
 var ice_arrow_center := Vector2.INF
 var ice_arrow_axis := Vector2.ZERO
 var ice_impact_center := Vector2.INF
+var turbo_center := Vector2.INF
 
 func configure(stage: Node3D) -> void:
     game = stage
@@ -53,6 +55,7 @@ func begin_round() -> void:
     evasion_center = Vector2.INF
     ice_arrow_center = Vector2.INF
     ice_impact_center = Vector2.INF
+    turbo_center = Vector2.INF
     badge_text = "YOU"
     if not game.net.is_active() and game.career.league_tier() >= 1:
         badge_text += "  •  "+game.career.league_name()
@@ -66,6 +69,7 @@ func refresh(delta: float) -> void:
     evasion_tint = EVASION_ACCENT
     ice_arrow_center = Vector2.INF
     ice_impact_center = Vector2.INF
+    turbo_center = Vector2.INF
     var marble: RigidBody3D = game.player
     var camera: Camera3D = game.camera
     if game.net.role == "server" or not is_instance_valid(marble) or not is_instance_valid(camera) or (
@@ -140,6 +144,17 @@ func refresh(delta: float) -> void:
                 evasion_center = pointer
                 if is_shutter_mark:
                     evasion_tint = JumpGuides.SHUTTER_INK
+        var turbo: Vector3 = moments.occluded_opening_turbo
+        if freshness and turbo.is_finite() and center.z-turbo.z > 2.3 and (
+                is_instance_valid(game.race_items) and game.race_items.items[0].visible and (
+                    not camera.is_position_behind(turbo) and not hazard_center.is_finite() and (
+                        not evasion_center.is_finite()))):
+            var pointer := camera.unproject_position(turbo)-Vector2(0.0,28.0)
+            var badge_clearance := _badge_rect().grow(5.0)
+            if Rect2(pointer-Vector2(15,15),Vector2(30,33)).intersects(badge_clearance):
+                pointer.y = badge_clearance.position.y-18.0
+            if safe.has_point(pointer) and pointer.distance_to(screen_center) > screen_radius+23.0:
+                turbo_center = pointer
     var raised: bool = game.race_state == "COUNTDOWN" or game.race_time < GRID_HANDOFF or (
         moments != null and (moments.nearby_pack_count >= 2 or moments.closest_rival_gap <= 1.6))
     bracket_strength = move_toward(bracket_strength,1.0 if raised else 0.0,maxf(0.0,delta)*7.0)
@@ -172,6 +187,13 @@ func _draw() -> void:
         draw_polyline(lower,evasion_tint,2.7,true)
     if hazard_center.is_finite():
         _draw_hazard_marker()
+    if turbo_center.is_finite():
+        draw_set_transform(turbo_center)
+        draw_colored_polygon(PackedVector2Array([Vector2(0,-15),Vector2(14,0),Vector2(0,17),Vector2(-14,0)]),INK)
+        draw_colored_polygon(PackedVector2Array([Vector2(0,-12),Vector2(11,0),Vector2(0,13),Vector2(-11,0)]),TURBO_ACCENT)
+        draw_colored_polygon(PackedVector2Array([Vector2(2,-8),Vector2(-5,1),Vector2(-1,1),
+            Vector2(-3,8),Vector2(5,-2),Vector2(1,-2)]),INK)
+        draw_set_transform(Vector2.ZERO)
     var label_rect := _badge_rect()
     var pointer := Vector2(clampf(screen_center.x,label_rect.position.x+7.0,label_rect.end.x-7.0),label_rect.end.y)
     if pointer.y < screen_center.y-screen_radius:

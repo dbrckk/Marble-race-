@@ -149,6 +149,7 @@ func _verify_pickup_approaches(game: Node3D) -> void:
     query.shape = marble
     for layout in range(3):
         game.race_variation = layout
+        game.ui.woodworks_guide_seen = false
         game.start_race("Grip Tape")
         var exclude: Array[RID] = []
         for racer in game.racers:
@@ -164,3 +165,60 @@ func _verify_pickup_approaches(game: Node3D) -> void:
                 query.transform = Transform3D(Basis.IDENTITY,probe)
                 assert(space.intersect_shape(query,1).is_empty(),
                     "Woodworks layout %d: a collider blocks the line through %s" % [layout,item.name])
+        _verify_opening_in_pack(game)
+
+func _verify_opening_in_pack(game: Node3D) -> void:
+    var art: MeshInstance3D = game.opening_obstacle_art
+    var pickup: Node3D = game.race_items.items[0]
+    var player: RigidBody3D = game.player
+    var rival: RigidBody3D = game.racers[0]
+    var hud: CanvasLayer = game.ui
+    var locator: Control = hud.player_locator
+    var velocity := Vector3(0,0,-16.0)
+    var gap: Vector2 = art.entry_gaps[0]
+    var gap_x := art.global_position.x+(gap.x+gap.y)*0.5
+    game.race_state = "RACING"
+    game.cam_mode = 0
+    hud.record_woodworks_controls(1.0,true)
+    game.airtime.reset_round()
+    game.race_moments.reset_round()
+    for racer in game.racers:
+        if racer != player:
+            racer.global_position = Vector3(80,0,20)
+    for seek_turbo in [false,true]:
+        var x := pickup.global_position.x if seek_turbo else gap_x
+        var target_z: float = pickup.global_position.z if seek_turbo else art.entry_z
+        var z := target_z+5.0
+        var at := Vector3(x,game.height_at(z)+0.43,z)
+        player.global_position = at
+        player.linear_velocity = velocity
+        game.race_moments.reset_round()
+        game._update_camera(0.12,true)
+        if not seek_turbo:
+            var opening_height: float = game.camera.global_position.y
+            game.opening_obstacle_art = null
+            game._update_camera(0.12,true)
+            assert(opening_height > game.camera.global_position.y)
+            game.opening_obstacle_art = art
+            game._update_camera(0.12,true)
+        var target := Vector3(x,game.height_at(target_z)+0.39,target_z)
+        if not seek_turbo:
+            target = art.entry_mark_ahead(game,at,velocity)
+        assert(target.is_finite())
+        var eye: Vector3 = game.camera.global_position
+        var block := eye.lerp(target,(target.z+0.35-eye.z)/(target.z-eye.z))
+        block.y = game.height_at(block.z)+MARBLE.RADIUS
+        rival.global_position = block
+        game.race_moments.tick(0.12)
+        _refresh(game)
+        if seek_turbo:
+            assert(hud.rare_item_label.visible and locator.turbo_center.is_finite())
+            assert(hud.woodworks_guide_label.text.contains("ACTIVATE"))
+        else:
+            assert(not hud.rare_item_label.visible and locator.evasion_center.is_finite())
+            assert(hud.woodworks_guide_label.text.contains("MINT CHEVRONS"))
+        rival.global_position.x += 2.8
+        game.race_moments.tick(0.12)
+        _refresh(game)
+        assert(not locator.turbo_center.is_finite() and not locator.evasion_center.is_finite())
+    game.race_moments.reset_round()

@@ -177,6 +177,23 @@ func passing_mark_ahead(game: Node3D, at: Vector3, velocity: Vector3) -> Vector3
             cost = distance+2.0*lateral
     return best
 
+func entry_mark_ahead(game: Node3D, at: Vector3, velocity: Vector3) -> Vector3:
+    var speed := -velocity.z
+    var distance := at.z-entry_z
+    if not at.is_finite() or not velocity.is_finite() or speed < 4.0 or (
+            distance <= 3.2 or distance > clampf(speed*1.3,7.0,14.0)):
+        return Vector3.INF
+    var aim := RaceFeedback.projected_lane_x(at.x,velocity.x,distance/speed)
+    var best := Vector3.INF
+    var cost := minf(2.15,0.65+4.2*distance/speed)
+    for gap in entry_gaps:
+        var x := global_position.x+(gap.x+gap.y)*0.5
+        var lateral := absf(x-aim)
+        if lateral <= cost:
+            best = Vector3(x,game.height_at(entry_z)+0.10,entry_z)
+            cost = lateral
+    return best
+
 func approach_warning(position_at: Vector3, velocity: Vector3, reach_seconds: float) -> Dictionary:
     var local := to_local(position_at)
     var speed := maxf(2.0,-velocity.z)

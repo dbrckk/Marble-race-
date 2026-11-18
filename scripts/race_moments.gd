@@ -2,6 +2,7 @@ extends RefCounted
 ## Local-only race direction: meaningful overtakes, final straight and photo
 ## finishes. Pure presentation, never applies impulses, changes score/league
 ## or trusts client racing data for authoritative progression.
+const RaceFeedback = preload("res://scripts/race_feedback.gd")
 const SAMPLE_PERIOD := 0.10
 const PASS_MARGIN := 0.90
 const MAX_CROSSING_STEP := 7.0
@@ -63,6 +64,7 @@ var occluded_hazard := Vector3.INF
 var occluded_hazard_kind := ""
 var occluded_shutter_mark := Vector3.INF
 var occluded_passing_mark := Vector3.INF
+var occluded_opening_turbo := Vector3.INF
 var glacier_exit_threat: Dictionary = {}
 var glacier_gap_marked := false
 var evasion_target := Vector3.INF
@@ -171,6 +173,7 @@ func reset_round() -> void:
     occluded_hazard_kind = ""
     occluded_shutter_mark = Vector3.INF
     occluded_passing_mark = Vector3.INF
+    occluded_opening_turbo = Vector3.INF
     glacier_exit_threat.clear()
     glacier_gap_marked = false
     evasion_target = Vector3.INF
@@ -269,6 +272,7 @@ func tick(delta: float) -> void:
         occluded_hazard_kind = ""
         occluded_shutter_mark = Vector3.INF
         occluded_passing_mark = Vector3.INF
+        occluded_opening_turbo = Vector3.INF
         glacier_exit_threat.clear()
         glacier_gap_marked = false
         evasion_target = Vector3.INF
@@ -307,12 +311,14 @@ func tick(delta: float) -> void:
     occluded_hazard_kind = ""
     occluded_shutter_mark = Vector3.INF
     occluded_passing_mark = Vector3.INF
+    occluded_opening_turbo = Vector3.INF
     glacier_exit_threat.clear()
     glacier_gap_marked = false
     evasion_target = Vector3.INF
     var candidate := Vector3.INF
     var candidate_kind := ""
     var road_mark := Vector3.INF
+    var turbo_mark := Vector3.INF
     var eyes := Vector3.ZERO
     if game.net.role != "server":
         var preview_velocity: Vector3 = game.player.linear_velocity
@@ -348,7 +354,21 @@ func tick(delta: float) -> void:
             elif candidate_kind.is_empty() or (candidate_kind == "PISTON" and not bridge_merge):
                 evasion_target = game.evasion_lane(p,preview_velocity,candidate)
             eyes = game.camera.global_position
-            if game.selected_track == 1 and preview_speed >= 5.0 and not player_on_bridge and (
+            if game.selected_track == 0 and is_instance_valid(game.opening_obstacle_art) and (
+                    not game.airtime.airborne and absf(p.y-game.height_at(p.z)-0.39) <= 0.55):
+                if not evasion_target.is_finite():
+                    road_mark = game.opening_obstacle_art.entry_mark_ahead(game,p,preview_velocity)
+                if game.woodworks_opening_cleared(p.z) and preview_speed >= 5.0 and (
+                        is_instance_valid(game.race_items) and not game.race_items.items.is_empty()):
+                    var pickup: Node3D = game.race_items.items[0]
+                    var position: Vector3 = pickup.global_position
+                    var distance := p.z-position.z
+                    if pickup.visible and distance > 2.3 and distance <= 15.0 and (
+                            not candidate.is_finite() or candidate.z < position.z):
+                        var aim := RaceFeedback.projected_lane_x(p.x,preview_velocity.x,distance/preview_speed)
+                        if absf(aim-position.x) < 0.8+3.8*distance/preview_speed:
+                            turbo_mark = Vector3(position.x,game.height_at(position.z)+0.39,position.z)
+            elif game.selected_track == 1 and preview_speed >= 5.0 and not player_on_bridge and (
                     absf(p.y-game.height_at(p.z)-0.39) <= 0.50 and not evasion_target.is_finite()):
                 road_mark = game.jump_guides.shutter_mark_ahead(p.z)
             elif game.selected_track == 2 and is_instance_valid(game.final_obstacle_art) and (
@@ -393,6 +413,10 @@ func tick(delta: float) -> void:
                 else:
                     occluded_passing_mark = road_mark
                 road_mark = Vector3.INF
+            if turbo_mark.is_finite() and gap < -0.20 and opponent.z >= turbo_mark.z-0.40 and (
+                    covers_hazard(eyes,turbo_mark,opponent)):
+                occluded_opening_turbo = turbo_mark
+                turbo_mark = Vector3.INF
             var rival_forward: float = -marble.linear_velocity.z
             if genuine_pack_rival(gap,offset.x,offset.y,own_forward,rival_forward):
                 pack_count += 1

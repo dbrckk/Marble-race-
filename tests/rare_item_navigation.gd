@@ -87,11 +87,20 @@ func _verify() -> void:
             assert(str(hint["label"]) == ITEMS.label_at(0,track))
             assert(str(hint["side"]) == (
                 "LEFT" if ITEMS.lane_offset(0,track,variation) < 0.0 else "RIGHT"))
+            var preview_distance := 18
+            if track == 0:
+                assert(not game.woodworks_opening_cleared(human.global_position.z))
+                hud.label_timer = 1.0
+                hud.update_hud()
+                assert(not label.visible,"The first obstacle takes priority over the diamond")
+                preview_distance = 5
+                human.global_position.z = first.z+float(preview_distance)
+                assert(game.woodworks_opening_cleared(human.global_position.z))
             hud.label_timer = 1.0
             hud.update_hud()
             assert(label.visible and label.text.contains(ITEMS.label_at(0,track)),
                 "An upcoming rare effect must have an actual Android HUD cue")
-            assert(label.text.contains("18m"))
+            assert(label.text.contains("%dm" % preview_distance))
             var badge: Panel = hud.driving_cue_backgrounds[label]
             assert(badge.visible and label.anchor_left > hud.hazard_label.anchor_right and
                 label.anchor_top > hud.leaderboard.get_parent().anchor_bottom and
