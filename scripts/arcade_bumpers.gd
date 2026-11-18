@@ -94,8 +94,10 @@ func setup(owner: Node3D, track: int, next_layout: int) -> void:
     # Distinctive recessed metallic waistbands, shared across all six posts.
     # GPU-instanced, non-colliding and shadowless: no additional physics cost.
     var trim_mesh := TorusMesh.new()
-    trim_mesh.inner_radius = 0.64
-    trim_mesh.outer_radius = 0.705
+    # Keep the visible trim outside the 0.67 m barrel rather than
+    # burying half of its torus inside the opaque metal surface.
+    trim_mesh.inner_radius = 0.675
+    trim_mesh.outer_radius = 0.735
     trim_mesh.rings = 14
     trim_mesh.ring_segments = 5
     var trim_material := StandardMaterial3D.new()
@@ -103,6 +105,9 @@ func setup(owner: Node3D, track: int, next_layout: int) -> void:
         Color("#c1e6f4"),Color("#d9a78c")][biome]
     trim_material.metallic = 0.82
     trim_material.roughness = 0.28
+    trim_material.emission_enabled = true
+    trim_material.emission = COLORS[biome]
+    trim_material.emission_energy_multiplier = 0.08
     var trim_transforms: Array[Transform3D] = []
     for post_transform in posts:
         # Two restrained collars make the post read as an engineered
@@ -113,8 +118,9 @@ func setup(owner: Node3D, track: int, next_layout: int) -> void:
     waistbands = _batch("SpringMachinedWaistbands",trim_mesh,trim_material,
         trim_transforms)
     var torus := TorusMesh.new()
-    torus.inner_radius = 0.71
-    torus.outer_radius = 0.85
+    # A thin halo remains legible without obscuring the track edge.
+    torus.inner_radius = 0.73
+    torus.outer_radius = 0.83
     torus.rings = 18
     torus.ring_segments = 6
     var glow := StandardMaterial3D.new()
