@@ -163,6 +163,9 @@ func _landscape_depth(theme: int, stage: Node3D) -> void:
         Color("#416f4c"),Color("#8ecddd"),Color("#6b4b42")][theme]
     prop_material.metallic = [0.0,0.17,0.69][theme]
     prop_material.roughness = [0.82,0.24,0.43][theme]
+    # Individual variation in the existing instanced props avoids identical
+    # repeated silhouettes without extra geometry or draw calls.
+    prop_material.vertex_color_use_as_albedo = true
     var near_transforms: Array[Transform3D] = []
     for section in range(SEGMENTS):
         var z: float = 8.0-float(section)*LEN+float(variation-1)*1.8
@@ -181,6 +184,11 @@ func _landscape_depth(theme: int, stage: Node3D) -> void:
     near_forms = _batch("BiomeSpecificForeground_36",prop_mesh,
         near_transforms)
     near_forms.material_override = prop_material
+    for index in range(near_transforms.size()):
+        var variation_tint: float = 0.86+0.14*(0.5+0.5*sin(
+            float(index)*2.39996+float(theme)*1.31))
+        near_forms.multimesh.set_instance_color(index,Color(
+            variation_tint,variation_tint,variation_tint,1.0))
 
     var accent := BoxMesh.new()
     accent.size = Vector3.ONE
@@ -262,6 +270,7 @@ func set_quality(quality: int) -> void:
 func _batch(label: String, mesh: Mesh, transforms: Array[Transform3D]) -> MultiMeshInstance3D:
     var instances := MultiMesh.new()
     instances.transform_format = MultiMesh.TRANSFORM_3D
+    instances.use_colors = label == "BiomeSpecificForeground_36"
     instances.mesh = mesh
     instances.instance_count = transforms.size()
     for i in range(transforms.size()):
