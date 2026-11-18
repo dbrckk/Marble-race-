@@ -60,6 +60,10 @@ static func camera_pose(position: Vector3, velocity: Vector3,
             "fov":64.0,"pace":0.0,"risk":0.0}
     var planar_speed: float = Vector2(velocity.x,velocity.z).length()
     var pace: float = clampf((planar_speed-3.0)/19.0,0.0,1.0)
+    # Chase view reacts to the actual velocity, not merely the boost button.
+    # A modest high-speed pullback makes overtakes and near misses readable
+    # without introducing particles, physics queries or draw calls.
+    var speed_pullback: float = clampf((-velocity.z-13.0)/11.0,0.0,1.0)
     # A compact preview pulls the camera up and back before a near-side
     # obstacle, without hiding the marble or exaggerating the speed.
     # Anticipation follows actual time-to-impact, not an arbitrary fixed
@@ -80,7 +84,8 @@ static func camera_pose(position: Vector3, velocity: Vector3,
             focus = position+Vector3(bend*0.38,0.0,-3.5-lead*0.36)
         _:
             desired = position+Vector3(
-                bend*0.30,6.6+pace*0.75+risk*1.0,11.6+pace*1.6+risk*1.0)
+                bend*0.30,6.6+pace*0.75+risk*1.0+speed_pullback*0.30,
+                11.6+pace*1.6+risk*1.0+speed_pullback*1.25)
             focus = position+Vector3(
                 bend*0.72+clampf(velocity.x*0.10,-0.7,0.7),
                 0.25,-5.6-lead*0.70)
