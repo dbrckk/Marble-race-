@@ -763,8 +763,12 @@ func _swing_hammer(parent: Node3D, z: float, n: int) -> void:
     hinge.add_child(art)
     MechanismArt.decorate_hammer(hinge, parent, _mat(Color("#d6ad67"),0.27,0.72), _mat(Color("#262b33"),0.52,0.12))
     hinge.set_meta("motion_kind","hammer")
-    hinge.set_meta("speed",(1.3+float(n%3)*0.22)*(1.0+0.18*selected_track))
-    hinge.set_meta("phase",float(n)*1.8)
+    # A small, deterministic layout variation changes when each hammer
+    # crosses the lane without increasing its collision reach.
+    var hammer_tempo: float = [0.92,1.0,1.08][posmod(built_variation+n,3)]
+    hinge.set_meta("speed",(1.3+float(n%3)*0.22)*(
+        1.0+0.18*selected_track)*hammer_tempo)
+    hinge.set_meta("phase",float(n)*1.8+float(built_variation)*0.45)
     moving_obstacles.append(hinge)
 
 func _slalom(parent: Node3D, center_z: float, n: int) -> void:
@@ -819,7 +823,11 @@ func _add_spinner(parent: Node3D, z: float, n: int) -> void:
     pivot.add_child(axle)
     MechanismArt.decorate_spinner(pivot, parent, _mat(Color("#d6ad67"),0.27,0.72), _mat(Color("#292d35"),0.36,0.22))
     pivot.set_meta("motion_kind","spinner")
-    pivot.set_meta("spin_speed", (1.0 if n%2==0 else -1.0) * (0.72 + n*0.022) * (1.0 + 0.19*selected_track))
+    # Distinct but bounded rotational cadences across repeat layouts.
+    # The paddles remain the same physical obstacles and leave the same gaps.
+    var spinner_tempo: float = [0.88,1.0,1.12][posmod(built_variation+n,3)]
+    pivot.set_meta("spin_speed", (1.0 if n%2==0 else -1.0) * (
+        0.72+n*0.022)*(1.0+0.19*selected_track)*spinner_tempo)
     moving_obstacles.append(pivot)
 
 func _start_arch() -> void:
