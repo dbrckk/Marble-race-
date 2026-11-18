@@ -87,7 +87,7 @@ func _run() -> void:
                     "Speed reference beacons belong to Balanced and Ultra")
                 assert(world.accent_lights.visible == (quality >= 2),
                     "Small luminous props belong only in the ultrahigh Android tier")
-                assert(stage.racers.size() == 40,
+                assert(stage.racers.size() == stage.MARBLE_COUNT,
                     "Graphical LOD can never change the number of physical racers")
             stage.set_graphics_quality(1)
             stage.return_to_menu()
