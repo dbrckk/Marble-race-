@@ -182,6 +182,10 @@ static func collision_kind(other: Node) -> String:
     return "surface"
 
 static func impact_intensity(velocity: Vector3, other: Node) -> float:
+    # Invalid replicated velocities must never leak NaN into camera shake,
+    # audio volume or cooldown calculations.
+    if not velocity.is_finite() or not is_instance_valid(other):
+        return 0.0
     var kind: String = collision_kind(other)
     if kind == "surface":
         # Play a landing thump only after actual downward velocity, never
@@ -189,7 +193,10 @@ static func impact_intensity(velocity: Vector3, other: Node) -> float:
         return clampf((-velocity.y-3.0)/10.0,0.0,1.0)
     var speed: float = velocity.length()
     if kind == "glass" and other is RigidBody3D:
-        speed = (velocity-(other as RigidBody3D).linear_velocity).length()
+        var rival_velocity: Vector3 = (other as RigidBody3D).linear_velocity
+        if not rival_velocity.is_finite():
+            return 0.0
+        speed = (velocity-rival_velocity).length()
     elif kind == "mechanism":
         speed += 1.3
     return clampf((speed-2.7)/14.0,0.0,1.0)
