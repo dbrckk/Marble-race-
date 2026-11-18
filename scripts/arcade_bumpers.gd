@@ -105,8 +105,11 @@ func setup(owner: Node3D, track: int, next_layout: int) -> void:
     trim_material.roughness = 0.28
     var trim_transforms: Array[Transform3D] = []
     for post_transform in posts:
-        trim_transforms.append(Transform3D(Basis(),
-            post_transform.origin+Vector3(0.0,0.0,0.0)))
+        # Two restrained collars make the post read as an engineered
+        # spring mechanism rather than a plain cylinder at racing speed.
+        for collar_height in [-HEIGHT*0.27,HEIGHT*0.27]:
+            trim_transforms.append(Transform3D(Basis(),
+                post_transform.origin+Vector3(0.0,collar_height,0.0)))
     waistbands = _batch("SpringMachinedWaistbands",trim_mesh,trim_material,
         trim_transforms)
     var torus := TorusMesh.new()
