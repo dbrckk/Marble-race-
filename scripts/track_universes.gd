@@ -269,8 +269,8 @@ func _course_beacons(theme: int, stage: Node3D) -> void:
     paint.emission_enabled = true
     paint.emission = paint.albedo_color
     paint.emission_energy_multiplier = 0.36
-    # Beacons have alternating warm/cool intensity to create an optical
-    # rhythm as the camera advances, without animation or extra lights.
+    # Beacons alternate in brightness to create a stable optical rhythm
+    # as the camera advances, without animation or extra lights.
     paint.vertex_color_use_as_albedo = true
     var transforms: Array[Transform3D] = []
     for section in range(SEGMENTS):
@@ -278,11 +278,17 @@ func _course_beacons(theme: int, stage: Node3D) -> void:
         var y: float = stage.height_at(z)+0.32
         for side in [-1.0,1.0]:
             var x: float = stage.track_center_at(z)+side*9.4
-            transforms.append(Transform3D(Basis(),Vector3(x,y,z)))
+            # Taller every third marker establishes a clear distance
+            # cadence without a separate mesh or per-frame updates.
+            var marker_height: float = 1.45 if section % 3 == 0 else 1.0
+            var marker_basis := Basis().scaled(Vector3(1.0,marker_height,1.0))
+            transforms.append(Transform3D(marker_basis,Vector3(x,
+                y+0.21*(marker_height-1.0),z)))
     course_beacons = _batch("TracksideSpeedReferences_36",mesh,transforms)
     course_beacons.material_override = paint
     for index in range(transforms.size()):
-        var strength: float = 1.0 if (index / 2) % 3 == 0 else 0.66
+        var section_index: int = index / 2
+        var strength: float = 1.0 if section_index % 3 == 0 else 0.66
         course_beacons.multimesh.set_instance_color(index,Color(
             strength,strength,strength,1.0))
 
