@@ -119,6 +119,7 @@ func _run() -> void:
     stage.race_moments.tick(0.12)
     assert(stage.race_moments.unique_overtakes == 1,
         "A real relative crossing should count exactly one rival")
+    assert(stage.audio.pass_mix_seconds > 0.0,"A confirmed pass should briefly clear the wind mix")
     assert(stage.ui.race_moment_label.text.begins_with("CLEAN OVERTAKE!") and
         stage.ui.race_moment_label.text.contains(rival.display_name))
     stage.ui.show_race_moment("TURBO",0.6)

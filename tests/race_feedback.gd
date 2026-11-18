@@ -128,6 +128,9 @@ func _run() -> void:
     stage.audio._on_marble_collision(hammer)
     assert(stage.audio.collision_delay > 0.0,
         "Kinetic obstacles need spatially located impact Foley")
+    if not _verify_race_mix(stage,opponent,hammer):
+        quit(1)
+        return
     var strength_before: float = stage.camera_shake
     for mode in range(3):
         stage.cam_mode = mode
@@ -203,3 +206,48 @@ func _run() -> void:
     await process_frame
     print("RACE_FEEL_PASS: camera modes, stable damping, impact filtering, spatial Foley, hazard ETA")
     quit()
+
+func _verify_race_mix(stage: Node3D, opponent: RigidBody3D, hammer: Node3D) -> bool:
+    var sound: Node3D = stage.audio
+    sound._reset_priority_mix()
+    stage.player.linear_velocity = Vector3(0,0,-18)
+    for frame in range(40):
+        sound._process(0.10)
+    var open_wind: float = sound.air.volume_db
+    var board_roll: float = sound.rolling.volume_db
+    sound.set_pack_pressure(1.0)
+    for frame in range(35):
+        sound._process(0.10)
+    var crowded_wind: float = sound.air.volume_db
+    assert(crowded_wind < open_wind-2.9 and is_equal_approx(sound.rolling.volume_db,board_roll))
+    assert(sound.rolling is AudioStreamPlayer and sound.bridge_rolling is AudioStreamPlayer)
+
+    var next_voice: int = (sound.current_channel+1)%sound.channels.size()
+    sound.race_moment("overtake")
+    assert(sound.current_channel == next_voice,"One clean pass uses one short cue")
+    sound._process(0.04)
+    assert(sound.air.volume_db < crowded_wind-1.0)
+    assert(is_equal_approx(sound.rolling.volume_db,board_roll))
+
+    opponent.linear_velocity = Vector3(0,0,-12.5)
+    sound._on_marble_collision(opponent)
+    var soft_impact: float = sound.last_impact_intensity
+    assert(soft_impact >= 0.14 and soft_impact < 0.25 and sound.collision_duck < 0.1)
+    sound._on_marble_collision(hammer)
+    assert(sound.last_impact_intensity > soft_impact+0.5,
+        "A strong obstacle hit must survive a recent light glass tap")
+    sound._process(0.05)
+    assert(sound.air.volume_db < crowded_wind-3.0)
+
+    sound.warn_timed_gate(0,true)
+    next_voice = sound.current_channel
+    sound.race_moment("overtake")
+    assert(sound.current_channel == next_voice,"Predictive warnings have priority over pass cues")
+    sound._process(0.05)
+    assert(sound.air.volume_db < crowded_wind-3.5)
+    for frame in range(20):
+        sound._process(0.10)
+    assert(absf(sound.air.volume_db-crowded_wind) < 0.1 and sound.pass_mix_seconds == 0.0)
+    sound.set_pack_pressure(0.0)
+    assert(stage.player.linear_velocity == Vector3(0,0,-18))
+    return true

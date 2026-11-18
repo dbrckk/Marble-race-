@@ -23,7 +23,7 @@ func _verify() -> void:
         "The 40-marble crowd detector must saturate at four true rivals")
     assert(AUDIO.pack_percussion_lift(0.0) == 0.0 and
         AUDIO.pack_percussion_lift(1.0) <= 5.5)
-    assert(AUDIO.pack_wind_lift(1.0) <= 2.0 and
+    assert(AUDIO.pack_wind_trim(1.0) == 3.0 and
         AUDIO.pack_percussion_lift(NAN) == 0.0)
     var speed := Vector3(0.0,0.0,-16.0)
     var origin := Vector3(0.0,1.0,-83.0)
@@ -77,6 +77,7 @@ func _verify() -> void:
                     rival.linear_velocity = Vector3.ZERO
                     rival.finished = false
             player.global_position = Vector3(center,deck,z)
+            player.freeze = false
             player.linear_velocity = Vector3(0.0,0.0,-13.0)
             for i in range(4):
                 var rival: RigidBody3D = game.racers[i]

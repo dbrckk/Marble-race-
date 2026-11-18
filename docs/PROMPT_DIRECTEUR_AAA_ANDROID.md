@@ -474,6 +474,10 @@ Base `f06548a1b02acfd30bdc43b66d4956390e5a9fdd`. En solo, la sonde d’envol con
 
 Base `6be2b1671518d64430fd05a2b56d7c5a925e4146`. Le client estime la vitesse de sa bille à partir des positions horodatées du serveur. La sonde de sol locale reconnaît le matériau du pont et pilote le son, la traînée et les anneaux de passage. Le client suspend le retour de roulement lors d’un retard de plus de 350 ms ou d’une correction importante. Deux clients indépendants vérifient le fondu et les anneaux à l’entrée et à la sortie du pont.
 
+### 2026-11-18 — Mix sonore du peloton et des dépassements (1.128.0-rc)
+
+Base `8f9d4b7514bed84e3c6beb1f7b264fcdcdf9546d`. Le roulement de la bille locale a le même niveau dans les différentes caméras. Le vent baisse dans le peloton et pendant les dépassements confirmés. Les alertes et les impacts forts réduisent brièvement le fond sonore. Un choc important reste audible après un contact léger, et les impacts restent spatialisés. Les voix existantes suffisent au mix.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Vérifier la fluidité du peloton et le mix sonore sur Android. Affiner le niveau du roulement pendant un dépassement, quand le vent et les impacts se superposent.
+Contrôler le mix sur les haut-parleurs d’un téléphone Android et la fluidité du peloton. Vérifier la lisibilité des relais sonores entre le turbo, les alertes et les entrées de virage.
