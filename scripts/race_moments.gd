@@ -27,6 +27,7 @@ const PACK_Y_RANGE := 1.45
 const PACK_MIN_SPEED := 3.0
 const PACK_SATURATION := 4
 const TURN_FULL_ANGLE := [0.025,0.056,0.059]
+const OCCLUSION_RADIUS := 0.43
 
 var game: Node3D
 var elapsed := 0.0
@@ -57,6 +58,16 @@ var nearby_pack_count := 0
 var pack_pressure := 0.0
 var turn_weight := 0.0
 var merge_traffic := 0
+var occluded_hazard := Vector3.INF
+
+static func covers_hazard(eye: Vector3, hazard: Vector3, rival: Vector3) -> bool:
+    var sight := hazard-eye
+    var depth := sight.length_squared()
+    if depth <= 0.001:
+        return false
+    var along := (rival-eye).dot(sight)/depth
+    return along > 0.0 and along < 1.0 and (
+        (eye+sight*along).distance_squared_to(rival) <= OCCLUSION_RADIUS*OCCLUSION_RADIUS)
 
 static func genuine_pack_rival(gap_z: float, side_gap: float,
         height_gap: float, own_speed: float, rival_speed: float) -> bool:
@@ -101,6 +112,7 @@ func reset_round() -> void:
     pack_pressure = 0.0
     turn_weight = 0.0
     merge_traffic = 0
+    occluded_hazard = Vector3.INF
 
 func approach_turn_weight(z: float, forward: float, on_bridge: bool) -> float:
     if not is_finite(forward) or forward < 6.0:
@@ -189,6 +201,7 @@ func tick(delta: float) -> void:
         pack_pressure = 0.0
         turn_weight = 0.0
         merge_traffic = 0
+        occluded_hazard = Vector3.INF
         sampled_once = false
     if not final_stretch_seen and p.z < game.final_straight_z and p.z > game.FINISH_Z and (
             elapsed-message_at > NOTIFICATION_COOLDOWN and
@@ -218,17 +231,23 @@ func tick(delta: float) -> void:
     var merge_lane := 0
     var merge_distance := 0.0
     merge_traffic = 0
+    occluded_hazard = Vector3.INF
+    var candidate := Vector3.INF
+    var eyes := Vector3.ZERO
     if game.net.role != "server":
-        var preview_speed := own_forward
+        var preview_velocity: Vector3 = game.player.linear_velocity
         if game.net.is_client():
-            var velocity: Vector3 = game.net.local_replica_velocity()
-            preview_speed = -velocity.z if velocity.is_finite() else 0.0
+            preview_velocity = game.net.local_replica_velocity()
+        var preview_speed := -preview_velocity.z if preview_velocity.is_finite() else 0.0
         var bridge_contact: bool = is_instance_valid(road) and is_instance_valid(game.airtime) and (
             game.airtime.rolling_surface == game.AirtimeDirector.Surface.BRIDGE)
         turn_weight = approach_turn_weight(p.z,preview_speed,bridge_contact)
         if preview_speed >= 3.0 and is_instance_valid(road):
             merge_lane = road.merge_traffic_lane(p)
             merge_distance = clampf(preview_speed*0.30,3.2,6.0)
+        if game.cam_mode == 0 and is_instance_valid(game.camera):
+            candidate = game.pack_hazard_ahead(p,preview_velocity)
+            eyes = game.camera.global_position
     for marble in game.racers:
         if not is_instance_valid(marble) or marble == game.player:
             continue
@@ -253,6 +272,10 @@ func tick(delta: float) -> void:
         var same_route: bool = not is_instance_valid(road) or (
             player_on_bridge == road.on_separate_deck(opponent))
         if same_route:
+            if candidate.is_finite() and gap < -0.20 and opponent.z > candidate.z+0.15 and (
+                    covers_hazard(eyes,candidate,opponent)):
+                occluded_hazard = candidate
+                candidate = Vector3.INF
             var rival_forward: float = -marble.linear_velocity.z
             if genuine_pack_rival(gap,offset.x,offset.y,own_forward,rival_forward):
                 pack_count += 1

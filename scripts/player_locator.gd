@@ -8,6 +8,7 @@ const ACCENT := Color("#fff1b2")
 const FONT_SIZE := 23
 const BADGE_HEIGHT := 27.0
 const GRID_HANDOFF := 0.5
+const HAZARD_ACCENT := Color("#ffc57e")
 
 var game: Node3D
 var screen_center := Vector2.ZERO
@@ -17,6 +18,7 @@ var badge_text := "YOU"
 var badge_width := 58.0
 var badge := StyleBoxFlat.new()
 var bracket_mesh: ArrayMesh
+var hazard_center := Vector2.INF
 
 func configure(stage: Node3D) -> void:
     game = stage
@@ -31,6 +33,7 @@ func configure(stage: Node3D) -> void:
 
 func begin_round() -> void:
     bracket_strength = 0.0
+    hazard_center = Vector2.INF
     badge_text = "YOU"
     if not game.net.is_active() and game.career.league_tier() >= 1:
         badge_text += "  •  "+game.career.league_name()
@@ -38,6 +41,7 @@ func begin_round() -> void:
     hide()
 
 func refresh(delta: float) -> void:
+    hazard_center = Vector2.INF
     var marble: RigidBody3D = game.player
     var camera: Camera3D = game.camera
     if game.net.role == "server" or not is_instance_valid(marble) or not is_instance_valid(camera) or (
@@ -58,6 +62,15 @@ func refresh(delta: float) -> void:
     var edge := camera.unproject_position(center+camera.global_basis.x*Racer.RADIUS)
     screen_radius = clampf(projected.distance_to(edge),4.0,80.0)
     var moments: RefCounted = game.race_moments
+    if game.race_state == "RACING" and game.cam_mode == 0 and moments != null:
+        var obstacle: Vector3 = moments.occluded_hazard
+        if obstacle.is_finite() and center.z-obstacle.z > 0.7 and not camera.is_position_behind(obstacle) and (
+                not game.net.is_client() or game.net.local_replica_velocity().is_finite()):
+            var point := camera.unproject_position(obstacle)
+            var safe := Rect2(Vector2(size.x*0.14,size.y*0.23),Vector2(size.x*0.72,size.y*0.52))
+            var pointer := point-Vector2(0.0,21.0)
+            if safe.has_point(pointer) and pointer.distance_to(screen_center) > screen_radius+19.0:
+                hazard_center = pointer
     var raised: bool = game.race_state == "COUNTDOWN" or game.race_time < GRID_HANDOFF or (
         moments != null and (moments.nearby_pack_count >= 2 or moments.closest_rival_gap <= 1.6))
     bracket_strength = move_toward(bracket_strength,1.0 if raised else 0.0,maxf(0.0,delta)*7.0)
@@ -65,6 +78,14 @@ func refresh(delta: float) -> void:
     queue_redraw()
 
 func _draw() -> void:
+    if hazard_center.is_finite():
+        var h := hazard_center
+        draw_colored_polygon(PackedVector2Array([h+Vector2(0,-13),h+Vector2(13,0),
+            h+Vector2(0,19),h+Vector2(-13,0)]),INK)
+        draw_colored_polygon(PackedVector2Array([h+Vector2(0,-10),h+Vector2(10,0),
+            h+Vector2(0,15),h+Vector2(-10,0)]),HAZARD_ACCENT)
+        draw_line(h+Vector2(0,-5),h+Vector2(0,1),INK,2.2,true)
+        draw_circle(h+Vector2(0,5),1.3,INK)
     var y := maxf(4.0,screen_center.y-screen_radius-BADGE_HEIGHT-12.0)
     var x := clampf(screen_center.x-badge_width*0.5,4.0,maxf(4.0,size.x-badge_width-4.0))
     var label_rect := Rect2(Vector2(x,y),Vector2(badge_width,BADGE_HEIGHT))

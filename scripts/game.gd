@@ -440,6 +440,37 @@ func upcoming_hazard(at_z: float, downstream_limit := INF) -> Dictionary:
             notice = event
     return notice
 
+func pack_hazard_ahead(at: Vector3, velocity: Vector3) -> Vector3:
+    var forward := -velocity.z
+    if forward < 6.0 or not at.is_finite() or not velocity.is_finite():
+        return Vector3.INF
+    var bridge: bool = shortcut_route.on_separate_deck(at) or (
+        at.z >= ShortcutRoute.EXIT_Z and airtime.bridge_grounded)
+    var limit := ShortcutRoute.EXIT_Z if bridge else INF
+    var nearest := clampf(forward*1.25,9.0,25.0)
+    var target := Vector3.INF
+    var gate: Dictionary = race_director.event_ahead(at.z,limit,nearest)
+    if not gate.is_empty():
+        var index: int = gate["index"]
+        var distance: float = at.z-float(gate["z"])
+        if race_director.threatens_line(index,race_director.clock,distance/forward,at.x,velocity.x):
+            nearest = distance
+            target = race_director.obstacles[index].global_position
+            target.y = maxf(target.y,height_at(target.z)+0.28)
+    for hazard in hazard_beacons:
+        var z: float = hazard["z"]
+        var distance := at.z-z
+        if z > limit or distance < 1.2 or distance >= nearest:
+            continue
+        var body: StaticBody3D = hazard["body"]
+        var center := body.global_position
+        var approach_x := RaceFeedback.projected_lane_x(at.x,velocity.x,distance/forward)
+        if absf(approach_x-center.x) > float(hazard["half_width"])+Racer.RADIUS:
+            continue
+        nearest = distance
+        target = center
+    return target
+
 func current_timeout() -> float:
     return RACE_TIMEOUT + selected_track * 24.0
 
@@ -798,7 +829,7 @@ func _edge_baffles(parent: Node3D, center_z: float, section: int, glacier_return
             size,_lacquer(material_color),true,true,not batched_art)
         node.name = "AntiEdgeBaffle_%02d_%s" % [section, "L" if side < 0.0 else "R"]
         hazard_beacons.append({"z":z,"side":"LEFT" if side < 0.0 else "RIGHT",
-            "final":section == FINAL_OBSTACLE_SECTION})
+            "final":section == FINAL_OBSTACLE_SECTION,"body":node,"half_width":size.x*0.5})
         if not batched_art:
             obstacle_finish.register_block(node.global_transform,size,material_color)
     if not glacier_return and selected_track >= 1 and section % 3 == 0:
@@ -1628,7 +1659,7 @@ func _update_camera(delta: float, force := false) -> void:
     var jump_preview: Dictionary = airtime.jump_preview if cam_mode == 0 and race_state == "RACING" and (
         not player.finished and not player.eliminated and is_instance_valid(airtime)) else {}
     var velocity: Vector3 = player.linear_velocity
-    if not jump_preview.is_empty() and net.is_client():
+    if net.is_client() and race_state == "RACING" and cam_mode == 0:
         var replica: Vector3 = net.local_replica_velocity()
         if replica.is_finite():
             velocity = replica
@@ -1674,7 +1705,7 @@ func _update_camera(delta: float, force := false) -> void:
     var curve_delta: float = ahead_x-track_center_at(
         player.global_position.z+5.0)
     camera.rotate_object_local(Vector3.FORWARD,RaceFeedback.camera_roll(
-        player.linear_velocity.x,-player.linear_velocity.z,
+        velocity.x,-velocity.z,
         curve_delta,cam_mode))
     camera.fov = lerpf(camera.fov,float(pose["fov"]),
         RaceFeedback.smooth_factor(delta,4.4))

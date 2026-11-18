@@ -498,6 +498,10 @@ Base `705f8009377ae45344f5203e952036f5d6ebe1b1`. Les rampes de la piste et du po
 
 Base `8bf2207c919443b30bf146c502253aa3fbab7544`. Des flèches ambrées identifient le retour du pont et des flèches turquoise montrent la ligne intérieure de la piste principale. Chaque flèche turquoise est vérifiée sur le sol et autour des obstacles du tracé à sa construction, dans le lot de rendu existant. L’interface signale les billes qui arrivent sur l’autre voie à la même hauteur et à quelques mètres. Les avertissements urgents conservent leur priorité. Le contrôle utilise le relevé existant du peloton, avec des positions serveur récentes en ligne.
 
+### 2026-11-18 — Obstacles masqués par le peloton (1.134.0-rc)
+
+Base `d2601437af0366e5ee3eafa9b0d2bef5d4641a04`. Le jeu sélectionne une barrière ou un obstacle mobile sur la trajectoire à partir des positions et du cycle existants. Si une bille devant le joueur coupe la ligne de vue de la caméra, un repère ambré pointe vers la position réelle de l’obstacle. Le repère se retire quand la vue se libère ou que le joueur choisit une caméra haute. Le relevé du peloton à 10 Hz suffit à cette vérification. La caméra de poursuite utilise aussi la vitesse issue des positions serveur récentes en ligne.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Améliorer la lisibilité des obstacles quand le peloton masque la piste. Mesurer le mix et la fluidité du peloton sur un téléphone Android dès qu’il est disponible.
+Mieux montrer la voie d’évitement lorsque deux obstacles se succèdent. Mesurer le mix et la fluidité du peloton sur un téléphone Android dès qu’il est disponible.

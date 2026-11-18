@@ -149,6 +149,9 @@ func _verify() -> void:
             assert(game.audio.pack_pressure_target == 0.0 and
                 game.audio.pack_pressure == 0.0,
                 "The menu cannot inherit a crowded finish-line soundtrack")
+            if not _verify_obstacle_pointer(game):
+                quit(1)
+                return
             game.return_to_menu()
             integrated += 1
     assert(integrated == 9)
@@ -158,4 +161,51 @@ func _verify() -> void:
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_adaptive_pack_audio.cfg"))
     print("PACK_DYNAMICS_PASS: 9 real courses, 40 marbles, high-deck exclusion, adaptive original audio and duel framing")
+    print("PACK_OBSTACLE_READABILITY_PASS: 9 layouts, real obstacle projection, sightline overlap and touch-safe clearance")
     quit(0)
+
+func _verify_obstacle_pointer(game: Node3D) -> bool:
+    var body: StaticBody3D = game.hazard_beacons[3]["body"]
+    var target := body.global_position
+    var z := target.z+10.0
+    var player: RigidBody3D = game.player
+    var rival: RigidBody3D = game.racers[0]
+    var locator: Control = game.ui.player_locator
+    player.global_position = Vector3(target.x,game.height_at(z)+0.42,z)
+    player.linear_velocity = Vector3(0.0,0.0,-16.0)
+    game.cam_mode = 0
+    game._update_camera(0.1,true)
+    var eye: Vector3 = game.camera.global_position
+    assert(game.pack_hazard_ahead(player.global_position,player.linear_velocity).is_equal_approx(target))
+    rival.global_position = eye.lerp(target,0.95)
+    game.race_moments.tick(0.12)
+    locator.refresh(0.12)
+    assert(game.race_moments.occluded_hazard.is_equal_approx(target) and locator.hazard_center.is_finite())
+    assert(locator.mouse_filter == Control.MOUSE_FILTER_IGNORE)
+    assert(locator.hazard_center.is_equal_approx(game.camera.unproject_position(target)-Vector2(0,21)))
+    rival.global_position.x -= 2.0
+    game.race_moments.tick(0.12)
+    locator.refresh(0.12)
+    assert(not locator.hazard_center.is_finite() and not game.race_moments.occluded_hazard.is_finite())
+    rival.global_position = eye.lerp(target,0.95)
+    game.race_moments.tick(0.12)
+    game.cam_mode = 1
+    locator.refresh(0.12)
+    assert(not locator.hazard_center.is_finite())
+    game.cam_mode = 0
+    game.race_moments.reset_round()
+    assert(not game.race_moments.occluded_hazard.is_finite())
+    var director: Node3D = game.race_director
+    var gate_z: float = director.event_z(0)
+    var found_gate := false
+    for sample in range(12):
+        var time: float = director.period()*float(sample)/12.0
+        director.animate(time)
+        var gate: Vector3 = director.position_at(0,time+0.30)
+        var approach := Vector3(gate.x,game.height_at(gate_z+4.8)+0.42,gate_z+4.8)
+        var ahead: Vector3 = game.pack_hazard_ahead(approach,player.linear_velocity)
+        if ahead.is_finite() and is_equal_approx(ahead.z,gate_z):
+            found_gate = true
+            break
+    assert(found_gate,"The timed obstacle is announced on a blocking approach")
+    return true
