@@ -610,14 +610,12 @@ func precision_gate_ahead(at: Vector3, velocity: Vector3) -> Dictionary:
         var action := "HOLD CENTER"
         if absf(lateral) > PRECISION_GATE_HALF_WIDTH*0.80:
             action = "AIM LEFT" if lateral > 0.0 else "AIM RIGHT"
-        # The final gate follows the takeoff ramp. Do not advise an
-        # impossible mid-air correction: aim before launch, then hold
-        # the landing line while the marble is airborne.
-        if i == BRIDGE_POST_Z.size()-1:
+        # The physical takeoff is at JUMP_Z[course_id], before gate 2
+        # on Woodworks (-71 m versus gate 2 at -80 m). Forecast the
+        # gate while airborne, without promising lateral steering.
+        if i == 1:
             var ramp_z: float = JUMP_Z[course_id]
             if at.z <= ramp_z and at.y > deck.y+Racer.RADIUS+0.35:
-                # Airborne steering is limited. Report the projected crossing
-                # rather than promising a correction the player cannot make.
                 action = "LAND CENTER" if absf(lateral) <= PRECISION_GATE_HALF_WIDTH*0.80 else "HOLD LINE"
             elif at.z > ramp_z and at.z-ramp_z <= 7.0 and action == "HOLD CENTER":
                 action = "LINE UP JUMP"
