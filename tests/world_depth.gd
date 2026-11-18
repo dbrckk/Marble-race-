@@ -27,6 +27,15 @@ func _run() -> void:
             var name: String = "World_%s" % (
                 WORLDS.THEMES[biome].replace(" ","_"))
             var world: Node3D = stage.board.get_node(name) as Node3D
+            var route: Node3D = stage.shortcut_route
+            for z in [-52.0,-70.0,-86.0,-100.0]:
+                var center: Vector3 = route.point_at(z)
+                var side: float = route.side
+                var offset: float = WORLDS.bridge_safe_prop_x(route,center.x,z,side,0.90)
+                for edge_z in [z-0.90,z,z+0.90]:
+                    var deck: Vector3 = route.point_at(edge_z)
+                    assert((offset-deck.x)*side >= BYPASS.WIDTH*0.5+1.60)
+                assert(WORLDS.bridge_safe_prop_x(route,center.x,z,-side,0.90) == center.x)
             assert(world.get_child_count() == 7,
                 "The whole original biome plus four depth layers costs seven GPU batches")
             assert(world.depth_ridges.multimesh.instance_count == 12)
