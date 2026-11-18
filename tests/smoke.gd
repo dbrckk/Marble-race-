@@ -37,14 +37,16 @@ func _run_checks() -> void:
             var guide_mesh := node as MeshInstance3D
             assert(guide_mesh != null and guide_mesh.mesh is BoxMesh,
                 "Spinner guide mesh missing")
-            assert(node.visible, "Spinner warning hidden")
+            assert(guide_mesh != null and guide_mesh.visible,
+                "Spinner warning hidden")
         elif node.name == "HammerSweepWarning":
             hammer_guides += 1
             assert(node is MeshInstance3D, "Hammer guide cannot collide")
             var hammer_mesh := node as MeshInstance3D
             assert(hammer_mesh != null and hammer_mesh.mesh is BoxMesh,
                 "Hammer guide mesh missing")
-            assert(node.visible, "Hammer warning hidden")
+            assert(hammer_mesh != null and hammer_mesh.visible,
+                "Hammer warning hidden")
         for child in node.get_children():
             pending.append(child)
     assert(spinner_guides >= spinning * 4, "Missing rotating paddle warnings")
