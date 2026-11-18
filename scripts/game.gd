@@ -1333,6 +1333,7 @@ func _update_camera(delta: float, force := false) -> void:
     if race_state == "MENU" or not is_instance_valid(player):
         camera_shake = 0.0
         camera.set_meta("previous_jitter",Vector3.ZERO)
+        camera.set_meta("smoothed_bank",0.0)
         _position_intro_camera(force)
         return
     # Use the centerline ahead so the racer can see approaching turns.
@@ -1372,9 +1373,18 @@ func _update_camera(delta: float, force := false) -> void:
     # camera choices. Stays below 2.6 degrees even at the 24m/s speed cap.
     var curve_delta: float = ahead_x-track_center_at(
         player.global_position.z+5.0)
-    camera.rotate_object_local(Vector3.FORWARD,RaceFeedback.camera_roll(
+    var target_bank: float = RaceFeedback.camera_roll(
         player.linear_velocity.x,-player.linear_velocity.z,
-        curve_delta,cam_mode))
+        curve_delta,cam_mode)
+    # Smooth steering-induced banking to prevent one-frame twitching when
+    # lateral velocity flips on mobile. Keep alternate views level.
+    var previous_bank: float = float(camera.get_meta("smoothed_bank",0.0))
+    var bank: float = lerpf(previous_bank,target_bank,
+        RaceFeedback.smooth_factor(delta,9.0))
+    if force or not is_finite(bank):
+        bank = target_bank
+    camera.set_meta("smoothed_bank",bank)
+    camera.rotate_object_local(Vector3.FORWARD,bank)
     camera.fov = lerpf(camera.fov,float(pose["fov"]),
         RaceFeedback.smooth_factor(delta,4.4))
 
