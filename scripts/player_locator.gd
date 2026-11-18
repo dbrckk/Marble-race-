@@ -10,6 +10,8 @@ const BADGE_HEIGHT := 27.0
 const GRID_HANDOFF := 0.5
 const HAZARD_ACCENT := Color("#ffc57e")
 const ICE_ACCENT := Color("#9ce7ff")
+const ICE_IMPACT_ACCENT := Color("#ffb2b9")
+const Air = preload("res://scripts/airtime_director.gd")
 
 var game: Node3D
 var screen_center := Vector2.ZERO
@@ -23,6 +25,7 @@ var hazard_center := Vector2.INF
 var evasion_center := Vector2.INF
 var ice_arrow_center := Vector2.INF
 var ice_arrow_axis := Vector2.ZERO
+var ice_impact_center := Vector2.INF
 
 func configure(stage: Node3D) -> void:
     game = stage
@@ -40,6 +43,7 @@ func begin_round() -> void:
     hazard_center = Vector2.INF
     evasion_center = Vector2.INF
     ice_arrow_center = Vector2.INF
+    ice_impact_center = Vector2.INF
     badge_text = "YOU"
     if not game.net.is_active() and game.career.league_tier() >= 1:
         badge_text += "  •  "+game.career.league_name()
@@ -50,6 +54,7 @@ func refresh(delta: float) -> void:
     hazard_center = Vector2.INF
     evasion_center = Vector2.INF
     ice_arrow_center = Vector2.INF
+    ice_impact_center = Vector2.INF
     var marble: RigidBody3D = game.player
     var camera: Camera3D = game.camera
     if game.net.role == "server" or not is_instance_valid(marble) or not is_instance_valid(camera) or (
@@ -71,11 +76,15 @@ func refresh(delta: float) -> void:
     screen_radius = clampf(projected.distance_to(edge),4.0,80.0)
     var moments: RefCounted = game.race_moments
     var freshness: bool = not game.net.is_client() or game.net.local_replica_velocity().is_finite()
+    var safe_gutter := Rect2(Vector2(17.0,17.0),size-Vector2(34.0,34.0))
+    if game.race_state == "RACING" and game.airtime.ice_impact_seconds > 0.0:
+        var impact := projected+Vector2(0.0,screen_radius+15.0)
+        if safe_gutter.has_point(impact):
+            ice_impact_center = impact
     if game.race_state == "RACING" and freshness and game.airtime.ice_drift_side != 0:
         var toward := camera.unproject_position(center+Vector3.RIGHT*game.airtime.ice_drift_side)
         var screen_axis := (toward-projected).normalized()
         var arrow := projected+screen_axis*(screen_radius+16.0)
-        var safe_gutter := Rect2(Vector2(17.0,17.0),size-Vector2(34.0,34.0))
         if screen_axis.is_finite() and not screen_axis.is_zero_approx() and safe_gutter.has_point(arrow):
             ice_arrow_center = arrow
             ice_arrow_axis = screen_axis
@@ -101,6 +110,13 @@ func refresh(delta: float) -> void:
     queue_redraw()
 
 func _draw() -> void:
+    if ice_impact_center.is_finite():
+        var p := ice_impact_center
+        var fade: float = clampf(game.airtime.ice_impact_seconds/(Air.ICE_IMPACT_SECONDS*0.55),0.0,1.0)
+        var spark := PackedVector2Array([p+Vector2(-12,3),p+Vector2(-5,-5),
+            p+Vector2(1,4),p+Vector2(8,-6),p+Vector2(13,1)])
+        draw_polyline(spark,Color(INK,fade),7.0,true)
+        draw_polyline(spark,Color(ICE_IMPACT_ACCENT,fade),3.5,true)
     if ice_arrow_center.is_finite():
         var axis := ice_arrow_axis
         var cross := axis.orthogonal()

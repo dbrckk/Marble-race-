@@ -171,6 +171,7 @@ func _run() -> void:
     print("GLACIER_GRIP_PASS: three real ice layouts, lateral slip, jump rejection and one grounded recovery cue")
     print("ICE_ENTRY_PASS: confirmed dry-to-ice contact, pooled cues, unarmed spawn and warning priority")
     print("ICE_DRIFT_DIRECTION_PASS: three layouts, course-relative drift, sustained sign, reversal and airborne reset")
+    print("ICE_IMPACT_PASS: separate contact and grip cues, tangential rejection and Economy HUD")
     print("CONTROL_RETURN_PASS: nine real bank departures and two-sample touchdown recoveries with floor-aligned effects")
     print("JUMP_GUIDES_PASS: 30 ramps across nine layouts, one paint batch and lane-aware camera")
     quit(0)
@@ -344,6 +345,27 @@ func _verify_glacier_grip(stage: Node3D, flight: Node3D, player: RigidBody3D) ->
     assert(sound.bridge_rolling.stream == sound.BRIDGE_ROLLS[1] and sound.bridge_rolling.playing)
     assert(sound.ice_skid_mix > 0.55 and sound.ice_entry_mix == 1.0)
 
+    # Use the same local contact callback as real physics and verify the
+    # ice-specific sound and icon remain distinct from the next dry contact.
+    var rival: RigidBody3D = stage.racers[0]
+    var rival_position := rival.global_position
+    rival.global_position = ice_point+Vector3.RIGHT*0.78
+    assert(not flight.observe_ice_impact(slab,player))
+    rival.linear_velocity = player.linear_velocity+Vector3(0,0,9.0)
+    assert(not flight.observe_ice_impact(rival,player),"Tangential motion is not a bump")
+    rival.linear_velocity = player.linear_velocity+Vector3(6.0,0,0)
+    voice = sound.current_channel
+    player.body_entered.emit(rival)
+    assert(flight.ice_impact_seconds > 0.0 and flight.grip_return_seconds == 0.0)
+    assert(sound.channels[voice].stream == sound.GLASS_HITS[0])
+    assert(not flight.observe_ice_impact(rival,player),"Repeated contacts must be throttled")
+    stage.set_graphics_quality(0)
+    stage.ui.label_timer = 0.25
+    stage.ui.update_hud()
+    assert(stage.ui.speed_label.text.ends_with("HIT") and locator.ice_impact_center.is_finite())
+    stage.set_graphics_quality(1)
+    rival.global_position = rival_position
+
     player.global_position = ice_point+Vector3.UP*0.75
     flight.tick_physics(0.05)
     assert(not flight.ice_touching and flight.glacier_grip == AIR.Grip.ICE)
@@ -359,6 +381,11 @@ func _verify_glacier_grip(stage: Node3D, flight: Node3D, player: RigidBody3D) ->
     flight.tick_physics(0.05)
     assert(flight.glacier_grip == AIR.Grip.DRY and flight.ice_skid == 0.0)
     assert(flight.ripple_transition.has(AIR.GRIP_RETURN) and sound.channels[next_voice].stream == sound.WOOD_HITS[1])
+    stage.ui.label_timer = 0.25
+    stage.ui.update_hud()
+    assert(stage.ui.speed_label.text.ends_with("GRIP") and not locator.ice_impact_center.is_finite())
+    flight.advance_visuals(0.50)
+    assert(flight.grip_return_seconds == 0.0)
     next_voice = sound.current_channel
     flight.tick_physics(0.05)
     assert(sound.current_channel == next_voice and player.linear_velocity == velocity)

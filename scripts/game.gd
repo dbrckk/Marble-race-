@@ -1303,12 +1303,18 @@ func _camera_bump(body: Node) -> void:
     # own short rearm window and never changes the authoritative physics.
     var intensity: float = RaceFeedback.impact_intensity(
         player.linear_velocity,body)
+    var ice_impact := false
+    if net.role == "offline":
+        ice_impact = airtime.observe_ice_impact(body,player)
+        if not ice_impact:
+            audio._on_marble_collision(body)
     if is_instance_valid(arcade_bumpers):
         arcade_bumpers.notify_contact(body,intensity)
     if intensity < 0.17 or feedback_cooldown > 0.0:
         return
     camera_shake = minf(0.14,camera_shake+RaceFeedback.shake_strength(intensity))
-    obstacle_notice = 0.46 if intensity > 0.45 else 0.22
+    if not ice_impact:
+        obstacle_notice = 0.46 if intensity > 0.45 else 0.22
     feedback_cooldown = RaceFeedback.feedback_interval(intensity)
 
 func sector_entry_z(sector: int) -> float:

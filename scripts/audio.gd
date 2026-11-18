@@ -199,8 +199,6 @@ func bind_marble(marble: RigidBody3D) -> void:
     if rolling.playing:
         rolling.stop()
     rolling.play()
-    if not marble.body_entered.is_connected(_on_marble_collision):
-        marble.body_entered.connect(_on_marble_collision)
 
 func set_bridge_surface(on_deck: bool, touching: bool, replica_speed := -1.0) -> void:
     on_bridge = on_deck
@@ -220,6 +218,16 @@ func play_ice_entry() -> void:
 func play_grip_return() -> void:
     if race_active and hazard_cooldown <= 0.0 and collision_duck < 1.9:
         _voice(WOOD_HITS[1],-21.0,1.05)
+
+func play_ice_impact(intensity: float) -> void:
+    if not enabled or not race_active:
+        return
+    _collision_haptics(intensity)
+    if hazard_cooldown <= 0.0:
+        # Short glass attack, distinct from the brighter entry and the wood
+        # contact of regained grip. Allow the next grip cue to stay audible.
+        collision_duck = maxf(collision_duck,1.2)
+        _voice(GLASS_HITS[0],lerpf(-22.0,-12.0,intensity),0.94)
 
 func play_bank_exit() -> void:
     if race_active and hazard_cooldown <= 0.0 and collision_duck < 1.9:
@@ -649,11 +657,7 @@ func _on_marble_collision(other: Node) -> void:
             samples = GLASS_HITS
         _:
             samples = WOOD_HITS
-    if intensity > 0.40 and haptic_cooldown <= 0.0 and OS.has_feature("mobile"):
-        # Vibration follows actual relative contact severity, not simply
-        # rolling speed. Ignore repeated harmless board touch events.
-        Input.vibrate_handheld(12 if intensity < 0.70 else 26)
-        haptic_cooldown = 0.48
+    _collision_haptics(intensity)
     var idx: int = rng.randi_range(0,samples.size()-1)
     if contact == "bumper" and other.name.begins_with("PinballKicker_"):
         # The existing soft/hard CC0 samples now distinguish a true
@@ -668,6 +672,11 @@ func _on_marble_collision(other: Node) -> void:
     _spatial_voice(samples[idx],target_marble.global_position,
         loudness,rng.randf_range(0.94,1.08)*
         lerpf(0.90,1.08,intensity))
+
+func _collision_haptics(intensity: float) -> void:
+    if intensity > 0.40 and haptic_cooldown <= 0.0 and OS.has_feature("mobile"):
+        Input.vibrate_handheld(12 if intensity < 0.70 else 26)
+        haptic_cooldown = 0.48
 
 func toggle_sound() -> bool:
     enabled = not enabled

@@ -26,10 +26,13 @@ const BANK_EXIT := 3
 const ICE_ENTRY := 4
 const ICE_ENTRY_SECONDS := 0.42
 const ICE_DRIFT_HOLD := 0.15
+const ICE_IMPACT_SECONDS := 0.34
+const GRIP_RETURN_SECONDS := 0.42
 const LANDING_CONTROL := 1
 const CONTROL_RETURN_SECONDS := 0.38
 const RETURN_WINDOW := 0.36
 const GLACIER_ICE_FRICTION := 0.15
+const Racer = preload("res://scripts/marble.gd")
 const BRIDGE_TINTS := [
     Color("#ffc872"),Color("#a1f3ff"),Color("#ffa46e")
 ]
@@ -78,6 +81,9 @@ var ice_entry_seconds := 0.0
 var ice_drift_side := 0
 var ice_drift_pending := 0
 var ice_drift_hold := 0.0
+var ice_impact_seconds := 0.0
+var grip_return_seconds := 0.0
+var ice_impact_at: Dictionary = {}
 var landing_pending := 0.0
 var landing_pending_grade := ""
 var pending_bank_exit := NAN
@@ -167,10 +173,13 @@ func _clear_ice_feedback() -> void:
     ice_slide_seen = false
     ice_entry_armed = false
     ice_entry_seconds = 0.0
+    grip_return_seconds = 0.0
     _clear_ice_drift()
 
 func reset_round() -> void:
     clear_motion()
+    ice_impact_seconds = 0.0
+    ice_impact_at.clear()
     # A rematch must start the pooled ripples at the first instance again.
     # This also prevents frame and test ordering from affecting which slot
     # shows the next real touchdown.
@@ -387,6 +396,35 @@ func _clear_ice_drift() -> void:
 func ice_entry_weight() -> float:
     return ice_entry_seconds/ICE_ENTRY_SECONDS
 
+func observe_ice_impact(other: Node, marble: RigidBody3D) -> bool:
+    if game.selected_track != 1 or game.race_state != "RACING" or not (other is Racer) or (
+            marble.freeze or marble.finished or marble.eliminated):
+        return false
+    var now: float = game.race_time
+    var slot: int = marble.racer_id
+    if now < float(ice_impact_at.get(slot,-1.0))+ICE_IMPACT_SECONDS:
+        return false
+    var rival := other as Racer
+    var axis := (rival.global_position-marble.global_position).normalized()
+    # Common downhill speed and tangential rubbing don't make an impact.
+    # The contact signal arrives as bodies may already be separating.
+    var normal_speed := absf((marble.linear_velocity-rival.linear_velocity).dot(axis))
+    if not is_finite(normal_speed) or normal_speed < 2.0:
+        return false
+    var floor_hit := probe_floor(marble)
+    if not floor_hit.get("touching",false) or not floor_hit.get("ice",false):
+        return false
+    ice_impact_at[slot] = now
+    if game.net.role == "server":
+        game.net.notify_course_event(slot,"ice_impact")
+    else:
+        show_ice_impact(RaceFeedback.impact_intensity(marble.linear_velocity,other))
+    return true
+
+func show_ice_impact(intensity := 0.30) -> void:
+    ice_impact_seconds = ICE_IMPACT_SECONDS
+    game.audio.play_ice_impact(intensity)
+
 func sample_control_contact(delta: float, hit: Dictionary, position: Vector3,
         velocity: Vector3) -> int:
     landing_pending = maxf(0.0,landing_pending-delta)
@@ -476,6 +514,8 @@ func tick_physics(delta: float) -> void:
             ice_entry_seconds = ICE_ENTRY_SECONDS
             game.audio.play_ice_entry()
         else:
+            ice_impact_seconds = 0.0
+            grip_return_seconds = GRIP_RETURN_SECONDS
             game.audio.play_grip_return()
         if quality > 0:
             _emit_ripple(hit["ground"],"",ice_transition,hit["normal"])
@@ -543,6 +583,8 @@ func advance_visuals(delta: float) -> void:
         return
     control_return_seconds = maxf(0.0,control_return_seconds-delta)
     ice_entry_seconds = maxf(0.0,ice_entry_seconds-delta)
+    ice_impact_seconds = maxf(0.0,ice_impact_seconds-delta)
+    grip_return_seconds = maxf(0.0,grip_return_seconds-delta)
     for i in range(RIPPLE_POOL):
         if ripple_age[i] <= 0.0:
             continue

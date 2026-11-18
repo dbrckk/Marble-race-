@@ -518,6 +518,10 @@ Base `c5b1f69522daaf6d8432f02994bde93abba84b72`. Un contact avec la piste suivi 
 
 Base `72a8d357b8531de1d8fcba000f798e4ae65c328e`. Le relevé de sol existant mesure le déplacement latéral par rapport à l’axe de la piste ou du pont. Une dérive continue d’au moins 150 ms affiche une flèche bleue à côté de la bille et rappelle sa direction près du compteur. Un changement de sens retire la flèche avant de confirmer le nouveau sens. Le signal cesse également en saut, sur le sol plus adhérent ou quand les positions serveur ne sont plus assez récentes. Le support reste visible en Économie et laisse libres les commandes tactiles.
 
+### 2026-11-18 — Chocs sur la glace et reprise d’adhérence (1.139.0-rc)
+
+Sur Glacier, un choc entre billes au sol affiche un éclair près de la bille et « HIT » au compteur, accompagné d’un claquement de verre. Le retour sur une surface adhérente affiche « GRIP », avec l’onde ambrée et le son boisé. Le HUD garde ces repères en mode Économie. Les contacts sont filtrés par la vitesse relative dans l’axe du choc. En multijoueur, le serveur détecte le contact et prévient uniquement le joueur concerné via le canal d’événements existant.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Mieux distinguer les chocs entre billes sur la glace du retour sur une surface adhérente. Mesurer le mix et la fluidité du peloton sur un téléphone Android dès qu’il est disponible.
+Rendre le premier volet de Glacier plus facile à anticiper après la reprise d’adhérence, en s’appuyant sur l’ETA du mécanisme et l’indication de voie existantes. Mesurer le mix et la fluidité du peloton sur un téléphone Android dès qu’il est disponible.

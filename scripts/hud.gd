@@ -1870,6 +1870,8 @@ func update_hud() -> void:
         playing and not turbo and velocity.z <= -10.0 and game.race_moments != null) else 0.0
     var ice_entry: float = game.airtime.ice_entry_weight() if playing and velocity.z <= -6.0 else 0.0
     var ice_drift: int = game.airtime.ice_drift_side if playing and velocity.z <= -5.0 else 0
+    var ice_impact: bool = playing and game.airtime.ice_impact_seconds > 0.0
+    var grip_return: bool = playing and game.airtime.grip_return_seconds > 0.0
     var target := RACE_MOMENTS.edge_intensity(-velocity.z,turbo,game.graphics_quality) if playing else 0.0
     if game.graphics_quality > 0:
         target = minf(0.195,target+0.065*released)
@@ -1880,6 +1882,10 @@ func update_hud() -> void:
     var speed_tint := Color("#ffce8c") if turbo else Color("#9bdfff").lerp(Color("#a9ffe2"),released)
     speed_label.self_modulate = Color.WHITE.lerp(Color("#a9ffe2"),released).lerp(
         Color("#80dcff"),maxf(ice_entry,0.80 if ice_drift != 0 else 0.0))
+    if grip_return:
+        speed_label.self_modulate = Color("#ffe3a8")
+    elif ice_impact:
+        speed_label.self_modulate = Color("#ffb2b9")
     for line in speed_stripes:
         line.visible = speed_stripe_opacity >= 0.01
         line.color = Color(speed_tint,speed_stripe_opacity)
@@ -1924,7 +1930,11 @@ func update_hud() -> void:
         boost_label.anchor_left = boost_x-0.10
         boost_label.anchor_right = boost_x+0.10
     speed_label.text = "%02d KM/H" % int(Vector2(velocity.x,velocity.z).length()*3.6)
-    if ice_drift != 0:
+    if grip_return:
+        speed_label.text += "  /  GRIP"
+    elif ice_impact:
+        speed_label.text += "  /  HIT"
+    elif ice_drift != 0:
         speed_label.text += "  /  SLIDE "+("←" if ice_drift < 0 else "→")
     elif ice_entry > 0.12:
         speed_label.text += "  /  ICE"
