@@ -274,11 +274,11 @@ func _verify_glacier_exit_gap(game: Node3D) -> bool:
     var director: Node3D = game.race_director
     var player: RigidBody3D = game.player
     var gate_z: float = game.glacier_first_shutter_z
-    var distance: float = [7.9,6.9,8.9][layout]
+    var distance: float = [2.5,6.9,8.9][layout]
     var z := gate_z+distance
-    var x: float = game.track_center_at(z)+[0.8,2.0,1.2][layout]
+    var x: float = game.track_center_at(z)+[-0.8,2.0,1.2][layout]
     var at := Vector3(x,game.height_at(z)+0.39,z)
-    var velocity := Vector3(-2.6 if layout == 1 else 2.6,0.0,-23.0)
+    var velocity := Vector3(-2.6 if layout < 2 else 2.6,0.0,-23.0)
     var phase: float = director.period()*(5.0/12.0 if layout == 2 else 0.0)
     director.animate(phase)
     game.cam_mode = 0
@@ -290,12 +290,12 @@ func _verify_glacier_exit_gap(game: Node3D) -> bool:
     var threat: Dictionary = game.race_moments.glacier_exit_threat
     var lane: Vector3 = game.race_moments.evasion_target
     assert(not threat.is_empty() and lane.is_finite() and game.race_moments.glacier_gap_marked)
-    assert(signf(lane.x-at.x) == (-1.0 if layout == 1 else 1.0))
+    assert(signf(lane.x-at.x) == (-1.0 if layout < 2 else 1.0))
     game._update_camera(0.016,true)
     game.ui.label_timer = 0.25
     game.ui.update_hud()
     assert(game.ui.timed_gate_label.visible and game.ui.timed_gate_label.text.contains(
-        "GAP LEFT" if layout == 1 else "GAP RIGHT"))
+        "GAP LEFT" if layout < 2 else "GAP RIGHT"))
     assert(game.ui.player_locator.evasion_center.is_finite())
 
     var shutter: int = director.GLACIER_FIRST_SHUTTER

@@ -644,7 +644,9 @@ func glacier_exit_lane(at: Vector3, velocity: Vector3, threat: Dictionary) -> Ve
     const REACTION_SECONDS := 0.10
     var duration := steering_time-REACTION_SECONDS
     var start_x := at.x+velocity.x*REACTION_SECONDS
-    var max_accel := Racer.human_steering_force(1.0,velocity.z,velocity.x,1)*0.72/player.mass
+    # Racer applies the steering force scaled by mass. Leave headroom for
+    # rolling contact and damping before treating a lane as reachable.
+    var max_accel := Racer.human_steering_force(1.0,velocity.z,velocity.x,1)*0.72
     var center := track_center_at(blocker.z)
     var query := PhysicsShapeQueryParameters3D.new()
     query.shape = evasion_probe
