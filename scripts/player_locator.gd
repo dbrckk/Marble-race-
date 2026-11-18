@@ -304,6 +304,10 @@ func _draw_hazard_marker() -> void:
             var p := Vector2(x,0.0)
             draw_polyline(PackedVector2Array([p+Vector2(-0.8,5.0),p+Vector2(0.9,1.8),
                 p+Vector2(-0.9,-0.3),p+Vector2(0.5,-3.3)]),INK,1.8,true)
+    elif hazard_kind == "SWEEPING ARM":
+        draw_line(Vector2(-6,1),Vector2(6,1),INK,2.2,true)
+        draw_polyline(PackedVector2Array([Vector2(-2,-3),Vector2(-6,1),Vector2(-2,5)]),INK,2.2,true)
+        draw_polyline(PackedVector2Array([Vector2(2,-3),Vector2(6,1),Vector2(2,5)]),INK,2.2,true)
     else:
         draw_line(Vector2(0,-5),Vector2(0,1),INK,2.2,true)
         draw_circle(Vector2(0,5),1.3,INK)

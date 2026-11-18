@@ -22,6 +22,7 @@ const BODY_DEPTH := 0.76
 const FORGE_EXIT_GATE := 1
 const GLACIER_FIRST_SHUTTER := 0
 const GLACIER_RETURN_GATE := 1
+const WOODWORKS_RETURN_ARM := 1
 const MARBLE_CLEARANCE := 0.39
 const NEAR_MISS_IMPULSE := 2.05
 # Risk/reward is measured from REAL bodies, not estimated player input.
@@ -410,6 +411,29 @@ func glacier_shutter_threatens_crossing(index: int, eta: float, forward_speed: f
             return true
         previous_gap = gap
     return false
+
+func woodworks_arm_contact_eta(eta: float, speed: float, world_x: float, lateral_speed: float) -> float:
+    if biome != 0 or speed < 2.0 or not is_finite(speed) or not is_finite(eta) or (
+            not is_finite(world_x) or not is_finite(lateral_speed)):
+        return INF
+    var half_window := (BODY_DEPTH*0.5+MARBLE_CLEARANCE)/speed
+    var first := maxf(0.0,eta-half_window)
+    var last := eta+half_window
+    if last < first:
+        return INF
+    var previous := INF
+    var previous_t := first
+    for sample in range(5):
+        var t := lerpf(first,last,float(sample)*0.25)
+        var gap := FEEDBACK.projected_lane_x(world_x,lateral_speed,t)-position_at(WOODWORKS_RETURN_ARM,clock+t).x
+        if is_finite(previous) and absf(previous) >= LANE_THREAT_RADIUS and (
+                absf(gap) < LANE_THREAT_RADIUS or previous*gap < 0.0):
+            return lerpf(previous_t,t,(previous-signf(previous)*LANE_THREAT_RADIUS)/(previous-gap))
+        if absf(gap) < LANE_THREAT_RADIUS:
+            return t
+        previous = gap
+        previous_t = t
+    return INF
 
 func forge_exit_blocks_during_crossing(eta: float, speed: float) -> bool:
     return is_finite(forge_piston_contact_eta(FORGE_EXIT_GATE,eta,speed))

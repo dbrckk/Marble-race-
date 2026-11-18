@@ -568,6 +568,10 @@ Les trois bandes de précision suivent le tablier et encadrent la largeur réell
 
 La barrière extérieure rétrécit au raccord. Le bloc de slalom ou le poteau qui empiétait sur l’axe de sortie selon le tracé est décalé vers l’intérieur. Le HUD peut annoncer le premier obstacle sur la trajectoire en conservant la direction de la jonction. Après le raccord, le repère d’évitement indique un passage seulement si la bille peut l’atteindre et que ses colliders le laissent libre. Un avertissement à l’écran signale l’obstacle quand le peloton le masque.
 
+### 2026-11-18 — Bras mobile et dépassements de Woodworks (1.151.0-rc)
+
+Après le pont, la prévision couvre le balayage du bras pendant tout le passage de la bille. La direction d’évitement s’affiche si la bille peut rejoindre le passage et si un rival ne risque pas de l’occuper. Un pictogramme de balayage signale le bras lorsqu’il est masqué. Le repère du rival reste en course pendant l’alerte. Les notifications de dépassement encore actives réapparaissent dès que la trajectoire est libre.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Affiner la transition du premier passage après le pont vers le bras mobile de Woodworks et vérifier la lisibilité des dépassements dans ce secteur. Mesurer le mix et la fluidité sur un téléphone Android dès qu’il est disponible.
+Affiner la reprise de vitesse et les repères en peloton entre le bras mobile de Woodworks et la dernière montée. Mesurer le mix et la fluidité sur un téléphone Android dès qu’il est disponible.

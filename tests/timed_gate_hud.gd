@@ -136,6 +136,8 @@ func _verify() -> void:
             if biome == 2:
                 expected_time = director.forge_piston_contact_eta(gate_index,eta,speed,collision_x)
                 assert(absf(eta-expected_time) <= (DIRECTOR.BODY_DEPTH*0.5+DIRECTOR.MARBLE_CLEARANCE)/speed+0.001)
+            elif biome == 0 and gate_index == DIRECTOR.WOODWORKS_RETURN_ARM:
+                expected_time = director.woodworks_arm_contact_eta(eta,speed,collision_x,0.0)
             assert(label.text.contains("%.1fs" % expected_time),
                 "Arrival forecast should use the first possible contact or the measured center crossing")
             if biome == 2:
@@ -247,6 +249,10 @@ func _verify() -> void:
                 "Do not clutter the HUD with hazards beyond the lookahead")
             if biome != 0:
                 _verify_biome_lane(game,biome)
+            else:
+                await physics_frame
+                await physics_frame
+                assert(_verify_woodworks_arm(game,layout))
             if biome == 1:
                 assert(_verify_glacier_sequence(game))
                 assert(_verify_glacier_bridge_return(game))
@@ -265,7 +271,72 @@ func _verify() -> void:
         "user://qa_timed_hud_career.cfg"))
     print("TIMED_HUD_PASS: 9 layouts, speed-aware approaches, original cues, Glacier ice and bridge handoffs, Forge signals, encounter order, piston crossing windows and final obstacle priority")
     print("GLACIER_EXIT_OBSTACLE_PASS: physical peg and gate-post footprints, early notice, quiet lanes and pass cleanup")
+    print("WOODWORKS_ARM_PASS: full sweep, occupied gap, occlusion and overtake handoff")
     quit(0)
+
+func _verify_woodworks_arm(game: Node3D, layout: int) -> bool:
+    var director: Node3D = game.race_director
+    var index := DIRECTOR.WOODWORKS_RETURN_ARM
+    var speed := 13.0
+    var eta := 0.88
+    director.animate(0.0)
+    var center: Vector3 = director.position_at(index,eta)
+    var grazing_x := center.x-DIRECTOR.LANE_THREAT_RADIUS-0.012
+    # Take whichever edge is approached during the measured crossing.
+    if not is_finite(director.woodworks_arm_contact_eta(eta,speed,grazing_x,0.0)):
+        grazing_x = center.x+DIRECTOR.LANE_THREAT_RADIUS+0.012
+    assert(not director.threatens_line(index,0.0,eta,grazing_x,0.0))
+    assert(is_finite(director.woodworks_arm_contact_eta(eta,speed,grazing_x,0.0)))
+    var safe_x: float = game.track_center_at(center.z)-3.0*director.side_at(index)
+    assert(not is_finite(director.woodworks_arm_contact_eta(eta,speed,safe_x,0.0)))
+    if layout != 2:
+        return true
+
+    var hud: CanvasLayer = game.ui
+    var locator: Control = hud.player_locator
+    var player: RigidBody3D = game.player
+    var rival: RigidBody3D = game.racers[0]
+    var cover: RigidBody3D = game.racers[1]
+    for racer in game.racers:
+        if racer != player:
+            racer.global_position = Vector3(90,0,20)
+    director.animate(16.0*director.period()/24.0)
+    var z := center.z+8.8
+    var incoming: Vector3 = director.position_at(index,director.clock+8.8/speed)
+    player.global_position = Vector3(incoming.x-1.15,game.height_at(z)+0.43,z)
+    player.linear_velocity = Vector3(0,0,-speed)
+    game.cam_mode = 0
+    game.airtime.reset_round()
+    game.race_moments.reset_round()
+    hud.bridge_approach_active = false
+    game._update_camera(0.12,true)
+    game.race_moments.tick(0.12)
+    hud.label_timer = 1.0
+    hud.update_hud()
+    var gap: Vector3 = game.race_moments.evasion_target
+    assert(hud.return_arm_warning and gap.is_finite() and locator.evasion_center.is_finite())
+    rival.freeze = false
+    rival.global_position = Vector3(gap.x,game.height_at(z-0.4)+0.43,z-0.4)
+    rival.linear_velocity = player.linear_velocity
+    var obstacle: Vector3 = director.obstacles[index].global_position
+    var eye: Vector3 = game.camera.global_position
+    cover.global_position = eye.lerp(obstacle,(obstacle.z+0.4-eye.z)/(obstacle.z-eye.z))
+    cover.global_position.y = game.height_at(cover.global_position.z)+0.43
+    game.race_moments.tick(0.12)
+    hud.label_timer = 1.0
+    hud.update_hud()
+    assert(locator.hazard_center.is_finite() and locator.hazard_kind == "SWEEPING ARM")
+    assert(not game.race_moments.evasion_target.is_finite() and hud.timed_gate_label.text.contains("CHECK GAP"))
+    hud.moment_remaining = 0.0
+    hud.show_overtake(1,rival.display_name)
+    assert(not hud.race_moment_label.visible and not hud.duel_label.visible and hud.rival_marker.visible)
+    player.global_position.x = safe_x
+    game.race_moments.tick(0.12)
+    hud.label_timer = 1.0
+    hud.update_hud()
+    assert(not hud.return_arm_warning and not locator.hazard_center.is_finite())
+    assert(hud.race_moment_label.visible and hud.race_moment_label.text.contains("OVERTAKE"))
+    return true
 
 func _verify_final_approach(game: Node3D) -> bool:
     var hud: CanvasLayer = game.ui

@@ -133,6 +133,7 @@ var speed_stripe_opacity := 0.0
 var moment_remaining := 0.0
 var moment_priority := 0
 var final_danger_active := false
+var return_arm_warning := false
 var overtake_count := 0
 var overtake_chain_seconds := 0.0
 var last_seen_rank := -1
@@ -1725,6 +1726,7 @@ func show_race_ui() -> void:
     moment_remaining = 0.0
     moment_priority = 0
     final_danger_active = false
+    return_arm_warning = false
     overtake_count = 0
     overtake_chain_seconds = 0.0
     rival_marker.hide()
@@ -2034,14 +2036,16 @@ func update_hud() -> void:
             game.net.is_client() and not game.net.local_replica_velocity().is_finite())):
         merge_traffic = 0
     var gate_id := int(moving_event.get("index",-1))
+    var return_arm: bool = game.selected_track == 0 and gate_id == RACE_DIRECTOR.WOODWORKS_RETURN_ARM
     var first_shutter: bool = game.selected_track == 1 and is_instance_valid(game.race_director) and (
         gate_id == game.race_director.GLACIER_FIRST_SHUTTER)
     # The first shutter and Forge pistons need a meaningful crossing speed.
-    var needs_speed: bool = first_shutter or game.selected_track == 2
+    var needs_speed: bool = first_shutter or return_arm or game.selected_track == 2
     timed_gate_label.visible = still_racing and gate_id >= 0 and (not needs_speed or forward_speed >= 2.0)
     var urgent_gate_eta := INF
     var gate_eta := INF
     var piston_contact_eta := INF
+    var arm_contact_eta := INF
     var bridge_piston_warning := false
     var ordinary_gate_clear := false
     var glacier_return_panel := false
@@ -2080,12 +2084,18 @@ func update_hud() -> void:
         elif game.selected_track == 1 and (first_shutter or gate_id == game.race_director.GLACIER_RETURN_GATE):
             player_threatened = game.race_director.glacier_shutter_threatens_crossing(
                 gate_id,gate_eta,forward_speed,at.x,velocity.x)
+        elif return_arm:
+            if not bridge_approach_active and absf(at.y-game.height_at(at.z)-0.39) <= 0.80:
+                arm_contact_eta = game.race_director.woodworks_arm_contact_eta(gate_eta,forward_speed,at.x,velocity.x)
+            player_threatened = is_finite(arm_contact_eta)
         else:
             player_threatened = projected_blocking and game.race_director.threatens_line(
                 gate_id,game.race_director.clock,gate_eta,
                 game.player.global_position.x,velocity.x)
         var gate_side: String = str(moving_event["side"])
         var dodge_action := "DODGE! GO "+("LEFT" if gate_side == "RIGHT" else "RIGHT")
+        if return_arm:
+            dodge_action = "DODGE! CHECK GAP"
         if evasion.is_finite() and absf(evasion.z-float(moving_event["z"])) < 0.25:
             var steering: float = evasion.x-game.player.global_position.x
             dodge_action = "HOLD LINE" if absf(steering) < 0.65 else (
@@ -2097,8 +2107,9 @@ func update_hud() -> void:
         ordinary_gate_clear = not player_threatened and not bridge_exit_preview and (
             not glacier_exit_preview and not first_shutter_exit)
         var lane_verdict: String = "DODGE!" if player_threatened else "LINE CLEAR"
-        if not bridge_exit_preview and not glacier_exit_preview and player_threatened and gate_eta <= 1.45:
-            urgent_gate_eta = piston_contact_eta if game.selected_track == 2 else gate_eta
+        var warning_eta := arm_contact_eta if return_arm else gate_eta
+        if not bridge_exit_preview and not glacier_exit_preview and player_threatened and warning_eta <= 1.45:
+            urgent_gate_eta = piston_contact_eta if game.selected_track == 2 else warning_eta
         if bridge_exit_preview:
             bridge_piston_warning = is_finite(piston_contact_eta)
             if bridge_piston_warning:
@@ -2130,7 +2141,7 @@ func update_hud() -> void:
             if player_threatened:
                 lane_verdict = dodge_action
             timed_gate_label.text = "%s %s  •  %s  •  %.1fs" % [
-                str(moving_event["kind"]),gate_side,lane_verdict,gate_eta]
+                str(moving_event["kind"]),gate_side,lane_verdict,warning_eta if player_threatened else gate_eta]
         var tint := Color("#a1edcc")
         if bridge_piston_warning or glacier_exit_preview:
             tint = Color("#ffd494")
@@ -2141,6 +2152,8 @@ func update_hud() -> void:
             var entry_distance: float = gate_distance-game.race_director.BODY_DEPTH*0.5-(
                 game.race_director.MARBLE_CLEARANCE)
             piston_contact_eta = maxf(0.0,entry_distance)/maxf(2.0,forward_speed)
+        if return_arm:
+            piston_contact_eta = arm_contact_eta
         var audio_minimum := 0.06 if game.selected_track == 1 else 0.20
         if player_threatened and not bridge_exit_preview and not glacier_exit_preview and (
                 piston_contact_eta >= audio_minimum and piston_contact_eta <= PISTON_WARNING_SECONDS):
@@ -2240,6 +2253,13 @@ func update_hud() -> void:
             game.selected_track == 1 and bridge_approach_active and timed_gate_label.visible)
         _update_biome_lane(lane_hint,urgent_gate_eta)
     _show_final_danger(gate_id,urgent_gate_eta,piston_contact_eta,lane_hint,vent_eta,still_racing)
+    var arm_warning_was_active := return_arm_warning
+    return_arm_warning = return_arm and is_finite(urgent_gate_eta) and return_eta >= urgent_gate_eta and (
+        timed_gate_label.visible and not final_danger_active)
+    if return_arm_warning:
+        duel_label.hide()
+    if return_arm_warning != arm_warning_was_active:
+        _refresh_race_notification()
     if vent_eta < 0.20 or vent_eta > VENT_WARNING_SECONDS:
         vent_eta = INF
     if game.audio.warned_vents.has(vent_index):
@@ -2538,10 +2558,11 @@ func _refresh_race_notification() -> void:
     # while the driving cue has the screen to itself.
     race_moment_label.visible = moment_remaining > 0.0 and (
         not final_danger_active or moment_priority >= 3) and (
+        not return_arm_warning or moment_priority >= 3) and (
         toast_remaining <= 0.0 or moment_priority > 0)
     checkpoint_label.visible = not final_danger_active and toast_remaining > 0.0 and (
         not race_moment_label.visible)
-    position_feedback.visible = not final_danger_active and rank_toast_seconds > 0.0 and (
+    position_feedback.visible = not final_danger_active and not return_arm_warning and rank_toast_seconds > 0.0 and (
         not checkpoint_label.visible and not race_moment_label.visible)
     practice_sector_label.visible = practice_hint_ready and not final_danger_active and (
         not timed_gate_backdrop.visible and not position_feedback.visible and (

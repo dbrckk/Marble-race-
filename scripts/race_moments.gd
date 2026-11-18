@@ -338,6 +338,7 @@ func tick(delta: float) -> void:
     var turbo_mark := Vector3.INF
     var fork_main := Vector3.INF
     var fork_bridge := Vector3.INF
+    var arm_gap_eta := INF
     var eyes := Vector3.ZERO
     if game.net.role != "server":
         var preview_velocity: Vector3 = game.player.linear_velocity
@@ -378,6 +379,11 @@ func tick(delta: float) -> void:
                 evasion_target = game.woodworks_return_lane(p,preview_velocity,woodworks_return_threat)
             elif candidate_kind.is_empty() or (candidate_kind == "PISTON" and not bridge_merge):
                 evasion_target = game.evasion_lane(p,preview_velocity,candidate)
+                if game.selected_track == 0 and absf(candidate.z-game.race_director.event_z(
+                        game.race_director.WOODWORKS_RETURN_ARM)) < 0.08:
+                    candidate_kind = "SWEEPING ARM"
+                    if evasion_target.is_finite():
+                        arm_gap_eta = (p.z-evasion_target.z)/preview_speed
             eyes = game.camera.global_position
             if game.selected_track == 0 and is_instance_valid(game.opening_obstacle_art) and (
                     not game.airtime.airborne and absf(p.y-game.height_at(p.z)-0.39) <= 0.55):
@@ -452,6 +458,13 @@ func tick(delta: float) -> void:
                 merge_traffic = merge_lane
                 merge_rival = marble
         if same_route:
+            if is_finite(arm_gap_eta) and evasion_target.is_finite():
+                var rival_speed: Vector3 = marble.linear_velocity if local_race and not marble.freeze else Vector3.ZERO
+                var rival_z := opponent.z+minf(0.0,rival_speed.z)*arm_gap_eta
+                var rival_x := RaceFeedback.projected_lane_x(opponent.x,rival_speed.x,arm_gap_eta)
+                if absf(rival_z-evasion_target.z) < 1.35 and absf(rival_x-evasion_target.x) < 1.0 and (
+                        absf(offset.y) < 1.4):
+                    evasion_target = Vector3.INF
             if road_mark.is_finite() and gap < -0.20 and opponent.z >= road_mark.z-0.40 and (
                     covers_hazard(eyes,road_mark,opponent)):
                 if game.selected_track == 1:

@@ -464,7 +464,13 @@ func pack_hazard_ahead(at: Vector3, velocity: Vector3) -> Vector3:
     if not gate.is_empty():
         var index: int = gate["index"]
         var distance: float = at.z-float(gate["z"])
-        if race_director.threatens_line(index,race_director.clock,distance/forward,at.x,velocity.x):
+        var threatened: bool
+        if selected_track == 0 and index == RaceDirector.WOODWORKS_RETURN_ARM:
+            threatened = not bridge and (at.z <= ShortcutRoute.EXIT_Z or shortcut_route.merge_traffic_lane(at) >= 0) and is_finite(
+                race_director.woodworks_arm_contact_eta(distance/forward,forward,at.x,velocity.x))
+        else:
+            threatened = race_director.threatens_line(index,race_director.clock,distance/forward,at.x,velocity.x)
+        if threatened:
             nearest = distance
             target = race_director.obstacles[index].global_position
             target.y = maxf(target.y,height_at(target.z)+0.28)
@@ -626,8 +632,12 @@ func evasion_lane(at: Vector3, velocity: Vector3, hazard: Vector3) -> Vector3:
     var entry_z := hazard.z+2.6
     var end_z := hazard.z-8.0
     var eta := distance/speed
+    var return_arm: bool = selected_track == 0 and absf(hazard.z-race_director.event_z(RaceDirector.WOODWORKS_RETURN_ARM)) < 0.08
     var center := track_center_at(hazard.z)
     var drift := RaceFeedback.projected_lane_x(at.x,velocity.x,eta)
+    const REACTION_SECONDS := 0.10
+    var duration := (distance-RaceDirector.BODY_DEPTH*0.5-Racer.RADIUS)/speed-REACTION_SECONDS
+    var anticipated_x := at.x+velocity.x*REACTION_SECONDS
     var query := PhysicsShapeQueryParameters3D.new()
     query.shape = evasion_probe
     query.collision_mask = 1
@@ -642,6 +652,12 @@ func evasion_lane(at: Vector3, velocity: Vector3, hazard: Vector3) -> Vector3:
         var change := absf(x-drift)
         if change >= cost or change > 0.5+5.3*eta:
             continue
+        var displacement := x-anticipated_x
+        if return_arm:
+            var max_accel := Racer.human_steering_force(1.0,velocity.z,velocity.x,0)*0.72
+            if duration <= 0.0 or maxf(absf(6.0*displacement-4.0*velocity.x*duration),
+                    absf(6.0*displacement-2.0*velocity.x*duration)) > max_accel*duration*duration:
+                continue
         var blocked := false
         for index in range(race_director.obstacles.size()):
             var z: float = race_director.event_z(index)
@@ -650,6 +666,11 @@ func evasion_lane(at: Vector3, velocity: Vector3, hazard: Vector3) -> Vector3:
             var arrival := (at.z-z)/speed
             var lane_x := lerpf(at.x,x,minf(1.0,arrival/eta))+(
                 track_center_at(z)-center if z < hazard.z else 0.0)
+            if return_arm and index == RaceDirector.WOODWORKS_RETURN_ARM:
+                if is_finite(race_director.woodworks_arm_contact_eta(arrival,speed,x,0.0)):
+                    blocked = true
+                    break
+                continue
             # Check the front, center and rear of the marble crossing.
             for phase_offset in [-0.06,0.0,0.06]:
                 if race_director.threatens_line(index,race_director.clock,
@@ -665,6 +686,20 @@ func evasion_lane(at: Vector3, velocity: Vector3, hazard: Vector3) -> Vector3:
         # Test the lane at the obstacle and through the next encounter.
         # The lateral-reach limit above controls how far ahead it is offered.
         var start := Vector3(track_center_at(entry_z)+offset,height_at(entry_z)+0.53,entry_z)
+        if return_arm:
+            var previous := Vector3(at.x,height_at(at.z)+0.53,at.z)
+            for step in range(5):
+                var u := float(step)*0.25
+                var z := at.z-speed*(REACTION_SECONDS+u*duration)
+                var path_x := anticipated_x+displacement*u*u*(3.0-2.0*u)+velocity.x*duration*u*(1.0-u)*(1.0-u)
+                var sample := Vector3(path_x,height_at(z)+0.53,z)
+                if not _evasion_span_clear(query,previous,sample):
+                    blocked = true
+                    break
+                previous = sample
+            if blocked:
+                continue
+            start = previous
         if not _evasion_span_clear(query,start,middle) or not _evasion_span_clear(query,middle,last):
             continue
         cost = change
