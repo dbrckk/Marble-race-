@@ -2452,8 +2452,8 @@ func update_hud() -> void:
             RARE_ITEMS.COLORS[color_index].lightened(0.20))
     if merge_traffic != 0 or final_danger_active or timed_gate_backdrop.visible:
         bridge_gate.clear()
-    shortcut_label.visible = still_racing and not route_hint.is_empty() and not glacier_return_panel and (
-        not finish_turbo_approach)
+    shortcut_label.visible = still_racing and (not route_hint.is_empty() or not bridge_gate.is_empty()) and (
+        not glacier_return_panel and not finish_turbo_approach)
     if not bridge_gate.is_empty():
         shortcut_label.text = "GATE %d / %d  •  %s  •  %dm" % [bridge_gate["number"],
             SHORTCUT_ROUTE.BRIDGE_POST_Z.size(),bridge_gate["action"],bridge_gate["distance"]]
