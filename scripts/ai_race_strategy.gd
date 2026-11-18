@@ -115,8 +115,15 @@ static func traffic_lane(own: RigidBody3D, rivals: Array[RigidBody3D],
         var ahead: float = own.position.z-other.position.z
         if ahead < 0.65 or ahead > TRAFFIC_AHEAD:
             continue
-        if absf(other.position.y-own.position.y) > TRAFFIC_HEIGHT or (
-            absf(other.position.x-desired_x) > TRAFFIC_WIDTH):
+        if absf(other.position.y-own.position.y) > TRAFFIC_HEIGHT:
+            continue
+        # Account for a leader already drifting across our intended line.
+        # Predict a short lateral window from real rigid-body velocities;
+        # a static snapshot alone misses many side-to-side collisions.
+        var future_x: float = other.position.x+clampf(
+            other.linear_velocity.x,-5.0,5.0)*0.42
+        if minf(absf(other.position.x-desired_x),
+            absf(future_x-desired_x)) > TRAFFIC_WIDTH:
             continue
         # A faster marble approaching from behind is not an obstruction.
         var speed_gain: float = other.linear_velocity.z-own.linear_velocity.z
