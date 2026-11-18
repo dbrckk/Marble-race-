@@ -383,6 +383,23 @@ func set_track(index: int) -> bool:
     _apply_graphics_quality()
     return true
 
+func upcoming_hazard_distance(at_z: float) -> float:
+    # Presentation-only fast path: avoid building a hazard notice dictionary
+    # at camera frame rate. Keep the same gate/event priority as the HUD.
+    var nearest := 25.0
+    var found := false
+    for hazard in hazard_beacons:
+        var candidate: float = at_z-float(hazard["z"])
+        if candidate >= -1.0 and candidate < nearest:
+            nearest = candidate
+            found = true
+    var result: float = float(maxi(0,int(round(nearest)))) if found else -1.0
+    if is_instance_valid(race_director):
+        var event: Dictionary = race_director.event_ahead(at_z)
+        if not event.is_empty() and float(event["distance"]) < nearest:
+            result = float(event["distance"])
+    return result
+
 func upcoming_hazard(at_z: float) -> Dictionary:
     # Cached tiny index; UI polls at 9 Hz. Only genuine physical rail gates.
     var nearest := 25.0
@@ -1386,8 +1403,9 @@ func _update_camera(delta: float, force := false) -> void:
     # Use the centerline ahead so the racer can see approaching turns.
     # Pure math; multiplayer does not need camera replication.
     var ahead_x: float = track_center_at(player.global_position.z-12.0)
-    var next_gate: Dictionary = upcoming_hazard(player.global_position.z)
-    var distance: float = float(next_gate.get("distance",-1.0))
+    # The HUD and AI also inspect hazards; camera only needs the nearest
+    # distance, not an allocated dictionary on every rendered frame.
+    var distance: float = upcoming_hazard_distance(player.global_position.z)
     var pose: Dictionary = RaceFeedback.camera_pose(
         player.global_position,player.linear_velocity,
         ahead_x,cam_mode,boosting,distance,
