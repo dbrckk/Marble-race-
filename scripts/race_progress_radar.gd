@@ -2,7 +2,13 @@ extends Control
 ## Race progress sampled at 10 Hz. The opponent dots share one 2D draw.
 const FINISH_Z := -185.0
 const DOT_SIDES := 12
-const UPDATE_PERIOD := 0.10
+# Opponent positions are deliberately sampled below render frequency: the 2D
+# MultiMesh is refreshed only on samples, never once per render frame.
+const UPDATE_PERIOD := 0.15
+const TRACK_INK := Color("#111d2b")
+const TRACK_RIM := Color("#527184")
+const TRACK_PROGRESS := Color("#ffcf82")
+const TRACK_TICK := Color("#a6b9c7")
 const PLAYER_COLOR := Color("#fff2be")
 const OPPONENT_COLOR := Color(0.67,0.83,0.90,0.58)
 const FINISHED_COLOR := Color(0.60,0.98,0.71,0.85)
@@ -89,8 +95,17 @@ func _draw() -> void:
     var baseline: float = height_px*0.52
     # Endpoints and centreline provide spatial context; progress remains
     # independent of local rank, multiplayer claims and career records.
-    draw_line(Vector2(3.0,baseline),Vector2(width_px-3.0,baseline),
-        Color(0.78,0.81,0.83,0.35),1.5)
+    # One compact, hardware-friendly progress rail instead of loose dots
+    # floating over the track. No blur, viewport texture or extra Control.
+    var rail := Rect2(0.0,maxf(0.0,baseline-5.0),width_px,10.0)
+    draw_rect(rail,TRACK_INK)
+    draw_rect(rail,TRACK_RIM,false,1.0)
+    var progress := positions[player_id] if player_id >= 0 and player_id < positions.size() else 0.0
+    draw_rect(Rect2(3.0,baseline-1.0,maxf(0.0,(width_px-6.0)*progress),2.0),TRACK_PROGRESS)
+    for tick in range(1,4):
+        var marker_x := lerpf(3.0,width_px-3.0,float(tick)*0.25)
+        draw_line(Vector2(marker_x,baseline-3.0),Vector2(marker_x,baseline+3.0),
+            Color(TRACK_TICK,0.35),1.0)
     if passage_progress.y > passage_progress.x:
         var left := lerpf(3.0,width_px-3.0,passage_progress.x)
         var right := lerpf(3.0,width_px-3.0,passage_progress.y)
