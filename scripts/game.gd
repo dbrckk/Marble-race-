@@ -839,23 +839,26 @@ func _add_spinner(parent: Node3D, z: float, n: int) -> void:
     var spinner_tempo: float = [0.88,1.0,1.12][posmod(built_variation+n,3)]
     pivot.set_meta("spin_speed", (1.0 if n%2==0 else -1.0) * (
         0.72+n*0.022)*(1.0+0.19*selected_track)*spinner_tempo)
-    # The floor warning indicates the actual rotating arm envelope.
-    # Four thin, non-colliding radial guides remain readable on low-end
-    # Android without particle effects or per-frame mesh updates.
+    # Four floor markers trace the actual 3.55 m arm reach. Position
+    # them at half the arm length so the warning does not extend beyond
+    # the physical hazard or imply a collision in a safe corridor.
     var warning_radius: float = 3.55
+    var guide_length: float = warning_radius-0.52
+    var guide_material := _mat(Color("#e6b34d"),0.58,0.05)
     for guide in range(4):
         var warning := MeshInstance3D.new()
         warning.name = "SpinnerSweepGuide_%d" % guide
         var guide_mesh := BoxMesh.new()
-        guide_mesh.size = Vector3(0.09,0.025,warning_radius-0.52)
+        guide_mesh.size = Vector3(0.09,0.025,guide_length)
         warning.mesh = guide_mesh
         var angle: float = float(guide)*TAU/4.0
+        var radial_center: float = guide_length*0.5
         warning.position = Vector3(
-            sin(angle)*(warning_radius+0.52)*0.25,
+            pivot.position.x+sin(angle)*radial_center,
             height_at(z)+0.035,
-            z+cos(angle)*(warning_radius+0.52)*0.25)
+            z+cos(angle)*radial_center)
         warning.rotation.y = angle
-        warning.material_override = _mat(Color("#e6b34d"),0.58,0.05)
+        warning.material_override = guide_material
         parent.add_child(warning)
     moving_obstacles.append(pivot)
 
