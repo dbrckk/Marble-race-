@@ -15,6 +15,8 @@ const FINAL_OBSTACLE_WARNING_SECONDS := 1.40
 const SURFACE_CUE_TOP := 0.350
 const SURFACE_CUE_BOTTOM := 0.396
 const PISTON_WARNING_SECONDS := 2.20
+const FIRST_SHUTTER_ICE_WARNING_SECONDS := 0.34
+const FIRST_SHUTTER_MIN_DRY_LEAD := 0.27
 const CLEAR_GATE_NEAR_SECONDS := 2.0
 const FONT_HEAVY = preload("res://assets/fonts/Rajdhani-Bold.ttf")
 const FONT_REGULAR = preload("res://assets/fonts/Rajdhani-Medium.ttf")
@@ -2018,21 +2020,32 @@ func update_hud() -> void:
     if merge_traffic != 0 and (game.shortcut_route.merge_traffic_lane(game.player.global_position) != merge_traffic or (
             game.net.is_client() and not game.net.local_replica_velocity().is_finite())):
         merge_traffic = 0
-    timed_gate_label.visible = still_racing and not moving_event.is_empty()
+    var gate_id := int(moving_event.get("index",-1))
+    var first_shutter: bool = game.selected_track == 1 and is_instance_valid(game.race_director) and (
+        gate_id == game.race_director.GLACIER_FIRST_SHUTTER)
+    # A stale replica or a stopped marble cannot predict the first shutter's phase.
+    timed_gate_label.visible = still_racing and gate_id >= 0 and (not first_shutter or forward_speed >= 2.0)
     var urgent_gate_eta := INF
     var gate_eta := INF
     var piston_contact_eta := INF
     var bridge_piston_warning := false
     var ordinary_gate_clear := false
     var glacier_return_panel := false
+    var first_shutter_exit := false
+    var first_ice_exit_z := NAN
     var audible_gate_eta := INF
     var shutter_side := ""
-    var gate_id := -1
     if timed_gate_label.visible:
-        var gate_distance: float = game.player.global_position.z-float(moving_event["z"])
+        var at: Vector3 = game.player.global_position
+        var gate_distance: float = at.z-float(moving_event["z"])
         gate_eta = gate_distance/maxf(
             2.0,-velocity.z)
-        gate_id = int(moving_event["index"])
+        if first_shutter and is_instance_valid(game.course_mechanics):
+            var slab_z: float = game.course_mechanics.zones[0].global_position.z
+            var half_depth: float = game.course_mechanics.ZONE_LENGTH*0.5
+            first_ice_exit_z = slab_z-half_depth
+            first_shutter_exit = not game.airtime.ice_touching and (
+                at.z <= first_ice_exit_z or (grip_return and at.z <= slab_z+half_depth))
         var projected_blocking: bool = game.selected_track != 2 or (
             game.race_director.piston_up(gate_id,
                 game.race_director.clock+gate_eta))
@@ -2041,9 +2054,9 @@ func update_hud() -> void:
         # Show a calm clear-line cue otherwise; do not punish safe steering
         # with false hazard sounds when the gate moves on the opposite rail.
         var player_threatened: bool
-        if game.selected_track == 1 and gate_id == game.race_director.GLACIER_RETURN_GATE:
-            player_threatened = game.race_director.glacier_return_threatens_crossing(
-                gate_eta,forward_speed,game.player.global_position.x,velocity.x)
+        if game.selected_track == 1 and (first_shutter or gate_id == game.race_director.GLACIER_RETURN_GATE):
+            player_threatened = game.race_director.glacier_shutter_threatens_crossing(
+                gate_id,gate_eta,forward_speed,at.x,velocity.x)
         else:
             player_threatened = projected_blocking and game.race_director.threatens_line(
                 gate_id,game.race_director.clock,gate_eta,
@@ -2060,7 +2073,8 @@ func update_hud() -> void:
             gate_id == game.race_director.FORGE_EXIT_GATE)
         var glacier_exit_preview: bool = game.selected_track == 1 and bridge_approach_active and (
             gate_id == game.race_director.GLACIER_RETURN_GATE)
-        ordinary_gate_clear = not player_threatened and not bridge_exit_preview and not glacier_exit_preview
+        ordinary_gate_clear = not player_threatened and not bridge_exit_preview and (
+            not glacier_exit_preview and not first_shutter_exit)
         var lane_verdict: String = "DODGE!" if player_threatened else "LINE CLEAR"
         if not bridge_exit_preview and not glacier_exit_preview and player_threatened and gate_eta <= 1.45:
             urgent_gate_eta = gate_eta
@@ -2101,14 +2115,22 @@ func update_hud() -> void:
             tint = Color("#ffd494")
         elif player_threatened and not bridge_exit_preview:
             tint = Color("#ffae91") if gate_eta < 1.45 else Color("#f6d49b")
-        if bridge_piston_warning or (player_threatened and not bridge_exit_preview and not glacier_exit_preview):
+        if first_shutter_exit or bridge_piston_warning or (
+                player_threatened and not bridge_exit_preview and not glacier_exit_preview):
             var entry_distance: float = gate_distance-game.race_director.BODY_DEPTH*0.5-(
                 game.race_director.MARBLE_CLEARANCE)
             piston_contact_eta = maxf(0.0,entry_distance)/maxf(2.0,forward_speed)
             var audio_minimum := 0.06 if game.selected_track == 1 else 0.20
-            if not bridge_exit_preview and piston_contact_eta >= audio_minimum and (
+            if player_threatened and not bridge_exit_preview and piston_contact_eta >= audio_minimum and (
                     piston_contact_eta <= PISTON_WARNING_SECONDS):
                 audible_gate_eta = piston_contact_eta
+        if first_shutter_exit:
+            var action := "LINE CLEAR"
+            if player_threatened:
+                var has_marked_lane := evasion.is_finite() and absf(evasion.z-float(moving_event["z"])) < 0.25
+                action = dodge_action if has_marked_lane else "DODGE! AIM CENTER"
+            var arrival := "NOW" if piston_contact_eta < 0.10 else "%.1fs" % piston_contact_eta
+            timed_gate_label.text = "ICE SHUTTER  •  %s  •  %s" % [action,arrival]
         timed_gate_label.add_theme_color_override("font_color",tint)
     var lane_hint: Dictionary = game.course_mechanics.upcoming_lane(
         game.player.global_position,velocity,downstream_limit) if (
@@ -2127,12 +2149,27 @@ func update_hud() -> void:
         biome_lane_label.hide()
         timed_gate_backdrop.show()
         pickup_limit = 0.0
+    elif first_shutter_exit:
+        biome_lane_label.hide()
+        timed_gate_backdrop.visible = not shutter_side.is_empty()
+        if timed_gate_backdrop.visible:
+            pickup_limit = piston_contact_eta
     elif game.selected_track == 1 and gate_id >= 0 and gate_id == int(lane_hint.get("exit_shutter",-1)):
-        _show_glacier_sequence(lane_hint,shutter_side)
-        # Keep the shutter's one-shot sound available for the exit while
-        # the combined on-ice message is still the active steering cue.
+        if timed_gate_label.visible:
+            _show_glacier_sequence(lane_hint,shutter_side,first_shutter)
+        else:
+            timed_gate_backdrop.hide()
+            _update_biome_lane(lane_hint,INF)
         if not timed_gate_label.visible:
-            audible_gate_eta = INF
+            # At high speed the closest shutter can be less than a HUD
+            # update away from the end of the ice. Warn while still on it
+            # only if a predicted collision leaves very little dry lead.
+            var to_dry: float = (game.player.global_position.z-first_ice_exit_z)/maxf(2.0,forward_speed)
+            var imminent_on_ice: bool = first_shutter and lane_hint["on_ice"] and (
+                audible_gate_eta <= FIRST_SHUTTER_ICE_WARNING_SECONDS and (
+                    audible_gate_eta-to_dry < FIRST_SHUTTER_MIN_DRY_LEAD))
+            if not imminent_on_ice:
+                audible_gate_eta = INF
     else:
         timed_gate_backdrop.visible = is_finite(urgent_gate_eta) or (
             game.selected_track == 1 and bridge_approach_active and timed_gate_label.visible)
@@ -2357,7 +2394,7 @@ func _show_forge_hazard(vent: Dictionary, gate_eta: float, piston_priority: floa
     timed_gate_backdrop.visible = is_finite(vent_priority) if show_vent else (
         timed_gate_label.visible and is_finite(piston_priority))
 
-func _show_glacier_sequence(ice: Dictionary, threatened_side: String) -> void:
+func _show_glacier_sequence(ice: Dictionary, threatened_side: String, first_shutter: bool) -> void:
     timed_gate_label.hide()
     var on_ice: bool = ice["on_ice"]
     var surface_entry: bool = float(ice["eta"]) > 0.0
@@ -2368,7 +2405,8 @@ func _show_glacier_sequence(ice: Dictionary, threatened_side: String) -> void:
         return
     _update_biome_lane(ice,INF,true)
     if on_ice and not threatened_side.is_empty():
-        biome_lane_label.text = "STEER GENTLY  •  SHUTTER %s AFTER ICE" % threatened_side
+        biome_lane_label.text = "STEER GENTLY  •  THEN AIM CENTER" if first_shutter else (
+            "STEER GENTLY  •  SHUTTER %s AFTER ICE" % threatened_side)
     timed_gate_backdrop.visible = on_ice or not threatened_side.is_empty()
 
 func _update_biome_lane(hint: Dictionary, urgent_gate_eta: float, primary := false) -> void:

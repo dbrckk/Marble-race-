@@ -522,6 +522,10 @@ Base `72a8d357b8531de1d8fcba000f798e4ae65c328e`. Le relevé de sol existant mesu
 
 Sur Glacier, un choc entre billes au sol affiche un éclair près de la bille et « HIT » au compteur, accompagné d’un claquement de verre. Le retour sur une surface adhérente affiche « GRIP », avec l’onde ambrée et le son boisé. Le HUD garde ces repères en mode Économie. Les contacts sont filtrés par la vitesse relative dans l’axe du choc. En multijoueur, le serveur détecte le contact et prévient uniquement le joueur concerné via le canal d’événements existant.
 
+### 2026-11-18 — Premier volet de Glacier après la glace (1.140.0-rc)
+
+Le premier volet tient compte du balayage sur toute la fenêtre de passage de la bille. En cas de danger, le HUD indique vers quelle voie se diriger et combien de temps il reste avant le premier contact possible. Il peut afficher la trajectoire du volet dès la reprise d’adhérence ou à la sortie de la plaque. L’alerte sonore est jouée une fois si la trajectoire est menacée et peut avancer sur la glace quand le temps de réaction à la sortie est court. La voie dégagée reçoit un repère calme, la trajectoire incertaine sans vitesse n’affiche pas de compte à rebours.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Rendre le premier volet de Glacier plus facile à anticiper après la reprise d’adhérence, en s’appuyant sur l’ETA du mécanisme et l’indication de voie existantes. Mesurer le mix et la fluidité du peloton sur un téléphone Android dès qu’il est disponible.
+Mieux matérialiser la voie centrale au sol dans l’enchaînement glace–volet, notamment quand le peloton masque les peintures existantes. Mesurer le mix et la fluidité du peloton sur un téléphone Android dès qu’il est disponible.

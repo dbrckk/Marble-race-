@@ -20,6 +20,7 @@ const BODY_WIDTH := 1.65
 const BODY_HEIGHT := 0.82
 const BODY_DEPTH := 0.76
 const FORGE_EXIT_GATE := 1
+const GLACIER_FIRST_SHUTTER := 0
 const GLACIER_RETURN_GATE := 1
 const MARBLE_CLEARANCE := 0.39
 const NEAR_MISS_IMPULSE := 2.05
@@ -392,7 +393,7 @@ func threatens_line(index: int, elapsed: float, eta: float,
     var future_x: float = FEEDBACK.projected_lane_x(current_x,lateral_speed,eta)
     return absf(future_x-obstacle_x) < LANE_THREAT_RADIUS
 
-func glacier_return_threatens_crossing(eta: float, forward_speed: float,
+func glacier_shutter_threatens_crossing(index: int, eta: float, forward_speed: float,
         current_x: float, lateral_speed: float) -> bool:
     # A slower sphere stays in the collider's longitudinal footprint
     # longer. Predict up to twice the time from its nose to its center.
@@ -403,7 +404,7 @@ func glacier_return_threatens_crossing(eta: float, forward_speed: float,
     for sample in range(3):
         var t := lerpf(first,last,float(sample)*0.5)
         var gap := FEEDBACK.projected_lane_x(current_x,lateral_speed,t)-(
-            position_at(GLACIER_RETURN_GATE,clock+t).x)
+            position_at(index,clock+t).x)
         if absf(gap) < LANE_THREAT_RADIUS or (previous_gap != INF and gap*previous_gap < 0.0):
             return true
         previous_gap = gap

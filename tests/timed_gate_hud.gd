@@ -498,7 +498,6 @@ func _verify_glacier_sequence(game: Node3D) -> bool:
     var gate := 0
     assert(mechanics.ice_exit_shutters[0] == gate)
     var gate_z: float = director.event_z(gate)
-    var side: String = "LEFT" if director.side_at(gate) < 0.0 else "RIGHT"
     var before := slab+Vector3(0.0,0.60,13.0)
     _update_at(game,before,velocity)
     assert(hud.biome_lane_label.visible and not hud.timed_gate_label.visible,
@@ -519,25 +518,64 @@ func _verify_glacier_sequence(game: Node3D) -> bool:
     assert(hud.biome_lane_label.text.contains("STEER GENTLY") and
         hud.biome_lane_label.visible and not hud.timed_gate_label.visible,
         "While on the slab, movement and shutter advice must share one message")
-    assert(not game.audio.warned_timed_gates.has(gate))
-    if director.threatens_line(gate,clock,(slab.z-gate_z)/speed,slab.x,0.0):
-        assert(hud.biome_lane_label.text.contains("SHUTTER "+side+" AFTER ICE"))
-    var clear_z: float = slab.z-mechanics.ZONE_LENGTH*0.5-0.22
+    var collision_reach: float = director.BODY_DEPTH*0.5+director.MARBLE_CLEARANCE
+    var slab_exit_z: float = slab.z-mechanics.ZONE_LENGTH*0.5
+    var threatened: bool = director.glacier_shutter_threatens_crossing(
+        gate,(slab.z-gate_z)/speed,speed,slab.x,0.0)
+    if threatened:
+        assert(hud.biome_lane_label.text.contains("THEN AIM CENTER"))
+    if (slab_exit_z-gate_z-collision_reach)/speed >= 0.27:
+        assert(not game.audio.warned_timed_gates.has(gate),
+            "Save the sound for dry ground when the exit gives enough warning")
+    var clear_z := slab_exit_z-0.22
     var x: float = director.position_at(gate,clock+(clear_z-gate_z)/speed).x
     _update_at(game,Vector3(x,game.height_at(clear_z)+0.60,clear_z),velocity)
     assert(hud.timed_gate_label.visible and not hud.biome_lane_label.visible and
-        hud.timed_gate_label.text.contains("ICE SHUTTER "+side),
+        hud.timed_gate_label.text.contains("ICE SHUTTER"),
         "Crossing the ice exit restores the actual shutter forecast")
     assert(hud.timed_gate_label.text.contains("DODGE!") and
         game.audio.warned_timed_gates.has(gate),
         "The shutter warning sound remains available after leaving the ice")
+    var lead: float = (clear_z-gate_z-collision_reach)/speed
+    var timing := "NOW" if lead < 0.10 else "%.1fs" % lead
+    assert(hud.timed_gate_label.text.ends_with(timing),
+        "The countdown ends at first contact with the shutter, not its center")
     game.audio.hazard_cooldown = 0.0
     var channel: int = game.audio.current_channel
     _update_at(game,Vector3(x,game.height_at(clear_z)+0.60,clear_z),velocity)
     assert(game.audio.current_channel == channel,
         "A shutter cue cannot replay each HUD frame")
+    game.audio.warned_timed_gates.clear()
+    game.audio.hazard_cooldown = 0.0
+    game.airtime.grip_return_seconds = 0.42
+    _update_at(game,Vector3(dry_x,game.height_at(slab.z)+0.39,slab.z),velocity)
+    assert(hud.timed_gate_label.visible and hud.timed_gate_label.text.contains("LINE CLEAR") and
+        not hud.biome_lane_label.visible and not hud.timed_gate_backdrop.visible,
+        "A confirmed return to grip inside the slab's longitudinal range hands off early")
+    assert(not game.audio.warned_timed_gates.has(gate))
+    game.airtime.grip_return_seconds = 0.0
+    _update_at(game,Vector3(x,game.height_at(clear_z)+0.39,clear_z),Vector3.ZERO)
+    assert(not hud.timed_gate_label.visible and not game.audio.warned_timed_gates.has(gate),
+        "A stationary marble must not see or hear a predicted crossing")
+
+    # Verify a short exit on an ice lane actually in the shutter's sweep,
+    # and the opposite-side variant where the ice is itself a safe path.
+    var late_ice := Vector3(slab.x,slab.y+0.39,slab_exit_z+0.55)
+    var late_eta := (late_ice.z-gate_z)/speed
+    if (slab_exit_z-gate_z-collision_reach)/speed < 0.27:
+        var overlap := false
+        for sample in range(32):
+            director.animate(director.period()*float(sample)/32.0)
+            overlap = director.glacier_shutter_threatens_crossing(gate,late_eta,speed,late_ice.x,0.0)
+            if overlap:
+                break
+        assert(overlap == (director.side_at(gate)*mechanics.lane_offset(0,1,game.built_variation) > 0.0))
+        _update_at(game,late_ice,velocity)
+        assert(hud.biome_lane_label.visible and not hud.timed_gate_label.visible and
+            game.audio.warned_timed_gates.has(gate) == overlap,
+            "Play the early cue only when the ice trajectory will be blocked")
     _update_at(game,Vector3(x,game.height_at(gate_z-1.0)+0.60,gate_z-1.0),velocity)
-    assert(not hud.biome_lane_label.visible or not hud.biome_lane_label.text.contains("AFTER ICE"))
+    assert(not hud.biome_lane_label.visible or not hud.biome_lane_label.text.contains("THEN AIM CENTER"))
     return true
 
 func _verify_glacier_bridge_return(game: Node3D) -> bool:
@@ -640,9 +678,9 @@ func _verify_glacier_crossing_window(game: Node3D, director: Node3D, gate: int) 
     var entry_x: float = director.position_at(gate,chosen_clock+eta-half_window).x
     assert(absf(x-entry_x) < director.BODY_WIDTH*0.5+director.MARBLE_CLEARANCE)
     assert(not director.threatens_line(gate,chosen_clock,eta,x,0.0))
-    assert(director.glacier_return_threatens_crossing(eta,speed,x,0.0))
-    assert(not director.glacier_return_threatens_crossing(
-        eta,speed,game.track_center_at(gate_z),0.0))
+    assert(director.glacier_shutter_threatens_crossing(gate,eta,speed,x,0.0))
+    assert(not director.glacier_shutter_threatens_crossing(
+        gate,eta,speed,game.track_center_at(gate_z),0.0))
     game.audio.warned_timed_gates.clear()
     game.audio.hazard_cooldown = 0.0
     var z := gate_z+eta*speed
