@@ -130,7 +130,7 @@ func _run_checks() -> void:
     assert(is_instance_valid(race.contact_shadows), "Batch shadows missing")
     race.start_race("Lead Core")
     await process_frame
-    assert(race.racers.size() == 40, "40 racers must spawn")
+    assert(race.racers.size() == race.MARBLE_COUNT, "Configured racers must spawn")
     assert(race.racers[0].mesh == null and race.rival_render.pools.size() == 2,
         "Opponents must use the two instanced glass meshes instead of individual draw objects")
     assert(race.rival_render.pools[0].visible_instance_count > 0,"Glass must appear on the grid")
@@ -138,11 +138,11 @@ func _run_checks() -> void:
         "Regular racers should share the same immutable physics material")
     assert(is_instance_valid(race.player), "Missing controlled racer")
     assert(race.player.is_player, "Wrong player identity")
-    assert(race.contact_shadows.pool.visible_instance_count == 40, "40 ground shadows required")
+    assert(race.contact_shadows.pool.visible_instance_count == race.MARBLE_COUNT, "One ground shadow per racer required")
     assert(is_instance_valid(race.ui.course_progress), "Race progress bar missing")
     assert(race.ui.touch_controls.boost_percent == 100, "Fresh race must show full boost")
     assert(race.player.mass > 1.0, "Lead Core perk did not affect real physics")
-    assert(race.player_rank() >= 1 and race.player_rank() <= 40, "Invalid leaderboard")
+    assert(race.player_rank() >= 1 and race.player_rank() <= race.MARBLE_COUNT, "Invalid leaderboard")
     var seen = {}
     for marble in race.racers:
         var p = str(marble.position)
@@ -178,7 +178,7 @@ func _run_checks() -> void:
     assert(race.race_state == "MENU", "Menu return failed")
     assert(race.contact_shadows.pool.visible_instance_count == 0, "Menu should release race shadows")
     assert(not locator.is_visible_in_tree(),"The player locator must be hidden outside the race")
-    print("SMOKE_PASS: 40 racers, 646 GPU-instanced track parts, AA/LOD profiles, cached geometry, audio, controls")
+    print("SMOKE_PASS: 30 racers, 646 GPU-instanced track parts, AA/LOD profiles, cached geometry, audio, controls")
     race.queue_free()
     for i in range(4):
         await process_frame
