@@ -666,6 +666,11 @@ func _verify_merge_cues(game: Node3D, side: int) -> bool:
     moments.reset_round()
     moments.tick(0.1)
     assert(moments.merge_traffic == -1)
+    hud.label_timer = 0.25
+    hud.update_hud()
+    if not hud.timed_gate_backdrop.visible:
+        assert(hud.shortcut_label.text.contains("MAIN TRAFFIC  •  SAVE BOOST"),
+            "An occupied bridge return must discourage boosting into the main lane")
     other.global_position.y += 3.0
     moments.tick(0.1)
     assert(moments.merge_traffic == 0,"A marble falling below or flying above the junction is not merge traffic")
