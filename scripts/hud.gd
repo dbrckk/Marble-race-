@@ -239,9 +239,22 @@ func _action(value: String, fill: Color = Color("#343947"), font_color: Color = 
     button.add_theme_font_size_override("font_size", 23)
     button.add_theme_color_override("font_color", font_color)
     button.add_theme_color_override("font_hover_color", font_color)
-    button.add_theme_stylebox_override("normal", _surface(fill))
-    button.add_theme_stylebox_override("hover", _surface(fill.lightened(0.12)))
-    button.add_theme_stylebox_override("pressed", _surface(fill.darkened(0.18)))
+    button.add_theme_color_override("font_pressed_color", font_color)
+    # Distinct interactive states and a restrained inset highlight give the
+    # mobile menu physical depth without blur or postprocessing passes.
+    var normal_style := _surface(fill,fill.lightened(0.22),11)
+    normal_style.border_width_bottom = 3
+    normal_style.shadow_color = Color("#060c13",0.32)
+    normal_style.shadow_size = 2
+    var hover_style := _surface(fill.lightened(0.11),fill.lightened(0.36),11)
+    hover_style.border_width_bottom = 3
+    var pressed_style := _surface(fill.darkened(0.16),fill.lightened(0.12),11)
+    pressed_style.border_width_top = 3
+    pressed_style.border_width_bottom = 1
+    button.add_theme_stylebox_override("normal",normal_style)
+    button.add_theme_stylebox_override("hover",hover_style)
+    button.add_theme_stylebox_override("pressed",pressed_style)
+    button.add_theme_stylebox_override("disabled",_surface(fill.darkened(0.32)))
     button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
     button.pressed.connect(func(): game.audio.ui_click())
     return button
@@ -260,7 +273,11 @@ func _column(gap: int = 12) -> VBoxContainer:
 
 func _panel() -> PanelContainer:
     var panel = PanelContainer.new()
-    panel.add_theme_stylebox_override("panel", _surface(PANEL, Color(1,1,1,0.13), 18))
+    var card := _surface(Color("#101b28",0.96),Color("#66869b",0.42),16)
+    card.border_width_top = 2
+    card.shadow_color = Color("#050a10",0.42)
+    card.shadow_size = 5
+    panel.add_theme_stylebox_override("panel",card)
     return panel
 
 func _build_menu() -> void:
@@ -268,7 +285,7 @@ func _build_menu() -> void:
     menu_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
     root.add_child(menu_layer)
     var dark = ColorRect.new()
-    dark.color = Color(0.025,0.015,0.025,0.16)
+    dark.color = Color("#07101b",0.45)
     dark.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
     dark.mouse_filter = Control.MOUSE_FILTER_IGNORE
     menu_layer.add_child(dark)
@@ -280,7 +297,7 @@ func _build_menu() -> void:
     menu_layer.add_child(panel)
     var col = _column(13)
     panel.add_child(col)
-    col.add_child(_text("THE TABLETOP ROYALE", 15, ORANGE))
+    col.add_child(_text("THE TABLETOP ROYALE  /  SEASON 01", 15, ORANGE))
     var title = _text("MARBLE\nRACE", 63, Color.WHITE)
     title.add_theme_color_override("font_shadow_color", Color(0,0,0,0.65))
     col.add_child(title)
