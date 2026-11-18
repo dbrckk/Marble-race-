@@ -271,8 +271,14 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
             # No lateral passing decision is made at a genuine hazard gate.
             var traffic_center: float = course_owner.track_center_at(position.z)
             var next_hazard: Dictionary = course_owner.upcoming_hazard(position.z)
+            # Do not start a lateral passing manoeuvre that cannot finish
+            # before a moving gate. Preview distance scales with forward
+            # velocity, with a short fixed minimum for slow-moving packs.
+            var hazard_clearance: float = clampf(
+                maxf(0.0,-linear_velocity.z)*0.65+2.5,4.0,15.0)
             var hazard_near: bool = not next_hazard.is_empty() and (
-                float(next_hazard.get("distance",999.0)) < 3.5)
+                float(next_hazard.get("distance",999.0)) >= 0.0 and
+                float(next_hazard.get("distance",999.0)) < hazard_clearance)
             # Keep start-grid collisions, both route portals, jumps and
             # their AI approach entirely unchanged. Tactical side choices
             # belong in the run home where a passing duel matters most.
