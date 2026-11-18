@@ -6,6 +6,7 @@ extends Node3D
 ## No lights, postprocess, skeletal animations or per-marble VFX.
 const RaceFeedback = preload("res://scripts/race_feedback.gd")
 const SHORTCUT = preload("res://scripts/shortcut_route.gd")
+const SCULPTURE = preload("res://scripts/course_sculptures.gd")
 
 const SAMPLE_PERIOD := 0.050
 const RADIUS := 0.39
@@ -21,6 +22,10 @@ const PULSE_LIFETIME := 0.74
 const RIPPLE_POOL := 3
 const BRIDGE_PULSE_LIFETIME := 0.36
 const GRIP_RETURN := 2
+const BANK_EXIT := 3
+const LANDING_CONTROL := 1
+const CONTROL_RETURN_SECONDS := 0.38
+const RETURN_WINDOW := 0.36
 const GLACIER_ICE_FRICTION := 0.15
 const BRIDGE_TINTS := [
     Color("#ffc872"),Color("#a1f3ff"),Color("#ffa46e")
@@ -35,6 +40,7 @@ var game: Node3D
 var ripple: MultiMeshInstance3D
 var ripple_age: Array[float] = []
 var ripple_position: Array[Vector3] = []
+var ripple_normal: Array[Vector3] = []
 var ripple_transition: Array[int] = []
 var ripple_head := 0
 var quality := 1
@@ -63,6 +69,12 @@ var pending_grip := Grip.UNKNOWN
 var ice_touching := false
 var ice_skid := 0.0
 var ice_slide_seen := false
+var landing_pending := 0.0
+var landing_pending_grade := ""
+var pending_bank_exit := NAN
+var last_contact_on_bank := false
+var secure_contacts := 0
+var control_return_seconds := 0.0
 
 func _ready() -> void:
     var loop := TorusMesh.new()
@@ -92,6 +104,7 @@ func _ready() -> void:
     for i in range(RIPPLE_POOL):
         ripple_age.append(0.0)
         ripple_position.append(Vector3.ZERO)
+        ripple_normal.append(Vector3.UP)
         ripple_transition.append(0)
         _hide_ripple(i)
 
@@ -122,6 +135,12 @@ func clear_motion() -> void:
     probe_clock = 0.0
     _clear_rolling_surface()
     _clear_ice_feedback()
+    landing_pending = 0.0
+    landing_pending_grade = ""
+    pending_bank_exit = NAN
+    last_contact_on_bank = false
+    secure_contacts = 0
+    control_return_seconds = 0.0
 
 func _clear_rolling_surface() -> void:
     rolling_surface = Surface.OTHER
@@ -175,7 +194,7 @@ static func landing_grade(seconds: float, lift: float,
 # regression tests. A short road seam is not a flight, a distant bridge is
 # not a touchdown, and a teleport explicitly cancels the old flight.
 func sample_motion(dt: float, touching: bool, clearance: float,
-        position: Vector3, velocity: Vector3) -> Dictionary:
+        position: Vector3, velocity: Vector3, record_landing := true) -> Dictionary:
     if dt <= 0.0 or dt > MAX_SAMPLE_STEP or not is_finite(dt) or (
             not is_finite(clearance) or not position.is_finite() or
             not velocity.is_finite()):
@@ -198,11 +217,12 @@ func sample_motion(dt: float, touching: bool, clearance: float,
             var grade: String = landing_grade(
                 finished_air,finished_lift,-velocity.z,finished_descent)
             if grade != "":
-                landing_count += 1
-                longest_airtime = maxf(longest_airtime,finished_air)
-                total_airtime += finished_air
-                if grade == "PERFECT LANDING":
-                    perfect_landings += 1
+                if record_landing:
+                    landing_count += 1
+                    longest_airtime = maxf(longest_airtime,finished_air)
+                    total_airtime += finished_air
+                    if grade == "PERFECT LANDING":
+                        perfect_landings += 1
                 result = {
                     "grade":grade,"seconds":finished_air,
                     "forward":-velocity.z,"impact":finished_descent,
@@ -255,6 +275,8 @@ func probe_floor(marble: RigidBody3D) -> Dictionary:
         "touching":separation >= CONTACT_MIN and separation <= CONTACT_MAX,
         "clearance":maxf(0.0,separation-RADIUS),
         "ground":ground,
+        "normal":hit["normal"],
+        "bank_exit":collider.get_meta(SCULPTURE.BANK_EXIT_Z,NAN),
         "bridge":collider.has_meta(SHORTCUT.ROLLING_SURFACE),
         "ice":game.selected_track == 1 and material != null and material.friction <= GLACIER_ICE_FRICTION
     }
@@ -315,6 +337,44 @@ func sample_ice_contact(hit: Dictionary, position: Vector3, velocity: Vector3) -
         ice_slide_seen = ice_slide_seen or ice_skid >= 0.12
     return regained and -velocity.z >= 3.0
 
+func sample_control_contact(delta: float, hit: Dictionary, position: Vector3,
+        velocity: Vector3) -> int:
+    landing_pending = maxf(0.0,landing_pending-delta)
+    if is_finite(pending_bank_exit) and position.z < pending_bank_exit-6.0:
+        pending_bank_exit = NAN
+    var bank_exit := float(hit.get("bank_exit",NAN))
+    var touching := bool(hit.get("touching",false))
+    var on_bank := touching and is_finite(bank_exit)
+    if on_bank != last_contact_on_bank:
+        secure_contacts = 0
+        last_contact_on_bank = on_bank
+    if on_bank and velocity.z <= -MIN_LANDING_FORWARD:
+        pending_bank_exit = bank_exit
+    var road_contact: bool = touching and (on_bank or hit.get("bridge",false) or _is_main_road(hit["ground"]))
+    if not road_contact or velocity.z > -MIN_LANDING_FORWARD or (
+            absf(velocity.x) > maxf(2.4,-velocity.z*0.42)):
+        secure_contacts = 0
+        return 0
+    secure_contacts = mini(2,secure_contacts+1)
+    if secure_contacts < 2:
+        return 0
+    if landing_pending > 0.0:
+        landing_pending = 0.0
+        control_return_seconds = CONTROL_RETURN_SECONDS
+        if not on_bank:
+            pending_bank_exit = NAN
+        return LANDING_CONTROL
+    if not on_bank and is_finite(pending_bank_exit):
+        var exited := position.z <= pending_bank_exit+0.4
+        pending_bank_exit = NAN
+        if exited:
+            control_return_seconds = CONTROL_RETURN_SECONDS
+            return BANK_EXIT
+    return 0
+
+func control_weight() -> float:
+    return control_return_seconds/CONTROL_RETURN_SECONDS
+
 func tick_physics(delta: float) -> void:
     if not is_instance_valid(game) or game.race_state != "RACING" or (
             not is_instance_valid(game.player) or
@@ -327,10 +387,8 @@ func tick_physics(delta: float) -> void:
     var velocity: Vector3 = game.player.linear_velocity
     if replica:
         velocity = game.net.local_replica_velocity()
-        if not velocity.is_finite() or (not glacier and not _near_bridge(position.z)):
-            _clear_rolling_surface()
-            _clear_ice_feedback()
-            probe_clock = 0.0
+        if not velocity.is_finite():
+            clear_motion()
             return
     elif game.player.freeze:
         return
@@ -342,49 +400,54 @@ func tick_physics(delta: float) -> void:
     var hit: Dictionary = probe_floor(game.player)
     if hit.is_empty():
         return
-    var event: Dictionary = {}
-    if not replica:
-        event = sample_motion(dt,bool(hit["touching"]),float(hit["clearance"]),position,velocity)
+    var event := sample_motion(dt,bool(hit["touching"]),float(hit["clearance"]),position,velocity,not replica)
     var transition := sample_rolling_surface(hit,position)
     var regained := glacier and sample_ice_contact(hit,position,velocity)
     if not event.is_empty():
-        var ground_point: Vector3 = hit.get(
-            "ground",game.player.global_position-Vector3.UP*RADIUS)
-        _show_landing(event,ground_point)
-    elif regained:
+        _show_landing(event,not replica)
+    var control := sample_control_contact(dt,hit,position,velocity)
+    if control != 0:
+        if control == BANK_EXIT:
+            game.audio.play_bank_exit()
+        if quality > 0:
+            var grade := landing_pending_grade if control == LANDING_CONTROL else ""
+            _emit_ripple(hit["ground"],grade,BANK_EXIT if control == BANK_EXIT else 0,hit["normal"])
+    elif regained and event.is_empty():
         game.audio.play_grip_return()
         if quality > 0:
-            _emit_ripple(hit["ground"],"",GRIP_RETURN)
-    elif transition != 0 and quality > 0 and (
+            _emit_ripple(hit["ground"],"",GRIP_RETURN,hit["normal"])
+    elif transition != 0 and quality > 0 and event.is_empty() and (
             Vector2(velocity.x,velocity.z).length_squared() >= 9.0):
-        _emit_ripple(hit["ground"],"",transition)
+        _emit_ripple(hit["ground"],"",transition,hit["normal"])
 
 func camera_weight() -> float:
     if not airborne:
         return 0.0
     return clampf((flight_time-TAKEOFF_GRACE)/0.26,0.0,1.0)
 
-func _show_landing(event: Dictionary, ground_point: Vector3) -> void:
-    # Ground location comes from the actual static road ray, not the shader
-    # or a duplicated approximation of the shortcut elevation.
+func _show_landing(event: Dictionary, announce := true) -> void:
     if not is_instance_valid(game) or not is_instance_valid(game.player):
         return
     var grade: String = event["grade"]
     var seconds: float = event["seconds"]
-    game.ui.show_race_moment("%s  •  %.2fs" % [grade,seconds],
-        1.35 if grade == "BIG AIR" else 1.1)
+    if announce:
+        game.ui.show_race_moment("%s  •  %.2fs" % [grade,seconds],
+            1.35 if grade == "BIG AIR" else 1.1)
     game.audio.touchdown(grade,float(event["impact"]))
+    landing_pending = RETURN_WINDOW
+    landing_pending_grade = grade
+    secure_contacts = 0
     game.camera_shake = minf(0.105,maxf(game.camera_shake,
-        0.042 if grade != "BIG AIR" else 0.075))
-    if quality > 0:
-        _emit_ripple(ground_point,grade)
+        0.075 if grade == "BIG AIR" else 0.042))
 
-func _emit_ripple(ground_point: Vector3, grade: String, transition := 0) -> void:
+func _emit_ripple(ground_point: Vector3, grade: String, transition := 0,
+        normal := Vector3.UP) -> void:
     var index: int = ripple_head
     ripple_head = (ripple_head+1)%RIPPLE_POOL
     ripple_transition[index] = transition
     ripple_age[index] = BRIDGE_PULSE_LIFETIME if transition != 0 else PULSE_LIFETIME
-    ripple_position[index] = ground_point+Vector3.UP*0.065
+    ripple_normal[index] = normal
+    ripple_position[index] = ground_point+normal*0.065
     if grade == "BIG AIR":
         ripple_age[index] = PULSE_LIFETIME*1.15
     _animate_ripple(index)
@@ -398,19 +461,22 @@ func _animate_ripple(index: int) -> void:
     var radius: float = 0.75+progress*(2.4 if quality == 2 else 1.7)
     if transition != 0:
         radius = 0.77+progress*0.94
-    var pose := Transform3D(
-        Basis().scaled(Vector3(radius,1.0,radius)),ripple_position[index])
+    var floor_plane := Basis(Quaternion(Vector3.UP,ripple_normal[index]))
+    var pose := Transform3D(floor_plane.scaled_local(Vector3(radius,1.0,radius)),ripple_position[index])
     ripple.multimesh.set_instance_transform(index,pose)
     var biome := clampi(game.selected_track,0,TRACK_TINTS.size()-1)
     var tint: Color = BRIDGE_TINTS[biome] if transition == 1 else TRACK_TINTS[biome]
     if transition == GRIP_RETURN:
         tint = Color("#ffe3a8")
+    elif transition == BANK_EXIT:
+        tint = BRIDGE_TINTS[biome].lightened(0.28)
     tint.a = (0.89 if transition != 0 else 0.72)*ratio*ratio
     ripple.multimesh.set_instance_color(index,tint)
 
 func advance_visuals(delta: float) -> void:
     if not is_finite(delta) or delta <= 0.0:
         return
+    control_return_seconds = maxf(0.0,control_return_seconds-delta)
     for i in range(RIPPLE_POOL):
         if ripple_age[i] <= 0.0:
             continue

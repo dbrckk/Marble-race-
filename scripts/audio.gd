@@ -67,6 +67,7 @@ var on_ice := false
 var ice_grounded := false
 var ice_skid_target := 0.0
 var ice_skid_mix := 0.0
+var control_recovery := 0.0
 var replica_roll_speed := -1.0
 var air: AudioStreamPlayer
 var percussion: AudioStreamPlayer
@@ -213,6 +214,13 @@ func play_grip_return() -> void:
     if race_active and hazard_cooldown <= 0.0 and collision_duck < 1.9:
         _voice(WOOD_HITS[1],-21.0,1.05)
 
+func play_bank_exit() -> void:
+    if race_active and hazard_cooldown <= 0.0 and collision_duck < 1.9:
+        _voice([WOOD_HITS[0],GLASS_HITS[1],METAL_HITS[0]][track_theme],-25.0,1.05)
+
+func set_control_recovery(weight: float) -> void:
+    control_recovery = clampf(weight,0.0,1.0) if is_finite(weight) else 0.0
+
 func _clear_bridge_roll() -> void:
     set_bridge_surface(false,false)
     bridge_mix = 0.0
@@ -307,6 +315,7 @@ func _process(delta: float) -> void:
             [-1.0,-3.0,2.0][track_theme])+pack_percussion_lift(pack_pressure)
         var wind_duck := maxf(hazard_duck*1.8,collision_duck*2.2)
         wind_duck = maxf(wind_duck,maxf(4.5*pass_mix_seconds/PASS_MIX_SECONDS,3.6*ice_skid_mix))
+        wind_duck = maxf(wind_duck,5.0*control_recovery)
         var corner := turn_mix*(1.0-flight_intensity)
         var thrust := 0.0 if warning_active else turbo_mix
         air_target = -52.0+energy*25.0+flight_intensity*7.0+thrust*2.6*(1.0-corner)-maxf(
@@ -345,7 +354,8 @@ func _update_rolling(delta: float) -> void:
     var foreground := maxf(hazard_duck*0.56,collision_duck*0.48)
     var corner := turn_mix*(1.0-flight_intensity)
     var corner_roll := corner*2.2*clampf(speed/13.0,0.0,1.0)*(1.0-clampf(foreground/2.0,0.0,1.0))
-    var rolling_target := clampf(-41.0+speed*1.65,-48.0,-17.0)-foreground-flight_intensity*14.0+corner_roll
+    var recovery_roll := 2.6*control_recovery*(1.0-clampf(foreground/2.0,0.0,1.0))
+    var rolling_target := clampf(-41.0+speed*1.65,-48.0,-17.0)-foreground-flight_intensity*14.0+maxf(corner_roll,recovery_roll)
     var using_surface_loop := on_ice or on_bridge
     var floor_missing := (on_ice and not ice_grounded) or (on_bridge and not bridge_grounded)
     if floor_missing:
@@ -353,6 +363,8 @@ func _update_rolling(delta: float) -> void:
     var response := 26.0
     if using_surface_loop:
         response = 105.0 if floor_missing else 42.0
+    if control_recovery > 0.0:
+        response = maxf(response,56.0)
     roll_level_db = move_toward(roll_level_db,rolling_target,delta*response)
     rolling.pitch_scale = clampf(0.63+speed*0.06,0.73,1.65)
     var fade_seconds := ICE_FADE_SECONDS if on_ice else SURFACE_FADE_SECONDS
@@ -499,6 +511,7 @@ func _reset_priority_mix() -> void:
     turn_target = 0.0
     turn_mix = 0.0
     boost_delay = 0.0
+    control_recovery = 0.0
 
 func update_progress(ratio: float) -> void:
     finish_progress = clampf(ratio,0.0,1.0)

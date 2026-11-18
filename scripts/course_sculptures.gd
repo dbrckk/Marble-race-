@@ -18,6 +18,7 @@ const BANK_TOP_RISE := 0.20
 # A spare collision-layer bit identifies ONLY true rideable apexes for a
 # bounded physics ray. Marbles still collide normally on the original bit 1.
 const BANK_PROBE_LAYER := 4
+const BANK_EXIT_Z := &"bank_exit_z"
 const APEX_MIN_FORWARD_SPEED := 7.5
 const APEX_FORWARD_IMPULSE := 1.10
 const APEX_LIFT_IMPULSE := 0.34
@@ -154,6 +155,7 @@ func _banked_racing_apexes() -> void:
             # Only apex road collision shares this extra probe bit. The
             # original marble contact layer/mask stay unchanged.
             body.collision_layer = 1 | BANK_PROBE_LAYER
+            body.set_meta(BANK_EXIT_Z,z-BANK_HALF_LENGTH)
             var collider := CollisionShape3D.new()
             collider.name = "SculptedApexCollision"
             collider.shape = shape

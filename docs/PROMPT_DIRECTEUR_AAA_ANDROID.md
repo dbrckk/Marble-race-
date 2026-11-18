@@ -486,6 +486,10 @@ Base `2b005f34cd71bc795f8548b301a6848a566ecdb3`. Le vent monte progressivement a
 
 Base `158254663ae083a25d51c605817d0c78aef47a54`. Le roulement de la glace démarre après deux contacts avec une plaque ou le pont. La glisse latérale par rapport à l’axe du tracé éclaircit la traînée standard et atténue le vent. Le retour sur une surface plus adhérente produit un son bref et une onde ambrée s’il y a eu une véritable glisse. Les sauts et les corrections réseau ne déclenchent pas de fausse reprise. Les tests couvrent les trois tracés de Glacier avec les collisions existantes.
 
+### 2026-11-18 — Reprise de contrôle après les sauts et virages relevés (1.131.0-rc)
+
+Base `838aba31c66b333726dd8351c3fb74c28786ec03`. Deux appuis stables après la réception d’un saut ou la sortie aval d’un virage relevé font ressortir le roulement et atténuent le vent. L’onde s’aligne sur la pente mesurée sous la bille. La sortie de virage ajoute un bref son propre à chaque circuit. Les effets utilisent la sonde de sol et les voix existantes, avec les positions validées du serveur en ligne.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Faire ressortir la reprise de contrôle à la réception des sauts et à la sortie des virages relevés. Mesurer le mix et la fluidité du peloton sur un téléphone Android dès qu’il est disponible.
+Améliorer l’anticipation des sauts et la lisibilité de leur zone de réception. Mesurer le mix et la fluidité du peloton sur un téléphone Android dès qu’il est disponible.

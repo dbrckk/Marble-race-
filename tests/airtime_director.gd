@@ -101,11 +101,22 @@ func _run() -> void:
                 p+Vector3(0,0,-9.0),Vector3(0,0,-13)).is_empty() and
                 flight.landing_count == 1,
                 "Continuous rolling must never farm additional landings")
-            flight._show_landing(earned,hit["ground"])
+            flight.clear_motion()
+            flight._show_landing(earned)
             assert(stage.ui.race_moment_label.text.contains("PERFECT LANDING"))
-            assert(flight.ripple_age[0] > 0.0)
+            var contact_velocity := Vector3(0,0,-13)
+            assert(flight.sample_control_contact(0.05,{"touching":false},before,contact_velocity) == 0)
+            assert(flight.sample_control_contact(0.05,hit,before,Vector3(10,0,-13)) == 0,
+                "A sideways skid has not stabilized the landing")
+            player.linear_velocity = contact_velocity
+            flight.tick_physics(0.05)
+            assert(flight.control_weight() == 0.0 and flight.ripple_age[0] == 0.0)
+            flight.tick_physics(0.05)
+            assert(flight.control_weight() == 1.0 and flight.ripple_age[0] > 0.0)
+            assert(flight.ripple_normal[0].is_equal_approx(hit["normal"]))
+            player.linear_velocity = before_velocity
             flight.advance_visuals(0.77)
-            assert(flight.ripple_age[0] == 0.0)
+            assert(flight.ripple_age[0] == 0.0 and flight.control_weight() == 0.0)
             # Clear and arm again. A seam hop shorter than 0.125s must
             # produce zero false positives.
             flight.reset_round()
@@ -140,6 +151,9 @@ func _run() -> void:
             if biome == 1 and not _verify_glacier_grip(stage,flight,player):
                 quit(1)
                 return
+            if not _verify_bank_exit(stage,flight,player):
+                quit(1)
+                return
             stage.return_to_menu()
             assert(not stage.audio.bridge_rolling.playing and stage.audio.bridge_mix == 0.0)
             checked += 1
@@ -152,6 +166,7 @@ func _run() -> void:
     print("AIRTIME_PASS: nine real floor probes, safe jump and touchdown arcs, 40 marble exclusion, mobile pooled ripples and physics integrity")
     print("BRIDGE_SURFACE_PASS: nine real bridge floors, contact confirmation, airborne rejection, pooled ripples and reversible audio fades")
     print("GLACIER_GRIP_PASS: three real ice layouts, lateral slip, jump rejection and one grounded recovery cue")
+    print("CONTROL_RETURN_PASS: nine real bank departures and two-sample touchdown recoveries with floor-aligned effects")
     quit(0)
 
 func _verify_bridge_surface(stage: Node3D, flight: Node3D, player: RigidBody3D,
@@ -265,4 +280,57 @@ func _verify_glacier_grip(stage: Node3D, flight: Node3D, player: RigidBody3D) ->
     sound.set_ice_feedback(false,false,0.0)
     sound._update_rolling(0.22)
     assert(not sound.bridge_rolling.playing)
+    return true
+
+func _verify_bank_exit(stage: Node3D, flight: Node3D, player: RigidBody3D) -> bool:
+    flight.reset_round()
+    var bank_point: Vector3
+    var dry_point: Vector3
+    var exit_z := NAN
+    for i in range(1,stage.course_sculptures.banks.size(),2):
+        var bank: StaticBody3D = stage.course_sculptures.banks[i]
+        bank_point = bank.to_global(Vector3.UP*0.055)+Vector3.UP*AIR.RADIUS
+        player.global_position = bank_point
+        var bank_hit: Dictionary = flight.probe_floor(player)
+        if not bank_hit.get("touching",false) or not is_finite(bank_hit.get("bank_exit",NAN)):
+            continue
+        var candidate_exit: float = bank_hit["bank_exit"]
+        var z := candidate_exit-0.72
+        dry_point = Vector3(bank_point.x,stage.height_at(z)+0.43,z)
+        player.global_position = dry_point
+        var dry_hit: Dictionary = flight.probe_floor(player)
+        if dry_hit.get("touching",false) and not is_finite(dry_hit.get("bank_exit",NAN)) and (
+                flight._is_main_road(dry_hit["ground"])):
+            exit_z = candidate_exit
+            break
+    assert(is_finite(exit_z),"Find a measurable bank and real downstream floor")
+    player.global_position = bank_point
+    player.linear_velocity = Vector3(0,0,-13)
+    flight.tick_physics(0.05)
+    flight.tick_physics(0.05)
+    assert(is_equal_approx(flight.pending_bank_exit,exit_z) and flight.control_weight() == 0.0)
+    player.global_position = bank_point+Vector3.UP*0.75
+    flight.tick_physics(0.05)
+    assert(flight.control_weight() == 0.0,"Leaving the bank in the air cannot confirm grip")
+    player.global_position = dry_point
+    flight.tick_physics(0.05)
+    assert(flight.control_weight() == 0.0)
+    flight.tick_physics(0.05)
+    assert(flight.control_weight() == 1.0 and flight.ripple_transition.has(AIR.BANK_EXIT))
+    assert(is_nan(flight.pending_bank_exit) and flight.landing_count == 0)
+    flight.advance_visuals(0.15)
+    var remaining: float = flight.control_weight()
+    flight.tick_physics(0.05)
+    assert(remaining < 1.0 and flight.control_weight() == remaining,
+        "The same bank cannot replay its exit cue")
+    assert(player.global_position.is_equal_approx(dry_point) and player.linear_velocity == Vector3(0,0,-13))
+    var sound: Node3D = stage.audio
+    for frame in range(45):
+        sound._process(0.10)
+    var open_wind: float = sound.air.volume_db
+    var steady_roll: float = sound.rolling.volume_db
+    sound.set_control_recovery(remaining)
+    for frame in range(3):
+        sound._process(0.05)
+    assert(sound.air.volume_db < open_wind-2.0 and sound.rolling.volume_db > steady_roll+1.0)
     return true

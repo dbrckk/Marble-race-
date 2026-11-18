@@ -1487,6 +1487,7 @@ func _process(delta: float) -> void:
             local_surface and airtime.bridge_grounded,replica_speed)
         audio.set_ice_feedback(local_surface and airtime.glacier_grip == AirtimeDirector.Grip.ICE,
             local_surface and airtime.ice_touching,airtime.ice_skid if local_surface else 0.0)
+        audio.set_control_recovery(airtime.control_weight() if local_surface else 0.0)
         var drive_audio: bool = local_surface and net.role != "server" and (
             replica_speed >= 0.0 if net.is_client() else not player.freeze)
         audio.set_drive_context(drive_audio and boosting and boost_energy > 0.0,
