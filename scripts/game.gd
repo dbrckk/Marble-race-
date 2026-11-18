@@ -1252,14 +1252,20 @@ func _process(delta: float) -> void:
 
 func _physics_process(delta: float) -> void:
     steer = move_toward(steer,steer_target,delta*8.5)
-    kinetic_time += delta
+    # Drive all mechanisms from a bounded absolute phase instead of
+    # accumulating spinner rotations. This avoids long-session drift and
+    # keeps their pose deterministic after a mobile resume/frame hitch.
+    if is_finite(delta) and delta > 0.0:
+        kinetic_time = fposmod(kinetic_time+minf(delta,0.10),TAU*100.0)
     for obj in moving_obstacles:
         if not is_instance_valid(obj):
             continue
         if obj.get_meta("motion_kind", "") == "spinner":
-            obj.rotation.y += delta * float(obj.get_meta("spin_speed"))
+            obj.rotation.y = fposmod(kinetic_time*float(
+                obj.get_meta("spin_speed")),TAU)
         else:
-            obj.rotation.z = sin(kinetic_time*float(obj.get_meta("speed"))+float(obj.get_meta("phase")))*0.65
+            obj.rotation.z = sin(kinetic_time*float(
+                obj.get_meta("speed"))+float(obj.get_meta("phase")))*0.65
     if is_instance_valid(race_director) and race_state == "RACING":
         # All clients animate the same scripted hazards; only authority
         # awards gameplay physics when a marble actually makes a near-miss.
