@@ -30,7 +30,11 @@ const PACK_SATURATION := 4
 const TURN_FULL_ANGLE := [0.025,0.056,0.059]
 const OCCLUSION_RADIUS := 0.43
 const EXIT_FEEDBACK_SECONDS := 0.60
+const EXIT_CLEAR_MARGIN := 1.15
 const WOODWORKS_EXIT_LEAD_SECONDS := 0.58
+const OPENING_EXIT_RANGE := 9.0
+const OPENING_CLEAR_LEAD_SECONDS := 0.64
+const OPENING_MIN_RECOVERED_SPEED := 7.0
 
 var game: Node3D
 var elapsed := 0.0
@@ -93,8 +97,46 @@ func _clear_exit_sample() -> void:
 func exit_speed_weight() -> float:
     return exit_feedback_left/EXIT_FEEDBACK_SECONDS
 
+func sample_opening_exit(at: Vector3, velocity: Vector3, hazard_z: float, grounded: bool, turbo: bool) -> bool:
+    var art: MeshInstance3D = game.opening_obstacle_art
+    if game.selected_track == 0 or not is_instance_valid(art) or at.z > art.entry_z+1.5 or (
+            at.z <= art.clear_z-OPENING_EXIT_RANGE):
+        return false
+    var speed := -velocity.z
+    if turbo or game.airtime.airborne or not is_finite(speed) or speed < -0.3:
+        _clear_exit_sample()
+        exit_feedback_left = 0.0
+        return true
+    if not grounded:
+        # A missed probe at a plank seam interrupts the rising samples.
+        # Keep the measured slowdown until the original deadline.
+        exit_rising_samples = 0
+        exit_feedback_left = 0.0
+        return true
+    if at.z >= art.clear_z:
+        # Reuse the existing acceleration sampler. Its 1.15 m post-centre
+        # buffer lands on the rear-face clearance, including the paddle.
+        var plane: float = art.clear_z+EXIT_CLEAR_MARGIN
+        if not is_equal_approx(exit_gate_z,plane):
+            _clear_exit_sample()
+        exit_gate_z = plane
+        exit_deadline = elapsed+1.10
+        exit_low_speed = minf(exit_low_speed,maxf(0.0,speed))
+        exit_last_speed = speed
+        exit_rising_samples = 0
+        exit_feedback_left = 0.0
+        return true
+    var next_distance := at.z-hazard_z
+    if (next_distance >= 0.0 and next_distance < speed*OPENING_CLEAR_LEAD_SECONDS) or (
+            game.race_director.first_gate_contact_eta(at,velocity) <= game.race_director.URGENT_GATE_SECONDS):
+        _clear_exit_sample()
+        exit_feedback_left = 0.0
+    elif speed >= 5.0:
+        sample_obstacle_exit(at.z,speed,INF,true,false,INF,OPENING_MIN_RECOVERED_SPEED)
+    return true
+
 func sample_obstacle_exit(z: float, speed: float, hazard_z: float, grounded: bool, turbo: bool,
-        woodworks_arm_z := INF) -> void:
+        woodworks_arm_z := INF, min_recovered_speed := 10.0) -> void:
     if not grounded or turbo or not is_finite(speed) or speed < 5.0:
         _clear_exit_sample()
         exit_feedback_left = 0.0
@@ -103,7 +145,7 @@ func sample_obstacle_exit(z: float, speed: float, hazard_z: float, grounded: boo
         _clear_exit_sample()
     # An obstacle farther down the next section must not interrupt the
     # recovered pace while there's still time to drive a clear line.
-    if z < woodworks_arm_z-1.15 and z > woodworks_arm_z-9.0 and (
+    if z < woodworks_arm_z-EXIT_CLEAR_MARGIN and z > woodworks_arm_z-9.0 and (
             hazard_z < woodworks_arm_z-8.5 and z-hazard_z > speed*WOODWORKS_EXIT_LEAD_SECONDS):
         hazard_z = INF
     var ahead := z-hazard_z
@@ -122,12 +164,12 @@ func sample_obstacle_exit(z: float, speed: float, hazard_z: float, grounded: boo
     if not is_finite(exit_gate_z):
         return
     exit_low_speed = minf(exit_low_speed,speed)
-    if z < exit_gate_z-1.15 and speed >= exit_last_speed+0.14:
+    if z < exit_gate_z-EXIT_CLEAR_MARGIN and speed >= exit_last_speed+0.14:
         exit_rising_samples += 1
     else:
         exit_rising_samples = 0
     exit_last_speed = speed
-    if exit_rising_samples >= 2 and speed >= 10.0 and speed-exit_low_speed >= 1.10:
+    if exit_rising_samples >= 2 and speed >= min_recovered_speed and speed-exit_low_speed >= 1.10:
         exit_feedback_left = EXIT_FEEDBACK_SECONDS
         _clear_exit_sample()
 
@@ -384,8 +426,9 @@ func tick(delta: float) -> void:
         var driving: bool = game.net.is_client() or not game.player.freeze
         var woodworks_arm_z: float = game.race_director.event_z(game.race_director.WOODWORKS_RETURN_ARM) if (
             game.selected_track == 0) else INF
-        sample_obstacle_exit(p.z,preview_speed,next_hazard.z,driving and (
-            game.airtime.course_grounded and not game.airtime.airborne),game.boosting,woodworks_arm_z)
+        var grounded: bool = driving and game.airtime.course_grounded and not game.airtime.airborne
+        if not sample_opening_exit(p,preview_velocity,next_hazard.z,grounded,game.boosting):
+            sample_obstacle_exit(p.z,preview_speed,next_hazard.z,grounded,game.boosting,woodworks_arm_z)
         if game.cam_mode == 0 and is_instance_valid(game.camera):
             candidate = next_hazard
             var bridge_merge: bool = game.selected_track == 2 and is_instance_valid(road) and (

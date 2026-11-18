@@ -106,6 +106,16 @@ func _check_opening_obstacles(game: Node3D, layout: int) -> bool:
                 assert(gap.y <= footprint.position.x-OpeningObstacles.CLEARANCE+0.001 or
                     gap.x >= footprint.end.x+OpeningObstacles.CLEARANCE-0.001,
                     "Do not paint an entry gap through geometry or a paddle sweep")
+    if game.selected_track == 2:
+        var baffle := section.get_node("AntiEdgeBaffle_01_R") as StaticBody3D
+        var baffle_shape := baffle.get_child(0).shape as BoxShape3D
+        assert(baffle.position.x-baffle_shape.size.x*0.5 >= 3.75+Racer.RADIUS,
+            "Gauntlet's downstream shoulder must leave a sphere-wide line near the right side")
+        if layout == 0:
+            var block := section.get_node("SlalomBlock_01_01") as StaticBody3D
+            var block_shape := block.get_child(0).shape as BoxShape3D
+            assert(block.position.x-block_shape.size.x*0.5 >= 3.75+Racer.RADIUS,
+                "The right slalom block must lead into the same line as the baffle")
     game.set_graphics_quality(0)
     assert(art.is_visible_in_tree(), "Economy must retain approach guidance")
     game.set_graphics_quality(1)

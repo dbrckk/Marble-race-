@@ -155,6 +155,7 @@ func _verify() -> void:
                 return
             if track != 0:
                 assert(_verify_opening_pack(game))
+                assert(_verify_opening_recovery(game))
             if track == 0 and not await _verify_woodworks_recovery(game):
                 quit(1)
                 return
@@ -183,6 +184,7 @@ func _verify() -> void:
     print("PACK_DYNAMICS_PASS: 9 real courses, 40 marbles, high-deck exclusion, adaptive original audio and duel framing")
     print("PACK_OBSTACLE_READABILITY_PASS: 9 layouts, real obstacle projection, sightline overlap and touch-safe clearance")
     print("OPENING_PACK_PASS: 6 layouts, reachable painted lanes, rival cut-ins, camera and entry handoff")
+    print("OPENING_RECOVERY_PASS: six real module exits, regained speed, imminent hazard and turbo priority")
     print("GLACIER_CENTER_MARK_PASS: batched real road paint and occlusion-only camera overlay on three layouts")
     print("GLACIER_EXIT_GAP_PASS: three layouts at 23 m/s, shutter priority, touch HUD and downstream collision")
     print("GLACIER_FINISH_PAIR_PASS: both lanes, three layouts, real finish and manual camera isolation")
@@ -257,6 +259,39 @@ func _verify_opening_pack(game: Node3D) -> bool:
         var alternative: Vector3 = moments.opening_guidance.get("target",Vector3.INF)
         assert(alternative.is_finite() and absf(alternative.x-x) >= 0.95,
             "Use a reachable portion of a wide gap when a stalled rival occupies its middle")
+    moments.reset_round()
+    return true
+
+func _verify_opening_recovery(game: Node3D) -> bool:
+    var art: MeshInstance3D = game.opening_obstacle_art
+    var moments: RefCounted = game.race_moments
+    moments.reset_round()
+    game.airtime.reset_round()
+    var inside: float = art.clear_z+0.35
+    var x: float = game.track_center_at(inside)
+    var at := Vector3(x,game.height_at(inside)+0.45,inside)
+    assert(moments.sample_opening_exit(at,Vector3(0,0,-4.4),INF,true,false))
+    assert(moments.sample_opening_exit(at,Vector3(0,0,-6.2),INF,true,false))
+    assert(moments.exit_speed_weight() == 0.0,"Acceleration inside the physical module is too early")
+    at.z = art.clear_z-0.3
+    moments.sample_opening_exit(at,Vector3(0,0,-6.6),at.z-6.0,true,false)
+    at.z -= 0.65
+    moments.sample_opening_exit(at,Vector3(0,0,-7.6),at.z-6.0,true,false)
+    assert(moments.exit_speed_weight() == 1.0,"Two rising samples should reveal the regained pace")
+    game.player.position = Vector3(at.x,game.height_at(at.z)+0.45,at.z)
+    game.player.linear_velocity = Vector3(0,0,-7.6)
+    var quality: int = game.graphics_quality
+    game.set_graphics_quality(0)
+    game.ui.label_timer = 0.25
+    game.ui.update_hud()
+    assert(game.ui.speed_label.text.contains("↑"),"The recovery must be visible in Economy")
+    game.set_graphics_quality(quality)
+    moments.sample_opening_exit(at,Vector3(0,0,-8.1),at.z-2.0,true,false)
+    assert(moments.exit_speed_weight() == 0.0,"Leave room to read the next imminent blocker")
+    at.z = inside
+    moments.sample_opening_exit(at,Vector3(0,0,-7),INF,true,false)
+    moments.sample_opening_exit(at,Vector3(0,0,-8),INF,true,true)
+    assert(not is_finite(moments.exit_gate_z),"Turbo must clear the measured natural recovery")
     moments.reset_round()
     return true
 

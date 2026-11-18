@@ -467,7 +467,9 @@ func pack_hazard_ahead(at: Vector3, velocity: Vector3) -> Vector3:
         var index: int = gate["index"]
         var distance: float = at.z-float(gate["z"])
         var threatened: bool
-        if selected_track == 0 and index == RaceDirector.WOODWORKS_RETURN_ARM:
+        if selected_track != 0 and index == 0:
+            threatened = is_finite(race_director.first_gate_contact_eta(at,velocity))
+        elif selected_track == 0 and index == RaceDirector.WOODWORKS_RETURN_ARM:
             threatened = not bridge and (at.z <= ShortcutRoute.EXIT_Z or shortcut_route.merge_traffic_lane(at) >= 0) and is_finite(
                 race_director.woodworks_arm_contact_eta(distance/forward,forward,at.x,velocity.x))
         else:
@@ -1173,6 +1175,11 @@ func _edge_baffles(parent: Node3D, center_z: float, section: int, glacier_return
         var merge_side: bool = woodworks_lip or (glacier_return and section == ShortcutRoute.EXIT_SECTION+1 and side < 0.0)
         var size := Vector3(0.94 if merge_side else 2.72,1.05,1.32)
         var edge_offset := 6.04 if merge_side else 5.17
+        if selected_track == 2 and section == 1 and side > 0.0:
+            # Leave space on the inside of the downstream shoulder baffle
+            # for a pack exiting the opening pegs or staggered blocks.
+            size.x = 2.10
+            edge_offset = 5.33
         var batched_art := section == 1 or section == FINAL_OBSTACLE_SECTION
         var node := _box(parent,Vector3(side*edge_offset,height_at(z)+0.49,z),
             size,_lacquer(material_color),true,true,not batched_art)
@@ -1294,6 +1301,11 @@ func _slalom(parent: Node3D, center_z: float, n: int) -> void:
         var x: float = side*(3.5+0.20*sin(float(n*3+i)))
         var slalom_color: Color = BARRIER_COLORS[(n+i)%6]
         var size := Vector3(3.4,0.75,1.05)
+        if selected_track == 2 and n == 1 and i == 1 and side > 0.0:
+            # This block and the trailing baffle used to funnel the opening
+            # pack into the same shoulder. Keep the block close to the rail.
+            x = 5.30
+            size.x = 1.65
         if selected_track == 0 and n == ShortcutRoute.EXIT_SECTION and i == 3:
             # Keep the physical route from the bridge through the open rail.
             x = 2.35

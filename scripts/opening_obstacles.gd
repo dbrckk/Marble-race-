@@ -86,6 +86,12 @@ func build(section: Node3D, game: Node3D, floor_z: float, section_index: int, la
                 Vector2(width*2.0,spinner_radius-depth)))
         _sweep_arcs(surface,game,floor_z,spinner_center,spinner_radius,palette[2])
     entry_z = first_edge+ENTRY_LEAD
+    if section_index == 1:
+        var hammer := section.get_node_or_null("SwingHammer_01") as AnimatableBody3D
+        if is_instance_valid(hammer):
+            # The swing rotates about Z, leaving the rear face at this depth.
+            var hit := hammer.get_child(0) as CollisionShape3D
+            clear_z = minf(clear_z,_footprint(hit).position.y-CLEARANCE)
     if game.selected_track == 2 and section_index == game.FINAL_OBSTACLE_SECTION:
         _forge_passing_marks(surface,section,game,floor_z,section_index)
     if section_index == 1:

@@ -600,6 +600,12 @@ Sur Switchback et Gauntlet, le repère menthe reprend les ouvertures de la grill
 
 Les tests sur les six variantes couvrent les passages dégagés, les rivaux qui coupent la trajectoire, les billes hors du plan de roulement et l’effacement du repère à l’entrée. Les tests réseau vérifient les vitesses des répliques et l’arrêt du guidage sur des données périmées. L’essai sur téléphone Android reste à faire.
 
+### 2026-11-18 — Relance après le premier module (1.157.0-rc)
+
+Sur Gauntlet, le bloc droit du premier slalom et la bordure aval laissent davantage de place au peloton côté intérieur. Sur Switchback et Gauntlet, l’indicateur de reprise suit l’accélération mesurée après la dernière face du module, y compris lorsqu’un marteau prolonge l’obstacle. Le premier volet ou piston se signale à l’approche. Un risque de contact imminent peut prendre la priorité avant la sortie du module.
+
+Sur les deux départs de Gauntlet reproduits à quarante billes avec le même scénario sans braquage, le passage deux mètres après la sortie est mesuré à 3,53 s contre 6,73 s sur la variante 2, et à 9,25 s contre 12,92 s sur la variante 3. Les validations couvrent les six variantes, la reprise sans turbo et l’ordre des avertissements. L’essai sur téléphone Android reste à faire.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Fluidifier la reprise de vitesse à la sortie du premier module sur Switchback et Gauntlet et annoncer le premier volet ou piston au bon moment.
+Améliorer la trajectoire dans le peloton après le premier piston de Gauntlet, avec un repère pour la prochaine ouverture.

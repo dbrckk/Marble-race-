@@ -248,6 +248,7 @@ func _verify() -> void:
             assert(not label.visible,
                 "Do not clutter the HUD with hazards beyond the lookahead")
             if biome != 0:
+                assert(_verify_opening_gate_handoff(game))
                 _verify_biome_lane(game,biome)
             else:
                 await physics_frame
@@ -272,7 +273,48 @@ func _verify() -> void:
     print("TIMED_HUD_PASS: 9 layouts, speed-aware approaches, original cues, Glacier ice and bridge handoffs, Forge signals, encounter order, piston crossing windows and final obstacle priority")
     print("GLACIER_EXIT_OBSTACLE_PASS: physical peg and gate-post footprints, early notice, quiet lanes and pass cleanup")
     print("WOODWORKS_ARM_PASS: full sweep, occupied gap, occlusion and overtake handoff")
+    print("FIRST_GATE_HANDOFF_PASS: six layouts, quiet opening, arrival-window alert and live phase")
     quit(0)
+
+func _verify_opening_gate_handoff(game: Node3D) -> bool:
+    var director: Node3D = game.race_director
+    var art: MeshInstance3D = game.opening_obstacle_art
+    var player: RigidBody3D = game.player
+    var hud: CanvasLayer = game.ui
+    var gate_z: float = director.event_z(0)
+    var inside: float = art.clear_z+0.35
+    var center: float = game.track_center_at(gate_z)
+    game.race_moments.reset_round()
+    game.airtime.reset_round()
+    player.position = Vector3(center,game.height_at(inside)+0.45,inside)
+    player.linear_velocity = Vector3(0,0,-(inside-gate_z)/1.58)
+    assert(not is_finite(director.first_gate_contact_eta(player.position,player.linear_velocity)))
+    hud.label_timer = 0.25
+    hud.update_hud()
+    assert(not hud.timed_gate_label.visible,"A clear gate forecast must wait until the opening is cleared")
+    player.linear_velocity.z = -23.0
+    var eta := (inside-gate_z)/23.0
+    var contact := INF
+    for sample in range(150):
+        var clock := float(sample)*0.05
+        director.animate(clock)
+        player.position.x = director.position_at(0,clock+eta).x
+        contact = director.first_gate_contact_eta(player.position,player.linear_velocity)
+        if contact <= DIRECTOR.URGENT_GATE_SECONDS:
+            break
+    assert(is_finite(contact))
+    hud.label_timer = 0.25
+    hud.update_hud()
+    if game.selected_track == 2:
+        var surface: Dictionary = game.course_mechanics.upcoming_lane(player.position,player.linear_velocity,INF)
+        if float(surface.get("contact_eta",INF)) < contact:
+            assert(hud.biome_lane_label.visible and hud.biome_lane_label.text.contains("VENT"))
+            return true
+    assert(hud.timed_gate_label.visible and hud.timed_gate_backdrop.visible)
+    assert(hud.timed_gate_label.text.contains(DIRECTOR.EVENT_NAMES[game.selected_track]) and
+        hud.timed_gate_label.text.contains("DODGE!"),"A real collision at speed should interrupt the opening")
+    assert(hud.timed_gate_label.text.contains("%.1fs" % contact))
+    return true
 
 func _verify_woodworks_arm(game: Node3D, layout: int) -> bool:
     var director: Node3D = game.race_director

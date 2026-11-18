@@ -1988,7 +1988,8 @@ func update_hud() -> void:
         not game.player.finished and not game.player.eliminated)
     var turbo: bool = playing and game.boosting and game.boost_energy > 0.0 and velocity.z < -3.0
     var released: float = game.race_moments.exit_speed_weight() if (
-        playing and not turbo and velocity.z <= -10.0 and game.race_moments != null) else 0.0
+        playing and not turbo and velocity.z <= -RACE_MOMENTS.OPENING_MIN_RECOVERED_SPEED and (
+            game.race_moments != null)) else 0.0
     var ice_entry: float = game.airtime.ice_entry_weight() if playing and velocity.z <= -6.0 else 0.0
     var ice_drift: int = game.airtime.ice_drift_side if playing and velocity.z <= -5.0 else 0
     var ice_impact: bool = playing and game.airtime.ice_impact_seconds > 0.0
@@ -2064,9 +2065,6 @@ func update_hud() -> void:
         speed_label.text += "  /  SLIDE "+("←" if ice_drift < 0 else "→")
     elif ice_entry > 0.12:
         speed_label.text += "  /  ICE"
-    elif released >= 0.25 and game.selected_track == 0 and not return_arm_warning and (
-            game.player.global_position.z < game.race_director.event_z(RACE_DIRECTOR.WOODWORKS_RETURN_ARM)):
-        speed_label.text += "  ↑"
     if is_instance_valid(game.best_ghost):
         ghost_label.get_parent().visible = game.best_ghost.replay_available and (
             not game.net.is_active() and not countdown_label.is_visible_in_tree())
@@ -2159,6 +2157,8 @@ func update_hud() -> void:
     var return_arm: bool = game.selected_track == 0 and gate_id == RACE_DIRECTOR.WOODWORKS_RETURN_ARM
     var first_shutter: bool = game.selected_track == 1 and is_instance_valid(game.race_director) and (
         gate_id == game.race_director.GLACIER_FIRST_SHUTTER)
+    var opening: MeshInstance3D = game.opening_obstacle_art
+    var first_opening_gate: bool = gate_id == 0 and game.selected_track != 0 and is_instance_valid(opening)
     # The first shutter and Forge pistons need a meaningful crossing speed.
     var needs_speed: bool = first_shutter or return_arm or game.selected_track == 2
     timed_gate_label.visible = still_racing and gate_id >= 0 and (not needs_speed or forward_speed >= 2.0)
@@ -2178,6 +2178,7 @@ func update_hud() -> void:
         var gate_distance: float = at.z-float(moving_event["z"])
         gate_eta = gate_distance/maxf(
             2.0,-velocity.z)
+        var first_contact: float = game.race_director.first_gate_contact_eta(at,velocity) if first_opening_gate else INF
         if first_shutter and is_instance_valid(game.course_mechanics):
             var slab_z: float = game.course_mechanics.zones[0].global_position.z
             var half_depth: float = game.course_mechanics.ZONE_LENGTH*0.5
@@ -2197,10 +2198,14 @@ func update_hud() -> void:
             projected_blocking = is_finite(crossing)
             if bridge_exit_preview:
                 piston_contact_eta = crossing
+            elif first_opening_gate:
+                piston_contact_eta = first_contact
             elif projected_blocking:
                 piston_contact_eta = game.race_director.forge_piston_contact_eta(
                     gate_id,gate_eta,forward_speed,at.x,velocity.x)
             player_threatened = not bridge_exit_preview and is_finite(piston_contact_eta)
+        elif first_opening_gate:
+            player_threatened = is_finite(first_contact)
         elif game.selected_track == 1 and (first_shutter or gate_id == game.race_director.GLACIER_RETURN_GATE):
             player_threatened = game.race_director.glacier_shutter_threatens_crossing(
                 gate_id,gate_eta,forward_speed,at.x,velocity.x)
@@ -2227,8 +2232,9 @@ func update_hud() -> void:
         ordinary_gate_clear = not player_threatened and not bridge_exit_preview and (
             not glacier_exit_preview and not first_shutter_exit)
         var lane_verdict: String = "DODGE!" if player_threatened else "LINE CLEAR"
-        var warning_eta := arm_contact_eta if return_arm else gate_eta
-        if not bridge_exit_preview and not glacier_exit_preview and player_threatened and warning_eta <= 1.45:
+        var warning_eta := first_contact if first_opening_gate else (arm_contact_eta if return_arm else gate_eta)
+        if not bridge_exit_preview and not glacier_exit_preview and player_threatened and (
+                warning_eta <= RACE_DIRECTOR.URGENT_GATE_SECONDS):
             urgent_gate_eta = piston_contact_eta if game.selected_track == 2 else warning_eta
         if bridge_exit_preview:
             bridge_piston_warning = is_finite(piston_contact_eta)
@@ -2272,6 +2278,8 @@ func update_hud() -> void:
             var entry_distance: float = gate_distance-game.race_director.BODY_DEPTH*0.5-(
                 game.race_director.MARBLE_CLEARANCE)
             piston_contact_eta = maxf(0.0,entry_distance)/maxf(2.0,forward_speed)
+        if first_opening_gate and is_finite(first_contact):
+            piston_contact_eta = first_contact
         if return_arm:
             piston_contact_eta = arm_contact_eta
         var audio_minimum := 0.06 if game.selected_track == 1 else 0.20
@@ -2286,6 +2294,12 @@ func update_hud() -> void:
             var arrival := "NOW" if piston_contact_eta < 0.10 else "%.1fs" % piston_contact_eta
             timed_gate_label.text = "ICE SHUTTER  •  %s  •  %s" % [action,arrival]
         timed_gate_label.add_theme_color_override("font_color",tint)
+        # Keep the opening module readable. A real imminent interception
+        # can preempt it; routine gate forecasts wait for the exit.
+        if first_opening_gate and not is_finite(urgent_gate_eta) and (
+                player_z >= opening.clear_z or gate_eta > RACE_DIRECTOR.FIRST_GATE_PREVIEW_SECONDS):
+            timed_gate_label.hide()
+            audible_gate_eta = INF
     var lane_hint: Dictionary = game.course_mechanics.upcoming_lane(
         game.player.global_position,velocity,downstream_limit) if (
         still_racing and is_instance_valid(game.course_mechanics)) else {}
@@ -2347,12 +2361,13 @@ func update_hud() -> void:
         timed_gate_label.show()
         timed_gate_backdrop.show()
         pickup_limit = exit_eta
-    elif first_shutter_exit:
+    elif first_shutter_exit and timed_gate_label.visible:
         biome_lane_label.hide()
         timed_gate_backdrop.visible = not shutter_side.is_empty()
         if timed_gate_backdrop.visible:
             pickup_limit = piston_contact_eta
-    elif game.selected_track == 1 and gate_id >= 0 and gate_id == int(lane_hint.get("exit_shutter",-1)):
+    elif game.selected_track == 1 and gate_id >= 0 and gate_id == int(lane_hint.get("exit_shutter",-1)) and (
+            not first_opening_gate or player_z < opening.clear_z or not is_finite(urgent_gate_eta)):
         if timed_gate_label.visible:
             _show_glacier_sequence(lane_hint,shutter_side,first_shutter)
         else:
@@ -2457,6 +2472,14 @@ func update_hud() -> void:
     if still_racing and not timed_gate_backdrop.visible and not final_danger_active:
         _show_opening_traffic(duel.live_opening_guidance(game.player.global_position,velocity))
     _trim_driving_cues(ordinary_gate_clear,gate_eta,forward_speed,glacier_return_panel)
+    if released >= 0.25 and not grip_return and not ice_impact and ice_drift == 0 and ice_entry <= 0.12:
+        var woodworks_exit: bool = game.selected_track == 0 and not return_arm_warning and (
+            player_z < game.race_director.event_z(RACE_DIRECTOR.WOODWORKS_RETURN_ARM))
+        var opening_exit: bool = game.selected_track != 0 and is_instance_valid(opening) and (
+            player_z < opening.clear_z and player_z > opening.clear_z-RACE_MOMENTS.OPENING_EXIT_RANGE and (
+                not timed_gate_label.visible and not timed_gate_backdrop.visible))
+        if woodworks_exit or opening_exit:
+            speed_label.text += "  ↑"
     _update_woodworks_guide(str(route_hint.get("mode","")),
         rare_item_label.visible and int(next_item.get("index",-1)) == 0,
         final_danger_active or is_finite(urgent_gate_eta))

@@ -37,6 +37,8 @@ const EVENT_LENGTH := 2.1
 const SPEEDS := [5.8,4.65,5.25]
 const PISTON_BLOCKING_EXTENSION := 0.43
 const PISTON_WARNING_SECONDS := 2.20
+const FIRST_GATE_PREVIEW_SECONDS := 1.70
+const URGENT_GATE_SECONDS := 1.45
 const PISTON_PREPARE_PHASE := 0.78
 const VERTICAL_DUTY := 0.47
 
@@ -434,6 +436,20 @@ func woodworks_arm_contact_eta(eta: float, speed: float, world_x: float, lateral
         previous = gap
         previous_t = t
     return INF
+
+func first_gate_contact_eta(at: Vector3, velocity: Vector3) -> float:
+    var speed := -velocity.z
+    if biome == 0 or not at.is_finite() or not velocity.is_finite() or speed < 2.0:
+        return INF
+    var eta := (at.z-event_z(0))/speed
+    var half_window := (BODY_DEPTH*0.5+MARBLE_CLEARANCE)/speed
+    if eta < -half_window or eta-half_window > PISTON_WARNING_SECONDS:
+        return INF
+    if biome == 2:
+        return forge_piston_contact_eta(0,eta,speed,at.x,velocity.x)
+    # The crossing forecast checks the shutter across the entire front/body
+    # overlap. Use the leading edge of that window for early feedback.
+    return maxf(0.0,eta-half_window) if glacier_shutter_threatens_crossing(0,eta,speed,at.x,velocity.x) else INF
 
 func forge_exit_blocks_during_crossing(eta: float, speed: float) -> bool:
     return is_finite(forge_piston_contact_eta(FORGE_EXIT_GATE,eta,speed))
