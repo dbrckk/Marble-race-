@@ -97,15 +97,16 @@ func setup(owner: Node3D, track: int, next_layout: int) -> void:
     torus.ring_segments = 6
     var glow := StandardMaterial3D.new()
     glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-    glow.albedo_color = COLORS[biome].lightened(0.18)
+    # White base lets instance tint control the visible halo brightness.
+    glow.albedo_color = Color.WHITE
     glow.emission_enabled = true
     glow.emission = COLORS[biome]
-    glow.emission_energy_multiplier = 1.3
+    glow.emission_energy_multiplier = 0.48
     # Per-instance contact highlights reuse the same twelve ring meshes.
     glow.vertex_color_use_as_albedo = true
     glow_rings = _batch("SpringContactHalos",torus,glow,rings)
     for slot in range(rings.size()):
-        glow_rings.multimesh.set_instance_color(slot,Color.WHITE)
+        glow_rings.multimesh.set_instance_color(slot,Color(0.50,0.50,0.50))
     ring_origins = rings.duplicate()
     pulse_strength.resize(bodies.size())
     pulse_cooldowns.resize(bodies.size())
@@ -145,11 +146,13 @@ func _write_ring_pair(index: int) -> void:
         glow_rings.multimesh.set_instance_transform(slot,Transform3D(
             baseline.basis.scaled(Vector3(slightly_offset,1.0,slightly_offset)),
             baseline.origin))
-        # Warm-white impact flash fades back to the original biome tint.
-        # Outer and inner rims respond independently, with no new draw call.
+        # A darker resting rim blooms to a bright warm-white contact flash.
+        # Per-instance vertex tint affects albedo; emissive biome identity
+        # stays constant without a light, shader or additional draw call.
         var flash: float = visual_strength*(1.0 if edge == 0 else 0.70)
-        glow_rings.multimesh.set_instance_color(slot,Color.WHITE.lerp(
-            Color(1.0,0.93,0.76),flash))
+        var rest: Color = COLORS[biome].darkened(0.50)
+        glow_rings.multimesh.set_instance_color(slot,rest.lerp(
+            Color(1.0,0.96,0.86),flash))
 
 func reset_pulses() -> void:
     pulse_events = 0
