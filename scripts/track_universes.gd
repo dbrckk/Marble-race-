@@ -19,6 +19,7 @@ const GLOW_SHOULDER := 19.5
 var depth_ridges: MultiMeshInstance3D
 var near_forms: MultiMeshInstance3D
 var accent_lights: MultiMeshInstance3D
+var course_beacons: MultiMeshInstance3D
 var signature_landmarks: MultiMeshInstance3D
 var landmark_positions: Array[Vector3] = []
 var distant_positions: Array[Vector3] = []
@@ -32,9 +33,14 @@ static func apply_atmosphere(env: Environment, sun: DirectionalLight3D, track: i
     var theme: int = clampi(track,0,2)
     env.background_color = THEME_SKY[theme]
     env.fog_light_color = THEME_FOG[theme]
-    env.ambient_light_color = THEME_SUN[theme]
+    # Separate cool ambient fill from the direct key light: using the sun
+    # tint for both flattens metallic obstacles and loses track readability.
+    env.ambient_light_color = [Color("#c5d9cc"),
+        Color("#b6d7ec"),Color("#d8b9a9")][theme]
+    env.ambient_light_energy = [0.48,0.53,0.49][theme]
     if is_instance_valid(sun):
         sun.light_color = THEME_SUN[theme]
+        sun.light_energy = [1.10,1.18,1.23][theme]
 
 func setup(track: int, stage: Node3D) -> void:
     var theme := clampi(track,0,2)
@@ -44,7 +50,8 @@ func setup(track: int, stage: Node3D) -> void:
     base.roughness = 0.75
     var accent := StandardMaterial3D.new()
     accent.albedo_color = [Color("#81b68b"),Color("#9de9fb"),Color("#f18d4b")][theme]
-    accent.roughness = 0.31 if theme == 1 else 0.58
+    accent.roughness = [0.64,0.26,0.43][theme]
+    accent.metallic = [0.0,0.08,0.58][theme]
     accent.emission_enabled = theme > 0
     accent.emission = accent.albedo_color
     accent.emission_energy_multiplier = 0.55 if theme > 0 else 0.0
@@ -101,6 +108,7 @@ func setup(track: int, stage: Node3D) -> void:
     _batch("WorldAccentForms",secondary,tops)
     _landscape_depth(theme,stage)
     _signature_landmarks(theme,stage)
+    _course_beacons(theme,stage)
     set_quality(stage.graphics_quality)
 
 static func bridge_safe_prop_x(route: Node3D, x: float, z: float, side: float, radius: float) -> float:
@@ -174,6 +182,9 @@ func _landscape_depth(theme: int, stage: Node3D) -> void:
         Color("#416f4c"),Color("#8ecddd"),Color("#6b4b42")][theme]
     prop_material.metallic = [0.0,0.17,0.69][theme]
     prop_material.roughness = [0.82,0.24,0.43][theme]
+    # Individual variation in the existing instanced props avoids identical
+    # repeated silhouettes without extra geometry or draw calls.
+    prop_material.vertex_color_use_as_albedo = true
     var near_transforms: Array[Transform3D] = []
     for section in range(SEGMENTS):
         var z: float = 8.0-float(section)*LEN+float(variation-1)*1.8
@@ -192,6 +203,11 @@ func _landscape_depth(theme: int, stage: Node3D) -> void:
     near_forms = _batch("BiomeSpecificForeground_36",prop_mesh,
         near_transforms)
     near_forms.material_override = prop_material
+    for index in range(near_transforms.size()):
+        var variation_tint: float = 0.86+0.14*(0.5+0.5*sin(
+            float(index)*2.39996+float(theme)*1.31))
+        near_forms.multimesh.set_instance_color(index,Color(
+            variation_tint,variation_tint,variation_tint,1.0))
 
     var accent := BoxMesh.new()
     accent.size = Vector3.ONE
@@ -257,6 +273,42 @@ func _signature_landmarks(theme: int, stage: Node3D) -> void:
     signature_landmarks = _batch("OriginalBiomeLandmarks_12",mesh,instances)
     signature_landmarks.material_override = material
 
+# Low-profile, non-colliding edge references improve speed perception and
+# route readability without obscuring actual gates or marble trajectories.
+# One GPU batch covers both sides of the course; no dynamic lights.
+func _course_beacons(theme: int, stage: Node3D) -> void:
+    var mesh := BoxMesh.new()
+    mesh.size = Vector3(0.20,0.42,0.55)
+    var paint := StandardMaterial3D.new()
+    paint.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    paint.albedo_color = [Color("#e6cf92"),Color("#a4ecff"),
+        Color("#ffb274")][theme]
+    paint.emission_enabled = true
+    paint.emission = paint.albedo_color
+    paint.emission_energy_multiplier = 0.36
+    # Beacons alternate in brightness to create a stable optical rhythm
+    # as the camera advances, without animation or extra lights.
+    paint.vertex_color_use_as_albedo = true
+    var transforms: Array[Transform3D] = []
+    for section in range(SEGMENTS):
+        var z: float = 8.0-float(section)*LEN-3.0
+        var y: float = stage.height_at(z)+0.32
+        for side in [-1.0,1.0]:
+            var x: float = stage.track_center_at(z)+side*9.4
+            # Taller every third marker establishes a clear distance
+            # cadence without a separate mesh or per-frame updates.
+            var marker_height: float = 1.45 if section % 3 == 0 else 1.0
+            var marker_basis := Basis().scaled(Vector3(1.0,marker_height,1.0))
+            transforms.append(Transform3D(marker_basis,Vector3(x,
+                y+0.21*(marker_height-1.0),z)))
+    course_beacons = _batch("TracksideSpeedReferences_36",mesh,transforms)
+    course_beacons.material_override = paint
+    for index in range(transforms.size()):
+        var section_index: int = index / 2
+        var strength: float = 1.0 if section_index % 3 == 0 else 0.66
+        course_beacons.multimesh.set_instance_color(index,Color(
+            strength,strength,strength,1.0))
+
 func set_quality(quality: int) -> void:
     visual_quality = clampi(quality,0,2)
     # Physical route and original primary silhouettes stay on all tiers.
@@ -267,12 +319,16 @@ func set_quality(quality: int) -> void:
         near_forms.visible = true
     if is_instance_valid(accent_lights):
         accent_lights.visible = visual_quality >= 2
+    if is_instance_valid(course_beacons):
+        course_beacons.visible = visual_quality >= 1
     if is_instance_valid(signature_landmarks):
         signature_landmarks.visible = visual_quality >= 1
 
 func _batch(label: String, mesh: Mesh, transforms: Array[Transform3D]) -> MultiMeshInstance3D:
     var instances := MultiMesh.new()
     instances.transform_format = MultiMesh.TRANSFORM_3D
+    instances.use_colors = label == "BiomeSpecificForeground_36" or (
+        label == "TracksideSpeedReferences_36")
     instances.mesh = mesh
     instances.instance_count = transforms.size()
     for i in range(transforms.size()):

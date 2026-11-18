@@ -46,7 +46,10 @@ jobs:
             "$HOME/.local/share/godot/export_templates/4.5.1.stable/"
           echo "$PWD" >> "$GITHUB_PATH"
       - name: Import project assets
-        run: ./Godot_v4.5.1-stable_linux.x86_64 --headless --editor --path . --quit
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./Godot_v4.5.1-stable_linux.x86_64 --headless --editor --path . --quit 2>&1 | tee godot-import.log
       - name: Adaptive Android graphics regression
         shell: bash
         run: |
@@ -502,7 +505,10 @@ jobs:
           export/android/debug_keystore_pass = "android"
           EOF
       - name: Generate Android debug APK
-        run: ./Godot_v4.5.1-stable_linux.x86_64 --headless --path . --export-debug Android build/marble-race-debug.apk
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./Godot_v4.5.1-stable_linux.x86_64 --headless --path . --export-debug Android build/marble-race-debug.apk 2>&1 | tee godot-export.log
       - name: Verify Android debug APK signature
         run: |
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose build/marble-race-debug.apk
@@ -564,6 +570,19 @@ jobs:
           MARBLE_KEY_PASSWORD: ${{ secrets.MARBLE_ANDROID_KEY_PASSWORD }}
           MARBLE_CERT_SHA256: ${{ vars.MARBLE_ANDROID_SIGNING_SHA256 }}
         run: bash ci/sign_android_release.sh
+      # Keep the first failing regression's output accessible from Android.
+      # Otherwise a failed job only exposes transient console logs and the
+      # owner cannot inspect the cause without a desktop or rerunning CI.
+      - name: Preserve regression logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: marble-race-ci-failure-logs
+          path: |
+            *.log
+            build/apk-badging.txt
+          retention-days: 14
+          if-no-files-found: warn
       - uses: actions/upload-artifact@v4
         if: success()
         with:

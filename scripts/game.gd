@@ -339,6 +339,9 @@ func _auto_quality_sample(fps: float, seconds: float) -> void:
 func _tick_auto_quality(delta: float) -> void:
     if graphics_setting != 3 or not OS.has_feature("mobile") or race_state != "RACING":
         return
+    # Resume/background spikes must not force an unwanted quality downgrade.
+    if not is_finite(delta) or delta <= 0.0 or delta > 0.25:
+        return
     auto_fps_seconds += delta
     auto_fps_accum += delta * Engine.get_frames_per_second()
     if auto_fps_seconds >= 1.0:
@@ -380,6 +383,13 @@ func _apply_graphics_quality() -> void:
     if world_environment != null:
         world_environment.glow_enabled = graphics_quality > 0
         world_environment.fog_enabled = graphics_quality > 0
+        # Keep luminous obstacle and marble accents readable without
+        # washing out the track on mid-range Android screens. No extra
+        # lights, draw calls, or post-processing passes are introduced.
+        world_environment.glow_intensity = [0.0,0.19,0.27][graphics_quality]
+        # High quality retains distant scenery depth; medium uses gentler
+        # fog so small hazards stay distinguishable in landscape mode.
+        world_environment.fog_density = [0.0,0.0035,0.0045][graphics_quality]
     if is_instance_valid(contact_shadows):
         contact_shadows.visible = graphics_quality > 0
         contact_shadows.set_update_rate(60 if graphics_quality == 2 else 30)
@@ -441,8 +451,26 @@ func set_track(index: int) -> bool:
     _apply_graphics_quality()
     return true
 
+func upcoming_hazard_distance(at_z: float) -> float:
+    # Presentation-only fast path: avoid building a hazard notice dictionary
+    # at camera frame rate. Keep the same gate/event priority as the HUD.
+    var nearest := 25.0
+    var found := false
+    for hazard in hazard_beacons:
+        var candidate: float = at_z-float(hazard["z"])
+        if candidate >= -1.0 and candidate < nearest:
+            nearest = candidate
+            found = true
+    var result: float = float(maxi(0,int(round(nearest)))) if found else -1.0
+    if is_instance_valid(race_director):
+        var event: Dictionary = race_director.event_ahead(at_z)
+        if not event.is_empty() and float(event["distance"]) < nearest:
+            result = float(event["distance"])
+    return result
+
 func upcoming_hazard(at_z: float, downstream_limit := INF) -> Dictionary:
     # An exterior bridge bypasses main-track hazards upstream of its merge.
+
     var nearest := 25.0
     var notice: Dictionary = {}
     for hazard in hazard_beacons:
@@ -1411,8 +1439,23 @@ func _swing_hammer(parent: Node3D, z: float, n: int) -> void:
     hinge.add_child(art)
     MechanismArt.decorate_hammer(hinge, parent, _mat(Color("#d6ad67"),0.27,0.72), _mat(Color("#262b33"),0.52,0.12))
     hinge.set_meta("motion_kind","hammer")
-    hinge.set_meta("speed",(1.3+float(n%3)*0.22)*(1.0+0.18*selected_track))
-    hinge.set_meta("phase",float(n)*1.8)
+    # A small, deterministic layout variation changes when each hammer
+    # crosses the lane without increasing its collision reach.
+    var hammer_tempo: float = [0.92,1.0,1.08][posmod(built_variation+n,3)]
+    hinge.set_meta("speed",(1.3+float(n%3)*0.22)*(
+        1.0+0.18*selected_track)*hammer_tempo)
+    hinge.set_meta("phase",float(n)*1.8+float(built_variation)*0.45)
+    # Small fixed ground warning marks the hammer sweep before contact.
+    # No physics body, and the existing mechanism remains authoritative.
+    var warning := MeshInstance3D.new()
+    warning.name = "HammerSweepWarning"
+    var warning_mesh := BoxMesh.new()
+    warning_mesh.size = Vector3(2.55,0.025,0.16)
+    warning.mesh = warning_mesh
+    warning.position = Vector3(hinge.position.x,
+        height_at(z)+0.035,z)
+    warning.material_override = _mat(Color("#f5b74d"),0.55,0.06)
+    parent.add_child(warning)
     moving_obstacles.append(hinge)
 
 func _slalom(parent: Node3D, center_z: float, n: int) -> void:
@@ -1495,7 +1538,32 @@ func _add_spinner(parent: Node3D, z: float, n: int) -> void:
     pivot.add_child(axle)
     MechanismArt.decorate_spinner(pivot, parent, _mat(Color("#d6ad67"),0.27,0.72), _mat(Color("#292d35"),0.36,0.22))
     pivot.set_meta("motion_kind","spinner")
-    pivot.set_meta("spin_speed", (1.0 if n%2==0 else -1.0) * (0.72 + n*0.022) * (1.0 + 0.19*selected_track))
+    # Distinct but bounded rotational cadences across repeat layouts.
+    # The paddles remain the same physical obstacles and leave the same gaps.
+    var spinner_tempo: float = [0.88,1.0,1.12][posmod(built_variation+n,3)]
+    pivot.set_meta("spin_speed", (1.0 if n%2==0 else -1.0) * (
+        0.72+n*0.022)*(1.0+0.19*selected_track)*spinner_tempo)
+    # Four floor markers trace the actual 3.55 m arm reach. Position
+    # them at half the arm length so the warning does not extend beyond
+    # the physical hazard or imply a collision in a safe corridor.
+    var warning_radius: float = 3.55
+    var guide_length: float = warning_radius-0.52
+    var guide_material := _mat(Color("#e6b34d"),0.58,0.05)
+    for guide in range(4):
+        var warning := MeshInstance3D.new()
+        warning.name = "SpinnerSweepGuide_%d" % guide
+        var guide_mesh := BoxMesh.new()
+        guide_mesh.size = Vector3(0.09,0.025,guide_length)
+        warning.mesh = guide_mesh
+        var angle: float = float(guide)*TAU/4.0
+        var radial_center: float = guide_length*0.5
+        warning.position = Vector3(
+            pivot.position.x+sin(angle)*radial_center,
+            height_at(z)+0.035,
+            z+cos(angle)*radial_center)
+        warning.rotation.y = angle
+        warning.material_override = guide_material
+        parent.add_child(warning)
     moving_obstacles.append(pivot)
 
 func _make_start_gate() -> void:
@@ -2062,14 +2130,20 @@ func _process(delta: float) -> void:
 
 func _physics_process(delta: float) -> void:
     steer = move_toward(steer,steer_target,delta*8.5)
-    kinetic_time += delta
+    # Drive mechanisms from a shared timebase instead of accumulating
+    # spinner rotations. Clamp mobile resume hitches without changing the
+    # physics-step motion cadence or abruptly resetting hammer phases.
+    if is_finite(delta) and delta > 0.0:
+        kinetic_time += minf(delta,0.10)
     for obj in moving_obstacles:
         if not is_instance_valid(obj):
             continue
         if obj.get_meta("motion_kind", "") == "spinner":
-            obj.rotation.y += delta * float(obj.get_meta("spin_speed"))
+            obj.rotation.y = fposmod(kinetic_time*float(
+                obj.get_meta("spin_speed")),TAU)
         else:
-            obj.rotation.z = sin(kinetic_time*float(obj.get_meta("speed"))+float(obj.get_meta("phase")))*0.65
+            obj.rotation.z = sin(kinetic_time*float(
+                obj.get_meta("speed"))+float(obj.get_meta("phase")))*0.65
     if is_instance_valid(race_director) and race_state == "RACING":
         # All clients animate the same scripted hazards; only authority
         # awards gameplay physics when a marble actually makes a near-miss.
@@ -2182,8 +2256,18 @@ func _update_camera(delta: float, force := false) -> void:
         camera_shake = 0.0
         camera_previous_racer_z = NAN
         camera.set_meta("previous_jitter",Vector3.ZERO)
+        camera.set_meta("smoothed_bank",0.0)
+        camera.set_meta("smoothed_fov",64.0)
         _position_intro_camera(force)
         _update_roof_visibility()
+        return
+    # A corrupt physics sample during Android resume must not reach the
+    # course-height functions or camera.look_at(). Keep the last valid view
+    # until the rigidbody reports a finite transform again.
+    if not player.global_position.is_finite() or (
+        not player.linear_velocity.is_finite()):
+        camera_shake = 0.0
+        camera.set_meta("previous_jitter",Vector3.ZERO)
         return
     # Use the centerline ahead so the racer can see approaching turns.
     # Pure math; multiplayer does not need camera replication.
@@ -2221,6 +2305,7 @@ func _update_camera(delta: float, force := false) -> void:
         var release := 1.0-smoothstep(0.0,3.5,racer_z-reading_art.clear_z)
         var module_distance := maxf(racer_z-reading_art.entry_z,release*RaceFeedback.HAZARD_MAX_PREVIEW)
         distance = minf(distance,module_distance) if distance >= 0.0 else module_distance
+
     var pose: Dictionary = RaceFeedback.camera_pose(
         player.global_position,velocity,
         ahead_x,cam_mode,boosting,distance,
@@ -2277,32 +2362,72 @@ func _update_camera(delta: float, force := false) -> void:
     desired = RaceFeedback.terrain_safe_camera(desired,height_at(desired.z))
     var previous_jitter: Vector3 = camera.get_meta(
         "previous_jitter",Vector3.ZERO)
+    if not previous_jitter.is_finite():
+        previous_jitter = Vector3.ZERO
     var follow_rate: float = lerpf(4.5,6.0,float(pose["pace"]))
     var step: float = RaceFeedback.smooth_factor(delta,follow_rate)
     var forward_step := Vector3.ZERO
     if race_state == "RACING" and cam_mode == 0 and not force:
-        forward_step.z = RaceFeedback.chase_forward_step(racer_z-camera_previous_racer_z,delta)
+        forward_step.z = RaceFeedback.chase_forward_step(
+            racer_z-camera_previous_racer_z,delta)
     camera_previous_racer_z = racer_z
     var base: Vector3 = camera.global_position-previous_jitter+forward_step
-    camera.global_position = desired if force else base.lerp(desired,step)
+    # Combine physical forward-motion continuity with Android resume and
+    # checkpoint-jump snap guards. Neither changes the rigidbody state.
+    var snap_camera: bool = force or not base.is_finite() or (
+        base.distance_squared_to(desired) > 36.0*36.0)
+    camera.global_position = desired if snap_camera else base.lerp(desired,step)
     var focus_step: float = RaceFeedback.smooth_factor(delta,7.0)
-    camera_lookahead = focus if force else (camera_lookahead+forward_step).lerp(
+    var shifted_focus: Vector3 = camera_lookahead+forward_step
+    var snap_focus: bool = snap_camera or not shifted_focus.is_finite() or (
+        shifted_focus.distance_squared_to(focus) > 36.0*36.0)
+    camera_lookahead = focus if snap_focus else shifted_focus.lerp(
+
         focus,focus_step)
+    # A recovery teleport is not a collision. Drop any residual shake so
+    # the newly snapped camera does not jump on the very next rendered frame.
+    if snap_camera:
+        camera_shake = 0.0
     camera_shake *= exp(-clampf(delta,0.0,0.12)*9.5)
     var jitter := Vector3(sin(world_time*52.0),
         cos(world_time*47.0),0.0)*camera_shake
     camera.global_position += jitter
     camera.set_meta("previous_jitter",jitter)
-    camera.look_at(camera_lookahead,Vector3.UP)
+    # look_at() requires a distinct target. Guard pathological camera
+    # transforms without disturbing the normal smooth-follow path.
+    if camera.global_position.is_finite() and (
+        camera_lookahead.is_finite()) and (
+        camera.global_position.distance_squared_to(camera_lookahead) > 0.0001):
+        camera.look_at(camera_lookahead,Vector3.UP)
     # Light, reversible banking follows only real lateral velocity and the
     # course centreline. Never rotate a physics node or override overhead
     # camera choices. Stays below 2.6 degrees even at the 24m/s speed cap.
-    var curve_delta := ahead_x-behind_x
-    camera.rotate_object_local(Vector3.FORWARD,RaceFeedback.camera_roll(
-        velocity.x,-velocity.z,
-        curve_delta,cam_mode))
-    camera.fov = lerpf(camera.fov,target_fov,
-        RaceFeedback.smooth_factor(delta,4.4))
+    var curve_delta: float = ahead_x-track_center_at(
+        player.global_position.z+5.0)
+    var target_bank: float = RaceFeedback.camera_roll(
+        player.linear_velocity.x,-player.linear_velocity.z,
+        curve_delta,cam_mode)
+    # Smooth steering-induced banking to prevent one-frame twitching when
+    # lateral velocity flips on mobile. Keep alternate views level.
+    var previous_bank: float = float(camera.get_meta("smoothed_bank",0.0))
+    if not is_finite(previous_bank):
+        previous_bank = 0.0
+    var bank: float = lerpf(previous_bank,target_bank,
+        RaceFeedback.smooth_factor(delta,9.0))
+    if force or not is_finite(bank):
+        bank = target_bank
+    camera.set_meta("smoothed_bank",bank)
+    camera.rotate_object_local(Vector3.FORWARD,bank)
+    # A quick lens response sells a real turbo activation, while a slower
+    # recovery prevents FOV pumping when boost is tapped repeatedly.
+    var previous_fov: float = float(camera.get_meta("smoothed_fov",camera.fov))
+    if not is_finite(previous_fov):
+        previous_fov = 64.0
+    var fov_rate: float = 8.5 if target_fov > previous_fov else 3.8
+    var smoothed_fov: float = target_fov if force else lerpf(
+        previous_fov,target_fov,RaceFeedback.smooth_factor(delta,fov_rate))
+    camera.fov = clampf(smoothed_fov,63.0,78.0)
+    camera.set_meta("smoothed_fov",camera.fov)
     _update_roof_visibility()
 
 func _update_roof_visibility() -> void:
@@ -2316,6 +2441,7 @@ func _update_roof_visibility() -> void:
         GeometryInstance3D.SHADOW_CASTING_SETTING_ON)
     if showroom_roof.cast_shadow != roof_mode:
         showroom_roof.cast_shadow = roof_mode
+
 
 func _position_intro_camera(force: bool) -> void:
     var target = Vector3(6.5, 12.6, 22.0)

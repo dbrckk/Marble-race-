@@ -1,7 +1,7 @@
 extends SceneTree
 ## Distinct 3D world depth on nine real playable layouts. All new terrain
 ## silhouettes and ambient accents stay off the physical road and bypass,
-## consume only four batched GPU instances, and obey Android quality modes.
+## use bounded, collision-free GPU batches, and obey Android quality modes.
 const WORLDS = preload("res://scripts/track_universes.gd")
 const BYPASS = preload("res://scripts/shortcut_route.gd")
 
@@ -36,8 +36,8 @@ func _run() -> void:
                     var deck: Vector3 = route.point_at(edge_z)
                     assert((offset-deck.x)*side >= BYPASS.WIDTH*0.5+1.60)
                 assert(WORLDS.bridge_safe_prop_x(route,center.x,z,-side,0.90) == center.x)
-            assert(world.get_child_count() == 7,
-                "The whole original biome plus four depth layers costs seven GPU batches")
+            assert(world.get_child_count() == 8,
+                "The biome, four depth layers and trackside beacons use eight GPU batches")
             assert(world.depth_ridges.multimesh.instance_count == 12)
             assert(world.near_forms.multimesh.instance_count == 36)
             assert(world.accent_lights.multimesh.instance_count == 36)
@@ -46,6 +46,9 @@ func _run() -> void:
             assert(world.glow_positions.size() == 36)
             assert(world.signature_landmarks.multimesh.instance_count == 12)
             assert(world.landmark_positions.size() == 12)
+            assert(is_instance_valid(world.course_beacons))
+            assert(world.course_beacons.multimesh.instance_count == 36,
+                "Both track edges need 18 speed reference markers")
             for child in world.get_children():
                 assert(child is MultiMeshInstance3D and
                     child.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF,
@@ -80,6 +83,8 @@ func _run() -> void:
                     "Economy mode must preserve the world silhouette")
                 assert(world.depth_ridges.visible == (quality >= 1))
                 assert(world.signature_landmarks.visible == (quality >= 1))
+                assert(world.course_beacons.visible == (quality >= 1),
+                    "Speed reference beacons belong to Balanced and Ultra")
                 assert(world.accent_lights.visible == (quality >= 2),
                     "Small luminous props belong only in the ultrahigh Android tier")
                 assert(stage.racers.size() == 40,
@@ -93,5 +98,5 @@ func _run() -> void:
         await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_world_depth.cfg"))
-    print("WORLD_DEPTH_PASS: nine 3D biomes/layouts, 864 original near/far accent transforms, four GPU batches, zero physics and safe quality LOD")
+    print("WORLD_DEPTH_PASS: nine 3D biomes/layouts, four depth batches plus speed beacons, eight total GPU batches, zero physics and safe quality LOD")
     quit(0)

@@ -11,6 +11,8 @@ const TRAFFIC_WIDTH := 1.25
 const TRAFFIC_HEIGHT := 1.45
 const TRAFFIC_SAFE_LANE := 3.15
 const GLACIER_PASS_OFFSET := 1.75
+const TRAFFIC_SWITCH_MARGIN := 0.55
+
 const ZONE_MECHANICS = preload("res://scripts/course_mechanics.gd")
 
 static func temperament(racer_id: int, track: int, variation: int) -> int:
@@ -58,6 +60,7 @@ static func _lane_occupancy(target_x: float, own: RigidBody3D,
                 penalty += (1.10-dx)*clampf(
                     (1.5-time_to_contact)/1.5,0.0,1.0)*4.5
     return penalty
+
 
 # A rival cutting laterally into the same narrow racing corridor deserves
 # a measured evasive line. Read existing velocity snapshots only during the
@@ -111,7 +114,8 @@ static func side_duel_safe_lane(own: RigidBody3D,
     return preferred
 
 static func traffic_lane(own: RigidBody3D, rivals: Array[RigidBody3D],
-    center_x: float, preferred_offset: float, temperament_id: int) -> float:
+    center_x: float, preferred_offset: float, temperament_id: int,
+    previous_offset: float = 0.0) -> float:
     # Called at most 3x/s per AI, *only* by the authoritative simulator.
     # Compare two physical side corridors before choosing an overtaking line.
     # Do not apply any impulses or manipulate positions/finishing times here.
@@ -130,8 +134,16 @@ static func traffic_lane(own: RigidBody3D, rivals: Array[RigidBody3D],
         var ahead := origin.z-other_at.z
         if ahead < 0.65 or ahead > TRAFFIC_AHEAD:
             continue
-        if absf(other_at.y-origin.y) > TRAFFIC_HEIGHT or (
-            absf(other_at.x-desired_x) > TRAFFIC_WIDTH):
+        if absf(other.position.y-own.position.y) > TRAFFIC_HEIGHT:
+            continue
+        # Account for a leader already drifting across our intended line.
+        # Predict a short lateral window from real rigid-body velocities;
+        # a static snapshot alone misses many side-to-side collisions.
+        var future_x: float = other.position.x+clampf(
+            other.linear_velocity.x,-5.0,5.0)*0.42
+        if minf(absf(other.position.x-desired_x),
+            absf(future_x-desired_x)) > TRAFFIC_WIDTH:
+
             continue
         # A faster marble approaching from behind is not an obstruction.
         var speed_gain: float = other.linear_velocity.z-own_speed_z
@@ -148,14 +160,54 @@ static func traffic_lane(own: RigidBody3D, rivals: Array[RigidBody3D],
     var left: float = clampf(lead_offset-1.55,-TRAFFIC_SAFE_LANE,TRAFFIC_SAFE_LANE)
     var right: float = clampf(lead_offset+1.55,-TRAFFIC_SAFE_LANE,TRAFFIC_SAFE_LANE)
     var cautious: float = [1.0,0.65,0.38][clampi(temperament_id,0,2)]
+    # Evaluate both corridors in a single pass over the 40-racer field.
+    # Reuse the same predicted rival position and relative speed instead
+    # of scanning all bodies twice per traffic decision.
+    var lane_penalties := Vector2.ZERO
+    var left_x: float = center_x+left
+    var right_x: float = center_x+right
+    for other in rivals:
+        if other == own or not is_instance_valid(other) or (
+            other.finished or other.eliminated):
+            continue
+        var dz: float = absf(other.position.z-own.position.z)
+        if dz > 5.5 or absf(other.position.y-own.position.y) > TRAFFIC_HEIGHT:
+            continue
+        var future_x: float = other.position.x+clampf(
+            other.linear_velocity.x,-5.0,5.0)*0.42
+        var proximity: float = 1.0-clampf(dz/5.5,0.0,1.0)
+        var behind: float = other.position.z-own.position.z
+        var closing_speed: float = own.linear_velocity.z-other.linear_velocity.z
+        var rear_risk: float = 0.0
+        if behind > 0.0 and closing_speed > 2.0:
+            rear_risk = clampf((1.5-behind/closing_speed)/1.5,
+                0.0,1.0)*4.5
+        var dx_left: float = minf(absf(other.position.x-left_x),
+            absf(future_x-left_x))
+        var dx_right: float = minf(absf(other.position.x-right_x),
+            absf(future_x-right_x))
+        if dx_left < 1.10:
+            lane_penalties.x += (1.10-dx_left)*(
+                2.4*proximity+rear_risk)
+        if dx_right < 1.10:
+            lane_penalties.y += (1.10-dx_right)*(
+                2.4*proximity+rear_risk)
     var left_cost: float = absf(left-preferred)*cautious+(
-        absf(left)/TRAFFIC_SAFE_LANE)*0.45+(
-        _lane_occupancy(center_x+left,own,rivals))
+        absf(left)/TRAFFIC_SAFE_LANE)*0.45+lane_penalties.x
     var right_cost: float = absf(right-preferred)*cautious+(
-        absf(right)/TRAFFIC_SAFE_LANE)*0.45+(
-        _lane_occupancy(center_x+right,own,rivals))
-    # The stable tie-break lets traffic patterns vary with AI personality
-    # without RNG state or per-frame unpredictable lane flips.
+        absf(right)/TRAFFIC_SAFE_LANE)*0.45+lane_penalties.y
+    # Keep the previous overtaking side unless the opposite corridor is
+    # meaningfully safer. This hysteresis avoids oscillating left/right on
+    # successive traffic scans while the same leader remains ahead.
+    var previous: float = clampf(previous_offset,
+        -TRAFFIC_SAFE_LANE,TRAFFIC_SAFE_LANE)
+    if absf(previous-left) < 0.95 and (
+        left_cost <= right_cost+TRAFFIC_SWITCH_MARGIN):
+        return left
+    if absf(previous-right) < 0.95 and (
+        right_cost <= left_cost+TRAFFIC_SWITCH_MARGIN):
+        return right
+    # Stable tie-break preserves different AI personalities without RNG.
     var choose_left: bool = left_cost < right_cost if (
         absf(left_cost-right_cost) > 0.01) else own.racer_id%2 == 0
     return left if choose_left else right

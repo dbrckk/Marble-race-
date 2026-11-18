@@ -268,6 +268,10 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
         # Steering retains authority at high speed, without making tiny inputs twitchy.
         side_force = human_steering_force(steering,velocity.z,velocity.x,course_id)
     else:
+        var shortcut_specialist: bool = wants_shortcut()
+        var ai_temperament: int = AIPath.temperament(racer_id,
+            course_owner.selected_track,course_owner.built_variation) if (
+            is_instance_valid(course_owner)) else 1
         # Predictable seeded weave prevents the AI from blindly hugging one rail.
         # Other marbles still interact solely through physical collisions.
         ai_lane_timer -= delta
@@ -283,8 +287,8 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
         # A small, deterministic field of rivals takes the optional road.
         # AI must physically steer through its fork: no teleports, and the
         # server remains the sole source of racing physics.
-        var shortcut_racer := wants_shortcut()
-        if shortcut_racer and is_instance_valid(course_owner.shortcut_route):
+        if shortcut_specialist and is_instance_valid(course_owner.shortcut_route):
+
             var road: Node3D = course_owner.shortcut_route
             var entered: bool = road.entered.has(racer_id)
             if AIPath.pursue_bypass(origin.z,entered,
@@ -297,24 +301,23 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
             # Safety-first line selection: specialist shortcuts always keep
             # their previously verified physics, while ordinary marbles only
             # attempt an overtake from the central open part of the road.
-            # General passing yields to hazards. Glacier's return has a
-            # dedicated passing line wholly beyond its shutter's sweep.
+            # Keep Glacier's merge/pass reference and retain main's
+            # speed-aware safety envelope before initiating a new pass.
             main_center = course_owner.track_center_at(origin.z)
-            # Keep start-grid collisions, both route portals, jumps and
-            # their AI approach entirely unchanged. Tactical side choices
-            # belong in the run home where a passing duel matters most.
             var traffic_safe: bool = origin.z < -108.0 and (
-                not shortcut_racer) and (
+                not shortcut_specialist) and (
                 absf(origin.x-main_center) < 2.15) and (
                 absf(ai_lane_goal) < 1.9)
             if traffic_safe:
-                # Only racers eligible to pass need the traffic hazard forecast.
+                var hazard_clearance: float = clampf(
+                    maxf(0.0,-velocity.z)*0.65+2.5,4.0,15.0)
                 var next_hazard: Dictionary = course_owner.upcoming_hazard(origin.z)
-                var hazard_near: bool = not next_hazard.is_empty() and (
-                    float(next_hazard.get("distance",999.0)) < 3.5)
-                traffic_safe = not hazard_near
-            var temperament := AIPath.temperament(
-                racer_id,course_id,course_owner.built_variation)
+                if not next_hazard.is_empty():
+                    var hazard_distance: float = float(next_hazard.get(
+                        "distance",999.0))
+                    traffic_safe = hazard_distance < 0.0 or (
+                        hazard_distance >= hazard_clearance)
+
             if traffic_safe:
                 # Staggered 2.5-3 Hz scans; no physics simulation or network
                 # traffic added. Blend rather than snapping between lines.
@@ -323,7 +326,9 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
                     ai_traffic_timer = AIPath.TRAFFIC_SCAN_PERIOD+(
                         float(racer_id%4)*0.05)
                     ai_traffic_goal = AIPath.traffic_lane(self,
-                        course_owner.racers,center_ahead,ai_lane_goal,temperament)
+                        course_owner.racers,center_ahead,ai_lane_goal,
+                        ai_temperament,ai_traffic_goal)
+
                 ai_traffic_offset = move_toward(ai_traffic_offset,
                     ai_traffic_goal,delta*4.5)
                 side_force = clampf((
@@ -343,8 +348,10 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
             var planned_offset: float = ai_traffic_offset if traffic_safe else ai_lane_goal
             if is_instance_valid(course_owner.course_mechanics):
                 var zone_offset: float = AIPath.biome_zone_safe_lane(
-                    course_owner.course_mechanics,origin.z,
-                    velocity.z,planned_offset,temperament)
+                    course_owner.course_mechanics,position.z,
+                    linear_velocity.z,planned_offset,
+                    ai_temperament)
+
                 if absf(zone_offset-planned_offset) > 0.10:
                     side_force = clampf((
                         center_ahead+zone_offset-origin.x)*2.2-

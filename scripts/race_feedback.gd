@@ -80,8 +80,25 @@ static func camera_pose(position: Vector3, velocity: Vector3,
     airborne_weight: float = 0.0, duel_side: float = 0.0,
     pack_pressure: float = 0.0, jump_preview: Dictionary = {},
     evasion_target := Vector3.INF) -> Dictionary:
+    # Invalid physics samples must not propagate NaNs into camera transforms.
+    # This is presentation-only and leaves actual marble physics untouched.
+    if not position.is_finite():
+        return {"position":Vector3(0.0,8.0,12.0),
+            "focus":Vector3.ZERO,"fov":64.0,"pace":0.0,"risk":0.0}
+    if not velocity.is_finite() or not is_finite(center_ahead_x) or (
+            not is_finite(hazard_distance)):
+        # Preserve the actual player location when a single sensor sample
+        # fails; jumping the camera to world origin hides the race entirely.
+        return {"position":position+Vector3(0.0,7.0,12.0),
+            "focus":position+Vector3(0.0,0.25,-5.0),
+            "fov":64.0,"pace":0.0,"risk":0.0}
+
     var planar_speed: float = Vector2(velocity.x,velocity.z).length()
     var pace: float = clampf((planar_speed-3.0)/19.0,0.0,1.0)
+    # Chase view reacts to the actual velocity, not merely the boost button.
+    # A modest high-speed pullback makes overtakes and near misses readable
+    # without introducing particles, physics queries or draw calls.
+    var speed_pullback: float = clampf((-velocity.z-13.0)/11.0,0.0,1.0)
     # A compact preview pulls the camera up and back before a near-side
     # obstacle, without hiding the marble or exaggerating the speed.
     # Anticipation follows actual time-to-impact, not an arbitrary fixed
@@ -103,10 +120,21 @@ static func camera_pose(position: Vector3, velocity: Vector3,
         _:
             var early_view := risk*smoothstep(13.0,24.0,-velocity.z)
             desired = position+Vector3(
-                bend*0.30,6.6+pace*0.75+risk+early_view*0.40,11.6+pace*1.6+risk)
+                bend*0.30,
+                6.6+pace*0.75+risk+early_view*0.40+speed_pullback*0.30,
+                11.6+pace*1.6+risk+speed_pullback*1.25)
             focus = position+Vector3(
                 bend*0.72+clampf(velocity.x*0.10,-0.7,0.7),
                 0.25,-5.6-lead*0.70-early_view*1.15)
+    # Reveal more of the actual track before a high-speed hazard. This is
+    # a camera-only focus adjustment: no new raycasts or physics impulses.
+    # The additional lookahead is deliberately capped to keep the player
+    # marble visible on small landscape Android screens.
+    if camera_mode == 0 and risk > 0.0:
+        var anticipation: float = risk*clampf((-velocity.z-7.0)/17.0,0.0,1.0)
+        focus += Vector3(bend*0.12*anticipation,0.18*anticipation,
+            -2.0*anticipation)
+
     # Lift the chase framing gently while the REAL marble is airborne.
     # Overhead/user alternate cameras are immutable; no camera physics.
     var air: float = clampf(airborne_weight,0.0,1.0) if (
@@ -184,6 +212,7 @@ static func collision_kind(other: Node) -> String:
 static func impact_intensity(velocity: Vector3, other: Node) -> float:
     # Invalid replicated velocities must never leak NaN into camera shake,
     # audio volume or cooldown calculations.
+
     if not velocity.is_finite() or not is_instance_valid(other):
         return 0.0
     var kind: String = collision_kind(other)
@@ -197,12 +226,17 @@ static func impact_intensity(velocity: Vector3, other: Node) -> float:
         if not rival_velocity.is_finite():
             return 0.0
         speed = (velocity-rival_velocity).length()
+
     elif kind == "mechanism":
         speed += 1.3
     return clampf((speed-2.7)/14.0,0.0,1.0)
 
 static func shake_strength(intensity: float) -> float:
+    if not is_finite(intensity):
+        return 0.0
     return clampf(intensity*0.105,0.0,0.105)
 
 static func feedback_interval(intensity: float) -> float:
+    if not is_finite(intensity):
+        return 0.19
     return lerpf(0.19,0.09,clampf(intensity,0.0,1.0))

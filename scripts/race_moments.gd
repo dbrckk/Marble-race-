@@ -300,9 +300,32 @@ func tick(delta: float) -> void:
         return
     if game.race_state != "RACING" or game.player.finished or game.player.eliminated:
         return
-    elapsed += maxf(0.0,delta)
+    # Android can resume with a large, invalid or suspended frame.
+    # Never interpret stale opponent positions as overtakes.
+    if not is_finite(delta) or delta <= 0.0:
+        return
+    if delta > 0.25:
+        sample_clock = 0.0
+        sampled_once = false
+        ahead.clear()
+        previous_offsets.clear()
+        crossed_nearby.clear()
+        side_by_side_id = -1
+        side_by_side_seconds = 0.0
+        side_by_side_active = false
+        nearby_pack_count = 0
+        pack_pressure = 0.0
+        merge_traffic = 0
+        merge_threat_count = 0
+        merge_rival = null
+        evasion_target = Vector3.INF
+        _set_closest_rival(null,Vector3.ZERO)
+        game.ui.clear_overtake_feedback()
+        return
+    elapsed += delta
     exit_feedback_left = maxf(0.0,exit_feedback_left-delta)
-    sample_clock += maxf(0.0,delta)
+    sample_clock += delta
+
     if game.boosting and not previous_boost and game.boost_energy > 0.0:
         # Boost has its own SFX. Do not double-trigger the start cue.
         game.ui.show_race_moment("TURBO",0.65)
