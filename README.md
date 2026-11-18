@@ -4,7 +4,7 @@ Original **3D Android marble-racing game** inspired by the look and mechanics sh
 
 Independent implementation in **Godot 4.5.1**, focused on real mobile playability, physics, and stylized toy-table graphics. No proprietary material from the reference game is redistributed.
 
-## Current state: Android QA build (v1.162.0-rc, versionCode 176)
+## Current state: Android QA build (v1.163.0-rc, versionCode 177)
 
 **Playable scope (October 2026):** three visually differentiated 3D worlds with physical elevation changes, nine repeatable obstacle layouts, forty individually simulated glass marbles, real banked and elevated side-route shortcuts, six player perks, progression, ghost comparisons and optional online races. Autonomous opponents use deterministic physical steering, real route choices, anticipatory passing and forecasts of moving hazards; human steering stays entirely manual. The phone HUD previews real course geometry and estimates when Forge pistons will be open or blocked on arrival, with a nonrepeating audio danger cue. The three pistons share an illuminated shoulder beacon and matched deck markings for their current phase.
 
@@ -16,7 +16,7 @@ Once the player's marble is on the Gauntlet bridge, the HUD switches to the firs
 
 When a nearby rival could occupy that line, the gate cue advises saving boost. Traffic from the lower road stays out of the forecast. In online races, uncertain nearby motion prompts the player to check traffic.
 
-Crossing the first portico switches the cue to the second, and amber approach stripes continue across the deck. The exit piston forecast resumes after the second portico.
+Crossing each precision portico switches the cue to the next. Amber approach stripes extend through the third and final physical gate, with traffic warnings when a rival occupies the crossing corridor. After the third gate, the exit piston forecast resumes. At the return to the main road, the race director compares arrival times of opposing marbles on Woodworks and Gauntlet. The HUD distinguishes single traffic from a pack, advises saving boost when the lane is occupied, and keeps the closest crossing rival highlighted.
 
 A fixed-size **YOU** badge projects from the local marble onto the driving view. Two contrast brackets appear at the starting grid and in close traffic, then fade as the pack opens. The overlay uses the existing 10 Hz rivalry sample, leaves camera and touch controls available, and preserves the look of equipped skins. The ceiling stops obscuring the road when a camera rises above it, while still shading the track.
 
