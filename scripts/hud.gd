@@ -127,6 +127,10 @@ var rare_item_label: Label
 var biome_lane_label: Label
 var shortcut_label: Label
 var driving_cue_backgrounds: Dictionary[Label,Panel] = {}
+# Cache only typography measurements; the cue visibility still follows the
+# live hazard state. Avoid repeatedly shaping the same text on Android.
+var driving_cue_measure_cache: Dictionary[Label,String] = {}
+var locator_sample_time := 0.0
 var bridge_approach_active := false
 var woodworks_guide_label: Label
 var woodworks_guide_seen := false
@@ -1038,8 +1042,10 @@ func _build_race_hud() -> void:
     timed_gate_backdrop.anchor_top = 0.296
     timed_gate_backdrop.anchor_bottom = 0.344
     timed_gate_backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
-    timed_gate_backdrop.add_theme_stylebox_override("panel",
-        _surface(Color("#281d24"),Color("#de836b"),8))
+    var danger_style := _surface(Color("#2b1b24",0.94),
+        Color("#ff9a75",0.86),8)
+    danger_style.border_width_left = 4
+    timed_gate_backdrop.add_theme_stylebox_override("panel",danger_style)
     timed_gate_backdrop.hide()
     hud_layer.add_child(timed_gate_backdrop)
     timed_gate_label = _text("",19,Color("#f6d49b"))
@@ -1101,8 +1107,10 @@ func _build_race_hud() -> void:
     race_notification_backdrop.anchor_top = 0.367
     race_notification_backdrop.anchor_bottom = 0.474
     race_notification_backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
-    race_notification_backdrop.add_theme_stylebox_override("panel",
-        _surface(PANEL,Color(1,1,1,0.20),10))
+    var notification_style := _surface(Color("#101b28",0.91),
+        Color("#f2c684",0.75),9)
+    notification_style.border_width_left = 3
+    race_notification_backdrop.add_theme_stylebox_override("panel",notification_style)
     race_notification_backdrop.hide()
     hud_layer.add_child(race_notification_backdrop)
     position_feedback = _text("",22,Color("#a7f0d8"))
@@ -2005,7 +2013,13 @@ func _update_woodworks_guide(route_mode: String, turbo_ahead: bool, urgent: bool
 
 func update_hud() -> void:
     var elapsed: float = get_process_delta_time()
-    player_locator.refresh(elapsed)
+    # The 3D-to-screen locator performs several camera projections and
+    # hazard checks. 30 Hz remains responsive on 60/120 Hz displays while
+    # reducing CPU work and CanvasItem invalidations during 40-marble races.
+    locator_sample_time += maxf(0.0,elapsed)
+    if locator_sample_time >= 1.0/30.0:
+        player_locator.refresh(locator_sample_time)
+        locator_sample_time = 0.0
     var velocity := Vector3.ZERO
     if is_instance_valid(game.player):
         velocity = game.net.local_replica_velocity() if game.net.is_client() else game.player.linear_velocity
@@ -2044,9 +2058,13 @@ func update_hud() -> void:
         speed_label.self_modulate = Color("#ffe3a8")
     elif ice_impact:
         speed_label.self_modulate = Color("#ffb2b9")
+    var stripe_visible := speed_stripe_opacity >= 0.01
+    var stripe_color := Color(speed_tint,speed_stripe_opacity)
     for line in speed_stripes:
-        line.visible = speed_stripe_opacity >= 0.01
-        line.color = Color(speed_tint,speed_stripe_opacity)
+        if line.visible != stripe_visible:
+            line.visible = stripe_visible
+        if stripe_visible and line.color != stripe_color:
+            line.color = stripe_color
     overtake_chain_seconds = maxf(0.0,overtake_chain_seconds-elapsed)
     _update_rival_marker()
     if is_instance_valid(race_radar):
@@ -2605,8 +2623,13 @@ func _refresh_driving_cue_background(cue: Label) -> void:
     background.visible = cue.visible and not cue.text.is_empty() and not on_urgent_panel
     if not background.visible:
         return
-    var font := cue.get_theme_font("font")
     var font_size := cue.get_theme_font_size("font_size")
+    var measure_key := "%s|%d|%.1f|%.1f" % [
+        cue.text,font_size,cue.size.x,cue.size.y]
+    if driving_cue_measure_cache.get(cue,"") == measure_key:
+        return
+    driving_cue_measure_cache[cue] = measure_key
+    var font := cue.get_theme_font("font")
     var text_width := font.get_string_size(cue.text,HORIZONTAL_ALIGNMENT_LEFT,-1,font_size).x
     var text_height := float(cue.get_line_height())*maxi(1,cue.get_line_count())
     background.size = Vector2(minf(cue.size.x,text_width+22.0),minf(cue.size.y,text_height+6.0))
