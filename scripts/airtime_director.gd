@@ -48,6 +48,7 @@ var ignored_rids: Array[RID] = []
 var probe_clock := 0.0
 var physics_probes := 0
 var airborne := false
+var course_grounded := false
 var armed := false
 var lost_contact := 0.0
 var flight_time := 0.0
@@ -128,6 +129,7 @@ func _hide_ripple(index: int) -> void:
 func clear_motion() -> void:
     armed = false
     airborne = false
+    course_grounded = false
     lost_contact = 0.0
     flight_time = 0.0
     peak_clearance = 0.0
@@ -401,7 +403,10 @@ func tick_physics(delta: float) -> void:
     probe_clock = 0.0
     var hit: Dictionary = probe_floor(game.player)
     if hit.is_empty():
+        course_grounded = false
         return
+    course_grounded = bool(hit["touching"]) and (
+        hit.get("bridge",false) or is_finite(hit.get("bank_exit",NAN)) or _is_main_road(hit["ground"]))
     var event := sample_motion(dt,bool(hit["touching"]),float(hit["clearance"]),position,velocity,not replica)
     if game.cam_mode == 0 and (hit["touching"] or airborne):
         var bridge: bool = hit.get("bridge",false) or (

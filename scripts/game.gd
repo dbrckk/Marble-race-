@@ -1602,7 +1602,8 @@ func _process(delta: float) -> void:
         var drive_audio: bool = local_surface and net.role != "server" and (
             replica_speed >= 0.0 if net.is_client() else not player.freeze)
         audio.set_drive_context(drive_audio and boosting and boost_energy > 0.0,
-            race_moments.turn_weight if drive_audio and race_moments != null else 0.0)
+            race_moments.turn_weight if drive_audio and race_moments != null else 0.0,
+            race_moments.exit_speed_weight() if drive_audio and race_moments != null else 0.0)
 
 func _physics_process(delta: float) -> void:
     steer = move_toward(steer,steer_target,delta*8.5)

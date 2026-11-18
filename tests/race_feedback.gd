@@ -299,4 +299,15 @@ func _verify_drive_transition(stage: Node3D) -> bool:
     for frame in range(20):
         sound._process(0.10)
     assert(absf(sound.air.volume_db-clean_wind) < 0.1 and sound.turbo_mix < 0.01)
+    channel = sound.current_channel
+    var wind_pitch: float = sound.air.pitch_scale
+    sound.set_drive_context(false,0.0,1.0)
+    for frame in range(8):
+        sound._process(0.05)
+    assert(sound.current_channel == channel and sound.air.volume_db > clean_wind+2.5 and (
+        sound.air.pitch_scale > wind_pitch+0.045))
+    sound.warn_timed_gate(0,true)
+    sound._process(0.05)
+    assert(sound.air.volume_db < clean_wind and is_equal_approx(sound.air.pitch_scale,wind_pitch),
+        "An active obstacle warning overrides the speed release")
     return true

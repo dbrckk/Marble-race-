@@ -155,6 +155,9 @@ func _verify() -> void:
             if track == 1 and layout == 0 and not await _verify_evasion(game):
                 quit(1)
                 return
+            if layout == 0 and not _verify_exit_speed(game):
+                quit(1)
+                return
             game.return_to_menu()
             integrated += 1
     assert(integrated == 9)
@@ -166,6 +169,7 @@ func _verify() -> void:
     print("PACK_DYNAMICS_PASS: 9 real courses, 40 marbles, high-deck exclusion, adaptive original audio and duel framing")
     print("PACK_OBSTACLE_READABILITY_PASS: 9 layouts, real obstacle projection, sightline overlap and touch-safe clearance")
     print("EVASION_PREVIEW_PASS: real moving gate, projected lane, downstream physical obstruction and stale cue cleanup")
+    print("EXIT_SPEED_PASS: grounded recovery, consecutive obstacles, stable speed, turbo and round reset")
     quit(0)
 
 func _verify_obstacle_pointer(game: Node3D) -> bool:
@@ -260,4 +264,42 @@ func _verify_evasion(game: Node3D) -> bool:
         not game.ui.player_locator.evasion_center.is_finite()),
         "The first gate's lane must be withheld when a second real obstacle blocks it")
     barrier.queue_free()
+    return true
+
+func _verify_exit_speed(game: Node3D) -> bool:
+    var moments: RefCounted = game.race_moments
+    var first: float = game.hazard_beacons[3]["z"]
+    var second: float = game.hazard_beacons[4]["z"]
+    assert(first > second and first-second < 8.5)
+    var ground_z := -11.0
+    var player: RigidBody3D = game.player
+    player.freeze = false
+    player.global_position = Vector3(game.track_center_at(ground_z)+0.67,
+        game.height_at(ground_z)+0.44,ground_z)
+    player.linear_velocity = Vector3(0.0,0.0,-13.0)
+    game.airtime.clear_motion()
+    game.airtime.tick_physics(0.06)
+    assert(game.airtime.course_grounded)
+    var grounded: bool = game.airtime.course_grounded
+    moments.reset_round()
+    moments.sample_obstacle_exit(first+7.0,13.0,first,grounded,false)
+    moments.sample_obstacle_exit(first-1.6,9.4,second,grounded,false)
+    moments.sample_obstacle_exit(second+1.0,10.1,second,grounded,false)
+    assert(moments.exit_speed_weight() == 0.0)
+    moments.sample_obstacle_exit(second-1.4,10.1,INF,grounded,false)
+    moments.sample_obstacle_exit(second-2.4,10.1,INF,grounded,false)
+    assert(moments.exit_speed_weight() == 0.0)
+    moments.sample_obstacle_exit(second-3.6,10.7,INF,grounded,false)
+    assert(moments.exit_speed_weight() == 0.0)
+    moments.sample_obstacle_exit(second-4.8,11.1,INF,grounded,false)
+    assert(is_equal_approx(moments.exit_speed_weight(),1.0))
+    game.ui.update_hud()
+    assert(game.ui.speed_label.self_modulate.g > game.ui.speed_label.self_modulate.r)
+    moments.sample_obstacle_exit(second-5.9,11.8,INF,grounded,true)
+    assert(moments.exit_speed_weight() == 0.0)
+    moments.sample_obstacle_exit(first+6.0,13.0,first,grounded,false)
+    moments.sample_obstacle_exit(first-1.6,9.4,INF,false,false)
+    assert(not is_finite(moments.exit_gate_z))
+    moments.reset_round()
+    assert(moments.exit_speed_weight() == 0.0)
     return true

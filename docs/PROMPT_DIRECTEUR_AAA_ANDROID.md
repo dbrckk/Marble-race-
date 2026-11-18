@@ -506,6 +506,10 @@ Base `d2601437af0366e5ee3eafa9b0d2bef5d4641a04`. Le jeu sélectionne une barriè
 
 Base `23a6ccffac553b95510f06586d60f32578cd8dd6`. Les chevrons turquoise apparaissent à l’approche d’un obstacle si un passage à portée de braquage est libre au niveau de l’obstacle et sur les huit mètres suivants. Le sondage réutilise le relevé à 10 Hz et les dimensions de la bille. Les mécanismes mobiles sont évalués selon leur position prévue au moment du passage. La caméra de poursuite élargit sa vue vers l’avant à vitesse élevée et cadre légèrement la voie indiquée. Le compteur et les effets de vitesse tiennent compte des positions serveur récentes en ligne. Les effets de bord se fondent progressivement et s’atténuent près d’une alerte.
 
+### 2026-11-18 — Reprise de vitesse après les obstacles (1.136.0-rc)
+
+Base `d3331c2ef5e3ba42dd9658c6eb51fdc49aa7c61c`. Le relevé existant du peloton associe chaque passage à une menace détectée sur la trajectoire et conserve le régime le plus bas jusqu’à la sortie de l’enchaînement. Deux augmentations consécutives de la vitesse au sol déclenchent un retour turquoise bref dans le compteur et les effets de bord. Le vent remonte légèrement dans le même mouvement. Les alertes et les impacts conservent la priorité dans le mix existant. Le turbo, un saut ou la perte des positions serveur interrompent ce retour.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Améliorer le retour de vitesse quand la bille ressort d’un enchaînement d’obstacles. Mesurer le mix et la fluidité du peloton sur un téléphone Android dès qu’il est disponible.
+Rendre plus perceptible le passage d’une surface de grip à une zone de glisse en plein peloton. Mesurer le mix et la fluidité du peloton sur un téléphone Android dès qu’il est disponible.

@@ -68,6 +68,7 @@ var ice_grounded := false
 var ice_skid_target := 0.0
 var ice_skid_mix := 0.0
 var control_recovery := 0.0
+var exit_speed := 0.0
 var replica_roll_speed := -1.0
 var air: AudioStreamPlayer
 var percussion: AudioStreamPlayer
@@ -243,12 +244,13 @@ func set_pack_pressure(value: float) -> void:
 func set_flight_intensity(weight: float) -> void:
     flight_intensity_target = clampf(weight,0.0,1.0) if is_finite(weight) else 0.0
 
-func set_drive_context(turbo: bool, turn: float) -> void:
+func set_drive_context(turbo: bool, turn: float, exit_weight := 0.0) -> void:
     # The HUD has already dispatched its earliest warning for this frame.
     if turbo and not turbo_requested:
         boost()
     turbo_requested = turbo
     turn_target = clampf(turn,0.0,1.0) if is_finite(turn) else 0.0
+    exit_speed = clampf(exit_weight,0.0,1.0) if is_finite(exit_weight) else 0.0
 
 func touchdown(grade: String, impact_speed: float) -> void:
     # Already bundled CC0/original cues; no new concurrent audio channel.
@@ -318,10 +320,13 @@ func _process(delta: float) -> void:
         wind_duck = maxf(wind_duck,5.0*control_recovery)
         var corner := turn_mix*(1.0-flight_intensity)
         var thrust := 0.0 if warning_active else turbo_mix
+        var release := exit_speed*(1.0-flight_intensity)*(1.0-corner)*(
+            1.0-clampf(wind_duck/2.5,0.0,1.0)) if not warning_active and not turbo_requested else 0.0
         air_target = -52.0+energy*25.0+flight_intensity*7.0+thrust*2.6*(1.0-corner)-maxf(
             maxf(pack_wind_trim(pack_pressure)*(1.0-flight_intensity),corner*3.8),wind_duck)
+        air_target += 2.8*release
         pace_target -= priority_duck
-        air.pitch_scale = (lerpf(0.85,1.5,energy)+thrust*0.09)*(1.0-0.06*corner)*[
+        air.pitch_scale = (lerpf(0.85,1.5,energy)+thrust*0.09+release*0.055)*(1.0-0.06*corner)*[
             1.0,0.94,1.08][track_theme]
     if not enabled:
         pace_target = -80.0
@@ -512,6 +517,7 @@ func _reset_priority_mix() -> void:
     turn_mix = 0.0
     boost_delay = 0.0
     control_recovery = 0.0
+    exit_speed = 0.0
 
 func update_progress(ratio: float) -> void:
     finish_progress = clampf(ratio,0.0,1.0)

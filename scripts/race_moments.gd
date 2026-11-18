@@ -28,6 +28,7 @@ const PACK_MIN_SPEED := 3.0
 const PACK_SATURATION := 4
 const TURN_FULL_ANGLE := [0.025,0.056,0.059]
 const OCCLUSION_RADIUS := 0.43
+const EXIT_FEEDBACK_SECONDS := 0.60
 
 var game: Node3D
 var elapsed := 0.0
@@ -60,6 +61,54 @@ var turn_weight := 0.0
 var merge_traffic := 0
 var occluded_hazard := Vector3.INF
 var evasion_target := Vector3.INF
+var exit_gate_z := INF
+var exit_deadline := 0.0
+var exit_low_speed := INF
+var exit_last_speed := 0.0
+var exit_rising_samples := 0
+var exit_feedback_left := 0.0
+
+func _clear_exit_sample() -> void:
+    exit_gate_z = INF
+    exit_deadline = 0.0
+    exit_low_speed = INF
+    exit_last_speed = 0.0
+    exit_rising_samples = 0
+
+func exit_speed_weight() -> float:
+    return exit_feedback_left/EXIT_FEEDBACK_SECONDS
+
+func sample_obstacle_exit(z: float, speed: float, hazard_z: float, grounded: bool, turbo: bool) -> void:
+    if not grounded or turbo or not is_finite(speed) or speed < 5.0:
+        _clear_exit_sample()
+        exit_feedback_left = 0.0
+        return
+    if is_finite(exit_gate_z) and elapsed >= exit_deadline:
+        _clear_exit_sample()
+    var ahead := z-hazard_z
+    if is_finite(hazard_z) and ahead >= 0.0 and ahead < 10.5:
+        exit_feedback_left = 0.0
+        # Carry the slower speed through a nearby second obstacle so the
+        # cue lands after the sequence has actually cleared.
+        if not is_finite(exit_gate_z) or (hazard_z < exit_gate_z and exit_gate_z-hazard_z <= 8.5):
+            exit_gate_z = hazard_z
+            exit_deadline = elapsed+1.85
+            exit_low_speed = minf(exit_low_speed,speed)
+            exit_rising_samples = 0
+        if hazard_z < exit_gate_z-8.5:
+            _clear_exit_sample()
+            return
+    if not is_finite(exit_gate_z):
+        return
+    exit_low_speed = minf(exit_low_speed,speed)
+    if z < exit_gate_z-1.15 and speed >= exit_last_speed+0.14:
+        exit_rising_samples += 1
+    else:
+        exit_rising_samples = 0
+    exit_last_speed = speed
+    if exit_rising_samples >= 2 and speed >= 10.0 and speed-exit_low_speed >= 1.10:
+        exit_feedback_left = EXIT_FEEDBACK_SECONDS
+        _clear_exit_sample()
 
 static func covers_hazard(eye: Vector3, hazard: Vector3, rival: Vector3) -> bool:
     var sight := hazard-eye
@@ -115,6 +164,8 @@ func reset_round() -> void:
     merge_traffic = 0
     occluded_hazard = Vector3.INF
     evasion_target = Vector3.INF
+    _clear_exit_sample()
+    exit_feedback_left = 0.0
 
 func approach_turn_weight(z: float, forward: float, on_bridge: bool) -> float:
     if not is_finite(forward) or forward < 6.0:
@@ -170,6 +221,7 @@ func tick(delta: float) -> void:
     if game.race_state != "RACING" or game.player.finished or game.player.eliminated:
         return
     elapsed += maxf(0.0,delta)
+    exit_feedback_left = maxf(0.0,exit_feedback_left-delta)
     sample_clock += maxf(0.0,delta)
     if game.boosting and not previous_boost and game.boost_energy > 0.0:
         # Boost has its own SFX. Do not double-trigger the start cue.
@@ -205,6 +257,8 @@ func tick(delta: float) -> void:
         merge_traffic = 0
         occluded_hazard = Vector3.INF
         evasion_target = Vector3.INF
+        _clear_exit_sample()
+        exit_feedback_left = 0.0
         sampled_once = false
     if not final_stretch_seen and p.z < game.final_straight_z and p.z > game.FINISH_Z and (
             elapsed-message_at > NOTIFICATION_COOLDOWN and
@@ -249,8 +303,12 @@ func tick(delta: float) -> void:
         if preview_speed >= 3.0 and is_instance_valid(road):
             merge_lane = road.merge_traffic_lane(p)
             merge_distance = clampf(preview_speed*0.30,3.2,6.0)
+        var next_hazard: Vector3 = game.pack_hazard_ahead(p,preview_velocity)
+        var driving: bool = game.net.is_client() or not game.player.freeze
+        sample_obstacle_exit(p.z,preview_speed,next_hazard.z,driving and (
+            game.airtime.course_grounded and not game.airtime.airborne),game.boosting)
         if game.cam_mode == 0 and is_instance_valid(game.camera):
-            candidate = game.pack_hazard_ahead(p,preview_velocity)
+            candidate = next_hazard
             evasion_target = game.evasion_lane(p,preview_velocity,candidate)
             eyes = game.camera.global_position
     for marble in game.racers:
