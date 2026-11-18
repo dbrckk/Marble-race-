@@ -48,10 +48,16 @@ static func camera_pose(position: Vector3, velocity: Vector3,
     airborne_weight: float = 0.0) -> Dictionary:
     # Invalid physics samples must not propagate NaNs into camera transforms.
     # This is presentation-only and leaves actual marble physics untouched.
-    if not position.is_finite() or not velocity.is_finite() or (
-            not is_finite(center_ahead_x) or not is_finite(hazard_distance)):
+    if not position.is_finite():
         return {"position":Vector3(0.0,8.0,12.0),
             "focus":Vector3.ZERO,"fov":64.0,"pace":0.0,"risk":0.0}
+    if not velocity.is_finite() or not is_finite(center_ahead_x) or (
+            not is_finite(hazard_distance)):
+        # Preserve the actual player location when a single sensor sample
+        # fails; jumping the camera to world origin hides the race entirely.
+        return {"position":position+Vector3(0.0,7.0,12.0),
+            "focus":position+Vector3(0.0,0.25,-5.0),
+            "fov":64.0,"pace":0.0,"risk":0.0}
     var planar_speed: float = Vector2(velocity.x,velocity.z).length()
     var pace: float = clampf((planar_speed-3.0)/19.0,0.0,1.0)
     # A compact preview pulls the camera up and back before a near-side
