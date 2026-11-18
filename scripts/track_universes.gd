@@ -269,6 +269,9 @@ func _course_beacons(theme: int, stage: Node3D) -> void:
     paint.emission_enabled = true
     paint.emission = paint.albedo_color
     paint.emission_energy_multiplier = 0.36
+    # Beacons have alternating warm/cool intensity to create an optical
+    # rhythm as the camera advances, without animation or extra lights.
+    paint.vertex_color_use_as_albedo = true
     var transforms: Array[Transform3D] = []
     for section in range(SEGMENTS):
         var z: float = 8.0-float(section)*LEN-3.0
@@ -278,6 +281,10 @@ func _course_beacons(theme: int, stage: Node3D) -> void:
             transforms.append(Transform3D(Basis(),Vector3(x,y,z)))
     course_beacons = _batch("TracksideSpeedReferences_36",mesh,transforms)
     course_beacons.material_override = paint
+    for index in range(transforms.size()):
+        var strength: float = 1.0 if (index / 2) % 3 == 0 else 0.66
+        course_beacons.multimesh.set_instance_color(index,Color(
+            strength,strength,strength,1.0))
 
 func set_quality(quality: int) -> void:
     visual_quality = clampi(quality,0,2)
@@ -297,7 +304,8 @@ func set_quality(quality: int) -> void:
 func _batch(label: String, mesh: Mesh, transforms: Array[Transform3D]) -> MultiMeshInstance3D:
     var instances := MultiMesh.new()
     instances.transform_format = MultiMesh.TRANSFORM_3D
-    instances.use_colors = label == "BiomeSpecificForeground_36"
+    instances.use_colors = label == "BiomeSpecificForeground_36" or (
+        label == "TracksideSpeedReferences_36")
     instances.mesh = mesh
     instances.instance_count = transforms.size()
     for i in range(transforms.size()):
