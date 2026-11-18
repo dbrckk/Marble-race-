@@ -31,9 +31,14 @@ static func apply_atmosphere(env: Environment, sun: DirectionalLight3D, track: i
     var theme: int = clampi(track,0,2)
     env.background_color = THEME_SKY[theme]
     env.fog_light_color = THEME_FOG[theme]
-    env.ambient_light_color = THEME_SUN[theme]
+    # Separate cool ambient fill from the direct key light: using the sun
+    # tint for both flattens metallic obstacles and loses track readability.
+    env.ambient_light_color = [Color("#c5d9cc"),
+        Color("#b6d7ec"),Color("#d8b9a9")][theme]
+    env.ambient_light_energy = [0.48,0.53,0.49][theme]
     if is_instance_valid(sun):
         sun.light_color = THEME_SUN[theme]
+        sun.light_energy = [1.10,1.18,1.23][theme]
 
 func setup(track: int, stage: Node3D) -> void:
     var theme := clampi(track,0,2)
@@ -43,7 +48,8 @@ func setup(track: int, stage: Node3D) -> void:
     base.roughness = 0.75
     var accent := StandardMaterial3D.new()
     accent.albedo_color = [Color("#81b68b"),Color("#9de9fb"),Color("#f18d4b")][theme]
-    accent.roughness = 0.31 if theme == 1 else 0.58
+    accent.roughness = [0.64,0.26,0.43][theme]
+    accent.metallic = [0.0,0.08,0.58][theme]
     accent.emission_enabled = theme > 0
     accent.emission = accent.albedo_color
     accent.emission_energy_multiplier = 0.55 if theme > 0 else 0.0
