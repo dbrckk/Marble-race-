@@ -620,6 +620,10 @@ Le HUD tient compte du mouvement des billes sur la ligne principale et à l’en
 
 Une fois la bifurcation franchie vers le pont, le HUD affiche le premier portique et donne le conseil de centrage d’après la courbe réelle. Le conseil reste visible au bord du tablier pendant la transition, puis s’efface au franchissement du portique. Deux lignes de pointillés ambre reprennent la largeur de la zone qui valide le passage. Leur géométrie suit le dévers du pont et réutilise le lot de marquages existant. L’essai sur téléphone Android reste à faire.
 
+### 2026-11-18 — Trafic au premier portique de Gauntlet (1.161.0-rc)
+
+Le HUD évalue le mouvement des rivaux sur le tablier avant et juste après le premier portique. Si une bille risque d’occuper le passage pendant le recentrage, le conseil de pilotage cède la place à une alerte qui invite à garder le turbo. Les positions et vitesses latérales sont évaluées par rapport à la courbe du pont. En ligne, un mouvement rival incertain affiche une invitation à surveiller le trafic. L’essai sur téléphone Android reste à faire.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Adapter le guidage du premier portique du pont de Gauntlet aux billes qui occupent le couloir de précision.
+Améliorer la transition après le premier portique de Gauntlet pour rendre lisible la trajectoire vers le deuxième.

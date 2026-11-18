@@ -254,6 +254,7 @@ func _run() -> void:
             if course == 2:
                 assert(_verify_forge_fork_traffic(game))
                 assert(_verify_forge_first_gate(game))
+                assert(_verify_forge_gate_traffic(game))
             if not _verify_merge_cues(game,side):
                 quit(1)
                 return
@@ -266,6 +267,7 @@ func _run() -> void:
     print("MERGE_GUIDANCE_PASS: nine layouts, real inside-lane markings, opposing decks and alert clearance")
     print("FORGE_FORK_TRAFFIC_PASS: three layouts, both branches, cut-ins, stale snapshots and HUD handoff")
     print("FORGE_FIRST_GATE_PASS: three layouts, confirmed bridge, curve, real gate alignment and immediate handoff")
+    print("FORGE_GATE_TRAFFIC_PASS: three layouts, stalled and crossing rivals, separate decks, replica motion and stale data")
     print("WOODWORKS_RETURN_PASS: clear bridge lip, physical warnings, visible gaps and HUD handoff on three layouts")
     game.queue_free()
     await process_frame
@@ -412,6 +414,82 @@ func _verify_forge_first_gate(game: Node3D) -> bool:
     _refresh_bridge_hud(hud,player,road.point_at(gate_z-0.35)+Vector3.UP*0.67,velocity)
     assert(hud.bridge_approach_active and not hud.shortcut_label.visible,
         "Retire the first-gate instruction as soon as the player crosses it")
+    return true
+
+func _verify_forge_gate_traffic(game: Node3D) -> bool:
+    var road: Node3D = game.shortcut_route
+    var hud: CanvasLayer = game.ui
+    var player: RigidBody3D = game.player
+    var rival: RigidBody3D = game.racers[0]
+    var gate_z: float = BypassScript.BRIDGE_POST_Z[0]
+    var at: Vector3 = road.point_at(gate_z+4.0)+Vector3.UP*0.67
+    var velocity := Vector3(0,0,-12.0)
+    var stopped: Vector3 = road.point_at(gate_z-0.65)+Vector3.UP*0.67
+    rival.freeze = true
+    rival.global_position = stopped
+    _refresh_bridge_hud(hud,player,at,velocity)
+    assert(hud.shortcut_label.visible and hud.shortcut_label.text.contains("TRAFFIC  •  SAVE BOOST"),
+        "A stopped marble just beyond the posts still occupies the scoring line")
+    assert(hud.shortcut_label.get_theme_color("font_color") == hud.TIME_LOSS)
+    var outside := at+Vector3.RIGHT*1.10
+    _refresh_bridge_hud(hud,player,outside,velocity)
+    assert(hud.shortcut_label.text.contains("SAVE BOOST") and not hud.shortcut_label.text.contains("AIM"),
+        "Do not ask the player to steer toward the occupied center")
+
+    rival.global_position = stopped+Vector3.UP*2.5
+    _refresh_bridge_hud(hud,player,at,velocity)
+    assert(hud.shortcut_label.text.contains("HOLD CENTER"))
+    rival.global_position = Vector3(game.track_center_at(stopped.z),game.height_at(stopped.z)+0.43,stopped.z)
+    _refresh_bridge_hud(hud,player,at,velocity)
+    assert(hud.shortcut_label.text.contains("HOLD CENTER"),"Traffic on the main road stays out of the forecast")
+    rival.global_position = stopped
+    rival.freeze = false
+    rival.linear_velocity = Vector3(0,0,-17.0)
+    _refresh_bridge_hud(hud,player,at,velocity)
+    assert(hud.shortcut_label.text.contains("HOLD CENTER"),"A faster rival opening the gap should not warn")
+
+    var cut_z := gate_z+1.1
+    var cutting: Vector3 = road.point_at(cut_z)+Vector3(1.45,0.67,0)
+    var cut_velocity := Vector3(-4.7,0,-5.0)
+    rival.global_position = cutting
+    rival.linear_velocity = cut_velocity
+    _refresh_bridge_hud(hud,player,at,velocity)
+    assert(hud.shortcut_label.text.contains("TRAFFIC  •  SAVE BOOST"),"Catch the lateral cut into the gate")
+    rival.linear_velocity.x = 0.0
+    _refresh_bridge_hud(hud,player,at,velocity)
+    assert(hud.shortcut_label.text.contains("HOLD CENTER"),"A rival staying outside the line leaves it readable")
+
+    game.net.role = "client"
+    game.net.match_running = true
+    var packet := PackedFloat32Array()
+    for racer in game.racers:
+        var pos: Vector3 = racer.global_position
+        var motion := velocity if racer == player else (cut_velocity if racer == rival else Vector3.ZERO)
+        pos -= motion*0.10
+        packet.append_array(PackedFloat32Array([pos.x,pos.y,pos.z,0,0,0,1,0,0]))
+    game.net._receive_snapshot(packet,1.0,PackedFloat32Array())
+    var stride: int = game.net.FLOATS_PER_RACER
+    for offset in [0,2]:
+        packet[player.racer_id*stride+offset] += velocity[offset]*0.10
+        packet[rival.racer_id*stride+offset] += cut_velocity[offset]*0.10
+    game.net._receive_snapshot(packet,1.1,PackedFloat32Array())
+    rival.global_position = cutting
+    _refresh_bridge_hud(hud,player,at,Vector3.ZERO)
+    assert(hud.shortcut_label.text.contains("TRAFFIC  •  SAVE BOOST"),"Use server-replica motion")
+    game.net.snapshot_velocities[rival.racer_id] = Vector3.INF
+    _refresh_bridge_hud(hud,player,at,Vector3.ZERO)
+    assert(hud.shortcut_label.text.contains("CHECK TRAFFIC"),"Uncertain rival motion must withhold aiming advice")
+    game.net.snapshot_age_seconds = game.net.PRESENTATION_MAX_AGE+0.01
+    _refresh_bridge_hud(hud,player,at,Vector3.ZERO)
+    assert(not hud.shortcut_label.visible)
+    game.net.role = "offline"
+    game.net.match_running = false
+    game.net._clear_snapshots()
+    rival.freeze = true
+    rival.global_position = stopped
+    _refresh_bridge_hud(hud,player,road.point_at(gate_z-0.35)+Vector3.UP*0.67,velocity)
+    assert(not hud.shortcut_label.visible,"A traffic warning cannot outlive the gate guide")
+    rival.global_position = Vector3(80.0,0.0,20.0)
     return true
 
 func _refresh_bridge_hud(hud: CanvasLayer, player: RigidBody3D, at: Vector3, velocity: Vector3) -> void:

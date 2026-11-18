@@ -2453,7 +2453,8 @@ func update_hud() -> void:
     if not bridge_gate.is_empty():
         shortcut_label.text = "GATE %d / %d  •  %s  •  %dm" % [bridge_gate["number"],
             SHORTCUT_ROUTE.BRIDGE_POST_Z.size(),bridge_gate["action"],bridge_gate["distance"]]
-        shortcut_label.add_theme_color_override("font_color",SHORTCUT_ROUTE.FORK_BRIDGE_COLOR)
+        shortcut_label.add_theme_color_override("font_color",TIME_LOSS if bridge_gate.get("traffic",false) else (
+            SHORTCUT_ROUTE.FORK_BRIDGE_COLOR))
         if seconds_until > 1.15:
             hazard_label.hide()
         if ordinary_gate_clear and gate_eta > 0.8:

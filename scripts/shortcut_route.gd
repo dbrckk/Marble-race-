@@ -45,6 +45,9 @@ const BRIDGE_POST_Z := [-65.0,-80.0,-90.0]
 const FORGE_FIRST_GATE_APPROACH := [8.0,6.0,4.0,2.0,0.8]
 const BRIDGE_ENTRY_X := 6.68
 const FORGE_BRIDGE_EDGE_X := 6.35
+const FORGE_GATE_TRAFFIC_SECONDS := 0.95
+const FORGE_GATE_SETTLE_SECONDS := 0.48
+const FORGE_GATE_EXIT_PAD := 1.25
 const BRIDGE_POST_OFFSET := 1.76
 const BRIDGE_POST_RADIUS := 0.22
 const BRIDGE_POST_HEIGHT := 0.88
@@ -625,7 +628,58 @@ func _forge_first_gate_ahead(at: Vector3, velocity: Vector3) -> Dictionary:
     var action := "FOLLOW CURVE" if at.z > OUTER_START else "HOLD CENTER"
     if absf(lateral) > PRECISION_GATE_HALF_WIDTH*0.72:
         action = "AIM LEFT" if lateral > 0.0 else "AIM RIGHT"
-    return {"number":1,"action":action,"distance":maxi(1,ceili(distance))}
+    var traffic := _forge_gate_traffic(at,velocity,at.x-deck.x,distance/speed)
+    return {"number":1,"action":action if traffic.is_empty() else traffic,
+        "distance":maxi(1,ceili(distance)),"traffic":not traffic.is_empty()}
+
+func _forge_gate_traffic(at: Vector3, velocity: Vector3, offset: float, gate_eta: float) -> String:
+    var speed := -velocity.z
+    var horizon := minf(FORGE_GATE_TRAFFIC_SECONDS,gate_eta+FORGE_GATE_EXIT_PAD/speed)
+    var end_z := at.z-speed*horizon
+    var origins := PackedVector2Array()
+    var motions := PackedVector2Array()
+    var online: bool = stage.net.is_client()
+    var unknown := false
+    for rival in stage.racers:
+        if not is_instance_valid(rival) or rival == stage.player or rival.finished or rival.eliminated:
+            continue
+        var pos: Vector3 = rival.global_position
+        if not pos.is_finite() or pos.z < end_z-FORK_TRAFFIC_CLEARANCE or pos.z > at.z+9.0:
+            continue
+        var deck := point_at(pos.z)
+        var across := pos.x-deck.x
+        if absf(across) > WIDTH*0.5+0.15 or pos.y < deck.y+0.24 or pos.y > deck.y+1.35 or (
+                pos.z > OUTER_START and side*(pos.x-stage.track_center_at(pos.z)) < FORGE_BRIDGE_EDGE_X):
+            continue
+        var motion: Vector3 = stage.net.replica_velocity(rival) if online else (
+            Vector3.ZERO if rival.freeze else rival.linear_velocity)
+        if not motion.is_finite():
+            unknown = true
+            continue
+        origins.append(Vector2(across,pos.z))
+        motions.append(Vector2(_bridge_lateral_speed(pos.z,motion),motion.z))
+    if origins.is_empty():
+        return "CHECK TRAFFIC" if unknown else ""
+
+    # Compare in deck coordinates. A rival following the bend should not
+    # appear to cut across the lane just because the bridge turns to the right.
+    var settle := minf(gate_eta,FORGE_GATE_SETTLE_SECONDS)
+    var reaction := minf(FORK_REACTION,settle*0.45)
+    var drift := clampf(offset+_bridge_lateral_speed(at.z,velocity)*reaction,-WIDTH*0.5,WIDTH*0.5)
+    var previous := Vector2(offset,at.z)
+    var first := 0.0
+    for segment in [Vector2(drift,reaction),Vector2(0.0,settle),Vector2(0.0,horizon)]:
+        var next := Vector2(segment.x,at.z-speed*segment.y)
+        if not RaceFeedback.traffic_span_clear(previous,next,first,segment.y,origins,motions,
+                FORK_TRAFFIC_CLEARANCE):
+            return "TRAFFIC  •  SAVE BOOST"
+        previous = next
+        first = segment.y
+    return "CHECK TRAFFIC" if unknown else ""
+
+func _bridge_lateral_speed(z: float, velocity: Vector3) -> float:
+    var slope := point_at(z+0.5).x-point_at(z-0.5).x
+    return velocity.x-slope*velocity.z
 
 func shortcut_hint(location: Vector3, continuing_merge := false) -> Dictionary:
     # Retain bridge context on the overlapping deck only for a racer
