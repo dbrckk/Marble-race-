@@ -47,7 +47,7 @@ func _run() -> void:
         assert(road.get_node_or_null("BypassNavigationChevrons") is MultiMeshInstance3D)
         assert(road.get_node_or_null("RouteSignPlates") is MultiMeshInstance3D)
         var arrows := road.get_node("RouteDirectionArrows") as MultiMeshInstance3D
-        assert(arrows.multimesh.instance_count == (22 if course == 1 else 20) and
+        assert(arrows.multimesh.instance_count == [17,22,20][course] and
             arrows.multimesh.use_colors)
         assert(arrows.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
         assert(road.get_node_or_null("ShortcutEntranceArrow") is Label3D)
