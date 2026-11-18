@@ -104,7 +104,6 @@ func setup(owner: Node3D, track: int, next_layout: int) -> void:
     # Per-instance contact highlights reuse the same twelve ring meshes.
     glow.vertex_color_use_as_albedo = true
     glow_rings = _batch("SpringContactHalos",torus,glow,rings)
-    glow_rings.multimesh.use_colors = true
     for slot in range(rings.size()):
         glow_rings.multimesh.set_instance_color(slot,Color.WHITE)
     ring_origins = rings.duplicate()
@@ -116,6 +115,8 @@ func _batch(label_text: String, mesh: Mesh, paint: Material,
         transforms: Array[Transform3D]) -> MultiMeshInstance3D:
     var instances := MultiMesh.new()
     instances.transform_format = MultiMesh.TRANSFORM_3D
+    # Must be configured before instance_count in Godot 4.
+    instances.use_colors = label_text == "SpringContactHalos"
     instances.mesh = mesh
     instances.instance_count = transforms.size()
     for i in range(transforms.size()):
