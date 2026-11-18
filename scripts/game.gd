@@ -1355,6 +1355,8 @@ func _update_camera(delta: float, force := false) -> void:
     desired = RaceFeedback.terrain_safe_camera(desired,height_at(desired.z))
     var previous_jitter: Vector3 = camera.get_meta(
         "previous_jitter",Vector3.ZERO)
+    if not previous_jitter.is_finite():
+        previous_jitter = Vector3.ZERO
     var follow_rate: float = lerpf(4.5,6.0,float(pose["pace"]))
     var step: float = RaceFeedback.smooth_factor(delta,follow_rate)
     var base: Vector3 = camera.global_position-previous_jitter
@@ -1379,6 +1381,8 @@ func _update_camera(delta: float, force := false) -> void:
     # Smooth steering-induced banking to prevent one-frame twitching when
     # lateral velocity flips on mobile. Keep alternate views level.
     var previous_bank: float = float(camera.get_meta("smoothed_bank",0.0))
+    if not is_finite(previous_bank):
+        previous_bank = 0.0
     var bank: float = lerpf(previous_bank,target_bank,
         RaceFeedback.smooth_factor(delta,9.0))
     if force or not is_finite(bank):
