@@ -56,7 +56,7 @@ static func camera_pose(position: Vector3, velocity: Vector3,
     center_ahead_x: float, camera_mode: int, boosting: bool,
     hazard_distance: float, close_duel: bool = false,
     airborne_weight: float = 0.0, duel_side: float = 0.0,
-    pack_pressure: float = 0.0) -> Dictionary:
+    pack_pressure: float = 0.0, jump_preview: Dictionary = {}) -> Dictionary:
     var planar_speed: float = Vector2(velocity.x,velocity.z).length()
     var pace: float = clampf((planar_speed-3.0)/19.0,0.0,1.0)
     # A compact preview pulls the camera up and back before a near-side
@@ -107,6 +107,14 @@ static func camera_pose(position: Vector3, velocity: Vector3,
         var crowd := clampf((pack_pressure-0.25)/0.75,0.0,1.0)
         var crowd_lift := 2.20*crowd*pace*risk
         desired.y += maxf(0.0,crowd_lift-duel_lift)*(1.0-air)
+    if camera_mode == 0 and not jump_preview.is_empty():
+        var weight: float = jump_preview["weight"]*(1.0-0.45*risk)
+        var landing: Vector3 = jump_preview["landing"]
+        # Reveal the landing line with a small lift and a bounded look ahead.
+        # Obstacle anticipation and the player's overhead views still win.
+        desired.y += 0.64*weight*(1.0-0.50*air)
+        focus.x += clampf(landing.x-focus.x,-2.2,2.2)*0.30*weight
+        focus.z -= clampf(focus.z-landing.z,0.0,3.0)*0.44*weight
     var fov: float = clampf(
         64.0+pace*9.0+(3.1 if boosting else 0.0)+risk*1.4+
         duel_lift*2.1+(1.5*air if camera_mode == 0 else 0.0),

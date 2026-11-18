@@ -75,6 +75,7 @@ var pending_bank_exit := NAN
 var last_contact_on_bank := false
 var secure_contacts := 0
 var control_return_seconds := 0.0
+var jump_preview: Dictionary = {}
 
 func _ready() -> void:
     var loop := TorusMesh.new()
@@ -141,6 +142,7 @@ func clear_motion() -> void:
     last_contact_on_bank = false
     secure_contacts = 0
     control_return_seconds = 0.0
+    jump_preview.clear()
 
 func _clear_rolling_surface() -> void:
     rolling_surface = Surface.OTHER
@@ -401,6 +403,12 @@ func tick_physics(delta: float) -> void:
     if hit.is_empty():
         return
     var event := sample_motion(dt,bool(hit["touching"]),float(hit["clearance"]),position,velocity,not replica)
+    if game.cam_mode == 0 and (hit["touching"] or airborne):
+        var bridge: bool = hit.get("bridge",false) or (
+            airborne and game.shortcut_route.on_separate_deck(position))
+        jump_preview = game.jump_guides.preview(position,velocity,bridge,airborne)
+    else:
+        jump_preview.clear()
     var transition := sample_rolling_surface(hit,position)
     var regained := glacier and sample_ice_contact(hit,position,velocity)
     if not event.is_empty():

@@ -43,6 +43,7 @@ const TrackUniverses = preload("res://scripts/track_universes.gd")
 const BiomeSignature = preload("res://scripts/biome_signature.gd")
 const CourseSculptures = preload("res://scripts/course_sculptures.gd")
 const AirtimeDirector = preload("res://scripts/airtime_director.gd")
+const JumpGuides = preload("res://scripts/jump_guides.gd")
 
 const MARBLE_COUNT := 40
 const MARBLE_DETAIL_INTERVAL := 0.125
@@ -80,6 +81,7 @@ const WOOD_COLORS := [
 ]
 
 var rng := RandomNumberGenerator.new()
+var jump_guides: Node3D
 var ui: CanvasLayer
 var audio: Node3D
 var camera: Camera3D
@@ -590,6 +592,9 @@ func _make_course() -> void:
     track_surface = TrackSurface.new()
     track_surface.name = "InstancedTrackSurface"
     board.add_child(track_surface)
+    jump_guides = JumpGuides.new()
+    jump_guides.game = self
+    board.add_child(jump_guides)
     for section in range(SEGMENTS):
         var center_z = 8.0 - float(section) * SEGMENT_LENGTH
         var section_node = Node3D.new()
@@ -603,8 +608,9 @@ func _make_course() -> void:
             var plank_at := Vector3(x,height_at(center_z)-0.34,center_z)
             # Render-only planks share GPU draw calls by material. Each keeps
             # the exact original independent tilted BoxShape3D collider.
-            _box(section_node,plank_at,
+            var floor_body := _box(section_node,plank_at,
                 TrackSurface.PLANK,_wood_mat(shade),true,true,false)
+            floor_body.set_meta(JumpGuides.ROAD_FLOOR,true)
             track_surface.register_plank(plank_at+section_node.position,material_index,track_grade_at(center_z))
             for j in range(2):
                 var z: float = center_z+(float(j)-0.5)*4.4
@@ -661,6 +667,9 @@ func _make_course() -> void:
     shortcut_route = ShortcutRoute.new()
     board.add_child(shortcut_route)
     shortcut_route.setup(self,selected_track)
+    for ramp in shortcut_route.launch_ramps:
+        var shape: BoxShape3D = ramp.get_child(0).shape
+        jump_guides.add_ramp(ramp,shape.size,true)
     obstacle_finish.rebuild()
     var woods: Array = []
     for color in WOOD_COLORS:
@@ -715,6 +724,7 @@ func _connect_winding_sections() -> void:
         var seam := _box(board,Vector3(mid,height_at(seam_z)-0.34,seam_z),
             Vector3(13.2+absf(drift),0.66,2.8),_wood_mat(_themed_wood(WOOD_COLORS[section%WOOD_COLORS.size()])),true,true,false)
         seam.name = "ContinuousBendFloor_%02d" % section
+        seam.set_meta(JumpGuides.ROAD_FLOOR,true)
         for side in [-1.0,1.0]:
             var rail := _box(board,Vector3(mid+side*6.84,height_at(seam_z)+0.58,seam_z),
                 Vector3(0.57,1.26,sqrt(3.6*3.6+drift*drift)+0.28),
@@ -770,6 +780,7 @@ func _terrain_ramp(parent: Node3D, center_z: float, section: int) -> void:
         size,_lacquer(TRACK_COLORS[selected_track].lightened(0.20)),true,true)
     ramp.name = "RideableCrest_%02d" % section
     ramp.rotation.x += -0.09 if selected_track == 1 else -0.16
+    jump_guides.add_ramp(ramp,size)
 
 func _edge_baffles(parent: Node3D, center_z: float, section: int, glacier_return: bool) -> void:
     # Two solid edge shutters per module, plus a staggered inboard obstacle
@@ -1613,14 +1624,25 @@ func _update_camera(delta: float, force := false) -> void:
     var ahead_x: float = track_center_at(player.global_position.z-12.0)
     var next_gate: Dictionary = upcoming_hazard(player.global_position.z)
     var distance: float = float(next_gate.get("distance",-1.0))
+    var airborne_weight: float = airtime.camera_weight() if is_instance_valid(airtime) else 0.0
+    var jump_preview: Dictionary = airtime.jump_preview if cam_mode == 0 and race_state == "RACING" and (
+        not player.finished and not player.eliminated and is_instance_valid(airtime)) else {}
+    var velocity: Vector3 = player.linear_velocity
+    if not jump_preview.is_empty() and net.is_client():
+        var replica: Vector3 = net.local_replica_velocity()
+        if replica.is_finite():
+            velocity = replica
+        else:
+            jump_preview = {}
     var pose: Dictionary = RaceFeedback.camera_pose(
-        player.global_position,player.linear_velocity,
+        player.global_position,velocity,
         ahead_x,cam_mode,boosting,distance,
         race_moments != null and race_state == "RACING" and
         race_moments.side_by_side_active,
-        airtime.camera_weight() if is_instance_valid(airtime) else 0.0,
+        airborne_weight,
         float(race_moments.closest_rival_side) if race_moments != null else 0.0,
-        race_moments.pack_pressure if race_moments != null and race_state == "RACING" else 0.0)
+        race_moments.pack_pressure if race_moments != null and race_state == "RACING" else 0.0,
+        jump_preview)
     var desired: Vector3 = pose["position"]
     var focus: Vector3 = pose["focus"]
     # Match the camera to the real 3D grade without per-frame raycasts.

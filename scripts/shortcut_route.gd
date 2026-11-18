@@ -231,15 +231,6 @@ func _launch_ramps(material: Material) -> void:
     ramp.set_meta(ROLLING_SURFACE,true)
     launch_ramps.append(ramp)
     _batch("BatchedJumpTakeoff",[Transform3D(basis.scaled(size),ramp.position)],material)
-    var lip_mesh := BoxMesh.new()
-    lip_mesh.size = Vector3(2.34,0.055,0.14)
-    var strip := MeshInstance3D.new()
-    strip.name = "TakeoffPaintedLip"
-    strip.mesh = lip_mesh
-    strip.material_override = material
-    strip.position = at+Vector3.UP*0.60+Vector3(0.0,0.0,-1.08)
-    strip.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-    add_child(strip)
 
 func _bridge_precision_corridor(material: Material) -> void:
     # The six physical posts and three open decorative frames use one

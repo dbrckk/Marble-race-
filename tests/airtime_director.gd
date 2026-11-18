@@ -55,6 +55,9 @@ func _run() -> void:
             player.freeze = false
             for marble in stage.racers:
                 marble.freeze = true if marble != player else false
+            for frame in range(4):
+                await physics_frame
+            _verify_jump_guides(stage)
             assert(flight.ignored_rids.size() == 40,
                 "Physics probes must ignore all marbles, not mistake their tops for road")
             assert(not flight.probe_floor(player).is_empty())
@@ -167,7 +170,36 @@ func _run() -> void:
     print("BRIDGE_SURFACE_PASS: nine real bridge floors, contact confirmation, airborne rejection, pooled ripples and reversible audio fades")
     print("GLACIER_GRIP_PASS: three real ice layouts, lateral slip, jump rejection and one grounded recovery cue")
     print("CONTROL_RETURN_PASS: nine real bank departures and two-sample touchdown recoveries with floor-aligned effects")
+    print("JUMP_GUIDES_PASS: 30 ramps across nine layouts, one paint batch and lane-aware camera")
     quit(0)
+
+func _verify_jump_guides(stage: Node3D) -> void:
+    var guide: Node3D = stage.jump_guides
+    var expected := 2 if stage.selected_track == 0 else 4
+    assert(guide.baked and guide.windows.size() == expected and guide.ramps.size() == expected)
+    assert(guide.get_child_count() == 1 and guide.paint.multimesh.instance_count == 20*expected)
+    for window in guide.windows:
+        var lip: Vector3 = window["lip"]
+        var landing: Vector3 = window["landing"]
+        var bridge: bool = window["bridge"]
+        assert(lip.z > landing.z and landing.z > stage.FINISH_Z)
+        var origin := lip+Vector3(0.0,0.39,5.0)
+        var velocity := Vector3(0.0,0.0,-13.0)
+        var hint: Dictionary = guide.preview(origin,velocity,bridge,false)
+        assert(not hint.is_empty() and hint["landing"] == landing)
+        assert(guide.preview(origin,velocity,not bridge,false).is_empty())
+        assert(guide.preview(origin+Vector3.RIGHT*3.0,velocity,bridge,false).is_empty())
+        assert(guide.preview(origin,-velocity,bridge,false).is_empty())
+        assert(guide.preview(landing+Vector3(0.0,1.0,-2.0),velocity,bridge,true).is_empty())
+        for mode in range(3):
+            var base: Dictionary = FEEDBACK.camera_pose(origin,velocity,origin.x,mode,false,-1.0)
+            var framed: Dictionary = FEEDBACK.camera_pose(origin,velocity,origin.x,mode,false,-1.0,
+                false,0.0,0.0,0.0,hint)
+            if mode == 0:
+                var lift: float = framed["position"].y-base["position"].y
+                assert(lift > 0.0 and lift < 0.65 and framed["fov"] == base["fov"])
+            else:
+                assert(framed == base)
 
 func _verify_bridge_surface(stage: Node3D, flight: Node3D, player: RigidBody3D,
         biome: int) -> bool:

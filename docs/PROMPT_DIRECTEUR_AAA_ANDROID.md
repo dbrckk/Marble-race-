@@ -490,6 +490,10 @@ Base `158254663ae083a25d51c605817d0c78aef47a54`. Le roulement de la glace démar
 
 Base `838aba31c66b333726dd8351c3fb74c28786ec03`. Deux appuis stables après la réception d’un saut ou la sortie aval d’un virage relevé font ressortir le roulement et atténuent le vent. L’onde s’aligne sur la pente mesurée sous la bille. La sortie de virage ajoute un bref son propre à chaque circuit. Les effets utilisent la sonde de sol et les voix existantes, avec les positions validées du serveur en ligne.
 
+### 2026-11-18 — Lecture des rampes et des réceptions (1.132.0-rc)
+
+Base `705f8009377ae45344f5203e952036f5d6ebe1b1`. Les rampes de la piste et du pont portent des chevrons d’appel ambrés. Des crochets contrastés marquent une zone de réception sur le tablier correspondant. Le jeu relève le sol en trois points à la construction pour éviter de peindre sur un obstacle ou sur la piste inférieure. Les marquages forment un seul lot de rendu sur tous les profils Android. La caméra de poursuite relève sa visée selon la vitesse et l’alignement de la bille, avec priorité donnée aux alertes d’obstacle.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Améliorer l’anticipation des sauts et la lisibilité de leur zone de réception. Mesurer le mix et la fluidité du peloton sur un téléphone Android dès qu’il est disponible.
+Affiner la lisibilité des lignes de dépassement à la jonction entre le pont et la piste. Mesurer le mix et la fluidité du peloton sur un téléphone Android dès qu’il est disponible.
