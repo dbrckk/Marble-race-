@@ -207,6 +207,9 @@ func _verify() -> void:
             var finish := game.board.get_node("FinishLine") as FinishLine
             assert(is_equal_approx(finish.position.z,game.FINISH_Z))
             assert(finish.mesh.get_surface_count() == 1 and finish.get_child_count() == 2)
+            if biome == 0:
+                assert((finish.get_child(0) as Label3D).position.y > 3.0)
+                assert(finish.mesh.get_aabb().end.y > 3.7)
             for vertex in finish.mesh.get_faces():
                 assert(vertex.y < 0.07 or absf(vertex.x) >= 5.60,
                     "The finish must leave the driving corridor open")

@@ -576,6 +576,12 @@ Après le pont, la prévision couvre le balayage du bras pendant tout le passage
 
 Après le bras, le HUD conserve le suivi de la reprise de vitesse tant que le prochain obstacle reste à distance. Une flèche à côté du compteur accompagne l'accélération mesurée, y compris en mode Économie. La dernière montée porte des liserés sur ses deux pentes physiques. Un pictogramme de pente indique le relief quand une bille masque le marquage, et cède la place aux avertissements de conduite.
 
+### 2026-11-18 — Duels et ligne d’arrivée de Woodworks (1.153.0-rc)
+
+La caméra de poursuite cadre les deux billes et la ligne après la dernière montée. Les panneaux sont rehaussés et le damier est élargi. Le jeu interpole les instants de franchissement entre deux positions physiques pour départager les billes qui terminent dans le même pas. Le photo-finish tient compte de la trajectoire et écarte les rivaux éliminés.
+
+Les tests de franchissement, de cadrage des duels, de variation de parcours et de moments de course passent. Le cadrage et la signalisation sont vérifiés sur des captures des trois tracés. L’essai sur téléphone Android reste à faire.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Vérifier les duels et la lecture de la ligne d’arrivée à la sortie de la dernière montée de Woodworks. Mesurer le mix et la fluidité sur un téléphone Android dès qu’il est disponible.
+Fluidifier le passage du photo-finish au classement et à la revanche sur Android. Vérifier le mix et la fluidité sur téléphone pendant ce parcours.

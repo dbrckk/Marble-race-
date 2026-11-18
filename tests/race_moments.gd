@@ -230,6 +230,15 @@ func _run() -> void:
     stage.race_moments.on_finish()
     assert(stage.ui.race_moment_label.text == "PHOTO FINISH!",
         "Repeated finish signals must not retrigger the cinematic cue")
+    stage.race_moments.reset_round()
+    stage.ui.moment_remaining = 0.0
+    rival.finished = false
+    rival.freeze = false
+    rival.global_position = stage.finish_origin+Vector3(stage.FINISH_HALF_WIDTH+1.0,0.45,0.8)
+    rival.linear_velocity = Vector3(0,0,-14)
+    stage.race_moments.on_finish()
+    assert(stage.ui.race_moment_label.text != "PHOTO FINISH!",
+        "A rival outside the timing stripe does not qualify for a photo finish")
 
     # Both Android graphic tiers and rest screen stay usable without
     # any postprocess shaders or gameplay camera changes.

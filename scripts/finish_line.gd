@@ -2,6 +2,7 @@ extends MeshInstance3D
 ## The timing stripe and two lateral landmarks share one render surface.
 const Visuals = preload("res://scripts/visuals.gd")
 const SIDE_OFFSET := 6.45
+const WOODWORKS_SIGN_Y := 3.23
 const PALETTES := [
     [Color("#815338"),Color("#c28650"),Color("#f2c172")],
     [Color("#2a536d"),Color("#54a2c5"),Color("#a4eff7")],
@@ -27,9 +28,9 @@ func setup(biome: int, grade: float) -> void:
         var sign := Label3D.new()
         sign.text = "FINISH"
         sign.font_size = 52
-        sign.pixel_size = 0.015 if biome == 2 else 0.012
+        sign.pixel_size = 0.012 if biome == 1 else 0.015
         sign.outline_size = 7
-        sign.position = Vector3(side*SIDE_OFFSET,3.45 if biome == 2 else 2.42,0.41)
+        sign.position = Vector3(side*SIDE_OFFSET,[WOODWORKS_SIGN_Y,2.42,3.45][biome],0.41)
         sign.modulate = Color("#fff2da")
         add_child(sign)
 
@@ -37,23 +38,28 @@ static func _build(biome: int) -> ArrayMesh:
     var surface := SurfaceTool.new()
     surface.begin(Mesh.PRIMITIVE_TRIANGLES)
     var palette: Array = PALETTES[biome]
+    var tile_depth := 0.52 if biome == 0 else 0.38
     for row in range(2):
-        var z := -0.19 if row == 0 else 0.19
+        var z := (float(row)-0.5)*tile_depth
         for tile in range(12):
             var x := (float(tile)-5.5)*1.06
             var tint := Color("#f7edd5") if (tile+row)%2 == 0 else Color("#212833")
-            _box(surface,Vector3(x,0.043,z),Vector3(1.06,0.036,0.38),tint)
+            _box(surface,Vector3(x,0.043,z),Vector3(1.06,0.036,tile_depth),tint)
     for side in [-1.0,1.0]:
         var x: float = side*SIDE_OFFSET
         _box(surface,Vector3(x,0.18,0.0),Vector3(0.91,0.36,0.84),palette[0])
-        _box(surface,Vector3(x,2.43,0.02),Vector3(1.58,0.66,0.65),palette[0])
-        _box(surface,Vector3(x,2.82,0.02),Vector3(1.48,0.13,0.63),palette[2])
+        var sign_y := WOODWORKS_SIGN_Y if biome == 0 else 2.43
+        _box(surface,Vector3(x,sign_y,0.02),Vector3(1.58,0.66,0.65),palette[0])
+        _box(surface,Vector3(x,sign_y+0.39,0.02),Vector3(1.48,0.13,0.63),palette[2])
         match biome:
             0:
-                _box(surface,Vector3(x,1.25,0),Vector3(0.48,2.17,0.55),palette[1])
-                _box(surface,Vector3(x+side*0.22,1.19,0),Vector3(0.28,1.75,0.42),palette[0],-side*0.26)
-                for y in [0.52,1.47,2.06]:
+                _box(surface,Vector3(x,1.66,0),Vector3(0.48,2.97,0.55),palette[1])
+                _box(surface,Vector3(x+side*0.22,1.47,0),Vector3(0.28,2.29,0.42),palette[0],-side*0.21)
+                for y in [0.52,1.52,2.55]:
                     _box(surface,Vector3(x,y,0.0),Vector3(0.60,0.12,0.61),palette[2])
+                for tile in range(6):
+                    var tint := Color("#f8e4b5") if tile%2 == 0 else Color("#2a2020")
+                    _box(surface,Vector3(x+(float(tile)-2.5)*0.22,3.78,0.20),Vector3(0.22,0.20,0.13),tint)
             1:
                 _box(surface,Vector3(x,1.23,0),Vector3(0.54,2.11,0.60),palette[1],side*0.10)
                 _box(surface,Vector3(x+side*0.30,1.65,-0.08),Vector3(0.32,2.80,0.46),palette[2],-side*0.22)

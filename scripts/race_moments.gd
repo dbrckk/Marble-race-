@@ -600,12 +600,14 @@ func on_finish() -> void:
     finish_seen = true
     var photo_finish := false
     for rival in game.racers:
-        if not is_instance_valid(rival) or rival == game.player:
+        if not is_instance_valid(rival) or rival == game.player or rival.eliminated:
             continue
         if rival.finished and absf(rival.finish_time-game.player.finish_time) < PHOTO_FINISH_WINDOW:
             photo_finish = true
             break
-        if not rival.finished and absf(rival.global_position.z-game.FINISH_Z) < 1.8:
+        var at: Vector3 = rival.global_position
+        if not rival.finished and not rival.freeze and rival.linear_velocity.z <= -3.0 and (
+                game.finish_crossing_fraction(at,at+rival.linear_velocity*PHOTO_FINISH_WINDOW) >= 0.0):
             photo_finish = true
             break
     var label: String = "PHOTO FINISH!" if photo_finish else (

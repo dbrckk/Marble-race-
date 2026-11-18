@@ -99,6 +99,8 @@ var final_straight_z := 0.0
 var racers: Array[RigidBody3D] = []
 var player: RigidBody3D
 var racer_finish_order: Array[String] = []
+var finish_crossings: Array[RigidBody3D] = []
+var finish_step_end := -INF
 var render_materials := {}
 var race_state := "MENU"
 var race_time := 0.0
@@ -1373,13 +1375,13 @@ func _make_finish_line() -> void:
     finish.setup(selected_track,grade)
     board.add_child(finish)
 
-func _crossed_finish(previous: Vector3, current: Vector3) -> bool:
+func finish_crossing_fraction(previous: Vector3, current: Vector3) -> float:
     if previous.z < FINISH_Z or current.z >= FINISH_Z:
-        return false
+        return -1.0
     var fraction := (previous.z-FINISH_Z)/(previous.z-current.z)
     var crossing := previous.lerp(current,fraction)-finish_origin
-    return absf(crossing.x) <= FINISH_HALF_WIDTH and (
-        crossing.y >= 0.0 and crossing.y <= FINISH_AIR_CLEARANCE)
+    return fraction if absf(crossing.x) <= FINISH_HALF_WIDTH and (
+        crossing.y >= 0.0 and crossing.y <= FINISH_AIR_CLEARANCE) else -1.0
 
 func _edge_checkpoint_markers() -> void:
     var forge := selected_track == 2
@@ -1523,6 +1525,8 @@ func _spawn_racers() -> void:
             m.queue_free()
     racers.clear()
     racer_finish_order.clear()
+    finish_crossings.clear()
+    finish_step_end = -INF
     player = null
     var player_slot: int = net.local_slot if net.match_running else MARBLE_COUNT-1
     for i in range(MARBLE_COUNT):
@@ -1960,6 +1964,10 @@ func _physics_process(delta: float) -> void:
         if draft > 0.001:
             player.apply_central_force(
                 Vector3(0.0,0.0,-Slipstream.FORWARD_FORCE*draft)*player.mass)
+    finish_crossings.clear()
+    # Several physics ticks can share one render-clock timestamp. Keep
+    # consecutive finish intervals ordered without changing the race clock.
+    var sample_end := maxf(race_time,finish_step_end+delta)
     for m in racers:
         if not is_instance_valid(m):
             continue
@@ -1969,19 +1977,25 @@ func _physics_process(delta: float) -> void:
         var turbo: bool = remote_input.y>0.5 if m.network_controlled else (boosting and boost_energy>0.0 and m.is_player and not net.is_host())
         m.drive(delta,race_time,axis,turbo)
         var current: Vector3 = m.position
-        var crossed := _crossed_finish(m.previous_race_position,current)
+        var fraction := finish_crossing_fraction(m.previous_race_position,current) if (
+            not m.finished and not m.eliminated) else -1.0
         m.previous_race_position = current
-        if not m.finished and not m.eliminated and crossed:
+        if fraction >= 0.0:
             m.finished = true
-            m.finish_time = race_time
+            m.finish_time = maxf(0.0,sample_end-delta*(1.0-fraction))
             m.freeze = true
             # A finished frozen sphere must not become a permanent obstacle
             # at the timing stripe. Keep it for ranking, disable its contacts.
             m.set_deferred("collision_layer",0)
             m.set_deferred("collision_mask",0)
+            finish_crossings.append(m)
+    if not finish_crossings.is_empty():
+        finish_step_end = sample_end
+        finish_crossings.sort_custom(_finisher_precedes)
+        for m in finish_crossings:
             racer_finish_order.append(m.display_name)
-            if m == player and not net.is_active() and race_moments != null:
-                race_moments.on_finish()
+        if not net.is_active() and race_moments != null and finish_crossings.has(player):
+            race_moments.on_finish()
     if selected_perk == "Sticky Magnet" and is_instance_valid(player) and not player.finished:
         for m in racers:
             if m == player or m.finished or m.eliminated:
@@ -2084,10 +2098,15 @@ func _update_camera(delta: float, force := false) -> void:
         var target := Vector3(finish_origin.x,finish_origin.y+1.3,minf(focus.z,FINISH_Z))
         focus = focus.lerp(target,finish_weight*0.58)
         desired.y += finish_weight*0.56
-    elif selected_track == 1 and cam_mode == 0 and race_state == "RACING" and (
-            not player.finished and not player.eliminated):
-        var weight := RaceFeedback.glacier_finish_view_weight(racer_z,final_straight_z,FINISH_Z,-velocity.z)
+    elif woodworks_view or (selected_track == 1 and cam_mode == 0 and race_state == "RACING" and (
+            not player.finished and not player.eliminated)):
+        var clear_z := final_straight_z
+        if woodworks_view and is_instance_valid(final_obstacle_art):
+            clear_z = minf(clear_z,final_obstacle_art.clear_z)
+        var weight := RaceFeedback.finish_view_weight(racer_z,clear_z,FINISH_Z,-velocity.z)
         var competing_cue := maxf(airborne_weight,float(jump_preview.get("weight",0.0)))
+        if woodworks_view and race_moments != null and race_moments.evasion_target.is_finite():
+            competing_cue = 1.0
         weight *= 1.0-0.65*competing_cue
         if weight > 0.0:
             var rival: RigidBody3D = race_moments.closest_rival if (
@@ -2100,7 +2119,7 @@ func _update_camera(delta: float, force := false) -> void:
                     offset = separation
             var has_pair := offset != Vector3.ZERO
             var pair_x := player.global_position.x+offset.x*0.5
-            var finish_weight := RaceFeedback.finish_focus_weight(racer_z,final_straight_z,FINISH_Z,-velocity.z)
+            var finish_weight := RaceFeedback.finish_focus_weight(racer_z,clear_z,FINISH_Z,-velocity.z)
             var line_x := lerpf(ahead_x,finish_origin.x,finish_weight)
             var reading_x := lerpf(line_x,pair_x,0.62 if has_pair else 0.18)
             desired.x = lerpf(desired.x,pair_x,0.72*weight) if has_pair else desired.x
@@ -2160,13 +2179,16 @@ func _position_intro_camera(force: bool) -> void:
     camera.global_position = target if force else camera.global_position.lerp(target, 0.035)
     camera.look_at(focus, Vector3.UP)
 
+static func _finisher_precedes(a: RigidBody3D, b: RigidBody3D) -> bool:
+    return a.racer_id < b.racer_id if a.finish_time == b.finish_time else a.finish_time < b.finish_time
+
 func get_rankings() -> Array:
     var copy = racers.duplicate()
     copy.sort_custom(func(a,b):
         if a.finished != b.finished:
             return a.finished
         if a.finished and b.finished:
-            return a.finish_time < b.finish_time
+            return _finisher_precedes(a,b)
         if a.eliminated != b.eliminated:
             return not a.eliminated
         return a.global_position.z < b.global_position.z
