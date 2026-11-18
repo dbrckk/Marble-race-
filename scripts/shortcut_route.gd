@@ -44,7 +44,8 @@ const REWARD_RADIUS := 2.15
 const BRIDGE_POST_Z := [-65.0,-80.0,-90.0]
 const FORGE_GATE_APPROACH := [
     [8.0,6.0,4.0,2.0,0.8],
-    [13.2,10.6,8.0,5.4,2.8,0.8]
+    [13.2,10.6,8.0,5.4,2.8,0.8],
+    [8.0,6.0,4.0,2.0,0.8]
 ]
 const BRIDGE_ENTRY_X := 6.68
 const FORGE_BRIDGE_EDGE_X := 6.35
