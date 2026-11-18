@@ -53,6 +53,8 @@ const SEGMENT_LENGTH := 12.0
 const GLACIER_EXIT_REACH := 6.0
 const GLACIER_EXIT_PREVIEW_REACH := 9.0
 const GLACIER_EXIT_WARNING_SECONDS := 0.80
+const WOODWORKS_RETURN_DEPTH := 8.0
+const WOODWORKS_RETURN_WARNING_SECONDS := 0.90
 const SEGMENTS := 18
 const FINAL_OBSTACLE_SECTION := SEGMENTS-4
 const FINAL_OBSTACLE_Z := 8.0-FINAL_OBSTACLE_SECTION*SEGMENT_LENGTH
@@ -171,6 +173,7 @@ var built_variation := -1
 var hazard_beacons: Array[Dictionary] = []
 var glacier_first_shutter_z := NAN
 var glacier_exit_obstacles: Array[Dictionary] = []
+var woodworks_return_obstacles: Array[Dictionary] = []
 var evasion_probe := SphereShape3D.new()
 var result_saved := false
 var last_result: Dictionary = {}
@@ -518,24 +521,53 @@ func glacier_exit_threat(at: Vector3, velocity: Vector3) -> Dictionary:
             not glacier_shutter_exit_active(at.z) or (
                 absf(at.y-height_at(at.z)-Racer.RADIUS) > 0.55 or airtime.airborne)):
         return {}
-    # Use the same bounded lateral extrapolation as the existing forecasts.
-    var origin := Vector2(at.x,at.z)
-    var pivot := Vector2(RaceFeedback.projected_lane_x(at.x,velocity.x,0.40),at.z-speed*0.40)
-    var end := Vector2(pivot.x,at.z-speed*GLACIER_EXIT_WARNING_SECONDS)
+    return _first_exit_contact(at,velocity,glacier_exit_obstacles,0.0,GLACIER_EXIT_WARNING_SECONDS)
+
+func woodworks_return_active(z: float) -> bool:
+    return selected_track == 0 and z <= ShortcutRoute.EXIT_Z+9.0 and (
+        z >= ShortcutRoute.EXIT_Z-WOODWORKS_RETURN_DEPTH-2.0)
+
+func woodworks_return_threat(at: Vector3, velocity: Vector3) -> Dictionary:
+    var speed := -velocity.z
+    if not at.is_finite() or not velocity.is_finite() or speed < 6.0 or (
+            not woodworks_return_active(at.z) or airtime.airborne or not is_instance_valid(shortcut_route)):
+        return {}
+    var bridge: bool = at.z > ShortcutRoute.EXIT_Z and shortcut_route.merge_traffic_lane(at) < 0
+    var delay := 0.0
+    if bridge:
+        delay = (at.z-ShortcutRoute.EXIT_Z)/speed
+        var landing_x := RaceFeedback.projected_lane_x(at.x,velocity.x,delay)
+        if delay >= WOODWORKS_RETURN_WARNING_SECONDS or (
+                absf(landing_x-track_center_at(ShortcutRoute.EXIT_Z)) > 6.3):
+            return {}
+    elif absf(at.y-height_at(at.z)-Racer.RADIUS) > 0.55 or (
+            absf(at.x-track_center_at(at.z)) > 6.3):
+        return {}
+    return _first_exit_contact(at,velocity,woodworks_return_obstacles,delay,WOODWORKS_RETURN_WARNING_SECONDS)
+
+func _first_exit_contact(at: Vector3, velocity: Vector3, obstacles: Array[Dictionary],
+        delay: float, horizon: float) -> Dictionary:
+    var speed := -velocity.z
+    # Preserve the observed drift until the same short limit used by the
+    # other previews. An exterior approach starts at the plane of the join.
+    var split := maxf(delay,0.40)
+    var origin := Vector2(RaceFeedback.projected_lane_x(at.x,velocity.x,delay),at.z-speed*delay)
+    var pivot := Vector2(RaceFeedback.projected_lane_x(at.x,velocity.x,split),at.z-speed*split)
+    var end := Vector2(pivot.x,at.z-speed*horizon)
     var soonest := INF
     var target: Dictionary = {}
-    for obstacle in glacier_exit_obstacles:
+    for obstacle in obstacles:
         var point: Vector3 = obstacle["position"]
         var center := Vector2(point.x,point.z)
         var half_size: Vector2 = obstacle["half_size"]
         var reach_z := half_size.y+Racer.RADIUS
         if center.y+reach_z < end.y or center.y-reach_z > origin.y:
             continue
-        var hit := _glacier_exit_contact(origin-center,pivot-center,half_size,obstacle["peg"])
-        var eta := hit*0.40
+        var hit := _exit_obstacle_contact(origin-center,pivot-center,half_size,obstacle["peg"]) if split > delay else INF
+        var eta := delay+hit*(split-delay) if is_finite(hit) else INF
         if hit == INF:
-            hit = _glacier_exit_contact(pivot-center,end-center,half_size,obstacle["peg"])
-            eta = 0.40+hit*(GLACIER_EXIT_WARNING_SECONDS-0.40)
+            hit = _exit_obstacle_contact(pivot-center,end-center,half_size,obstacle["peg"])
+            eta = split+hit*(horizon-split)
         if eta < soonest:
             soonest = eta
             target = obstacle
@@ -548,7 +580,7 @@ func glacier_exit_threat(at: Vector3, velocity: Vector3) -> Dictionary:
         "entry_z":at.z-soonest*speed,"last_z":point.z-half_size.y-Racer.RADIUS
     }
 
-static func _glacier_exit_contact(from: Vector2, to: Vector2, half_size: Vector2, peg: bool) -> float:
+static func _exit_obstacle_contact(from: Vector2, to: Vector2, half_size: Vector2, peg: bool) -> float:
     if peg:
         return _glacier_circle_entry(from,to,half_size.x+Racer.RADIUS)
     # A marble expands the blocker by its radius, with round corners.
@@ -656,6 +688,16 @@ func glacier_exit_lane(at: Vector3, velocity: Vector3, threat: Dictionary) -> Ve
             shortcut_route.on_separate_deck(at) or airtime.bridge_grounded or (
                 absf(at.y-height_at(at.z)-Racer.RADIUS) > 0.28))):
         return Vector3.INF
+    return _rolling_exit_lane(at,velocity,threat,true)
+
+func woodworks_return_lane(at: Vector3, velocity: Vector3, threat: Dictionary) -> Vector3:
+    if threat.is_empty() or at.z > ShortcutRoute.EXIT_Z or airtime.bridge_grounded or (
+            absf(at.y-height_at(at.z)-Racer.RADIUS) > 0.35):
+        return Vector3.INF
+    return _rolling_exit_lane(at,velocity,threat,false)
+
+func _rolling_exit_lane(at: Vector3, velocity: Vector3, threat: Dictionary, watch_shutter: bool) -> Vector3:
+    var speed := -velocity.z
     var blocker: Vector3 = threat["position"]
     var nose_z: float = 2.0*blocker.z-float(threat["last_z"])+0.04
     var steering_time := (at.z-nose_z)/speed
@@ -664,7 +706,7 @@ func glacier_exit_lane(at: Vector3, velocity: Vector3, threat: Dictionary) -> Ve
     var shutter := RaceDirector.GLACIER_FIRST_SHUTTER
     var shutter_eta := (at.z-glacier_first_shutter_z)/speed
     var half_window := (RaceDirector.BODY_DEPTH*0.5+Racer.RADIUS)/speed
-    var shutter_ahead := shutter_eta+half_window >= 0.0
+    var shutter_ahead := watch_shutter and shutter_eta+half_window >= 0.0
     if shutter_ahead and race_director.glacier_shutter_threatens_crossing(
             shutter,shutter_eta,speed,at.x,velocity.x):
         return Vector3.INF
@@ -676,18 +718,22 @@ func glacier_exit_lane(at: Vector3, velocity: Vector3, threat: Dictionary) -> Ve
     var start_x := at.x+velocity.x*REACTION_SECONDS
     # Racer applies the steering force scaled by mass. Leave headroom for
     # rolling contact and damping before treating a lane as reachable.
-    var max_accel := Racer.human_steering_force(1.0,velocity.z,velocity.x,1)*0.72
+    var max_accel := Racer.human_steering_force(1.0,velocity.z,velocity.x,selected_track)*0.72
     var center := track_center_at(blocker.z)
     var query := PhysicsShapeQueryParameters3D.new()
     query.shape = evasion_probe
     query.collision_mask = 1
     query.margin = 0.04
     var ignored: Array[RID] = airtime.ignored_rids.duplicate()
-    ignored.append(race_director.obstacles[shutter].get_rid())
+    if watch_shutter:
+        ignored.append(race_director.obstacles[shutter].get_rid())
     query.exclude = ignored
     var best := Vector3.INF
     var best_cost := INF
-    for offset in [0.0,-0.55,0.55,-1.10,1.10,-1.65,1.65,-2.20,2.20,-2.75,2.75]:
+    var offsets := [0.0,-0.55,0.55,-1.10,1.10,-1.65,1.65,-2.20,2.20,-2.75,2.75]
+    if not watch_shutter:
+        offsets.append_array([-3.30,3.30,-3.85,3.85,-4.40,4.40])
+    for offset in offsets:
         var lane_x: float = center+offset
         var cost := absf(lane_x-start_x)
         # Cubic steering path with the measured approach velocity and zero
@@ -723,7 +769,7 @@ func glacier_exit_lane(at: Vector3, velocity: Vector3, threat: Dictionary) -> Ve
                 break
             previous = sample
         # Clear the blocker’s entire depth and leave space for the next turn.
-        var exit_z := blocker.z-2.4
+        var exit_z := blocker.z-2.4 if watch_shutter else float(threat["last_z"])-0.55
         if clear and _evasion_span_clear(query,previous,Vector3(lane_x,height_at(exit_z)+0.53,exit_z)):
             best = Vector3(lane_x,height_at(blocker.z)+0.53,blocker.z)
             best_cost = cost
@@ -828,7 +874,7 @@ func _cylinder(parent: Node3D, location: Vector3, radius: float, tall: float, co
     cylinder.height = tall
     hitbox.shape = cylinder
     body.add_child(hitbox)
-    _register_glacier_exit_obstacle(body,Vector2.ONE*radius,"PEG",true)
+    _register_exit_obstacle(body,Vector2.ONE*radius,"PEG",true)
     if batched_art:
         return body
     var art = MeshInstance3D.new()
@@ -860,6 +906,7 @@ func _make_course() -> void:
         board.queue_free()
     hazard_beacons.clear()
     glacier_exit_obstacles.clear()
+    woodworks_return_obstacles.clear()
     workshop_lamps.clear()
     secondary_showroom_art.clear()
     opening_obstacle_art = null
@@ -1085,7 +1132,8 @@ func _edge_baffles(parent: Node3D, center_z: float, section: int, glacier_return
         var material_color: Color = TRACK_COLORS[selected_track].darkened(0.13)
         # At Glacier's return, leave a shoulder for racers nudged sideways
         # as both lines merge. Keep the baffle visible and collidable by the rail.
-        var merge_side: bool = glacier_return and section == ShortcutRoute.EXIT_SECTION+1 and side < 0.0
+        var woodworks_lip: bool = selected_track == 0 and section == ShortcutRoute.EXIT_SECTION and side > 0.0
+        var merge_side: bool = woodworks_lip or (glacier_return and section == ShortcutRoute.EXIT_SECTION+1 and side < 0.0)
         var size := Vector3(0.94 if merge_side else 2.72,1.05,1.32)
         var edge_offset := 6.04 if merge_side else 5.17
         var batched_art := section == 1 or section == FINAL_OBSTACLE_SECTION
@@ -1094,7 +1142,7 @@ func _edge_baffles(parent: Node3D, center_z: float, section: int, glacier_return
         node.name = "AntiEdgeBaffle_%02d_%s" % [section, "L" if side < 0.0 else "R"]
         hazard_beacons.append({"z":z,"side":"LEFT" if side < 0.0 else "RIGHT",
             "final":section == FINAL_OBSTACLE_SECTION,"body":node,"half_width":size.x*0.5})
-        _register_glacier_exit_obstacle(node,Vector2(size.x,size.z)*0.5,"EDGE BLOCK")
+        _register_exit_obstacle(node,Vector2(size.x,size.z)*0.5,"EDGE BLOCK")
         if not batched_art:
             obstacle_finish.register_block(node.global_transform,size,material_color)
     if not glacier_return and selected_track >= 1 and section % 3 == 0:
@@ -1146,8 +1194,12 @@ func _pegs(parent: Node3D, center_z: float, n: int) -> void:
             var shift := sin(float(n*9+row*3+race_variation*7))*0.23
             shift += (float(race_variation)-1.0)*0.19*(1.0 if row%2==0 else -1.0)
             var x = (c - 2) * 2.20 + (0.56 if row % 2 == 1 else 0.0) + shift
+            var peg_z: float = z
+            if selected_track == 0 and n == ShortcutRoute.EXIT_SECTION and row == 2 and c == 4:
+                x = 3.55
+                peg_z += 0.70
             var tint = BARRIER_COLORS[(n + c + row) % BARRIER_COLORS.size()]
-            _cylinder(parent, Vector3(x, height_at(z)+0.8, z), 0.31, 1.6, tint,n)
+            _cylinder(parent, Vector3(x,height_at(peg_z)+0.8,peg_z),0.31,1.6,tint,n)
 
 func _gate_with_posts(parent: Node3D, center_z: float, n: int) -> void:
     var batched_art := n == 1 or n == FINAL_OBSTACLE_SECTION
@@ -1155,12 +1207,14 @@ func _gate_with_posts(parent: Node3D, center_z: float, n: int) -> void:
         var z = center_z + 3.2 - row * (4.2 if selected_track == 2 else 6.0)
         for i in range(3):
             var x = -4.6 + i * 4.7 + (0.65 if row == 1 else 0.0)
+            if selected_track == 0 and n == ShortcutRoute.EXIT_SECTION and row == 1 and i == 2:
+                x = 3.72
             var gate_color: Color = BARRIER_COLORS[(n+row+i)%6]
             var size := Vector3(0.91,1.37,1.25)
             var block := _box(parent, Vector3(x,height_at(z)+0.67,z),
                 size,_lacquer(gate_color),true,true,not batched_art)
             block.name = "GatePost_%02d_%02d_%02d" % [n,row,i]
-            _register_glacier_exit_obstacle(block,Vector2(size.x,size.z)*0.5,"GATE POST")
+            _register_exit_obstacle(block,Vector2(size.x,size.z)*0.5,"GATE POST")
             if not batched_art:
                 obstacle_finish.register_block(block.global_transform,size,gate_color)
     _add_spinner(parent, center_z, n)
@@ -1203,23 +1257,27 @@ func _slalom(parent: Node3D, center_z: float, n: int) -> void:
         var x: float = side*(3.5+0.20*sin(float(n*3+i)))
         var slalom_color: Color = BARRIER_COLORS[(n+i)%6]
         var size := Vector3(3.4,0.75,1.05)
+        if selected_track == 0 and n == ShortcutRoute.EXIT_SECTION and i == 3:
+            # Keep the physical route from the bridge through the open rail.
+            x = 2.35
+            size.x = 2.80
         var block := _box(parent, Vector3(x,height_at(z)+0.36,z),
             size,_lacquer(slalom_color),true,true,not batched_art)
         block.name = "SlalomBlock_%02d_%02d" % [n,i]
-        _register_glacier_exit_obstacle(block,Vector2(size.x,size.z)*0.5,"SLALOM BLOCK")
+        _register_exit_obstacle(block,Vector2(size.x,size.z)*0.5,"SLALOM BLOCK")
         if not batched_art:
             obstacle_finish.register_block(block.global_transform,size,slalom_color)
     for i in range(3):
         var z = center_z + 2.3 - i * 3.5
         _cylinder(parent, Vector3(0, height_at(z)+0.65, z), 0.34, 1.3, BARRIER_COLORS[(n+2*i)%6],n)
 
-func _register_glacier_exit_obstacle(body: Node3D, half_size: Vector2, label: String, peg := false) -> void:
+func _register_exit_obstacle(body: Node3D, half_size: Vector2, label: String, peg := false) -> void:
     var center := body.global_position
-    if center.z >= glacier_first_shutter_z or not glacier_shutter_exit_active(center.z):
-        return
-    glacier_exit_obstacles.append({
-        "position":center,"half_size":half_size,"label":label,"peg":peg
-    })
+    if glacier_shutter_exit_active(center.z) and center.z < glacier_first_shutter_z:
+        glacier_exit_obstacles.append({"position":center,"half_size":half_size,"label":label,"peg":peg})
+    elif selected_track == 0 and center.z <= ShortcutRoute.EXIT_Z and (
+            center.z >= ShortcutRoute.EXIT_Z-WOODWORKS_RETURN_DEPTH):
+        woodworks_return_obstacles.append({"position":center,"half_size":half_size,"label":label,"peg":peg})
 
 func _add_spinner(parent: Node3D, z: float, n: int) -> void:
     var pivot = AnimatableBody3D.new()

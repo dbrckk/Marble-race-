@@ -70,6 +70,7 @@ var occluded_fork_main := Vector3.INF
 var occluded_fork_bridge := Vector3.INF
 var glacier_exit_threat: Dictionary = {}
 var glacier_gap_marked := false
+var woodworks_return_threat: Dictionary = {}
 var evasion_target := Vector3.INF
 var exit_gate_z := INF
 var exit_deadline := 0.0
@@ -182,6 +183,7 @@ func reset_round() -> void:
     occluded_fork_bridge = Vector3.INF
     glacier_exit_threat.clear()
     glacier_gap_marked = false
+    woodworks_return_threat.clear()
     evasion_target = Vector3.INF
     _clear_exit_sample()
     exit_feedback_left = 0.0
@@ -284,6 +286,7 @@ func tick(delta: float) -> void:
         occluded_fork_bridge = Vector3.INF
         glacier_exit_threat.clear()
         glacier_gap_marked = false
+        woodworks_return_threat.clear()
         evasion_target = Vector3.INF
         _clear_exit_sample()
         exit_feedback_left = 0.0
@@ -327,6 +330,7 @@ func tick(delta: float) -> void:
     occluded_fork_bridge = Vector3.INF
     glacier_exit_threat.clear()
     glacier_gap_marked = false
+    woodworks_return_threat.clear()
     evasion_target = Vector3.INF
     var candidate := Vector3.INF
     var candidate_kind := ""
@@ -348,10 +352,13 @@ func tick(delta: float) -> void:
             merge_distance = clampf(preview_speed*0.30,3.2,6.0)
         var next_hazard: Vector3 = game.pack_hazard_ahead(p,preview_velocity)
         glacier_exit_threat = game.glacier_exit_threat(p,preview_velocity)
+        woodworks_return_threat = game.woodworks_return_threat(p,preview_velocity)
         if not glacier_exit_threat.is_empty() and (
                 not next_hazard.is_finite() or (
                     next_hazard.z < game.glacier_first_shutter_z and next_hazard.z < glacier_exit_threat["entry_z"])):
             next_hazard = glacier_exit_threat["position"]
+        if not woodworks_return_threat.is_empty():
+            next_hazard = woodworks_return_threat["position"]
         var driving: bool = game.net.is_client() or not game.player.freeze
         sample_obstacle_exit(p.z,preview_speed,next_hazard.z,driving and (
             game.airtime.course_grounded and not game.airtime.airborne),game.boosting)
@@ -366,6 +373,9 @@ func tick(delta: float) -> void:
             if not glacier_exit_threat.is_empty() and candidate == glacier_exit_threat["position"]:
                 evasion_target = game.glacier_exit_lane(p,preview_velocity,glacier_exit_threat)
                 glacier_gap_marked = evasion_target.is_finite()
+            elif not woodworks_return_threat.is_empty():
+                candidate_kind = "BRIDGE RETURN"
+                evasion_target = game.woodworks_return_lane(p,preview_velocity,woodworks_return_threat)
             elif candidate_kind.is_empty() or (candidate_kind == "PISTON" and not bridge_merge):
                 evasion_target = game.evasion_lane(p,preview_velocity,candidate)
             eyes = game.camera.global_position

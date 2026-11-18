@@ -564,6 +564,10 @@ Les flèches ont été déplacées entre les rangées d’obstacles des trois tr
 
 Les trois bandes de précision suivent le tablier et encadrent la largeur réellement prise en compte pour valider une porte. Le HUD annonce le numéro de la prochaine porte et indique comment se recentrer. À la jonction, le repère ambre suit la bille de l’autre voie. En solo, l’alerte compare les temps d’arrivée au raccord des deux voies. Les clients utilisent la proximité des billes répliquées. Le serveur conserve le calcul des portes franchies et des récompenses.
 
+### 2026-11-18 — Retour du pont de Woodworks (1.150.0-rc)
+
+La barrière extérieure rétrécit au raccord. Le bloc de slalom ou le poteau qui empiétait sur l’axe de sortie selon le tracé est décalé vers l’intérieur. Le HUD peut annoncer le premier obstacle sur la trajectoire en conservant la direction de la jonction. Après le raccord, le repère d’évitement indique un passage seulement si la bille peut l’atteindre et que ses colliders le laissent libre. Un avertissement à l’écran signale l’obstacle quand le peloton le masque.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Vérifier la transition entre la jonction du pont de Woodworks et le premier obstacle du retour sur la piste principale en peloton. Mesurer le mix et la fluidité sur un téléphone Android dès qu’il est disponible.
+Affiner la transition du premier passage après le pont vers le bras mobile de Woodworks et vérifier la lisibilité des dépassements dans ce secteur. Mesurer le mix et la fluidité sur un téléphone Android dès qu’il est disponible.

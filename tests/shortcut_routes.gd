@@ -3,6 +3,7 @@ extends SceneTree
 ## physical world contact, human navigation and server-authoritative rewards.
 const BypassScript = preload("res://scripts/shortcut_route.gd")
 const AIPath = preload("res://scripts/ai_race_strategy.gd")
+const TrackSurface = preload("res://scripts/track_surface.gd")
 func _initialize() -> void:
     call_deferred("_run")
 
@@ -253,10 +254,14 @@ func _run() -> void:
             if not _verify_merge_cues(game,side):
                 quit(1)
                 return
+            if course == 0 and not _verify_woodworks_return(game,layout):
+                quit(1)
+                return
             game.return_to_menu()
             await process_frame
     print("SHORTCUT_ROUTES_PASS: three collidable, rewarded fork/merge alternatives")
     print("MERGE_GUIDANCE_PASS: nine layouts, real inside-lane markings, opposing decks and alert clearance")
+    print("WOODWORKS_RETURN_PASS: clear bridge lip, physical warnings, visible gaps and HUD handoff on three layouts")
     game.queue_free()
     await process_frame
     quit()
@@ -400,3 +405,66 @@ func _verify_woodworks_gates(game: Node3D) -> void:
     hud.label_timer = 0.25
     hud.update_hud()
     assert(not hud.shortcut_label.visible or not hud.shortcut_label.text.contains("GATE"))
+
+func _verify_woodworks_return(game: Node3D, layout: int) -> bool:
+    var road: Node3D = game.shortcut_route
+    var player: RigidBody3D = game.player
+    var hud: CanvasLayer = game.ui
+    var locator: Control = hud.player_locator
+    var rival: RigidBody3D = game.racers[0]
+    var ball := SphereShape3D.new()
+    ball.radius = 0.39
+    var query := PhysicsShapeQueryParameters3D.new()
+    query.shape = ball
+    var ignored: Array[RID] = []
+    for racer in game.racers:
+        if racer != player:
+            racer.global_position = Vector3(90,0,20)
+        ignored.append(racer.get_rid())
+    query.exclude = ignored
+    var space: PhysicsDirectSpaceState3D = game.get_world_3d().direct_space_state
+    for dz: float in [1.5,1.0,0.5,0.0,-0.4,-0.8,-1.3,-1.9,-2.4]:
+        var at: Vector3 = road.point_at(road.EXIT_Z+dz)+Vector3.UP*0.65
+        at.x -= maxf(0.0,-dz)*0.16
+        query.transform = Transform3D(Basis.IDENTITY,at)
+        for hit in space.intersect_shape(query):
+            var body: Object = hit["collider"]
+            assert(body.has_meta(BypassScript.ROLLING_SURFACE) or body.has_meta(TrackSurface.ROAD_FLOOR),
+                "Layout %d: %s blocks the center of the physical bridge lip" % [layout,body.name])
+
+    game.cam_mode = 0
+    game.airtime.reset_round()
+    player.global_position = road.point_at(road.EXIT_Z+2.4)+Vector3.UP*0.62
+    player.linear_velocity = Vector3(-5,0,-19)
+    game.race_moments.reset_round()
+    game._update_camera(0.12,true)
+    game.race_moments.tick(0.12)
+    hud.bridge_approach_active = true
+    hud.label_timer = 1.0
+    hud.update_hud()
+    assert(hud.shortcut_label.visible and hud.shortcut_label.text.contains("MERGE LEFT"))
+    assert(hud.timed_gate_label.visible and hud.timed_gate_label.text.contains("AFTER MERGE"))
+    assert(not game.race_moments.evasion_target.is_finite(),"Complete the merge before following a gap")
+
+    var z := -104.05
+    var x: float = [-3.15148,-1.06710,1.35209][layout]
+    player.global_position = Vector3(x,game.height_at(z)+0.43,z)
+    player.linear_velocity = Vector3(0,0,-8)
+    game.race_moments.reset_round()
+    game._update_camera(0.12,true)
+    var threat: Dictionary = game.woodworks_return_threat(player.global_position,player.linear_velocity)
+    assert(not threat.is_empty())
+    var target: Vector3 = threat["position"]
+    var eye: Vector3 = game.camera.global_position
+    rival.global_position = eye.lerp(target,(target.z+0.22-eye.z)/(target.z-eye.z))
+    rival.global_position.y = game.height_at(rival.global_position.z)+0.42
+    game.race_moments.tick(0.12)
+    hud.label_timer = 1.0
+    hud.update_hud()
+    assert(locator.hazard_center.is_finite() and locator.evasion_center.is_finite())
+    assert(hud.timed_gate_label.text.contains("GAP LEFT") and not hud.shortcut_label.visible)
+    rival.global_position.x += 2.8
+    game.race_moments.tick(0.12)
+    locator.refresh(0.12)
+    assert(not locator.hazard_center.is_finite(),"Remove the overlay when the obstacle is visible again")
+    return true

@@ -2025,6 +2025,10 @@ func update_hud() -> void:
         game.player.global_position.z,downstream_limit,gate_reach) if is_instance_valid(
         game.race_director) else {}
     var still_racing: bool = game.race_state == "RACING" and not game.player.finished and not game.player.eliminated
+    var return_zone: bool = still_racing and forward_speed >= 6.0 and game.woodworks_return_active(player_z)
+    if return_zone and hazard_label.visible and float(hazard["z"]) <= SHORTCUT_ROUTE.EXIT_Z and (
+            float(hazard["z"]) >= SHORTCUT_ROUTE.EXIT_Z-game.WOODWORKS_RETURN_DEPTH):
+        hazard_label.hide()
     var merge_traffic: int = duel.merge_traffic if still_racing else 0
     if merge_traffic != 0 and (game.shortcut_route.merge_traffic_lane(game.player.global_position) != merge_traffic or (
             game.net.is_client() and not game.net.local_replica_velocity().is_finite())):
@@ -2156,7 +2160,12 @@ func update_hud() -> void:
     var vent_index := int(lane_hint.get("index",-1))
     var pickup_limit := urgent_gate_eta
     var exit_threat: Dictionary = duel.glacier_exit_threat
+    var return_threat: Dictionary = duel.woodworks_return_threat
     var exit_eta := INF
+    var return_eta := INF
+    if return_zone and not game.airtime.airborne and not return_threat.is_empty() and (
+            player_z >= float(return_threat["last_z"])):
+        return_eta = maxf(0.0,player_z-float(return_threat["entry_z"]))/forward_speed
     if still_racing and glacier_exit and forward_speed >= 5.0 and not exit_threat.is_empty() and (
             player_z >= float(exit_threat["last_z"]) and not (first_shutter and not shutter_side.is_empty())):
         exit_eta = maxf(0.0,player_z-float(exit_threat["entry_z"]))/forward_speed
@@ -2173,6 +2182,22 @@ func update_hud() -> void:
         biome_lane_label.hide()
         timed_gate_backdrop.show()
         pickup_limit = 0.0
+    elif return_eta < urgent_gate_eta:
+        var title := str(return_threat["label"])
+        if bridge_approach_active:
+            title = "AFTER MERGE  •  "+title
+        elif duel.evasion_target.is_finite():
+            var direction: float = duel.evasion_target.x-game.player.global_position.x
+            if absf(direction) >= 0.25:
+                title += "  •  GAP "+("LEFT" if direction < 0.0 else "RIGHT")
+        timed_gate_label.text = "%s  •  %s" % [title,"NOW" if return_eta < 0.10 else "%.1fs" % return_eta]
+        timed_gate_label.add_theme_color_override("font_color",Color("#ffd494") if bridge_approach_active else Color("#ffae91"))
+        timed_gate_label.show()
+        timed_gate_backdrop.show()
+        hazard_label.hide()
+        biome_lane_label.hide()
+        audible_gate_eta = INF
+        pickup_limit = return_eta
     elif is_finite(exit_eta):
         var obstacle: String = exit_threat["label"]
         var title := "AFTER SHUTTER  •  "+obstacle if player_z > game.glacier_first_shutter_z else (

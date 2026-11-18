@@ -137,7 +137,8 @@ func refresh(delta: float) -> void:
             lane = moments.occluded_shutter_mark
         elif is_passing_mark:
             lane = moments.occluded_passing_mark
-        var separation := 2.6 if moments.glacier_gap_marked else 3.7
+        var exit_gap: bool = moments.glacier_gap_marked or not moments.woodworks_return_threat.is_empty()
+        var separation := 2.6 if exit_gap else 3.7
         if is_shutter_mark:
             separation = JumpGuides.SHUTTER_MARK_MIN_DISTANCE
         elif is_passing_mark:
