@@ -10,6 +10,7 @@ const TRAFFIC_AHEAD := 8.0
 const TRAFFIC_WIDTH := 1.25
 const TRAFFIC_HEIGHT := 1.45
 const TRAFFIC_SAFE_LANE := 3.15
+const TRAFFIC_SWITCH_MARGIN := 0.55
 const ZONE_MECHANICS = preload("res://scripts/course_mechanics.gd")
 
 static func temperament(racer_id: int, track: int, variation: int) -> int:
@@ -99,7 +100,8 @@ static func side_duel_safe_lane(own: RigidBody3D,
     return preferred
 
 static func traffic_lane(own: RigidBody3D, rivals: Array[RigidBody3D],
-    center_x: float, preferred_offset: float, temperament_id: int) -> float:
+    center_x: float, preferred_offset: float, temperament_id: int,
+    previous_offset: float = 0.0) -> float:
     # Called at most 3x/s per AI, *only* by the authoritative simulator.
     # Compare two physical side corridors before choosing an overtaking line.
     # Do not apply any impulses or manipulate positions/finishing times here.
@@ -146,8 +148,18 @@ static func traffic_lane(own: RigidBody3D, rivals: Array[RigidBody3D],
     var right_cost: float = absf(right-preferred)*cautious+(
         absf(right)/TRAFFIC_SAFE_LANE)*0.45+(
         _lane_occupancy(center_x+right,own,rivals))
-    # The stable tie-break lets traffic patterns vary with AI personality
-    # without RNG state or per-frame unpredictable lane flips.
+    # Keep the previous overtaking side unless the opposite corridor is
+    # meaningfully safer. This hysteresis avoids oscillating left/right on
+    # successive traffic scans while the same leader remains ahead.
+    var previous: float = clampf(previous_offset,
+        -TRAFFIC_SAFE_LANE,TRAFFIC_SAFE_LANE)
+    if absf(previous-left) < 0.95 and (
+        left_cost <= right_cost+TRAFFIC_SWITCH_MARGIN):
+        return left
+    if absf(previous-right) < 0.95 and (
+        right_cost <= left_cost+TRAFFIC_SWITCH_MARGIN):
+        return right
+    # Stable tie-break preserves different AI personalities without RNG.
     var choose_left: bool = left_cost < right_cost if (
         absf(left_cost-right_cost) > 0.01) else own.racer_id%2 == 0
     return left if choose_left else right
