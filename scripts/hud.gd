@@ -2037,7 +2037,7 @@ func update_hud() -> void:
     # Safety-critical opening guidance must appear and disappear on the
     # same HUD tick as the physical hazard state. Only routine tracking is
     # sampled at 30 Hz; urgent route cues bypass the rate limiter.
-    var urgent_locator := game.race_moments != null and (
+    var urgent_locator: bool = game.race_moments != null and (
         not game.race_moments.opening_guidance.is_empty() or
         game.race_moments.evasion_target.is_finite() or
         player_locator.evasion_center.is_finite())
