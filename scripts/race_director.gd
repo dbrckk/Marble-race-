@@ -35,6 +35,7 @@ const PRECISION_FLASH_SECONDS := 0.56
 const EVENT_LENGTH := 2.1
 const SPEEDS := [5.8,4.65,5.25]
 const PISTON_BLOCKING_EXTENSION := 0.43
+const PISTON_WARNING_SECONDS := 2.20
 const PISTON_PREPARE_PHASE := 0.78
 const VERTICAL_DUTY := 0.47
 
@@ -411,16 +412,42 @@ func glacier_shutter_threatens_crossing(index: int, eta: float, forward_speed: f
     return false
 
 func forge_exit_blocks_during_crossing(eta: float, speed: float) -> bool:
-    # A nose or tail can reach the collider even if its centerline is
-    # open at the exact arrival instant. The raised phase is contiguous.
-    var half_window := (BODY_DEPTH*0.5+MARBLE_CLEARANCE)/maxf(2.0,speed)
-    var first := clock+maxf(0.0,eta-half_window)
-    var last := clock+eta+half_window
-    if piston_up(FORGE_EXIT_GATE,first) or piston_up(FORGE_EXIT_GATE,last):
-        return true
-    var phase := phase_at(FORGE_EXIT_GATE,first)
-    var seconds_to_crest := fposmod(0.10-phase,1.0)*period()
-    return seconds_to_crest <= last-first
+    return is_finite(forge_piston_contact_eta(FORGE_EXIT_GATE,eta,speed))
+
+func forge_piston_contact_eta(index: int, eta: float, speed: float,
+        world_x := NAN, lateral_speed := 0.0) -> float:
+    if biome != 2 or index < 0 or index >= obstacles.size() or speed < 2.0 or (
+            not is_finite(eta) or not is_finite(speed) or is_inf(world_x) or not is_finite(lateral_speed)):
+        return INF
+    var half_window := (BODY_DEPTH*0.5+MARBLE_CLEARANCE)/speed
+    var first := maxf(0.0,eta-half_window)
+    var last := eta+half_window
+    if is_finite(world_x):
+        var gap := world_x-position_at(index,clock).x
+        var drift := clampf(lateral_speed,-5.0,5.0)
+        if is_zero_approx(drift):
+            if absf(gap) >= LANE_THREAT_RADIUS:
+                return INF
+        else:
+            # The usual forecast follows drift for 0.4 s, then holds its lane.
+            var a := (-LANE_THREAT_RADIUS-gap)/drift
+            var b := (LANE_THREAT_RADIUS-gap)/drift
+            var lane_entry := minf(a,b)
+            var lane_exit := maxf(a,b)
+            if lane_entry >= 0.40:
+                return INF
+            first = maxf(first,lane_entry)
+            if lane_exit < 0.40:
+                last = minf(last,lane_exit)
+    if last < first:
+        return INF
+    if piston_up(index,clock+first):
+        return first
+    # Invert the same smoothstep that raises the physical piston, so an
+    # opening or closing window is timed from the blocking threshold.
+    var rise := 0.10*(0.5-sin(asin(1.0-2.0*PISTON_BLOCKING_EXTENSION)/3.0))
+    var begins := first+fposmod(rise-phase_at(index,clock+first),1.0)*period()
+    return begins if begins <= last else INF
 
 # Physical timing cues share the deterministic clock of the collider.
 static func hazard_phase_cue(track: int, extension: float,

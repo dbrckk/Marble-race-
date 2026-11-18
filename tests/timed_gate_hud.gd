@@ -64,7 +64,8 @@ func _verify() -> void:
                         not director.piston_up(gate_index,t)) and not blocked_found:
                         blocked_clock = t
                         blocked_found = true
-                    if not director.piston_up(gate_index,t+eta) and (
+                    director.clock = t
+                    if not is_finite(director.forge_piston_contact_eta(gate_index,eta,speed)) and (
                         director.piston_up(gate_index,t)) and not clear_found:
                         clear_clock = t
                         clear_found = true
@@ -131,8 +132,12 @@ func _verify() -> void:
                 "The HUD must identify the actual physical moving gate")
             assert(game.ui.timed_gate_backdrop.visible,
                 "An imminent collision warning should have a readable background")
-            assert(label.text.contains("1.1s"),
-                "Arrival forecast should use measured speed and distance")
+            var expected_time := eta
+            if biome == 2:
+                expected_time = director.forge_piston_contact_eta(gate_index,eta,speed,collision_x)
+                assert(absf(eta-expected_time) <= (DIRECTOR.BODY_DEPTH*0.5+DIRECTOR.MARBLE_CLEARANCE)/speed+0.001)
+            assert(label.text.contains("%.1fs" % expected_time),
+                "Arrival forecast should use the first possible contact or the measured center crossing")
             if biome == 2:
                 var bypass := "LEFT" if actual["side"] == "RIGHT" else "RIGHT"
                 assert(label.text.contains("EST. BLOCKED") and label.text.contains("GO "+bypass),
@@ -437,6 +442,10 @@ func _verify_biome_lane(game: Node3D, biome: int) -> void:
         _update_at(game,position,velocity)
         assert(label.visible and label.text.contains("DODGE "+alternate),
             "Warn when a cool vent ignites during the crossing")
+        var ignition: Dictionary = mechanics.upcoming_lane(position,velocity,INF)
+        assert(absf(float(ignition["contact_eta"])-0.97) < 0.001 and
+            float(ignition["contact_eta"]) > float(ignition["eta"])+0.05,
+            "A cool entry must use the first eruption time for priority and audio")
         position.x = game.track_center_at(first.z)
         _update_at(game,position,velocity)
         assert(label.visible and label.text.contains("LINE CLEAR"))
@@ -836,6 +845,12 @@ func _verify_forge_exit(game: Node3D) -> void:
         var t := float(phase)*0.013
         director.animate(t)
         if not director.piston_up(gate,t+eta) and director.forge_exit_blocks_during_crossing(eta,speed):
+            var piston_x: float = director.position_at(gate,t+eta).x
+            var contact: float = director.forge_piston_contact_eta(gate,eta,speed,piston_x)
+            assert(is_finite(contact) and (director.piston_up(gate,t+contact) or
+                director.piston_up(gate,t+contact+0.001)))
+            assert(not is_finite(director.forge_piston_contact_eta(gate,eta,speed,
+                piston_x-director.side_at(gate)*4.0)))
             window_found = true
             break
     assert(window_found,"The crossing window must include the front and rear of the marble")

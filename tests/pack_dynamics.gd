@@ -155,6 +155,8 @@ func _verify() -> void:
             if track == 1:
                 assert(await _verify_shutter_mark(game))
                 assert(await _verify_glacier_exit_gap(game))
+            if track == 2:
+                assert(_verify_forge_merge_markers(game))
             if track == 1 and layout == 0 and not await _verify_evasion(game):
                 quit(1)
                 return
@@ -173,6 +175,7 @@ func _verify() -> void:
     print("PACK_OBSTACLE_READABILITY_PASS: 9 layouts, real obstacle projection, sightline overlap and touch-safe clearance")
     print("GLACIER_CENTER_MARK_PASS: batched real road paint and occlusion-only camera overlay on three layouts")
     print("GLACIER_EXIT_GAP_PASS: three layouts at 23 m/s, shutter priority, touch HUD and downstream collision")
+    print("FORGE_MERGE_MARKERS_PASS: vent, live piston, bridge piston and clear sightlines on three layouts")
     print("EVASION_PREVIEW_PASS: real moving gate, projected lane, downstream physical obstruction and stale cue cleanup")
     print("EXIT_SPEED_PASS: grounded recovery, consecutive obstacles, stable speed, turbo and round reset")
     quit(0)
@@ -221,6 +224,68 @@ func _verify_obstacle_pointer(game: Node3D) -> bool:
             found_gate = true
             break
     assert(found_gate,"The timed obstacle is announced on a blocking approach")
+    return true
+
+func _verify_forge_merge_markers(game: Node3D) -> bool:
+    var director: Node3D = game.race_director
+    var road: Node3D = game.shortcut_route
+    var mechanics: Node3D = game.course_mechanics
+    var player: RigidBody3D = game.player
+    var rival: RigidBody3D = game.racers[0]
+    var locator: Control = game.ui.player_locator
+    var gate: int = director.FORGE_EXIT_GATE
+    var gate_z: float = director.event_z(gate)
+    var piston_x: float = director.position_at(gate,0.0).x
+    var vent: Vector3 = mechanics.zones[2].global_position
+    var speed := Vector3(0.0,0.0,-23.0)
+    var bypass: Vector3 = road.point_at(vent.z+1.2)+Vector3.UP*0.60
+    mechanics.race_clock = 2.44
+    assert(game.forge_merge_threat(bypass,speed,true).get("kind","") != "VENT")
+    for marble in game.racers:
+        if marble != player:
+            marble.freeze = true
+            marble.global_position = Vector3(90.0,0.0,20.0)
+    for approach in ["VENT","PISTON","BRIDGE"]:
+        var bridge: bool = approach == "BRIDGE"
+        var kind := "PISTON" if bridge else str(approach)
+        var z: float = road.EXIT_Z+9.95 if kind == "VENT" else minf(gate_z+9.0,road.EXIT_Z-0.45)
+        var at := Vector3(vent.x if kind == "VENT" else piston_x,game.height_at(z)+0.42,z)
+        if bridge:
+            at = road.point_at(road.EXIT_Z+0.22)+Vector3.UP*0.60
+        game.ui.bridge_approach_active = bridge
+        mechanics.race_clock = 2.44 if kind == "VENT" else 0.0
+        var threat: Dictionary = {}
+        for phase in range(36):
+            director.animate(float(phase)*director.period()/36.0)
+            threat = game.forge_merge_threat(at,speed,bridge)
+            if threat.get("kind","") == kind:
+                break
+        assert(threat.get("kind","") == kind)
+        game.cam_mode = 0
+        game.airtime.reset_round()
+        game.race_moments.reset_round()
+        player.global_position = at
+        player.linear_velocity = speed
+        game._update_camera(0.10,true)
+        var target: Vector3 = threat["position"]
+        var eye: Vector3 = game.camera.global_position
+        var occluder := eye.lerp(target,(target.z+0.18-eye.z)/(target.z-eye.z))
+        occluder.y = game.height_at(occluder.z)+0.39
+        rival.global_position = occluder
+        game.race_moments.tick(0.12)
+        locator.refresh(0.12)
+        assert(locator.hazard_kind == kind and locator.hazard_center.is_finite() and
+            game.race_moments.occluded_hazard.is_equal_approx(target),
+            "The warning glyph must point to the hidden physical hazard")
+        var bounds: Rect2 = locator.FORGE_MARKER_BOUNDS
+        assert(not Rect2(locator.hazard_center+bounds.position,bounds.size).intersects(locator._badge_rect()),
+            "The hazard glyph must remain clear of the player’s locator")
+        rival.global_position.x += 2.0
+        game.race_moments.tick(0.12)
+        locator.refresh(0.12)
+        assert(locator.hazard_kind.is_empty() and not locator.hazard_center.is_finite())
+    game.ui.bridge_approach_active = false
+    game.race_moments.reset_round()
     return true
 
 func _verify_shutter_mark(game: Node3D) -> bool:

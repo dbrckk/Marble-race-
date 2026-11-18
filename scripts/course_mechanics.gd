@@ -25,6 +25,7 @@ const VENT_RADIUS_SQUARED := 2.45
 const LAVA_CYCLE := 4.8
 const LAVA_ACTIVE := 1.35
 const VENT_WINDUP := 0.78
+const VENT_WARNING_SECONDS := 1.55
 var game: Node3D
 var track_id := 0
 var variation := 0
@@ -108,20 +109,23 @@ func upcoming_lane(at: Vector3, velocity: Vector3, downstream_limit: float) -> D
             var clock: float = game.race_time if game.net.role == "client" else race_clock
             var lateral := absf(lane_x-center.x)
             var crossing: float = sqrt(maxf(0.0,VENT_RADIUS_SQUARED-lateral*lateral))
-            hint["active"] = _vent_crossing_active(index,clock,speed,distance,half_depth)
-            hint["on_line"] = crossing > 0.0 and distance >= -crossing and (
-                _vent_crossing_active(index,clock,speed,distance,crossing))
+            hint["active"] = is_finite(_vent_contact_eta(index,clock,speed,distance,half_depth))
+            var contact := _vent_contact_eta(index,clock,speed,distance,crossing) if crossing > 0.0 else INF
+            hint["on_line"] = is_finite(contact)
             if hint["on_line"]:
-                hint["contact_eta"] = maxf(0.0,distance-crossing)/speed
+                hint["contact_eta"] = contact
         return hint
     return {}
 
-func _vent_crossing_active(index: int, clock: float, speed: float,
-        distance: float, half_depth: float) -> bool:
+func _vent_contact_eta(index: int, clock: float, speed: float,
+        distance: float, half_depth: float) -> float:
     var enter := maxf(0.0,(distance-half_depth)/speed)
-    var leave := maxf(enter,(distance+half_depth)/speed)
+    var leave := (distance+half_depth)/speed
+    if leave < enter:
+        return INF
     var phase := fposmod(clock+enter+float(index)*1.19,LAVA_CYCLE)
-    return phase < LAVA_ACTIVE or leave-enter >= LAVA_CYCLE-phase
+    var hot := enter if phase < LAVA_ACTIVE else enter+LAVA_CYCLE-phase
+    return hot if hot <= leave else INF
 
 func _ribbon_visual(zone: Node3D) -> void:
     var art := MeshInstance3D.new()

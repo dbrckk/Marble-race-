@@ -60,6 +60,7 @@ var pack_pressure := 0.0
 var turn_weight := 0.0
 var merge_traffic := 0
 var occluded_hazard := Vector3.INF
+var occluded_hazard_kind := ""
 var occluded_shutter_mark := Vector3.INF
 var glacier_exit_threat: Dictionary = {}
 var glacier_gap_marked := false
@@ -166,6 +167,7 @@ func reset_round() -> void:
     turn_weight = 0.0
     merge_traffic = 0
     occluded_hazard = Vector3.INF
+    occluded_hazard_kind = ""
     occluded_shutter_mark = Vector3.INF
     glacier_exit_threat.clear()
     glacier_gap_marked = false
@@ -262,6 +264,7 @@ func tick(delta: float) -> void:
         turn_weight = 0.0
         merge_traffic = 0
         occluded_hazard = Vector3.INF
+        occluded_hazard_kind = ""
         occluded_shutter_mark = Vector3.INF
         glacier_exit_threat.clear()
         glacier_gap_marked = false
@@ -298,11 +301,13 @@ func tick(delta: float) -> void:
     var merge_distance := 0.0
     merge_traffic = 0
     occluded_hazard = Vector3.INF
+    occluded_hazard_kind = ""
     occluded_shutter_mark = Vector3.INF
     glacier_exit_threat.clear()
     glacier_gap_marked = false
     evasion_target = Vector3.INF
     var candidate := Vector3.INF
+    var candidate_kind := ""
     var shutter_mark := Vector3.INF
     var eyes := Vector3.ZERO
     if game.net.role != "server":
@@ -327,10 +332,16 @@ func tick(delta: float) -> void:
             game.airtime.course_grounded and not game.airtime.airborne),game.boosting)
         if game.cam_mode == 0 and is_instance_valid(game.camera):
             candidate = next_hazard
+            var bridge_merge: bool = game.selected_track == 2 and is_instance_valid(road) and (
+                road.shortcut_hint(p,bridge_contact or merge_lane < 0 or game.ui.bridge_approach_active).get("mode","") == "merge")
+            var forge_threat: Dictionary = game.forge_merge_threat(p,preview_velocity,bridge_merge)
+            if not forge_threat.is_empty():
+                candidate = forge_threat["position"]
+                candidate_kind = forge_threat["kind"]
             if not glacier_exit_threat.is_empty() and candidate == glacier_exit_threat["position"]:
                 evasion_target = game.glacier_exit_lane(p,preview_velocity,glacier_exit_threat)
                 glacier_gap_marked = evasion_target.is_finite()
-            else:
+            elif candidate_kind.is_empty() or (candidate_kind == "PISTON" and not bridge_merge):
                 evasion_target = game.evasion_lane(p,preview_velocity,candidate)
             eyes = game.camera.global_position
             if game.selected_track == 1 and preview_speed >= 5.0 and not player_on_bridge and (
@@ -348,7 +359,16 @@ func tick(delta: float) -> void:
         var opponent: Vector3 = marble.global_position
         var offset := opponent-p
         var gap := offset.z
-        if absf(gap) > RIVAL_DISPLAY_RANGE:
+        var nearby := absf(gap) <= RIVAL_DISPLAY_RANGE
+        var same_route: bool = nearby and (not is_instance_valid(road) or (
+            player_on_bridge == road.on_separate_deck(opponent)))
+        # At Forge’s join, either deck can put a marble across the camera ray.
+        if candidate.is_finite() and gap < -0.20 and opponent.z > candidate.z+0.15 and (
+                (same_route or not candidate_kind.is_empty()) and covers_hazard(eyes,candidate,opponent)):
+            occluded_hazard = candidate
+            occluded_hazard_kind = candidate_kind
+            candidate = Vector3.INF
+        if not nearby:
             ahead.erase(id)
             crossed_nearby.erase(id)
             previous_offsets.erase(id)
@@ -357,13 +377,7 @@ func tick(delta: float) -> void:
                 absf(offset.y) <= 1.5 and (not local_race or not marble.freeze)):
             if road.merge_traffic_lane(opponent) == -merge_lane:
                 merge_traffic = merge_lane
-        var same_route: bool = not is_instance_valid(road) or (
-            player_on_bridge == road.on_separate_deck(opponent))
         if same_route:
-            if candidate.is_finite() and gap < -0.20 and opponent.z > candidate.z+0.15 and (
-                    covers_hazard(eyes,candidate,opponent)):
-                occluded_hazard = candidate
-                candidate = Vector3.INF
             if shutter_mark.is_finite() and gap < -0.20 and opponent.z >= shutter_mark.z-0.40 and (
                     covers_hazard(eyes,shutter_mark,opponent)):
                 occluded_shutter_mark = shutter_mark

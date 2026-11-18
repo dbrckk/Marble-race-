@@ -538,6 +538,10 @@ Les obstacles fixes proches de la sortie sont relevés à partir des dimensions 
 
 Sur les trois tracés de Glacier, la caméra de poursuite cadre une ouverture signalée par les chevrons turquoise existants. L’interface indique de quel côté elle se trouve. Le calcul tient compte de la dérive, du temps de réaction et de la capacité de braquage de la bille. Il vérifie le balayage du volet et sonde les colliders jusqu’à la sortie complète du passage. Si le volet menace la trajectoire ou si la bille est encore sur la glace, le repère d’ouverture reste masqué.
 
+### 2026-11-18 — Visibilité du piston et de l’évent au retour du pont de Forge (1.144.0-rc)
+
+Les prévisions du piston et de l’évent utilisent le premier instant où le danger est actif sur la trajectoire. L’alerte du piston couvre tout le passage de la bille, y compris une remontée après le milieu du passage. Un piston orange ou un évent jaune apparaît au-dessus de sa position réelle quand une bille du peloton le masque. Le pont conserve l’annonce du piston en aval et écarte l’évent de la voie principale qu’il contourne.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Reprendre la lecture du piston et des évents sur Forge à la sortie du pont dans un peloton serré. Mesurer le mix et la fluidité sur un téléphone Android dès qu’il est disponible.
+Vérifier la lisibilité des trajectoires de dépassement dans la dernière chicane de Forge et le cadrage de la ligne d’arrivée. Mesurer le mix et la fluidité sur un téléphone Android dès qu’il est disponible.

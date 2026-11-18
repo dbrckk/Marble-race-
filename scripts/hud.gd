@@ -10,11 +10,13 @@ const PLAYER_LOCATOR = preload("res://scripts/player_locator.gd")
 const PROGRESS_RADAR = preload("res://scripts/race_progress_radar.gd")
 const RARE_ITEMS = preload("res://scripts/race_items.gd")
 const SHORTCUT_ROUTE = preload("res://scripts/shortcut_route.gd")
-const VENT_WARNING_SECONDS := 1.55
+const COURSE_MECHANICS = preload("res://scripts/course_mechanics.gd")
+const RACE_DIRECTOR = preload("res://scripts/race_director.gd")
+const VENT_WARNING_SECONDS := COURSE_MECHANICS.VENT_WARNING_SECONDS
 const FINAL_OBSTACLE_WARNING_SECONDS := 1.40
 const SURFACE_CUE_TOP := 0.350
 const SURFACE_CUE_BOTTOM := 0.396
-const PISTON_WARNING_SECONDS := 2.20
+const PISTON_WARNING_SECONDS := RACE_DIRECTOR.PISTON_WARNING_SECONDS
 const FIRST_SHUTTER_ICE_WARNING_SECONDS := 0.34
 const FIRST_SHUTTER_MIN_DRY_LEAD := 0.27
 const CLEAR_GATE_NEAR_SECONDS := 2.0
@@ -2027,8 +2029,9 @@ func update_hud() -> void:
     var gate_id := int(moving_event.get("index",-1))
     var first_shutter: bool = game.selected_track == 1 and is_instance_valid(game.race_director) and (
         gate_id == game.race_director.GLACIER_FIRST_SHUTTER)
-    # A stale replica or a stopped marble cannot predict the first shutter's phase.
-    timed_gate_label.visible = still_racing and gate_id >= 0 and (not first_shutter or forward_speed >= 2.0)
+    # The first shutter and Forge pistons need a meaningful crossing speed.
+    var needs_speed: bool = first_shutter or game.selected_track == 2
+    timed_gate_label.visible = still_racing and gate_id >= 0 and (not needs_speed or forward_speed >= 2.0)
     var urgent_gate_eta := INF
     var gate_eta := INF
     var piston_contact_eta := INF
@@ -2050,15 +2053,24 @@ func update_hud() -> void:
             first_ice_exit_z = slab_z-half_depth
             first_shutter_exit = not game.airtime.ice_touching and (
                 at.z <= first_ice_exit_z or (grip_return and at.z <= slab_z+half_depth))
-        var projected_blocking: bool = game.selected_track != 2 or (
-            game.race_director.piston_up(gate_id,
-                game.race_director.clock+gate_eta))
+        var bridge_exit_preview: bool = game.selected_track == 2 and bridge_approach_active and (
+            gate_id == game.race_director.FORGE_EXIT_GATE)
+        var projected_blocking := true
         # A rising piston still needs a warning ONLY when the predicted
         # collision envelope overlaps this player's physical driving line.
         # Show a calm clear-line cue otherwise; do not punish safe steering
         # with false hazard sounds when the gate moves on the opposite rail.
         var player_threatened: bool
-        if game.selected_track == 1 and (first_shutter or gate_id == game.race_director.GLACIER_RETURN_GATE):
+        if game.selected_track == 2:
+            var crossing: float = game.race_director.forge_piston_contact_eta(gate_id,gate_eta,forward_speed)
+            projected_blocking = is_finite(crossing)
+            if bridge_exit_preview:
+                piston_contact_eta = crossing
+            elif projected_blocking:
+                piston_contact_eta = game.race_director.forge_piston_contact_eta(
+                    gate_id,gate_eta,forward_speed,at.x,velocity.x)
+            player_threatened = not bridge_exit_preview and is_finite(piston_contact_eta)
+        elif game.selected_track == 1 and (first_shutter or gate_id == game.race_director.GLACIER_RETURN_GATE):
             player_threatened = game.race_director.glacier_shutter_threatens_crossing(
                 gate_id,gate_eta,forward_speed,at.x,velocity.x)
         else:
@@ -2073,22 +2085,19 @@ func update_hud() -> void:
                 "DODGE! GO LEFT" if steering < 0.0 else "DODGE! GO RIGHT")
         if game.selected_track == 1 and player_threatened:
             shutter_side = gate_side
-        var bridge_exit_preview: bool = game.selected_track == 2 and bridge_approach_active and (
-            gate_id == game.race_director.FORGE_EXIT_GATE)
         var glacier_exit_preview: bool = game.selected_track == 1 and bridge_approach_active and (
             gate_id == game.race_director.GLACIER_RETURN_GATE)
         ordinary_gate_clear = not player_threatened and not bridge_exit_preview and (
             not glacier_exit_preview and not first_shutter_exit)
         var lane_verdict: String = "DODGE!" if player_threatened else "LINE CLEAR"
         if not bridge_exit_preview and not glacier_exit_preview and player_threatened and gate_eta <= 1.45:
-            urgent_gate_eta = gate_eta
+            urgent_gate_eta = piston_contact_eta if game.selected_track == 2 else gate_eta
         if bridge_exit_preview:
-            bridge_piston_warning = game.race_director.forge_exit_blocks_during_crossing(
-                gate_eta,forward_speed)
+            bridge_piston_warning = is_finite(piston_contact_eta)
             if bridge_piston_warning:
                 var action := "KEEP LEFT" if gate_side == "RIGHT" else "AIM CENTER"
                 timed_gate_label.text = "AFTER BRIDGE  •  PISTON %s  •  %s  •  %.1fs" % [
-                    gate_side,action,gate_eta]
+                    gate_side,action,piston_contact_eta]
             else:
                 timed_gate_label.text = "AFTER BRIDGE  •  PISTON %s OPEN  •  %.1fs" % [
                     gate_side,gate_eta]
@@ -2108,7 +2117,8 @@ func update_hud() -> void:
         elif game.selected_track == 2:
             var action := dodge_action if player_threatened else lane_verdict
             timed_gate_label.text = "FORGE PISTON %s  •  EST. %s  •  %s  •  %.1fs" % [
-                gate_side,"BLOCKED" if projected_blocking else "OPEN",action,gate_eta]
+                gate_side,"BLOCKED" if projected_blocking else "OPEN",action,
+                piston_contact_eta if player_threatened else gate_eta]
         else:
             if player_threatened:
                 lane_verdict = dodge_action
@@ -2119,15 +2129,15 @@ func update_hud() -> void:
             tint = Color("#ffd494")
         elif player_threatened and not bridge_exit_preview:
             tint = Color("#ffae91") if gate_eta < 1.45 else Color("#f6d49b")
-        if first_shutter_exit or bridge_piston_warning or (
-                player_threatened and not bridge_exit_preview and not glacier_exit_preview):
+        if game.selected_track != 2 and (first_shutter_exit or (
+                player_threatened and not glacier_exit_preview)):
             var entry_distance: float = gate_distance-game.race_director.BODY_DEPTH*0.5-(
                 game.race_director.MARBLE_CLEARANCE)
             piston_contact_eta = maxf(0.0,entry_distance)/maxf(2.0,forward_speed)
-            var audio_minimum := 0.06 if game.selected_track == 1 else 0.20
-            if player_threatened and not bridge_exit_preview and piston_contact_eta >= audio_minimum and (
-                    piston_contact_eta <= PISTON_WARNING_SECONDS):
-                audible_gate_eta = piston_contact_eta
+        var audio_minimum := 0.06 if game.selected_track == 1 else 0.20
+        if player_threatened and not bridge_exit_preview and not glacier_exit_preview and (
+                piston_contact_eta >= audio_minimum and piston_contact_eta <= PISTON_WARNING_SECONDS):
+            audible_gate_eta = piston_contact_eta
         if first_shutter_exit:
             var action := "LINE CLEAR"
             if player_threatened:

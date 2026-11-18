@@ -478,6 +478,32 @@ func pack_hazard_ahead(at: Vector3, velocity: Vector3) -> Vector3:
         target = center
     return target
 
+func forge_merge_threat(at: Vector3, velocity: Vector3, bridge_merge: bool) -> Dictionary:
+    # Preview the hazards around the Forge join using the same clocks and
+    # entry times as the HUD. The bridge bypasses the main-track vent.
+    var speed := -velocity.z
+    if selected_track != 2 or not at.is_finite() or not velocity.is_finite() or speed < 6.0 or (
+            at.z > ShortcutRoute.MERGE_TRAFFIC_NEAR):
+        return {}
+    var gate := RaceDirector.FORGE_EXIT_GATE
+    var gate_z: float = race_director.event_z(gate)
+    if at.z <= gate_z or (not bridge_merge and absf(at.y-height_at(at.z)-Racer.RADIUS) > 0.85):
+        return {}
+    var gate_eta := (at.z-gate_z)/speed
+    var piston_eta: float = race_director.forge_piston_contact_eta(
+        gate,gate_eta,speed,NAN if bridge_merge else at.x,velocity.x)
+    if not bridge_merge:
+        var vent: Dictionary = course_mechanics.upcoming_lane(at,velocity,INF)
+        var vent_eta := float(vent.get("contact_eta",INF))
+        if vent_eta <= CourseMechanics.VENT_WARNING_SECONDS and vent_eta < piston_eta:
+            var point: Vector3 = course_mechanics.zones[int(vent["index"])].global_position
+            return {"position":point+Vector3.UP*0.35,"kind":"VENT"}
+    if piston_eta <= RaceDirector.PISTON_WARNING_SECONDS:
+        var point: Vector3 = race_director.position_at(gate,race_director.clock+piston_eta)
+        point.y = maxf(point.y,height_at(gate_z)+0.35)
+        return {"position":point,"kind":"PISTON"}
+    return {}
+
 func glacier_shutter_exit_active(z: float) -> bool:
     return selected_track == 1 and z >= glacier_first_shutter_z-GLACIER_EXIT_REACH and (
         z <= glacier_first_shutter_z+GLACIER_EXIT_PREVIEW_REACH)

@@ -9,6 +9,10 @@ const FONT_SIZE := 23
 const BADGE_HEIGHT := 27.0
 const GRID_HANDOFF := 0.5
 const HAZARD_ACCENT := Color("#ffc57e")
+const PISTON_ACCENT := Color("#ff9d78")
+const VENT_ACCENT := Color("#ffe49f")
+const FORGE_MARKER_SCALE := 1.25
+const FORGE_MARKER_BOUNDS := Rect2(-17.0,-17.0,34.0,41.0)
 const ICE_ACCENT := Color("#9ce7ff")
 const ICE_IMPACT_ACCENT := Color("#ffb2b9")
 const Air = preload("res://scripts/airtime_director.gd")
@@ -24,6 +28,7 @@ var badge_width := 58.0
 var badge := StyleBoxFlat.new()
 var bracket_mesh: ArrayMesh
 var hazard_center := Vector2.INF
+var hazard_kind := ""
 var evasion_center := Vector2.INF
 var evasion_tint := EVASION_ACCENT
 var ice_arrow_center := Vector2.INF
@@ -44,6 +49,7 @@ func configure(stage: Node3D) -> void:
 func begin_round() -> void:
     bracket_strength = 0.0
     hazard_center = Vector2.INF
+    hazard_kind = ""
     evasion_center = Vector2.INF
     ice_arrow_center = Vector2.INF
     ice_impact_center = Vector2.INF
@@ -55,6 +61,7 @@ func begin_round() -> void:
 
 func refresh(delta: float) -> void:
     hazard_center = Vector2.INF
+    hazard_kind = ""
     evasion_center = Vector2.INF
     evasion_tint = EVASION_ACCENT
     ice_arrow_center = Vector2.INF
@@ -99,8 +106,15 @@ func refresh(delta: float) -> void:
                 freshness):
             var point := camera.unproject_position(obstacle)
             var pointer := point-Vector2(0.0,21.0)
+            var kind: String = moments.occluded_hazard_kind
+            if not kind.is_empty():
+                var marker_rect := Rect2(pointer+FORGE_MARKER_BOUNDS.position,FORGE_MARKER_BOUNDS.size)
+                var badge_clearance := _badge_rect().grow(5.0)
+                if marker_rect.intersects(badge_clearance):
+                    pointer.y = badge_clearance.position.y-FORGE_MARKER_BOUNDS.end.y
             if safe.has_point(pointer) and pointer.distance_to(screen_center) > screen_radius+19.0:
                 hazard_center = pointer
+                hazard_kind = kind
         var lane: Vector3 = moments.evasion_target
         var is_shutter_mark: bool = not lane.is_finite() and moments.occluded_shutter_mark.is_finite()
         if is_shutter_mark:
@@ -147,17 +161,9 @@ func _draw() -> void:
         draw_polyline(upper,evasion_tint,3.5,true)
         draw_polyline(lower,evasion_tint,2.7,true)
     if hazard_center.is_finite():
-        var h := hazard_center
-        draw_colored_polygon(PackedVector2Array([h+Vector2(0,-13),h+Vector2(13,0),
-            h+Vector2(0,19),h+Vector2(-13,0)]),INK)
-        draw_colored_polygon(PackedVector2Array([h+Vector2(0,-10),h+Vector2(10,0),
-            h+Vector2(0,15),h+Vector2(-10,0)]),HAZARD_ACCENT)
-        draw_line(h+Vector2(0,-5),h+Vector2(0,1),INK,2.2,true)
-        draw_circle(h+Vector2(0,5),1.3,INK)
-    var y := maxf(4.0,screen_center.y-screen_radius-BADGE_HEIGHT-12.0)
-    var x := clampf(screen_center.x-badge_width*0.5,4.0,maxf(4.0,size.x-badge_width-4.0))
-    var label_rect := Rect2(Vector2(x,y),Vector2(badge_width,BADGE_HEIGHT))
-    var pointer := Vector2(clampf(screen_center.x,x+7.0,x+badge_width-7.0),label_rect.end.y)
+        _draw_hazard_marker()
+    var label_rect := _badge_rect()
+    var pointer := Vector2(clampf(screen_center.x,label_rect.position.x+7.0,label_rect.end.x-7.0),label_rect.end.y)
     if pointer.y < screen_center.y-screen_radius:
         draw_colored_polygon(PackedVector2Array([pointer+Vector2(-6.0,-1.0),
             pointer+Vector2(6.0,-1.0),pointer+Vector2(0.0,7.0)]),INK)
@@ -172,6 +178,34 @@ func _draw() -> void:
         var scale := Vector2.ONE*(screen_radius+5.0)
         draw_mesh(bracket_mesh,null,Transform2D(0.0,scale,0.0,screen_center),
             Color(1.0,1.0,1.0,bracket_strength))
+
+func _badge_rect() -> Rect2:
+    var y := maxf(4.0,screen_center.y-screen_radius-BADGE_HEIGHT-12.0)
+    var x := clampf(screen_center.x-badge_width*0.5,4.0,maxf(4.0,size.x-badge_width-4.0))
+    return Rect2(x,y,badge_width,BADGE_HEIGHT)
+
+func _draw_hazard_marker() -> void:
+    var tint := HAZARD_ACCENT
+    if hazard_kind == "PISTON":
+        tint = PISTON_ACCENT
+    elif hazard_kind == "VENT":
+        tint = VENT_ACCENT
+    var scale := Vector2.ONE if hazard_kind.is_empty() else Vector2.ONE*FORGE_MARKER_SCALE
+    draw_set_transform(hazard_center,0.0,scale)
+    draw_colored_polygon(PackedVector2Array([Vector2(0,-13),Vector2(13,0),Vector2(0,19),Vector2(-13,0)]),INK)
+    draw_colored_polygon(PackedVector2Array([Vector2(0,-10),Vector2(10,0),Vector2(0,15),Vector2(-10,0)]),tint)
+    if hazard_kind == "PISTON":
+        draw_rect(Rect2(-5,-3,10,4),INK)
+        draw_line(Vector2(0,1),Vector2(0,6),INK,2.8,true)
+    elif hazard_kind == "VENT":
+        for x in [-2.5,2.5]:
+            var p := Vector2(x,0.0)
+            draw_polyline(PackedVector2Array([p+Vector2(-0.8,5.0),p+Vector2(0.9,1.8),
+                p+Vector2(-0.9,-0.3),p+Vector2(0.5,-3.3)]),INK,1.8,true)
+    else:
+        draw_line(Vector2(0,-5),Vector2(0,1),INK,2.2,true)
+        draw_circle(Vector2(0,5),1.3,INK)
+    draw_set_transform(Vector2.ZERO)
 
 static func _make_brackets() -> ArrayMesh:
     # One canvas batch for both bands, with a feathered dark outline.
