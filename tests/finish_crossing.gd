@@ -67,6 +67,23 @@ func _verify_same_step_order(game: Node3D) -> bool:
     game._physics_process(step)
     assert(c.finish_time > a.finish_time and game.player_rank() == 3)
     assert(game.ui.race_moment_label.text == "PHOTO FINISH!")
+    assert(not game.ui.touch_controls.enabled and not game.boosting)
+    var hud: CanvasLayer = game.ui
+    game.race_time = 55.5
+    hud.label_timer = 0.12
+    hud.update_hud()
+    assert(hud.clock_label.text == "00:54.20","The displayed time must stop at the crossing")
+    game.checkpoint_splits.assign([10.0,20.0,30.0])
+    var layout: int = game.built_variation
+    game._end_race()
+    assert(hud.result_photo_finish.is_visible_in_tree())
+    assert(hud.result_photo_finish.text == "PHOTO FINISH  •  0.005s BEHIND %s" % a.display_name)
+    assert(hud.sector_result_hint.is_visible_in_tree())
+    hud.replay_button_ref.pressed.emit()
+    assert(game.race_state == "COUNTDOWN" and game.built_variation == layout)
+    assert(game.practice_sector == -1 and not hud.practice_entry_pending,
+        "The main retry runs the full course without a sector practice goal")
+    assert(hud.touch_controls.enabled and not game.race_moments.finish_seen)
     game.return_to_menu()
     game.set_physics_process(true)
     return true

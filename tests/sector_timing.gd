@@ -1,4 +1,9 @@
 extends SceneTree
+
+func _practice_from_results(hud: CanvasLayer) -> void:
+    hud.sector_result_hint.pressed.emit()
+    assert(hud.sector_map_panel.is_visible_in_tree())
+    hud.sector_map_panel.find_child("RetryFromSectorMap",true,false).pressed.emit()
 ## Four-sector race timing, persistence and anti-skip regression.
 const Career = preload("res://scripts/career.gd")
 func _initialize() -> void:
@@ -224,7 +229,7 @@ func _verify() -> void:
     game.last_result = result
     game.race_state = "RESULTS"
     hud.show_results(game.player_rank(),98.0,game.get_rankings())
-    hud.replay_button_ref.pressed.emit()
+    _practice_from_results(hud)
     hud.label_timer = 0.12
     hud.update_hud()
     assert(game.practice_sector == 0 and hud.practice_sector_label.visible and
@@ -249,7 +254,7 @@ func _verify() -> void:
     assert(hud.performance_actions.is_visible_in_tree() and hud.sector_result_hint.is_visible_in_tree())
     assert(hud.sector_retry_comparison.is_visible_in_tree() and hud.results_scroll.size.y > 70.0)
     game.show_fps = false
-    hud.replay_button_ref.pressed.emit()
+    _practice_from_results(hud)
     assert(is_equal_approx(game.practice_previous_time,21.0),"A second retry must use the latest completed run")
     game.checkpoint_splits.assign([21.004,45.0,79.0])
     game.player.finished = true
@@ -261,7 +266,7 @@ func _verify() -> void:
     assert(not hud.sector_retry_comparison.visible)
     game.net.role = "offline"
     hud.show_results(game.player_rank(),98.9,game.get_rankings())
-    hud.replay_button_ref.pressed.emit()
+    _practice_from_results(hud)
     assert(is_finite(game.practice_previous_time))
     game.player.eliminated = true
     game._end_race()
@@ -350,7 +355,7 @@ func _verify_passage_loss(game: Node3D) -> void:
     hud.sector_map_buttons[1].pressed.emit()
     assert(hud.sector_map.passage_span == Vector2.ZERO,"Loss must stay on its measured sector")
     hud.sector_map_back.pressed.emit()
-    hud.replay_button_ref.pressed.emit()
+    _practice_from_results(hud)
     assert(game.practice_sector == 0 and is_equal_approx(game.practice_previous_passages[1],6.5))
     assert(game.practice_passage == 2 and hud.practice_passage_bounds == loss["span"])
     _verify_live_passage_cue(game,loss["span"])

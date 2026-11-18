@@ -45,6 +45,7 @@ var sampled_once := false
 var unique_overtakes := 0
 var final_stretch_seen := false
 var finish_seen := false
+var photo_finish_seen := false
 var local_speed := 0.0
 var previous_boost := false
 var closest_rival: RigidBody3D
@@ -169,6 +170,7 @@ func reset_round() -> void:
     unique_overtakes = 0
     final_stretch_seen = false
     finish_seen = false
+    photo_finish_seen = false
     local_speed = 0.0
     previous_boost = false
     _set_closest_rival(null,Vector3.ZERO)
@@ -592,26 +594,30 @@ func _track_pass(id: int, offset: Vector3, same_route: bool,
         previous_offsets.erase(id)
     return passed
 
-func on_finish() -> void:
-    if finish_seen or not is_instance_valid(game) or not is_instance_valid(game.player):
-        return
-    if not game.player.finished:
-        return
-    finish_seen = true
-    var photo_finish := false
+func photo_finish_rival() -> RigidBody3D:
+    if not is_instance_valid(game.player) or not game.player.finished:
+        return null
+    var closest: RigidBody3D
+    var margin := PHOTO_FINISH_WINDOW
     for rival in game.racers:
-        if not is_instance_valid(rival) or rival == game.player or rival.eliminated:
+        if not is_instance_valid(rival) or rival == game.player or not rival.finished or rival.eliminated:
             continue
-        if rival.finished and absf(rival.finish_time-game.player.finish_time) < PHOTO_FINISH_WINDOW:
-            photo_finish = true
-            break
-        var at: Vector3 = rival.global_position
-        if not rival.finished and not rival.freeze and rival.linear_velocity.z <= -3.0 and (
-                game.finish_crossing_fraction(at,at+rival.linear_velocity*PHOTO_FINISH_WINDOW) >= 0.0):
-            photo_finish = true
-            break
-    var label: String = "PHOTO FINISH!" if photo_finish else (
-        "PODIUM FINISH!" if game.player_rank() <= 3 else "FINISH LINE!")
-    game.ui.show_race_moment(label,1.4,3)
-    if photo_finish:
+        var gap: float = absf(rival.finish_time-game.player.finish_time)
+        if gap < margin:
+            closest = rival
+            margin = gap
+    return closest
+
+func on_finish() -> void:
+    if photo_finish_seen or not is_instance_valid(game.player) or not game.player.finished:
+        return
+    var photo := is_instance_valid(photo_finish_rival())
+    if not finish_seen or photo:
+        game.ui.show_race_moment("PHOTO FINISH!" if photo else (
+            "PODIUM FINISH!" if game.player_rank() <= 3 else "FINISH LINE!"),1.85,3)
+    if not finish_seen:
+        finish_seen = true
+        game.ui.release_finished_controls()
+    if photo:
+        photo_finish_seen = true
         game.audio.race_moment("photo_finish")

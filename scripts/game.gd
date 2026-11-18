@@ -1994,7 +1994,7 @@ func _physics_process(delta: float) -> void:
         finish_crossings.sort_custom(_finisher_precedes)
         for m in finish_crossings:
             racer_finish_order.append(m.display_name)
-        if not net.is_active() and race_moments != null and finish_crossings.has(player):
+        if not net.is_active() and race_moments != null and is_instance_valid(player) and player.finished:
             race_moments.on_finish()
     if selected_perk == "Sticky Magnet" and is_instance_valid(player) and not player.finished:
         for m in racers:
@@ -2216,7 +2216,8 @@ func change_boost(value: bool) -> void:
     boosting = value and boost_energy > 0.03
 
 func _unhandled_input(event: InputEvent) -> void:
-    if race_state != "RACING" or ui.online_leave_layer.visible:
+    if race_state != "RACING" or ui.online_leave_layer.visible or (
+            is_instance_valid(player) and player.finished):
         return
     if event is InputEventKey:
         if event.echo:

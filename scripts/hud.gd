@@ -67,7 +67,10 @@ var lan_leave_button: Button
 var pause_button_ref: Button
 var replay_button_ref: Button
 var next_layout_button: Button
+var results_exit_button: Button
 var result_overview: Label
+var result_photo_finish: Label
+var online_rematch_label: Label
 var results_scroll: ScrollContainer
 var results_card: PanelContainer
 var sector_results: VBoxContainer
@@ -627,6 +630,23 @@ func _start_online_connection(mode: String) -> void:
 func _lan_status_update(message: String) -> void:
     if is_instance_valid(lan_status):
         lan_status.text = message if message != "" else "Disconnected. Choose a new match."
+    if results_layer.is_visible_in_tree():
+        update_online_rematch()
+
+func update_online_rematch() -> void:
+    if game.net.role != "client":
+        online_rematch_label.hide()
+        return
+    var seconds := ceili(game.net.results_seconds)
+    if game.net.room_player_count < 2:
+        online_rematch_label.text = "WAITING FOR ANOTHER PLAYER"
+        if not game.net.room_code.is_empty():
+            online_rematch_label.text += "  •  CODE "+game.net.room_code
+    elif seconds > 0:
+        online_rematch_label.text = "NEXT RACE IN %ds" % seconds
+    else:
+        online_rematch_label.text = "STARTING NEXT RACE…"
+    online_rematch_label.show()
 
 func show_online_lobby() -> void:
     _hide_all()
@@ -1352,7 +1372,7 @@ func _close_online_leave() -> void:
     if not online_leave_layer.visible:
         return
     online_leave_layer.hide()
-    touch_controls.enabled = true
+    touch_controls.enabled = not is_instance_valid(game.player) or not game.player.finished
 
 func _build_results() -> void:
     results_layer = Control.new()
@@ -1376,6 +1396,11 @@ func _build_results() -> void:
     result_overview.name = "RaceResultOverview"
     result_overview.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     col.add_child(result_overview)
+    result_photo_finish = _text("",21,Color("#f6e8b6"))
+    result_photo_finish.name = "PhotoFinishResult"
+    result_photo_finish.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    result_photo_finish.hide()
+    col.add_child(result_photo_finish)
     _build_sector_results(col)
     # Keep the timing and race actions in view while mastery and rankings scroll.
     var detail_scroll := ScrollContainer.new()
@@ -1391,6 +1416,11 @@ func _build_results() -> void:
     summary.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     summary.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     detail_scroll.add_child(summary)
+    online_rematch_label = _text("",21,Color("#aaf2e5"))
+    online_rematch_label.name = "OnlineRematchStatus"
+    online_rematch_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    online_rematch_label.hide()
+    col.add_child(online_rematch_label)
     performance_actions = HBoxContainer.new()
     performance_actions.hide()
     col.add_child(performance_actions)
@@ -1416,7 +1446,7 @@ func _build_results() -> void:
     col.add_child(race_actions)
     var replay = _action("RETRY SAME LAYOUT", ORANGE, Color("#251b0d"))
     replay.name = "Replay"
-    replay.pressed.connect(_retry_from_results)
+    replay.pressed.connect(func(): game.retry_current_layout())
     replay.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     race_actions.add_child(replay)
     replay_button_ref = replay
@@ -1431,6 +1461,7 @@ func _build_results() -> void:
     var menu = _action("MAIN MENU", Color("#343b47"))
     menu.pressed.connect(_leave_multiplayer)
     col.add_child(menu)
+    results_exit_button = menu
     _build_sector_map()
 
 func _build_sector_results(parent: VBoxContainer) -> void:
@@ -1528,10 +1559,10 @@ func _build_sector_map() -> void:
     sector_map_back.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     sector_map_back.pressed.connect(_close_sector_map)
     actions.add_child(sector_map_back)
-    var retry := _action("RETRY SAME LAYOUT",ORANGE,Color("#251b0d"))
+    var retry := _action("PRACTICE THIS SECTOR",ORANGE,Color("#251b0d"))
     retry.name = "RetryFromSectorMap"
     retry.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    retry.pressed.connect(_retry_from_results)
+    retry.pressed.connect(func(): game.retry_current_layout(sector_map.focused_sector))
     actions.add_child(retry)
     sector_map_panel.hide()
 
@@ -1579,17 +1610,6 @@ func _close_sector_map() -> void:
     sector_map_panel.hide()
     results_card.show()
     sector_result_hint.grab_focus()
-
-func _retry_from_results() -> void:
-    if game.net.is_active():
-        show_online_lobby()
-    else:
-        var sector := sector_map.focused_sector if sector_map_panel.is_visible_in_tree() else slowest_sector
-        if not sector_map_panel.is_visible_in_tree():
-            var practice: Dictionary = game.last_result.get("practice_comparison",{})
-            if not practice.get("worst_passage",{}).is_empty():
-                sector = int(practice["sector"])
-        game.retry_current_layout(sector)
 
 func _copy_fps_report() -> void:
     if copy_performance.disabled or performance_text.is_empty() or not results_layer.is_visible_in_tree():
@@ -1763,6 +1783,7 @@ func show_race_ui() -> void:
     if get_tree().paused:
         get_tree().paused = false
     _hide_all()
+    touch_controls.enabled = true
     practice_entry_pending = game.practice_sector >= 0 and not game.net.is_active()
     if practice_entry_pending:
         practice_bounds = COURSE_BRIEFING.sector_bounds_for(game,game.practice_sector)
@@ -1785,6 +1806,19 @@ func show_countdown(value: String) -> void:
 
 func hide_countdown() -> void:
     countdown_label.get_parent().hide()
+
+func release_finished_controls() -> void:
+    touch_controls.release_all()
+    touch_controls.enabled = false
+    game.change_boost(false)
+    checkpoint_label.hide()
+    duel_label.hide()
+    rival_marker.hide()
+    speed_label.get_parent().hide()
+    label_timer = 0.12
+    rank_toast_seconds = 0.0
+    toast_remaining = 0.0
+    hide_countdown()
 
 func show_race_moment(title: String, duration: float = 1.1, priority := 0) -> void:
     if not is_instance_valid(race_moment_label) or (moment_remaining > 0.0 and priority < moment_priority):
@@ -1913,14 +1947,15 @@ func update_hud() -> void:
     label_timer = 0.0
     if not is_instance_valid(game.player):
         return
-    var seconds = int(game.race_time)
-    var centi = int((game.race_time - float(seconds)) * 100.0)
-    clock_label.text = "%02d:%02d.%02d" % [seconds / 60, seconds % 60, centi]
+    var finished: bool = game.player.finished
+    var centiseconds := roundi(game.player.finish_time*100.0) if finished else int(game.race_time*100.0)
+    var seconds := centiseconds/100
+    clock_label.text = "%02d:%02d.%02d" % [seconds / 60, seconds % 60, centiseconds % 100]
     # Reuse a single real standings sort for rank and top-three HUD,
     # instead of sorting forty bodies twice every UI update.
     var ranking: Array = game.get_rankings()
     var place: int = ranking.find(game.player)+1
-    if game.race_state == "RACING" and last_seen_rank > 0 and abs(place-last_seen_rank) >= 2 and (
+    if playing and last_seen_rank > 0 and abs(place-last_seen_rank) >= 2 and (
         moment_priority != 2 or moment_remaining <= 0.0):
         var gain := last_seen_rank - place
         position_feedback.text = "+%d PLACES" % gain if gain > 0 else "-%d PLACES" % abs(gain)
@@ -1931,13 +1966,16 @@ func update_hud() -> void:
     last_seen_rank = place
     place_label.text = "#%d / 40" % place
     remaining_label.text = "%s  •  %d FINISHED" % [game.track_title(),game.racer_finish_order.size()]
-    var drafting: bool = not game.net.is_active() and game.slipstream != null and (
+    if finished:
+        remaining_label.text = "AWAITING RESULTS" if game.net.is_client() else "FINISHED"
+    var drafting: bool = playing and not game.net.is_active() and game.slipstream != null and (
         game.slipstream.strength >= 0.30)
     boost_label.visible = drafting
     if drafting:
         var boost_x: float = touch_controls.boost_center_fraction()
         boost_label.anchor_left = boost_x-0.10
         boost_label.anchor_right = boost_x+0.10
+    speed_label.get_parent().visible = not finished
     speed_label.text = "%02d KM/H" % int(Vector2(velocity.x,velocity.z).length()*3.6)
     if grip_return:
         speed_label.text += "  /  GRIP"
@@ -2002,7 +2040,7 @@ func update_hud() -> void:
     var hazard: Dictionary = game.upcoming_hazard(player_z,downstream_limit)
     # Timed events have their own forecast, so do not show two duplicate
     # hazard banners while also preserving warnings for physical edge gates.
-    hazard_label.visible = not hazard.is_empty() and not hazard.has("index") and (
+    hazard_label.visible = not finished and not hazard.is_empty() and not hazard.has("index") and (
         not hazard.get("final",false))
     var glacier_exit: bool = game.glacier_shutter_exit_active(player_z)
     if glacier_exit and hazard_label.visible and float(hazard["z"]) < game.glacier_first_shutter_z:
@@ -2720,13 +2758,26 @@ func show_results(place: int, time: float, ranking: Array) -> void:
     results_layer.visible = true
     var summary = results_layer.find_child("Summary", true, false) as Label
     results_scroll.set_deferred("scroll_vertical", 0)
+    var rival: RigidBody3D = game.race_moments.photo_finish_rival()
+    var photo := is_instance_valid(rival)
+    result_photo_finish.visible = photo
+    if photo:
+        var gap: float = rival.finish_time-time
+        var name := str(rival.display_name)
+        if gap == 0.0:
+            result_photo_finish.text = "PHOTO FINISH  •  SAME TIME AS %s" % name
+        else:
+            var margin := "<0.001s" if absf(gap) < 0.001 else "%.3fs" % absf(gap)
+            result_photo_finish.text = "PHOTO FINISH  •  %s %s %s" % [
+                margin,"AHEAD OF" if gap > 0.0 else "BEHIND",name]
     var leaders := ""
     var finisher_count := 0
+    var row := "%02d  %s  %.3fs\n" if photo else "%02d  %s  %.2fs\n"
     for marble in ranking:
         if not marble.finished:
             break
         finisher_count += 1
-        leaders += "%02d  %s  %.2fs\n" % [finisher_count, marble.display_name, marble.finish_time]
+        leaders += row % [finisher_count,marble.display_name,marble.finish_time]
         if finisher_count == 5:
             break
     if leaders.is_empty():
@@ -2796,22 +2847,19 @@ func show_results(place: int, time: float, ranking: Array) -> void:
             _gap_time(float(ghost_deltas[0])),_gap_time(float(ghost_deltas[1])),
             _gap_time(float(ghost_deltas[2]))]
     if summary:
-        summary.text = "CLEAN PASSES  %d / 3  •  OVERTAKES %d\nBANKED APEXES  %d / 4\nBRIDGE GATES  %d / 3%s\nREAL LANDINGS  %d  •  BEST AIR %.2fs\n%s\n%s\n%s\n%s%s\n%s\n%s\nBEST  #%s\n\nTOP 5\n%s" % [
-            clean_passes,overtakes,apex_passes,bridge_gates,
+        summary.text = "TOP 5\n%s\nCLEAN PASSES  %d / 3  •  OVERTAKES %d\nBANKED APEXES  %d / 4\nBRIDGE GATES  %d / 3%s\nREAL LANDINGS  %d  •  BEST AIR %.2fs\n%s\n%s\n%s\n%s%s\n%s\n%s\nBEST  #%s" % [
+            leaders,clean_passes,overtakes,apex_passes,bridge_gates,
             "  •  PERFECT!" if perfect_bridge else "",landings,best_air,
             precision_text,league_text,mastery_text,stars_text,checkpoint_text,
             record_text,unlock_text,
-            str(game.career.track_best[game.selected_track]) if game.career.track_best[game.selected_track] > 0 else "—",
-            leaders]
-    if game.net.is_active():
+            str(game.career.track_best[game.selected_track]) if game.career.track_best[game.selected_track] > 0 else "—"]
+    var online: bool = game.net.is_active()
+    if online:
         # Solo challenge counters are not available on a display-only
         # multiplayer client: never show a false zero instead of the
         # server-authoritative remote clean-pass count.
         summary.text = "TOP FINISHERS\n%s" % leaders
-        replay_button_ref.text = "ONLINE LOBBY — AUTO REMATCH"
-        replay_button_ref.disabled = false
-    else:
-        replay_button_ref.text = "RETRY SAME LAYOUT"
-        replay_button_ref.disabled = false
-    next_layout_button.visible = not game.net.is_active()
-    next_course_button.visible = not game.net.is_active() and game.selected_track < 2 and game.career.is_unlocked(game.selected_track+1)
+    replay_button_ref.get_parent().visible = not online
+    next_course_button.visible = not online and game.selected_track < 2 and game.career.is_unlocked(game.selected_track+1)
+    results_exit_button.text = "LEAVE ROOM" if online else "MAIN MENU"
+    update_online_rematch()

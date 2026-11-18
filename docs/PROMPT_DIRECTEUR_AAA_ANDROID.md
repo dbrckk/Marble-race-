@@ -582,6 +582,12 @@ La caméra de poursuite cadre les deux billes et la ligne après la dernière mo
 
 Les tests de franchissement, de cadrage des duels, de variation de parcours et de moments de course passent. Le cadrage et la signalisation sont vérifiés sur des captures des trois tracés. L’essai sur téléphone Android reste à faire.
 
+### 2026-11-18 — Photo-finish, classement et revanche (1.154.0-rc)
+
+Le chrono s’arrête au franchissement. Le photo-finish apparaît après confirmation des deux arrivées et son écart au millième reste visible sur le classement, au-dessus des détails. Le bouton de revanche relance le tracé complet. L’entraînement ciblé se lance depuis la carte d’un secteur.
+
+En ligne, les temps du serveur déclenchent le photo-finish. Le classement reste affiché pendant le compte à rebours jusqu’à la prochaine course. Si le salon n’a plus assez de joueurs, l’écran passe à l’attente et affiche le code des salons privés. Les tests couvrent le franchissement sur les trois circuits, la revanche complète, l’entraînement ciblé et le retour automatique sur la grille en ligne. L’essai sur téléphone Android reste à faire.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Fluidifier le passage du photo-finish au classement et à la revanche sur Android. Vérifier le mix et la fluidité sur téléphone pendant ce parcours.
+Rendre le changement de tracé plus lisible sur la grille de revanche et signaler le premier danger avant le départ.

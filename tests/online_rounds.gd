@@ -66,9 +66,51 @@ func _verify() -> void:
 
     net._reset_room()
     assert(net.completed_rounds == 0, "New rooms must start on the first course")
+    assert(_verify_client_results(game))
     net.leave_room()
     game.queue_free()
     for i in range(4):
         await process_frame
-    print("ONLINE_ROUNDS_PASS: stale-command cutoff, input recovery, 3 matching tracks, room reset")
+    print("ONLINE_ROUNDS_PASS: controls, track rotation, authoritative finish, rematch and room reset")
     quit(0)
+
+func _verify_client_results(game: Node3D) -> bool:
+    var net = game.net
+    var hud: CanvasLayer = game.ui
+    net.role = "client"
+    net.local_slot = 39
+    net._begin_round(0,0,PackedInt32Array([39,38]))
+    game.race_state = "RACING"
+    var starts: int = game.career.starts
+    var snapshot := PackedFloat32Array()
+    for racer in game.racers:
+        var position: Vector3 = racer.position
+        var finished: bool = racer.racer_id >= 38
+        snapshot.append_array([position.x,position.y,position.z,0.0,0.0,0.0,1.0,
+            1.0 if finished else 0.0,42.0 if racer.racer_id == 39 else 42.02])
+    net._receive_snapshot(snapshot,42.1,PackedFloat32Array())
+    assert(game.race_moments.photo_finish_seen and not hud.touch_controls.enabled,
+        "A confirmed local and remote crossing triggers one cue on the client")
+    var times := PackedFloat32Array()
+    times.resize(40)
+    times.fill(-1.0)
+    times[39] = 42.0
+    times[38] = 42.02
+    net._show_results(times,43.5)
+    assert(game.career.starts == starts and game.race_state == "RESULTS")
+    assert(hud.result_photo_finish.text.contains("0.020s AHEAD OF"))
+    assert(hud.online_rematch_label.text == "NEXT RACE IN 15s" and not hud.replay_button_ref.is_visible_in_tree())
+    net._ping_elapsed = -30.0
+    net._process(2.1)
+    assert(hud.online_rematch_label.text == "NEXT RACE IN 13s")
+    net._lobby_state("Waiting",1)
+    assert(hud.online_rematch_label.text == "WAITING FOR ANOTHER PLAYER")
+    net._process(14.0)
+    assert(game.race_state == "RESULTS" and hud.online_rematch_label.text == "WAITING FOR ANOTHER PLAYER")
+    net._lobby_state("Starting",2)
+    assert(hud.online_rematch_label.text == "STARTING NEXT RACE…")
+    net._begin_round(1,2,PackedInt32Array([39,38]))
+    assert(game.race_state == "COUNTDOWN" and game.built_variation == 2 and game.selected_track == 1)
+    assert(hud.touch_controls.enabled and not hud.online_rematch_label.is_visible_in_tree())
+    assert(not game.race_moments.finish_seen and game.career.starts == starts)
+    return true

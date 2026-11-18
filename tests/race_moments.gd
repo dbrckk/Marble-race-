@@ -239,6 +239,15 @@ func _run() -> void:
     stage.race_moments.on_finish()
     assert(stage.ui.race_moment_label.text != "PHOTO FINISH!",
         "A rival outside the timing stripe does not qualify for a photo finish")
+    rival.global_position = stage.finish_origin+Vector3(1.4,0.45,0.8)
+    stage.race_moments.on_finish()
+    assert(not stage.race_moments.photo_finish_seen,
+        "A rival on course can still collide or stall before the stripe")
+    rival.finished = true
+    rival.finish_time = 52.13
+    stage.race_moments.on_finish()
+    assert(stage.race_moments.photo_finish_seen and stage.ui.race_moment_label.text == "PHOTO FINISH!")
+    rival.finished = false
 
     # Both Android graphic tiers and rest screen stay usable without
     # any postprocess shaders or gameplay camera changes.
