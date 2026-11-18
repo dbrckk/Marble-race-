@@ -2324,6 +2324,18 @@ func update_hud() -> void:
         var vent_priority := vent_eta if vent_eta <= VENT_WARNING_SECONDS else INF
         pickup_limit = minf(piston_priority,vent_priority)
         _show_forge_hazard(lane_hint,gate_eta,piston_priority,vent_priority)
+        var forge_exit: Dictionary = duel.forge_exit_threat
+        if still_racing and game.forge_piston_exit_active(player_z) and forward_speed >= 5.0 and (
+                not game.airtime.airborne and not forge_exit.is_empty() and player_z >= float(forge_exit["last_z"])):
+            var contact := maxf(0.0,player_z-float(forge_exit["entry_z"]))/forward_speed
+            var blocking: bool = forge_exit.get("blocking",false)
+            var lane: Vector3 = duel.evasion_target if game.cam_mode == 0 else Vector3.INF
+            if contact < pickup_limit and contact <= game.FORGE_PISTON_EXIT_WARNING_SECONDS and (
+                    blocking or lane.is_finite()):
+                _show_forge_piston_exit(forge_exit,lane,contact)
+                if blocking:
+                    pickup_limit = contact
+                    audible_gate_eta = INF
     elif glacier_return_panel:
         hazard_label.hide()
         biome_lane_label.hide()
@@ -2642,6 +2654,22 @@ func _update_practice_passage(z: float, forward_speed: float) -> void:
     practice_sector_label.text = "PASSAGE %d\n%d m TO %s" % [
         game.practice_passage,ceili(distance),"EXIT" if inside else "ENTRY"]
     practice_hint_ready = true
+
+func _show_forge_piston_exit(threat: Dictionary, lane: Vector3, eta: float) -> void:
+    var action := "SAVE BOOST"
+    if lane.is_finite():
+        var change: float = lane.x-game.player.global_position.x
+        action = "HOLD LINE" if absf(change) < 0.35 else ("GAP LEFT" if change < 0.0 else "GAP RIGHT")
+    timed_gate_label.text = "AFTER PISTON  •  %s  •  %s  •  %s" % [
+        threat["label"],action,"NOW" if eta < 0.10 else "%.1fs" % eta]
+    var blocking: bool = threat.get("blocking",false)
+    timed_gate_label.add_theme_color_override("font_color",Color("#ffc39a") if blocking else Color("#a1edcc"))
+    timed_gate_label.show()
+    timed_gate_backdrop.visible = blocking
+    if blocking:
+        hazard_label.hide()
+        biome_lane_label.hide()
+        duel_label.hide()
 
 func _show_forge_hazard(vent: Dictionary, gate_eta: float, piston_priority: float,
         vent_priority: float) -> void:

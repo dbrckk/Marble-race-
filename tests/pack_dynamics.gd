@@ -167,6 +167,7 @@ func _verify() -> void:
                 assert(_verify_finish_pair(game))
             if track == 2:
                 assert(_verify_forge_merge_markers(game))
+                assert(await _verify_forge_piston_exit(game))
             if track == 1 and layout == 0 and not await _verify_evasion(game):
                 quit(1)
                 return
@@ -190,6 +191,7 @@ func _verify() -> void:
     print("GLACIER_FINISH_PAIR_PASS: both lanes, three layouts, real finish and manual camera isolation")
     print("WOODWORKS_FINISH_PAIR_PASS: both lanes, three layouts, real finish and manual camera isolation")
     print("FORGE_MERGE_MARKERS_PASS: vent, live piston, bridge piston and clear sightlines on three layouts")
+    print("FORGE_PISTON_EXIT_PASS: three real layouts, safe line, occupied lane, warning and fork handoff")
     print("EVASION_PREVIEW_PASS: real moving gate, projected lane, downstream physical obstruction and stale cue cleanup")
     print("EXIT_SPEED_PASS: grounded recovery, consecutive obstacles, stable speed, turbo and round reset")
     print("WOODWORKS_RECOVERY_PASS: distant obstacle handoff and occlusion-only last bank on the three layouts")
@@ -404,6 +406,90 @@ func _verify_obstacle_pointer(game: Node3D) -> bool:
             found_gate = true
             break
     assert(found_gate,"The timed obstacle is announced on a blocking approach")
+    return true
+
+func _verify_forge_piston_exit(game: Node3D) -> bool:
+    var player: RigidBody3D = game.player
+    var rival: RigidBody3D = game.racers[0]
+    var moments: RefCounted = game.race_moments
+    var hud: CanvasLayer = game.ui
+    var layout: int = game.built_variation
+    for marble in game.racers:
+        if marble != player:
+            marble.position = Vector3(80,0,20)
+            marble.freeze = true
+    for mechanism in game.moving_obstacles:
+        if mechanism.get_meta("motion_kind","") == "spinner":
+            mechanism.rotation.y = 0.0
+    if layout < 2:
+        for obstacle in game.forge_piston_exit_obstacles:
+            var spinner := obstacle.get("spinner") as AnimatableBody3D
+            if not is_instance_valid(spinner):
+                continue
+            spinner.sync_to_physics = false
+            spinner.rotation.y = 0.0
+            var from := Vector2(2.5,1.0)
+            var to := Vector2(2.5,-0.8)
+            assert(is_finite(game._predicted_obstacle_contact(obstacle,from,to,0.0,0.08)))
+            spinner.rotation.y = PI*0.25
+            assert(not is_finite(game._predicted_obstacle_contact(obstacle,from,to,0.0,0.08)))
+            game.net.role = "client"
+            game.net.match_running = true
+            assert(is_finite(game._predicted_obstacle_contact(obstacle,from,to,0.0,0.08)),
+                "Clients must allow for a different arm phase on the server")
+            game.net.role = "offline"
+            game.net.match_running = false
+            spinner.rotation.y = 0.0
+            spinner.sync_to_physics = true
+            break
+    for frame in range(3):
+        await physics_frame
+    game.cam_mode = 0
+    game.airtime.reset_round()
+    moments.reset_round()
+    var z: float = game.forge_first_piston_z-[4.8,1.1,1.1][layout]
+    var x: float = game.track_center_at(z)-[3.0,3.0,3.25][layout]
+    player.position = Vector3(x,game.height_at(z)+0.43,z)
+    player.linear_velocity = Vector3(0,0,-8.0)
+    game._update_camera(0.08,true)
+    moments.tick(0.12)
+    var lane: Vector3 = moments.evasion_target
+    assert(lane.is_finite() and is_equal_approx(lane.x,x) and
+        not moments.forge_exit_threat.get("blocking",true), "Each layout has a verified hold-line forecast")
+    hud.label_timer = 0.25
+    hud.update_hud()
+    assert(hud.timed_gate_label.visible and hud.timed_gate_label.text.contains("HOLD LINE"))
+    assert(not hud.timed_gate_backdrop.visible and hud.player_locator.evasion_center.is_finite())
+
+    rival.position = Vector3(lane.x,game.height_at(lane.z)+0.43,lane.z)
+    moments.tick(0.12)
+    assert(not moments.evasion_target.is_finite(), "Do not lead the player into the stationary rival")
+    hud.label_timer = 0.25
+    hud.update_hud()
+    assert(not hud.player_locator.evasion_center.is_finite())
+    assert(not hud.timed_gate_label.visible or not hud.timed_gate_label.text.contains("HOLD LINE"))
+    if layout == 2:
+        var approach: float = game.forge_first_piston_z-3.2
+        var outside: float = game.track_center_at(approach)+3.75
+        player.position = Vector3(outside,game.height_at(approach)+0.43,approach)
+        player.linear_velocity = Vector3(0,0,-12.0)
+        rival.position = Vector3(80,0,20)
+        moments.reset_round()
+        moments.tick(0.12)
+        assert(moments.forge_exit_threat.get("blocking",false) and moments.evasion_target.is_finite())
+        hud.label_timer = 0.25
+        hud.update_hud()
+        assert(hud.timed_gate_backdrop.visible and hud.timed_gate_label.text.contains("GAP LEFT"))
+        var blocked_at: Vector3 = moments.evasion_target
+        rival.position = Vector3(blocked_at.x,game.height_at(blocked_at.z)+0.43,blocked_at.z)
+        moments.tick(0.12)
+        hud.label_timer = 0.25
+        hud.update_hud()
+        assert(hud.timed_gate_label.text.contains("SAVE BOOST"))
+    player.position.z = game.shortcut_route.ENTRY_Z-0.5
+    assert(game.forge_piston_exit_threat(player.position,player.linear_velocity).is_empty())
+    moments.reset_round()
+    assert(moments.forge_exit_threat.is_empty())
     return true
 
 func _verify_forge_merge_markers(game: Node3D) -> bool:

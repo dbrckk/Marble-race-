@@ -276,16 +276,9 @@ func _entry_traffic_blocks(at: Vector3, velocity: Vector3, settling_time: float,
         var t := ENTRY_REACTION_SECONDS+settling_time*u if step < 5 else exit_time
         var x := start_x+displacement*u*u*(3.0-2.0*u)+velocity.x*settling_time*u*(1.0-u)*(1.0-u)
         var next_at := Vector2(x,at.z+velocity.z*t)
-        for i in range(rival_positions.size()):
-            var origin := rival_positions[i]
-            var speed := rival_velocities[i]
-            var before := last_at-Vector2(RaceFeedback.projected_lane_x(origin.x,speed.x,last_t),
-                origin.y+speed.y*last_t)
-            var after := next_at-Vector2(RaceFeedback.projected_lane_x(origin.x,speed.x,t),
-                origin.y+speed.y*t)
-            var nearest := Geometry2D.get_closest_point_to_segment(Vector2.ZERO,before,after)
-            if nearest.length_squared() < ENTRY_TRAFFIC_CLEARANCE*ENTRY_TRAFFIC_CLEARANCE:
-                return true
+        if not RaceFeedback.traffic_span_clear(last_at,next_at,last_t,t,
+                rival_positions,rival_velocities,ENTRY_TRAFFIC_CLEARANCE):
+            return true
         last_at = next_at
         last_t = t
     return false

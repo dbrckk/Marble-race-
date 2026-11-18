@@ -42,6 +42,18 @@ static func projected_lane_x(current_x: float, lateral_speed: float, eta: float)
     # Predict short-term drift while leaving room for the player's next input.
     return current_x+clampf(lateral_speed,-5.0,5.0)*minf(eta,0.40)
 
+static func traffic_span_clear(from: Vector2, to: Vector2, first: float, last: float,
+        origins: PackedVector2Array, velocities: PackedVector2Array, clearance: float) -> bool:
+    for i in range(origins.size()):
+        var origin := origins[i]
+        var speed := velocities[i]
+        var before := from-Vector2(projected_lane_x(origin.x,speed.x,first),origin.y+speed.y*first)
+        var after := to-Vector2(projected_lane_x(origin.x,speed.x,last),origin.y+speed.y*last)
+        var nearest := Geometry2D.get_closest_point_to_segment(Vector2.ZERO,before,after)
+        if nearest.length_squared() < clearance*clearance:
+            return false
+    return true
+
 static func hazard_preview_weight(distance: float, forward_speed: float) -> float:
     if not is_finite(distance) or not is_finite(forward_speed) or (
             distance < 0.0 or forward_speed <= 0.0):

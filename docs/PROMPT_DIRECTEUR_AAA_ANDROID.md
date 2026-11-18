@@ -606,6 +606,12 @@ Sur Gauntlet, le bloc droit du premier slalom et la bordure aval laissent davant
 
 Sur les deux départs de Gauntlet reproduits à quarante billes avec le même scénario sans braquage, le passage deux mètres après la sortie est mesuré à 3,53 s contre 6,73 s sur la variante 2, et à 9,25 s contre 12,92 s sur la variante 3. Les validations couvrent les six variantes, la reprise sans turbo et l’ordre des avertissements. L’essai sur téléphone Android reste à faire.
 
+### 2026-11-18 — Lecture du couloir après le premier piston de Gauntlet (1.158.0-rc)
+
+Un chevron menthe confirme une ligne dégagée ou signale un écart atteignable. Le calcul vérifie le trajet jusqu’au-delà de la prochaine rangée, avec les obstacles physiques et le mouvement des rivaux. Si un obstacle menace la trajectoire et qu’aucune ouverture n’est confirmée, le HUD conseille de garder le turbo. Avant la bifurcation, le guidage repasse à l’indication du pont.
+
+La prévision locale utilise la phase du bras tournant. En ligne, sa zone de balayage complète sert de marge quand la phase du serveur est inconnue. Les trois variantes sont vérifiées avec voie dégagée et voie occupée. L’essai sur téléphone Android reste à faire.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Améliorer la trajectoire dans le peloton après le premier piston de Gauntlet, avec un repère pour la prochaine ouverture.
+Améliorer le choix entre piste et pont à la bifurcation de Gauntlet quand le peloton arrive groupé.

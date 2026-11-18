@@ -78,6 +78,7 @@ var occluded_fork_bridge := Vector3.INF
 var opening_guidance: Dictionary = {}
 var glacier_exit_threat: Dictionary = {}
 var glacier_gap_marked := false
+var forge_exit_threat: Dictionary = {}
 var woodworks_return_threat: Dictionary = {}
 var evasion_target := Vector3.INF
 var exit_gate_z := INF
@@ -237,6 +238,7 @@ func reset_round() -> void:
     occluded_fork_bridge = Vector3.INF
     opening_guidance.clear()
     glacier_exit_threat.clear()
+    forge_exit_threat.clear()
     glacier_gap_marked = false
     woodworks_return_threat.clear()
     evasion_target = Vector3.INF
@@ -342,6 +344,7 @@ func tick(delta: float) -> void:
         occluded_fork_bridge = Vector3.INF
         opening_guidance.clear()
         glacier_exit_threat.clear()
+        forge_exit_threat.clear()
         glacier_gap_marked = false
         woodworks_return_threat.clear()
         evasion_target = Vector3.INF
@@ -388,6 +391,7 @@ func tick(delta: float) -> void:
     occluded_fork_bridge = Vector3.INF
     opening_guidance.clear()
     glacier_exit_threat.clear()
+    forge_exit_threat.clear()
     glacier_gap_marked = false
     woodworks_return_threat.clear()
     evasion_target = Vector3.INF
@@ -401,10 +405,11 @@ func tick(delta: float) -> void:
     var arm_gap_eta := INF
     var eyes := Vector3.ZERO
     var opening_eta := INF
-    var opening_velocity := Vector3.INF
+    var preview_velocity := Vector3.INF
     var opening_rivals: Array[RigidBody3D] = []
+    var forge_exit_rivals: Array[RigidBody3D] = []
     if game.net.role != "server":
-        var preview_velocity: Vector3 = game.player.linear_velocity
+        preview_velocity = game.player.linear_velocity
         if game.net.is_client():
             preview_velocity = game.net.local_replica_velocity()
         var preview_speed := -preview_velocity.z if preview_velocity.is_finite() else 0.0
@@ -417,12 +422,15 @@ func tick(delta: float) -> void:
         var next_hazard: Vector3 = game.pack_hazard_ahead(p,preview_velocity)
         glacier_exit_threat = game.glacier_exit_threat(p,preview_velocity)
         woodworks_return_threat = game.woodworks_return_threat(p,preview_velocity)
+        forge_exit_threat = game.forge_piston_exit_threat(p,preview_velocity)
         if not glacier_exit_threat.is_empty() and (
                 not next_hazard.is_finite() or (
                     next_hazard.z < game.glacier_first_shutter_z and next_hazard.z < glacier_exit_threat["entry_z"])):
             next_hazard = glacier_exit_threat["position"]
         if not woodworks_return_threat.is_empty():
             next_hazard = woodworks_return_threat["position"]
+        if forge_exit_threat.get("blocking",false):
+            next_hazard = forge_exit_threat["position"]
         var driving: bool = game.net.is_client() or not game.player.freeze
         var woodworks_arm_z: float = game.race_director.event_z(game.race_director.WOODWORKS_RETURN_ARM) if (
             game.selected_track == 0) else INF
@@ -443,6 +451,10 @@ func tick(delta: float) -> void:
             elif not woodworks_return_threat.is_empty():
                 candidate_kind = "BRIDGE RETURN"
                 evasion_target = game.woodworks_return_lane(p,preview_velocity,woodworks_return_threat)
+            elif not forge_exit_threat.is_empty():
+                # Wait for the nearby-racer scan before offering this lane.
+                if forge_exit_threat.get("blocking",false):
+                    candidate_kind = "AFTER PISTON"
             elif candidate_kind.is_empty() or (candidate_kind == "PISTON" and not bridge_merge):
                 evasion_target = game.evasion_lane(p,preview_velocity,candidate)
                 if game.selected_track == 0 and absf(candidate.z-game.race_director.event_z(
@@ -456,7 +468,6 @@ func tick(delta: float) -> void:
                 var art: MeshInstance3D = game.opening_obstacle_art
                 if is_instance_valid(art):
                     opening_eta = art.pack_entry_eta(p,preview_velocity)
-                    opening_velocity = preview_velocity
             if game.selected_track == 0 and is_instance_valid(game.opening_obstacle_art) and (
                     not game.airtime.airborne and absf(p.y-game.height_at(p.z)-0.39) <= 0.55):
                 if not evasion_target.is_finite():
@@ -501,6 +512,9 @@ func tick(delta: float) -> void:
         var opponent: Vector3 = marble.global_position
         var offset := opponent-p
         var gap := offset.z
+        if not forge_exit_threat.is_empty() and game.cam_mode == 0 and gap >= -16.0 and gap <= 8.0 and (
+                absf(opponent.y-game.height_at(opponent.z)-0.39) <= 0.88):
+            forge_exit_rivals.append(marble)
         var nearby := absf(gap) <= RIVAL_DISPLAY_RANGE
         var same_route: bool = nearby and (not is_instance_valid(road) or (
             player_on_bridge == road.on_separate_deck(opponent)))
@@ -581,7 +595,9 @@ func tick(delta: float) -> void:
             passes_now += 1
             passed_name = marble.display_name
     if is_finite(opening_eta):
-        opening_guidance = game.opening_obstacle_art.pack_entry_guidance(game,p,opening_velocity,opening_eta,opening_rivals)
+        opening_guidance = game.opening_obstacle_art.pack_entry_guidance(game,p,preview_velocity,opening_eta,opening_rivals)
+    if not forge_exit_threat.is_empty() and game.cam_mode == 0:
+        evasion_target = game.forge_piston_exit_lane(p,preview_velocity,forge_exit_threat,forge_exit_rivals)
     _set_closest_rival(best_rival,best_offset)
     nearby_pack_count = pack_count
     pack_pressure = pack_intensity(pack_count)

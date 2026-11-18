@@ -120,6 +120,9 @@ func refresh(delta: float) -> void:
             ice_arrow_axis = screen_axis
     if game.race_state == "RACING" and game.cam_mode == 0 and moments != null:
         var obstacle: Vector3 = moments.occluded_hazard
+        if moments.occluded_hazard_kind == "AFTER PISTON" and (
+                not game.forge_piston_exit_active(center.z) or game.airtime.airborne):
+            obstacle = Vector3.INF
         var safe := Rect2(Vector2(size.x*0.14,size.y*0.23),Vector2(size.x*0.72,size.y*0.52))
         if obstacle.is_finite() and center.z-obstacle.z > 0.7 and not camera.is_position_behind(obstacle) and (
                 freshness):
@@ -135,13 +138,16 @@ func refresh(delta: float) -> void:
                 hazard_center = pointer
                 hazard_kind = kind
         var lane: Vector3 = moments.evasion_target
+        var forge_exit: bool = not moments.forge_exit_threat.is_empty()
+        if forge_exit and (not game.forge_piston_exit_active(center.z) or game.airtime.airborne):
+            lane = Vector3.INF
         var is_shutter_mark: bool = not lane.is_finite() and moments.occluded_shutter_mark.is_finite()
         var is_passing_mark: bool = not lane.is_finite() and moments.occluded_passing_mark.is_finite()
         if is_shutter_mark:
             lane = moments.occluded_shutter_mark
         elif is_passing_mark:
             lane = moments.occluded_passing_mark
-        var exit_gap: bool = moments.glacier_gap_marked or not moments.woodworks_return_threat.is_empty()
+        var exit_gap: bool = moments.glacier_gap_marked or forge_exit or not moments.woodworks_return_threat.is_empty()
         var separation := 2.6 if exit_gap else 3.7
         if is_shutter_mark:
             separation = JumpGuides.SHUTTER_MARK_MIN_DISTANCE

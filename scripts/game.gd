@@ -53,6 +53,9 @@ const SEGMENT_LENGTH := 12.0
 const GLACIER_EXIT_REACH := 6.0
 const GLACIER_EXIT_PREVIEW_REACH := 9.0
 const GLACIER_EXIT_WARNING_SECONDS := 0.80
+const FORGE_PISTON_EXIT_REACH := 12.0
+const FORGE_PISTON_EXIT_WARNING_SECONDS := 0.90
+const PASSING_TRAFFIC_CLEARANCE := Racer.RADIUS*2.0+0.16
 const WOODWORKS_RETURN_DEPTH := 8.0
 const WOODWORKS_RETURN_WARNING_SECONDS := 0.90
 const SEGMENTS := 18
@@ -175,6 +178,8 @@ var built_variation := -1
 var hazard_beacons: Array[Dictionary] = []
 var glacier_first_shutter_z := NAN
 var glacier_exit_obstacles: Array[Dictionary] = []
+var forge_piston_exit_obstacles: Array[Dictionary] = []
+var forge_first_piston_z := NAN
 var woodworks_return_obstacles: Array[Dictionary] = []
 var evasion_probe := SphereShape3D.new()
 var result_saved := false
@@ -533,6 +538,38 @@ func glacier_exit_threat(at: Vector3, velocity: Vector3) -> Dictionary:
         return {}
     return _first_exit_contact(at,velocity,glacier_exit_obstacles,0.0,GLACIER_EXIT_WARNING_SECONDS)
 
+func forge_piston_exit_active(z: float) -> bool:
+    return selected_track == 2 and z <= forge_first_piston_z-RaceDirector.BODY_DEPTH*0.5-Racer.RADIUS and (
+        z >= maxf(forge_first_piston_z-FORGE_PISTON_EXIT_REACH,ShortcutRoute.ENTRY_Z+0.5))
+
+func forge_piston_exit_threat(at: Vector3, velocity: Vector3) -> Dictionary:
+    if not at.is_finite() or not velocity.is_finite() or -velocity.z < 5.0 or (
+            not forge_piston_exit_active(at.z) or airtime.airborne or (
+                absf(at.y-height_at(at.z)-Racer.RADIUS) > 0.55 or absf(at.x-track_center_at(at.z)) > 6.3)):
+        return {}
+    var runway := (at.z-ShortcutRoute.ENTRY_Z-0.25)/-velocity.z
+    var horizon := minf(runway,FORGE_PISTON_EXIT_WARNING_SECONDS)
+    var contact := _first_exit_contact(at,velocity,forge_piston_exit_obstacles,0.0,horizon)
+    if not contact.is_empty():
+        contact["blocking"] = true
+        return contact
+    # Preview the next nearby row when the current line already misses
+    # its blockers. The lane solver still checks the whole approach.
+    var next_row: Dictionary = {}
+    var nearest := -velocity.z*horizon
+    for obstacle in forge_piston_exit_obstacles:
+        var point: Vector3 = obstacle["position"]
+        var extent: Vector2 = obstacle["half_size"]
+        var entry := point.z+extent.y+Racer.RADIUS
+        var distance := at.z-entry
+        if obstacle["moving"] or distance < 3.0 or distance >= nearest or (
+                absf(at.x-point.x) > extent.x+2.5):
+            continue
+        nearest = distance
+        next_row = {"position":point,"label":obstacle["label"],"entry_z":entry,
+            "last_z":point.z-extent.y-Racer.RADIUS,"blocking":false}
+    return next_row
+
 func woodworks_return_active(z: float) -> bool:
     return selected_track == 0 and z <= ShortcutRoute.EXIT_Z+9.0 and (
         z >= ShortcutRoute.EXIT_Z-WOODWORKS_RETURN_DEPTH-2.0)
@@ -560,7 +597,7 @@ func _first_exit_contact(at: Vector3, velocity: Vector3, obstacles: Array[Dictio
     var speed := -velocity.z
     # Preserve the observed drift until the same short limit used by the
     # other previews. An exterior approach starts at the plane of the join.
-    var split := maxf(delay,0.40)
+    var split := minf(horizon,maxf(delay,0.40))
     var origin := Vector2(RaceFeedback.projected_lane_x(at.x,velocity.x,delay),at.z-speed*delay)
     var pivot := Vector2(RaceFeedback.projected_lane_x(at.x,velocity.x,split),at.z-speed*split)
     var end := Vector2(pivot.x,at.z-speed*horizon)
@@ -573,10 +610,10 @@ func _first_exit_contact(at: Vector3, velocity: Vector3, obstacles: Array[Dictio
         var reach_z := half_size.y+Racer.RADIUS
         if center.y+reach_z < end.y or center.y-reach_z > origin.y:
             continue
-        var hit := _exit_obstacle_contact(origin-center,pivot-center,half_size,obstacle["peg"]) if split > delay else INF
+        var hit := _predicted_obstacle_contact(obstacle,origin-center,pivot-center,delay,split) if split > delay else INF
         var eta := delay+hit*(split-delay) if is_finite(hit) else INF
-        if hit == INF:
-            hit = _exit_obstacle_contact(pivot-center,end-center,half_size,obstacle["peg"])
+        if hit == INF and horizon > split:
+            hit = _predicted_obstacle_contact(obstacle,pivot-center,end-center,split,horizon)
             eta = split+hit*(horizon-split)
         if eta < soonest:
             soonest = eta
@@ -587,8 +624,37 @@ func _first_exit_contact(at: Vector3, velocity: Vector3, obstacles: Array[Dictio
     var half_size: Vector2 = target["half_size"]
     return {
         "position":target["position"],"label":target["label"],
-        "entry_z":at.z-soonest*speed,"last_z":point.z-half_size.y-Racer.RADIUS
+        "entry_z":at.z-soonest*speed,"last_z":point.z-half_size.y-Racer.RADIUS,
+        "moving":target.get("moving",false)
     }
+
+func _predicted_obstacle_contact(obstacle: Dictionary, from: Vector2, to: Vector2,
+        first: float, last: float) -> float:
+    var spinner := obstacle.get("spinner") as AnimatableBody3D
+    var extent: Vector2 = obstacle["half_size"]
+    var envelope := _exit_obstacle_contact(from,to,extent,obstacle["peg"])
+    if not is_instance_valid(spinner) or net.is_client() or not is_finite(envelope):
+        return envelope
+    # The local spinner advances at a constant angular speed. Rotate each
+    # chord into the arm's frame and cover its movement between samples.
+    var rate: float = spinner.get_meta("spin_speed")
+    var intervals := maxi(1,ceili((last-first)/0.08))
+    var padding := extent.x*absf(rate)*(last-first)/(2.0*intervals)
+    for part in range(intervals):
+        var a := float(part)/intervals
+        var b := float(part+1)/intervals
+        var phase := spinner.rotation.y+rate*lerpf(first,last,(a+b)*0.5)
+        var hit := INF
+        for child in spinner.get_children():
+            if child is CollisionShape3D and child.shape is BoxShape3D:
+                var angle: float = phase+child.rotation.y
+                var size: Vector3 = child.shape.size
+                var half_size := Vector2(size.x,size.z)*0.5+Vector2.ONE*padding
+                hit = minf(hit,_exit_obstacle_contact(
+                    from.lerp(to,a).rotated(angle),from.lerp(to,b).rotated(angle),half_size,false))
+        if is_finite(hit):
+            return lerpf(a,b,hit)
+    return INF
 
 static func _exit_obstacle_contact(from: Vector2, to: Vector2, half_size: Vector2, peg: bool) -> float:
     if peg:
@@ -735,12 +801,25 @@ func woodworks_return_lane(at: Vector3, velocity: Vector3, threat: Dictionary) -
         return Vector3.INF
     return _rolling_exit_lane(at,velocity,threat,false)
 
-func _rolling_exit_lane(at: Vector3, velocity: Vector3, threat: Dictionary, watch_shutter: bool) -> Vector3:
+func forge_piston_exit_lane(at: Vector3, velocity: Vector3, threat: Dictionary,
+        rivals: Array[RigidBody3D]) -> Vector3:
+    if threat.is_empty() or not at.is_finite() or not velocity.is_finite() or -velocity.z < 5.0 or (
+            not forge_piston_exit_active(at.z) or airtime.airborne) or (
+            absf(at.y-height_at(at.z)-Racer.RADIUS) > 0.35):
+        return Vector3.INF
+    return _rolling_exit_lane(at,velocity,threat,false,rivals)
+
+func _rolling_exit_lane(at: Vector3, velocity: Vector3, threat: Dictionary, watch_shutter: bool,
+        rivals: Array[RigidBody3D] = []) -> Vector3:
     var speed := -velocity.z
     var blocker: Vector3 = threat["position"]
+    var forge_exit := selected_track == 2
     var nose_z: float = 2.0*blocker.z-float(threat["last_z"])+0.04
+    if forge_exit and threat.get("moving",false):
+        nose_z = float(threat["entry_z"])+0.25
+    var mark_z := minf(blocker.z,nose_z-0.55) if forge_exit else blocker.z
     var steering_time := (at.z-nose_z)/speed
-    if steering_time < 0.22 or at.z-blocker.z < 2.6:
+    if steering_time < 0.22 or at.z-mark_z < 2.6:
         return Vector3.INF
     var shutter := RaceDirector.GLACIER_FIRST_SHUTTER
     var shutter_eta := (at.z-glacier_first_shutter_z)/speed
@@ -758,7 +837,7 @@ func _rolling_exit_lane(at: Vector3, velocity: Vector3, threat: Dictionary, watc
     # Racer applies the steering force scaled by mass. Leave headroom for
     # rolling contact and damping before treating a lane as reachable.
     var max_accel := Racer.human_steering_force(1.0,velocity.z,velocity.x,selected_track)*0.72
-    var center := track_center_at(blocker.z)
+    var center := track_center_at(mark_z)
     var query := PhysicsShapeQueryParameters3D.new()
     query.shape = evasion_probe
     query.collision_mask = 1
@@ -766,12 +845,31 @@ func _rolling_exit_lane(at: Vector3, velocity: Vector3, threat: Dictionary, watc
     var ignored: Array[RID] = airtime.ignored_rids.duplicate()
     if watch_shutter:
         ignored.append(race_director.obstacles[shutter].get_rid())
+    if forge_exit and not net.is_client():
+        for obstacle in forge_piston_exit_obstacles:
+            var spinner := obstacle.get("spinner") as AnimatableBody3D
+            if is_instance_valid(spinner):
+                ignored.append(spinner.get_rid())
     query.exclude = ignored
+    var rival_positions := PackedVector2Array()
+    var rival_velocities := PackedVector2Array()
+    for rival in rivals:
+        var motion: Vector3 = net.replica_velocity(rival) if net.is_client() else (
+            Vector3.ZERO if rival.freeze else rival.linear_velocity)
+        if not motion.is_finite():
+            return Vector3.INF
+        rival_positions.append(Vector2(rival.global_position.x,rival.global_position.z))
+        rival_velocities.append(Vector2(motion.x,motion.z))
+    var exit_z := blocker.z-2.4 if watch_shutter else float(threat["last_z"])-0.55
+    if forge_exit and exit_z < ShortcutRoute.ENTRY_Z+0.25:
+        return Vector3.INF
     var best := Vector3.INF
     var best_cost := INF
     var offsets := [0.0,-0.55,0.55,-1.10,1.10,-1.65,1.65,-2.20,2.20,-2.75,2.75]
     if not watch_shutter:
         offsets.append_array([-3.30,3.30,-3.85,3.85,-4.40,4.40])
+    if forge_exit:
+        offsets.push_front(clampf(start_x-center,-5.1,5.1))
     for offset in offsets:
         var lane_x: float = center+offset
         var cost := absf(lane_x-start_x)
@@ -798,21 +896,40 @@ func _rolling_exit_lane(at: Vector3, velocity: Vector3, threat: Dictionary, watc
             if lanes.x < RaceDirector.LANE_THREAT_RADIUS and lanes.y > -RaceDirector.LANE_THREAT_RADIUS:
                 continue
         var previous := Vector3(at.x,height_at(at.z)+0.53,at.z)
+        var previous_time := 0.0
         var clear := true
         for part in range(1,5):
             var t := REACTION_SECONDS+duration*float(part-1)/3.0
             var z := at.z-speed*t
             var sample := Vector3(path_x.call(t),height_at(z)+0.53,z)
-            if not _evasion_span_clear(query,previous,sample):
+            if not _evasion_span_clear(query,previous,sample) or (forge_exit and not (
+                    _forge_exit_span_clear(previous,sample,previous_time,t,rival_positions,rival_velocities))):
                 clear = false
                 break
             previous = sample
+            previous_time = t
         # Clear the blocker’s entire depth and leave space for the next turn.
-        var exit_z := blocker.z-2.4 if watch_shutter else float(threat["last_z"])-0.55
-        if clear and _evasion_span_clear(query,previous,Vector3(lane_x,height_at(exit_z)+0.53,exit_z)):
-            best = Vector3(lane_x,height_at(blocker.z)+0.53,blocker.z)
+        var end := Vector3(lane_x,height_at(exit_z)+0.53,exit_z)
+        if clear and _evasion_span_clear(query,previous,end) and (not forge_exit or (
+                _forge_exit_span_clear(previous,end,previous_time,(at.z-exit_z)/speed,rival_positions,rival_velocities))):
+            best = Vector3(lane_x,height_at(mark_z)+0.53,mark_z)
             best_cost = cost
     return best
+
+func _forge_exit_span_clear(start: Vector3, end: Vector3, first: float, last: float,
+        rivals: PackedVector2Array, velocities: PackedVector2Array) -> bool:
+    var from := Vector2(start.x,start.z)
+    var to := Vector2(end.x,end.z)
+    if not RaceFeedback.traffic_span_clear(from,to,first,last,rivals,velocities,PASSING_TRAFFIC_CLEARANCE):
+        return false
+    for obstacle in forge_piston_exit_obstacles:
+        if not obstacle["moving"]:
+            continue
+        var center: Vector3 = obstacle["position"]
+        var local := Vector2(center.x,center.z)
+        if is_finite(_predicted_obstacle_contact(obstacle,from-local,to-local,first,last)):
+            return false
+    return true
 
 func current_timeout() -> float:
     return RACE_TIMEOUT + selected_track * 24.0
@@ -945,6 +1062,7 @@ func _make_course() -> void:
         board.queue_free()
     hazard_beacons.clear()
     glacier_exit_obstacles.clear()
+    forge_piston_exit_obstacles.clear()
     woodworks_return_obstacles.clear()
     workshop_lamps.clear()
     secondary_showroom_art.clear()
@@ -956,6 +1074,7 @@ func _make_course() -> void:
     built_variation = race_variation
     glacier_first_shutter_z = RaceDirector.event_z_for(1,built_variation,RaceDirector.GLACIER_FIRST_SHUTTER) if (
         selected_track == 1) else NAN
+    forge_first_piston_z = RaceDirector.event_z_for(2,built_variation,0) if selected_track == 2 else NAN
     board.set_meta("solo_course_clearance",_uses_solo_course_clearance(built_variation))
     var last_bank: int = CourseSculptures.BANK_SECTIONS.back()
     final_straight_z = CourseSculptures.bank_z(last_bank,built_variation)-(
@@ -1200,6 +1319,8 @@ func _edge_baffles(parent: Node3D, center_z: float, section: int, glacier_return
         var gate := _box(parent,Vector3(x,height_at(z)+0.37,z),
             wide,_lacquer(tint),true,true)
         gate.name = "Chicane_%02d" % section
+        if selected_track == 2:
+            _register_exit_obstacle(gate,Vector2(wide.x,wide.z)*0.5,"CHICANE")
         obstacle_finish.register_block(gate.global_transform,wide,tint)
 
 func _glacier_return_obstacles(parent: Node3D, center_z: float, section: int) -> void:
@@ -1280,6 +1401,9 @@ func _swing_hammer(parent: Node3D, z: float, n: int) -> void:
     hit.shape = shape
     hit.position.y = -0.45
     hinge.add_child(hit)
+    if selected_track == 2:
+        var reach := Vector2(size.x*0.5,absf(hit.position.y)+size.y*0.5).length()
+        _register_exit_obstacle(hinge,Vector2(reach,size.z*0.5),"HAMMER SWEEP",false,true)
     var art = MeshInstance3D.new()
     art.mesh = Visuals.rounded_box(size, 0.15)
     art.position = hit.position
@@ -1320,13 +1444,17 @@ func _slalom(parent: Node3D, center_z: float, n: int) -> void:
         var z = center_z + 2.3 - i * 3.5
         _cylinder(parent, Vector3(0, height_at(z)+0.65, z), 0.34, 1.3, BARRIER_COLORS[(n+2*i)%6],n)
 
-func _register_exit_obstacle(body: Node3D, half_size: Vector2, label: String, peg := false) -> void:
+func _register_exit_obstacle(body: Node3D, half_size: Vector2, label: String, peg := false, moving := false) -> void:
     var center := body.global_position
     if glacier_shutter_exit_active(center.z) and center.z < glacier_first_shutter_z:
         glacier_exit_obstacles.append({"position":center,"half_size":half_size,"label":label,"peg":peg})
     elif selected_track == 0 and center.z <= ShortcutRoute.EXIT_Z and (
             center.z >= ShortcutRoute.EXIT_Z-WOODWORKS_RETURN_DEPTH):
         woodworks_return_obstacles.append({"position":center,"half_size":half_size,"label":label,"peg":peg})
+    elif selected_track == 2 and center.z-half_size.y < forge_first_piston_z and (
+            center.z+half_size.y >= maxf(forge_first_piston_z-FORGE_PISTON_EXIT_REACH-3.0,ShortcutRoute.ENTRY_Z-0.5)):
+        forge_piston_exit_obstacles.append({"position":center,"half_size":half_size,"label":label,
+            "peg":peg,"moving":moving,"spinner":body if label == "PADDLE SWEEP" else null})
 
 func _add_spinner(parent: Node3D, z: float, n: int) -> void:
     var pivot = AnimatableBody3D.new()
@@ -1336,6 +1464,7 @@ func _add_spinner(parent: Node3D, z: float, n: int) -> void:
     parent.add_child(pivot)
     var color = BARRIER_COLORS[(n + 1) % BARRIER_COLORS.size()]
     # A single wide paddle that rotates and pushes marbles physically.
+    var sweep_radius := 0.0
     for i in range(2):
         var spoke = Node3D.new()
         spoke.rotation.y = PI * 0.5 * i
@@ -1349,10 +1478,13 @@ func _add_spinner(parent: Node3D, z: float, n: int) -> void:
         var hit = CollisionShape3D.new()
         var shape = BoxShape3D.new()
         shape.size = arm_size
+        sweep_radius = maxf(sweep_radius,Vector2(arm_size.x,arm_size.z).length()*0.5)
         hit.shape = shape
         hit.rotation.y = spoke.rotation.y
         pivot.add_child(hit)
         MechanismArt.stripe_arm(spoke,arm_size, _mat(Color("#242936"),0.37,0.24))
+    if selected_track == 2:
+        _register_exit_obstacle(pivot,Vector2.ONE*sweep_radius,"PADDLE SWEEP",true,true)
     var axle = MeshInstance3D.new()
     var cyl = CylinderMesh.new()
     cyl.height = 1.3
