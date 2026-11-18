@@ -142,12 +142,42 @@ static func traffic_lane(own: RigidBody3D, rivals: Array[RigidBody3D],
     var left: float = clampf(lead_offset-1.55,-TRAFFIC_SAFE_LANE,TRAFFIC_SAFE_LANE)
     var right: float = clampf(lead_offset+1.55,-TRAFFIC_SAFE_LANE,TRAFFIC_SAFE_LANE)
     var cautious: float = [1.0,0.65,0.38][clampi(temperament_id,0,2)]
+    # Evaluate both corridors in a single pass over the 40-racer field.
+    # Reuse the same predicted rival position and relative speed instead
+    # of scanning all bodies twice per traffic decision.
+    var lane_penalties := Vector2.ZERO
+    var left_x: float = center_x+left
+    var right_x: float = center_x+right
+    for other in rivals:
+        if other == own or not is_instance_valid(other) or (
+            other.finished or other.eliminated):
+            continue
+        var dz: float = absf(other.position.z-own.position.z)
+        if dz > 5.5 or absf(other.position.y-own.position.y) > TRAFFIC_HEIGHT:
+            continue
+        var future_x: float = other.position.x+clampf(
+            other.linear_velocity.x,-5.0,5.0)*0.42
+        var proximity: float = 1.0-clampf(dz/5.5,0.0,1.0)
+        var behind: float = other.position.z-own.position.z
+        var closing_speed: float = own.linear_velocity.z-other.linear_velocity.z
+        var rear_risk: float = 0.0
+        if behind > 0.0 and closing_speed > 2.0:
+            rear_risk = clampf((1.5-behind/closing_speed)/1.5,
+                0.0,1.0)*4.5
+        var dx_left: float = minf(absf(other.position.x-left_x),
+            absf(future_x-left_x))
+        var dx_right: float = minf(absf(other.position.x-right_x),
+            absf(future_x-right_x))
+        if dx_left < 1.10:
+            lane_penalties.x += (1.10-dx_left)*(
+                2.4*proximity+rear_risk)
+        if dx_right < 1.10:
+            lane_penalties.y += (1.10-dx_right)*(
+                2.4*proximity+rear_risk)
     var left_cost: float = absf(left-preferred)*cautious+(
-        absf(left)/TRAFFIC_SAFE_LANE)*0.45+(
-        _lane_occupancy(center_x+left,own,rivals))
+        absf(left)/TRAFFIC_SAFE_LANE)*0.45+lane_penalties.x
     var right_cost: float = absf(right-preferred)*cautious+(
-        absf(right)/TRAFFIC_SAFE_LANE)*0.45+(
-        _lane_occupancy(center_x+right,own,rivals))
+        absf(right)/TRAFFIC_SAFE_LANE)*0.45+lane_penalties.y
     # Keep the previous overtaking side unless the opposite corridor is
     # meaningfully safer. This hysteresis avoids oscillating left/right on
     # successive traffic scans while the same leader remains ahead.
