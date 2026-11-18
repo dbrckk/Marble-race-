@@ -55,6 +55,7 @@ func setup(owner: Node3D, track: int, next_layout: int) -> void:
     # velocity changes or hidden impulses are introduced.
     var posts: Array[Transform3D] = []
     var spring_tints: Array[Color] = []
+    var spring_levels: Array[int] = []
     var rings: Array[Transform3D] = []
     for station in range(STATION_Z.size()):
         for side in SIDES:
@@ -64,6 +65,7 @@ func setup(owner: Node3D, track: int, next_layout: int) -> void:
                 station,"L" if side < 0 else "R"]
             post.position = where
             var phase: int = posmod(station+layout+(1 if side > 0 else 0),3)
+            spring_levels.append(phase)
             var spring_factor: float = [0.86,0.94,1.0][phase]
             var spring_bounce: float = clampf(BOUNCE[biome]*spring_factor,
                 0.0,0.98)
@@ -151,8 +153,10 @@ func setup(owner: Node3D, track: int, next_layout: int) -> void:
     approach_markers = _batch("SpringApproachChevrons",marker_mesh,
         marker_paint,marker_transforms)
     for index in range(marker_transforms.size()):
+        # Match the marker's resting brightness to its actual spring tier.
+        var rest: float = 0.66+float(spring_levels[index])*0.11
         approach_markers.multimesh.set_instance_color(index,
-            Color(0.78,0.78,0.78,1.0))
+            Color(rest,rest,rest,1.0))
     var torus := TorusMesh.new()
     # A thin halo remains legible without obscuring the track edge.
     torus.inner_radius = 0.73
