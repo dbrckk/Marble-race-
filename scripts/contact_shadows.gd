@@ -2,7 +2,7 @@ extends Node3D
 ## Single batched transparent ground shadows for all rigidbody racers.
 ## Purely visual: contact shadows follow the inclined wooden planks.
 const SHADOW_SHADER = preload("res://shaders/contact_shadow.gdshader")
-const RACE_CAPACITY := 40
+const RACE_CAPACITY := 30
 
 var racers: Array[RigidBody3D] = []
 var pool: MultiMesh
@@ -23,13 +23,13 @@ func _ready() -> void:
     pool = MultiMesh.new()
     pool.transform_format = MultiMesh.TRANSFORM_3D
     # Per-marble alpha fades the ground contact as a marble takes flight.
-    # Keep all forty shadows in a single MultiMesh draw call.
+    # Keep all thirty shadows in a single MultiMesh draw call.
     pool.use_custom_data = true
     pool.instance_count = RACE_CAPACITY
     pool.mesh = quad
     pool.visible_instance_count = 0
     shadows = MultiMeshInstance3D.new()
-    shadows.name = "FortySoftContactShadows"
+    shadows.name = "ThirtySoftContactShadows"
     shadows.multimesh = pool
     shadows.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     add_child(shadows)
