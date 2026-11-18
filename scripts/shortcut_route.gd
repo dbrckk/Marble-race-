@@ -583,7 +583,10 @@ func merge_conflict_score(z: float, forward: float, rival_z: float, rival_forwar
     var rival_eta := maxf(0.0,rival_z-EXIT_Z)/rival_forward
     if maxf(own_eta,rival_eta) > MERGE_CONFLICT_HORIZON or absf(own_eta-rival_eta) > MERGE_CONFLICT_GAP:
         return INF
-    return own_eta+absf(own_eta-rival_eta)
+    # Prioritise the pair's actual overlap at the join, not just the
+    # earliest arrival. A rival that crosses much earlier is less urgent
+    # than one reaching the same point at almost the same instant.
+    return maxf(own_eta,rival_eta)+absf(own_eta-rival_eta)
 
 func precision_gate_ahead(at: Vector3, velocity: Vector3) -> Dictionary:
     if course_id == 2:
