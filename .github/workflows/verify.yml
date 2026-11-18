@@ -2,7 +2,9 @@ name: Verify and build Android APK
 
 on:
   push:
-    branches: [main]
+    # Validate commits created directly on the active development branch,
+    # even when no pull_request workflow is scheduled for that head SHA.
+    branches: [main, woodworks-race-flow]
   pull_request:
   workflow_dispatch:
 
