@@ -44,7 +44,10 @@ jobs:
             "$HOME/.local/share/godot/export_templates/4.5.1.stable/"
           echo "$PWD" >> "$GITHUB_PATH"
       - name: Import project assets
-        run: ./Godot_v4.5.1-stable_linux.x86_64 --headless --editor --path . --quit
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./Godot_v4.5.1-stable_linux.x86_64 --headless --editor --path . --quit 2>&1 | tee godot-import.log
       - name: Adaptive Android graphics regression
         shell: bash
         run: |
@@ -458,7 +461,10 @@ jobs:
           export/android/debug_keystore_pass = "android"
           EOF
       - name: Generate Android debug APK
-        run: ./Godot_v4.5.1-stable_linux.x86_64 --headless --path . --export-debug Android build/marble-race-debug.apk
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./Godot_v4.5.1-stable_linux.x86_64 --headless --path . --export-debug Android build/marble-race-debug.apk 2>&1 | tee godot-export.log
       - name: Verify Android debug APK signature
         run: |
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose build/marble-race-debug.apk
