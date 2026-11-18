@@ -27,6 +27,8 @@ func _check() -> void:
         assert(arches.multimesh.instance_count == BYPASS.BRIDGE_POST_Z.size())
         var stripe_count := 9 if biome == 0 else 3
         if biome == 2:
+            assert(BYPASS.FORGE_GATE_APPROACH.size() == BYPASS.BRIDGE_POST_Z.size(),
+                "Forge must guide all three real precision gates")
             for approach: Array in BYPASS.FORGE_GATE_APPROACH:
                 stripe_count += approach.size()*2
         assert(stripes.multimesh.instance_count == stripe_count)
