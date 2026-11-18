@@ -127,6 +127,7 @@ func setup(owner: Node3D, track: int, next_layout: int) -> void:
     marker_paint.emission_enabled = true
     marker_paint.emission = COLORS[biome]
     marker_paint.emission_energy_multiplier = 0.30
+    marker_paint.vertex_color_use_as_albedo = true
     var marker_transforms: Array[Transform3D] = []
     for post_transform in posts:
         var position: Vector3 = post_transform.origin
@@ -134,6 +135,9 @@ func setup(owner: Node3D, track: int, next_layout: int) -> void:
             position.x,position.y-HEIGHT*0.5+0.065,position.z+1.12)))
     approach_markers = _batch("SpringApproachChevrons",marker_mesh,
         marker_paint,marker_transforms)
+    for index in range(marker_transforms.size()):
+        approach_markers.multimesh.set_instance_color(index,
+            Color(0.78,0.78,0.78,1.0))
     var torus := TorusMesh.new()
     # A thin halo remains legible without obscuring the track edge.
     torus.inner_radius = 0.73
@@ -162,7 +166,8 @@ func _batch(label_text: String, mesh: Mesh, paint: Material,
     var instances := MultiMesh.new()
     instances.transform_format = MultiMesh.TRANSFORM_3D
     # Must be configured before instance_count in Godot 4.
-    instances.use_colors = label_text == "SpringContactHalos"
+    instances.use_colors = label_text == "SpringContactHalos" or (
+        label_text == "SpringApproachChevrons")
     instances.mesh = mesh
     instances.instance_count = transforms.size()
     for i in range(transforms.size()):
@@ -204,6 +209,9 @@ func reset_pulses() -> void:
     for index in range(pulse_strength.size()):
         pulse_strength[index] = 0.0
         pulse_cooldowns[index] = 0.0
+        if is_instance_valid(approach_markers):
+            approach_markers.multimesh.set_instance_color(index,
+                Color(0.78,0.78,0.78,1.0))
         _write_ring_pair(index)
 
 func notify_contact(body: Node, intensity: float) -> bool:
@@ -220,6 +228,9 @@ func notify_contact(body: Node, intensity: float) -> bool:
         clampf(intensity,0.0,1.0))
     pulse_cooldowns[index] = PULSE_REARM
     pulse_events += 1
+    if quality_level > 0 and is_instance_valid(approach_markers):
+        approach_markers.multimesh.set_instance_color(index,
+            Color(1.0,1.0,1.0,1.0))
     _write_ring_pair(index)
     return true
 
@@ -235,6 +246,11 @@ func advance_visuals(delta: float) -> void:
         # Do not issue GPU writes in economy mode. Returning to balanced or
         # ultra re-synchronizes visible rings with these bounded CPU values.
         _write_ring_pair(index)
+        if quality_level > 0 and is_instance_valid(approach_markers):
+            var marker_brightness: float = lerpf(0.78,1.0,
+                clampf(pulse_strength[index],0.0,1.0))
+            approach_markers.multimesh.set_instance_color(index,Color(
+                marker_brightness,marker_brightness,marker_brightness,1.0))
 
 func set_quality(quality: int) -> void:
     # All six real collision posts persist on every mobile tier.
