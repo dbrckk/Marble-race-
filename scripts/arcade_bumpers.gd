@@ -101,7 +101,12 @@ func setup(owner: Node3D, track: int, next_layout: int) -> void:
     glow.emission_enabled = true
     glow.emission = COLORS[biome]
     glow.emission_energy_multiplier = 1.3
+    # Per-instance contact highlights reuse the same twelve ring meshes.
+    glow.vertex_color_use_as_albedo = true
     glow_rings = _batch("SpringContactHalos",torus,glow,rings)
+    glow_rings.multimesh.use_colors = true
+    for slot in range(rings.size()):
+        glow_rings.multimesh.set_instance_color(slot,Color.WHITE)
     ring_origins = rings.duplicate()
     pulse_strength.resize(bodies.size())
     pulse_cooldowns.resize(bodies.size())
@@ -126,7 +131,8 @@ func _batch(label_text: String, mesh: Mesh, paint: Material,
 func _write_ring_pair(index: int) -> void:
     if not is_instance_valid(glow_rings) or quality_level == 0:
         return
-    var multiplier: float = 1.0+clampf(pulse_strength[index],0.0,1.0)*0.48
+    var strength: float = clampf(pulse_strength[index],0.0,1.0)
+    var multiplier: float = 1.0+strength*(0.62 if quality_level == 2 else 0.48)
     for edge in range(2):
         var slot: int = index*2+edge
         var baseline: Transform3D = ring_origins[slot]
@@ -135,6 +141,11 @@ func _write_ring_pair(index: int) -> void:
         glow_rings.multimesh.set_instance_transform(slot,Transform3D(
             baseline.basis.scaled(Vector3(slightly_offset,1.0,slightly_offset)),
             baseline.origin))
+        # Warm-white impact flash fades back to the original biome tint.
+        # Outer and inner rims respond independently, with no new draw call.
+        var flash: float = strength*(1.0 if edge == 0 else 0.70)
+        glow_rings.multimesh.set_instance_color(slot,Color.WHITE.lerp(
+            Color(1.0,0.93,0.76),flash))
 
 func reset_pulses() -> void:
     pulse_events = 0
