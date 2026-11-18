@@ -549,8 +549,19 @@ func _verify_forge_second_gate(game: Node3D) -> bool:
     _refresh_bridge_hud(hud,player,road.point_at(second-0.35)+Vector3.UP*0.67,fast)
     assert(hud.bridge_approach_active and not hud.shortcut_label.text.contains("GATE 2 / 3"))
     _refresh_bridge_hud(hud,player,after_gate,fast)
-    assert(hud.timed_gate_label.visible and hud.timed_gate_label.text.contains("AFTER BRIDGE"),
-        "Past the second portico, the ordinary return forecast resumes")
+    assert(hud.shortcut_label.visible and hud.shortcut_label.text.contains("GATE 3 / 3"),
+        "After the second portico, the third precision gate takes over")
+    var third: float = BypassScript.BRIDGE_POST_Z[2]
+    _refresh_bridge_hud(hud,player,road.point_at(third+3.0)+Vector3.UP*0.67,velocity)
+    assert(hud.shortcut_label.visible and hud.shortcut_label.text.contains("GATE 3 / 3"))
+    rival.global_position = road.point_at(third-0.4)+Vector3.UP*0.67
+    _refresh_bridge_hud(hud,player,road.point_at(third+3.0)+Vector3.UP*0.67,velocity)
+    assert(hud.shortcut_label.text.contains("TRAFFIC  •  SAVE BOOST"),
+        "Third-gate steering must yield to a rival in the crossing corridor")
+    rival.global_position = Vector3(80.0,0.0,20.0)
+    _refresh_bridge_hud(hud,player,road.point_at(third-0.5)+Vector3.UP*0.67,fast)
+    assert(not hud.shortcut_label.text.contains("GATE 3 / 3"),
+        "After the final portico, stop giving gate-specific instructions")
     return true
 
 func _refresh_bridge_hud(hud: CanvasLayer, player: RigidBody3D, at: Vector3, velocity: Vector3) -> void:
