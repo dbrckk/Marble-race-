@@ -51,8 +51,7 @@ var _endpoint := ""
 var _connect_elapsed := 0.0
 var targets: Array[Transform3D] = []
 var targets_received := false
-var local_snapshot_position := Vector3.INF
-var local_snapshot_velocity := Vector3.INF
+var snapshot_velocities := PackedVector3Array()
 var ping_ms := -1.0
 var snapshot_age_seconds := 0.0
 var _join_elapsed := 0.0
@@ -77,23 +76,31 @@ func is_host() -> bool:
     return role == "server" and match_running
 
 func local_replica_velocity() -> Vector3:
+    return replica_velocity(game.player)
+
+func replica_velocity(racer: RigidBody3D) -> Vector3:
     if not is_client() or not targets_received or snapshot_age_seconds > PRESENTATION_MAX_AGE or (
-            not local_snapshot_velocity.is_finite() or not is_instance_valid(game.player)):
+            not is_instance_valid(racer)):
+        return Vector3.INF
+    var slot: int = racer.racer_id
+    if slot < 0 or slot >= snapshot_velocities.size():
+        return Vector3.INF
+    var velocity := snapshot_velocities[slot]
+    if not velocity.is_finite():
         return Vector3.INF
     # Wait for large corrections to settle. Interpolating across the track
     # after a correction is not evidence of rolling over either surface.
-    var allowed_lag := local_snapshot_velocity.length()*FRAME_PERIOD*1.6+1.1
-    if game.player.global_position.distance_squared_to(local_snapshot_position) > allowed_lag*allowed_lag:
+    var allowed_lag := velocity.length()*FRAME_PERIOD*1.6+1.1
+    if racer.global_position.distance_squared_to(targets[slot].origin) > allowed_lag*allowed_lag:
         return Vector3.INF
-    return local_snapshot_velocity
+    return velocity
 
 func _clear_snapshots() -> void:
     targets.clear()
+    snapshot_velocities.clear()
     targets_received = false
     last_frame_time = -1.0
     snapshot_age_seconds = 0.0
-    local_snapshot_position = Vector3.INF
-    local_snapshot_velocity = Vector3.INF
 
 func can_host_start() -> bool:
     # Dedicated server automatically starts a room after minimum attendance.
@@ -551,14 +558,22 @@ func _receive_snapshot(floats: PackedFloat32Array, timestamp: float, energies: P
         return
     if floats.size() != 40*FLOATS_PER_RACER or not is_finite(timestamp) or timestamp <= last_frame_time:
         return
+    for i in range(40):
+        var j := i*FLOATS_PER_RACER
+        if not Vector3(floats[j],floats[j+1],floats[j+2]).is_finite():
+            return
     if targets.size() != 40:
         targets.resize(40)
+        snapshot_velocities.resize(40)
+    var elapsed := timestamp-last_frame_time
+    var can_measure := targets_received and elapsed >= FRAME_PERIOD*0.35 and elapsed <= PRESENTATION_MAX_AGE
     var new_finisher := false
     for i in range(40):
         var j := i*FLOATS_PER_RACER
         var xyz := Vector3(floats[j],floats[j+1],floats[j+2])
-        if not xyz.is_finite():
-            return
+        var velocity := (xyz-targets[i].origin)/elapsed if can_measure else Vector3.INF
+        snapshot_velocities[i] = velocity if (
+            velocity.length_squared() <= PRESENTATION_MAX_SPEED*PRESENTATION_MAX_SPEED) else Vector3.INF
         var quat := Quaternion(floats[j+3],floats[j+4],floats[j+5],floats[j+6])
         if not quat.is_normalized():
             quat = Quaternion.IDENTITY
@@ -572,15 +587,6 @@ func _receive_snapshot(floats: PackedFloat32Array, timestamp: float, energies: P
         marble.finished = finished
         marble.eliminated = floats[j+7] < -0.5
         marble.finish_time = maxf(0.0,floats[j+8])
-    if local_slot >= 0 and local_slot < targets.size():
-        var position: Vector3 = targets[local_slot].origin
-        var elapsed := timestamp-last_frame_time
-        local_snapshot_velocity = Vector3.INF
-        if local_snapshot_position.is_finite() and elapsed >= FRAME_PERIOD*0.35 and elapsed <= PRESENTATION_MAX_AGE:
-            var velocity := (position-local_snapshot_position)/elapsed
-            if velocity.length_squared() <= PRESENTATION_MAX_SPEED*PRESENTATION_MAX_SPEED:
-                local_snapshot_velocity = velocity
-        local_snapshot_position = position
     last_frame_time = timestamp
     snapshot_age_seconds = 0.0
     game.race_time = timestamp

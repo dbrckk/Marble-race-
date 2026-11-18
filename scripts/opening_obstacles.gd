@@ -9,6 +9,9 @@ const ENTRY_DEPTH := 1.30
 const ROAD_HALF_WIDTH := 6.38
 const CLEARANCE := Racer.RADIUS+0.12
 const ENTRY_LEAD := 1.35
+const ENTRY_MARK_MIN_DISTANCE := 2.4
+const ENTRY_REACTION_SECONDS := 0.10
+const ENTRY_TRAFFIC_CLEARANCE := Racer.RADIUS*2.0+0.16
 const LAYOUT_NAMES := ["SLALOM BLOCKS","PEG ROWS","POSTS & PADDLE"]
 const FORGE_PASS_INK := Color("#b5ffe6")
 const MARKING_OUTLINE := Color("#20252a")
@@ -196,6 +199,90 @@ func entry_mark_ahead(game: Node3D, at: Vector3, velocity: Vector3) -> Vector3:
             best = Vector3(x,game.height_at(entry_z)+0.10,entry_z)
             cost = lateral
     return best
+
+func pack_entry_eta(at: Vector3, velocity: Vector3) -> float:
+    var distance := at.z-entry_z
+    var speed := -velocity.z
+    if not at.is_finite() or not velocity.is_finite() or speed < 4.0 or (
+            absf(at.x-global_position.x) > ROAD_HALF_WIDTH or
+            distance <= maxf(ENTRY_MARK_MIN_DISTANCE,speed*(ENTRY_REACTION_SECONDS+0.07)) or
+            distance > minf(13.0,speed*0.92)):
+        return INF
+    return distance/speed
+
+func pack_entry_guidance(game: Node3D, at: Vector3, velocity: Vector3,
+        eta: float, rivals: Array[RigidBody3D]) -> Dictionary:
+    if rivals.is_empty():
+        return {}
+    var rival_positions := PackedVector2Array()
+    var rival_velocities := PackedVector2Array()
+    for rival in rivals:
+        var motion: Vector3 = rival.linear_velocity
+        if game.net.is_client():
+            motion = game.net.replica_velocity(rival)
+        elif rival.freeze:
+            motion = Vector3.ZERO
+        if not motion.is_finite():
+            return {}
+        rival_positions.append(Vector2(rival.global_position.x,rival.global_position.z))
+        rival_velocities.append(Vector2(motion.x,motion.z))
+    var settling_time := eta-ENTRY_REACTION_SECONDS
+    var reaction_x := at.x+velocity.x*ENTRY_REACTION_SECONDS
+    var accel_limit := Racer.human_steering_force(1.0,velocity.z,velocity.x,game.selected_track)*0.72
+    # The cubic joins measured drift to zero lateral speed at the paint.
+    # Intersect the two endpoint acceleration bounds to find reachable x.
+    var budget := accel_limit*settling_time*settling_time
+    var lateral_run := velocity.x*settling_time
+    var limit_left := reaction_x+(maxf(4.0*lateral_run,2.0*lateral_run)-budget)/6.0
+    var limit_right := reaction_x+(minf(4.0*lateral_run,2.0*lateral_run)+budget)/6.0
+    # The last segment reaches beyond the first collider band. The same
+    # entry_gaps exclude the paddle's sweep wherever it intersects that band.
+    var exit_time := eta+(ENTRY_LEAD+ENTRY_DEPTH)/-velocity.z
+    var drift := RaceFeedback.projected_lane_x(at.x,velocity.x,eta)
+    var best := Vector3.INF
+    var score := INF
+    var blocked := false
+    for gap in entry_gaps:
+        var left := maxf(global_position.x+gap.x+0.10,limit_left)
+        var right := minf(global_position.x+gap.y-0.10,limit_right)
+        if left > right:
+            continue
+        var straight := clampf(drift,left,right)
+        for x: float in [straight,(left+right)*0.5,left,right]:
+            var cost := absf(x-drift)
+            if cost >= score:
+                continue
+            if _entry_traffic_blocks(at,velocity,settling_time,x-reaction_x,exit_time,rival_positions,rival_velocities):
+                blocked = true
+                continue
+            best = Vector3(x,game.height_at(entry_z)+0.10,entry_z)
+            score = cost
+    return {"target":best,"blocked":blocked and not best.is_finite()} if best.is_finite() or blocked else {}
+
+func _entry_traffic_blocks(at: Vector3, velocity: Vector3, settling_time: float,
+        displacement: float, exit_time: float,
+        rival_positions: PackedVector2Array, rival_velocities: PackedVector2Array) -> bool:
+    var start_x := at.x+velocity.x*ENTRY_REACTION_SECONDS
+    var last_at := Vector2(at.x,at.z)
+    var last_t := 0.0
+    for step in range(6):
+        var u := minf(1.0,float(step)*0.25)
+        var t := ENTRY_REACTION_SECONDS+settling_time*u if step < 5 else exit_time
+        var x := start_x+displacement*u*u*(3.0-2.0*u)+velocity.x*settling_time*u*(1.0-u)*(1.0-u)
+        var next_at := Vector2(x,at.z+velocity.z*t)
+        for i in range(rival_positions.size()):
+            var origin := rival_positions[i]
+            var speed := rival_velocities[i]
+            var before := last_at-Vector2(RaceFeedback.projected_lane_x(origin.x,speed.x,last_t),
+                origin.y+speed.y*last_t)
+            var after := next_at-Vector2(RaceFeedback.projected_lane_x(origin.x,speed.x,t),
+                origin.y+speed.y*t)
+            var nearest := Geometry2D.get_closest_point_to_segment(Vector2.ZERO,before,after)
+            if nearest.length_squared() < ENTRY_TRAFFIC_CLEARANCE*ENTRY_TRAFFIC_CLEARANCE:
+                return true
+        last_at = next_at
+        last_t = t
+    return false
 
 func approach_warning(position_at: Vector3, velocity: Vector3, reach_seconds: float) -> Dictionary:
     var local := to_local(position_at)

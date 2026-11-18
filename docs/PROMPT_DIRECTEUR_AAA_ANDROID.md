@@ -594,6 +594,12 @@ Pendant le compte à rebours, la grille affiche le circuit, la variante en cours
 
 Les tests couvrent les neuf tracés, la revanche solo, le changement de tracé, la revanche en ligne et la reprise du radar au signal. Deux formats paysage ont servi à vérifier le rendu de la grille et la transition au signal. L’essai sur téléphone Android reste à faire.
 
+### 2026-11-18 — Passages libres au premier obstacle (1.156.0-rc)
+
+Sur Switchback et Gauntlet, le repère menthe reprend les ouvertures de la grille et tient compte du braquage disponible. La prévision suit les trajectoires voisines jusqu’à la sortie de la première rangée. Si un rival ferme les passages atteignables, le HUD conseille de garder le turbo pour la sortie. La caméra manuelle et les données réseau trop anciennes écartent le repère. Le client estime les vitesses à partir des positions envoyées par le serveur.
+
+Les tests sur les six variantes couvrent les passages dégagés, les rivaux qui coupent la trajectoire, les billes hors du plan de roulement et l’effacement du repère à l’entrée. Les tests réseau vérifient les vitesses des répliques et l’arrêt du guidage sur des données périmées. L’essai sur téléphone Android reste à faire.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Faire le lien entre l’aperçu de départ et les passages encore accessibles dans le peloton sur Switchback et Gauntlet.
+Fluidifier la reprise de vitesse à la sortie du premier module sur Switchback et Gauntlet et annoncer le premier volet ou piston au bon moment.

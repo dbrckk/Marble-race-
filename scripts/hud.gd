@@ -2454,6 +2454,8 @@ func update_hud() -> void:
     if shortcut_label.visible and timed_gate_backdrop.visible and seconds_until > minf(
             urgent_gate_eta,minf(piston_contact_eta,vent_eta))+0.35:
         hazard_label.hide()
+    if still_racing and not timed_gate_backdrop.visible and not final_danger_active:
+        _show_opening_traffic(duel.live_opening_guidance(game.player.global_position,velocity))
     _trim_driving_cues(ordinary_gate_clear,gate_eta,forward_speed,glacier_return_panel)
     _update_woodworks_guide(str(route_hint.get("mode","")),
         rare_item_label.visible and int(next_item.get("index",-1)) == 0,
@@ -2470,6 +2472,22 @@ func update_hud() -> void:
     if practice_entry_pending or not practice_landmarks.is_empty() or practice_passage_bounds != Vector2.ZERO:
         _update_practice_sector(forward_speed)
         _refresh_race_notification()
+
+func _show_opening_traffic(guidance: Dictionary) -> void:
+    var target: Vector3 = guidance.get("target",Vector3.INF)
+    var blocked: bool = guidance.get("blocked",false)
+    if not target.is_finite() and not blocked:
+        return
+    if blocked:
+        hazard_label.text = "ENTRY TRAFFIC  •  SAVE BOOST"
+        hazard_label.add_theme_color_override("font_color",TIME_LOSS)
+    else:
+        var movement: float = target.x-game.player.global_position.x
+        var action := "HOLD LINE" if absf(movement) < 0.48 else ("LEFT" if movement < 0.0 else "RIGHT")
+        hazard_label.text = "MINT GAP  •  "+action
+        hazard_label.add_theme_color_override("font_color",TIME_GAIN)
+    hazard_label.show()
+    duel_label.hide()
 
 func _trim_driving_cues(ordinary_gate_clear: bool, gate_eta: float,
         forward_speed: float, glacier_return_panel: bool) -> void:

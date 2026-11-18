@@ -71,6 +71,7 @@ var occluded_bank_mark := Vector3.INF
 var occluded_opening_turbo := Vector3.INF
 var occluded_fork_main := Vector3.INF
 var occluded_fork_bridge := Vector3.INF
+var opening_guidance: Dictionary = {}
 var glacier_exit_threat: Dictionary = {}
 var glacier_gap_marked := false
 var woodworks_return_threat: Dictionary = {}
@@ -192,6 +193,7 @@ func reset_round() -> void:
     occluded_opening_turbo = Vector3.INF
     occluded_fork_main = Vector3.INF
     occluded_fork_bridge = Vector3.INF
+    opening_guidance.clear()
     glacier_exit_threat.clear()
     glacier_gap_marked = false
     woodworks_return_threat.clear()
@@ -296,6 +298,7 @@ func tick(delta: float) -> void:
         occluded_opening_turbo = Vector3.INF
         occluded_fork_main = Vector3.INF
         occluded_fork_bridge = Vector3.INF
+        opening_guidance.clear()
         glacier_exit_threat.clear()
         glacier_gap_marked = false
         woodworks_return_threat.clear()
@@ -341,6 +344,7 @@ func tick(delta: float) -> void:
     occluded_opening_turbo = Vector3.INF
     occluded_fork_main = Vector3.INF
     occluded_fork_bridge = Vector3.INF
+    opening_guidance.clear()
     glacier_exit_threat.clear()
     glacier_gap_marked = false
     woodworks_return_threat.clear()
@@ -354,6 +358,9 @@ func tick(delta: float) -> void:
     var fork_bridge := Vector3.INF
     var arm_gap_eta := INF
     var eyes := Vector3.ZERO
+    var opening_eta := INF
+    var opening_velocity := Vector3.INF
+    var opening_rivals: Array[RigidBody3D] = []
     if game.net.role != "server":
         var preview_velocity: Vector3 = game.player.linear_velocity
         if game.net.is_client():
@@ -401,6 +408,12 @@ func tick(delta: float) -> void:
                     if evasion_target.is_finite():
                         arm_gap_eta = (p.z-evasion_target.z)/preview_speed
             eyes = game.camera.global_position
+            if game.selected_track != 0 and driving and not game.airtime.airborne and (
+                    absf(p.y-game.height_at(p.z)-0.39) <= 0.55):
+                var art: MeshInstance3D = game.opening_obstacle_art
+                if is_instance_valid(art):
+                    opening_eta = art.pack_entry_eta(p,preview_velocity)
+                    opening_velocity = preview_velocity
             if game.selected_track == 0 and is_instance_valid(game.opening_obstacle_art) and (
                     not game.airtime.airborne and absf(p.y-game.height_at(p.z)-0.39) <= 0.55):
                 if not evasion_target.is_finite():
@@ -478,6 +491,8 @@ func tick(delta: float) -> void:
                 merge_traffic = merge_lane
                 merge_rival = marble
         if same_route:
+            if is_finite(opening_eta) and gap <= 5.0 and absf(offset.y) <= 0.90:
+                opening_rivals.append(marble)
             if bank_mark.is_finite() and gap < -0.20 and covers_hazard(eyes,bank_mark,opponent):
                 occluded_bank_mark = bank_mark
                 bank_mark = Vector3.INF
@@ -522,6 +537,8 @@ func tick(delta: float) -> void:
         if local_race and _track_pass(id,offset,same_route,player_step,interval):
             passes_now += 1
             passed_name = marble.display_name
+    if is_finite(opening_eta):
+        opening_guidance = game.opening_obstacle_art.pack_entry_guidance(game,p,opening_velocity,opening_eta,opening_rivals)
     _set_closest_rival(best_rival,best_offset)
     nearby_pack_count = pack_count
     pack_pressure = pack_intensity(pack_count)
@@ -593,6 +610,14 @@ func _track_pass(id: int, offset: Vector3, same_route: bool,
         unique_overtakes += 1
         previous_offsets.erase(id)
     return passed
+
+func live_opening_guidance(at: Vector3, velocity: Vector3) -> Dictionary:
+    var art: MeshInstance3D = game.opening_obstacle_art
+    if opening_guidance.is_empty() or game.cam_mode != 0 or not is_instance_valid(art) or (
+            game.airtime.airborne or absf(at.y-game.height_at(at.z)-0.39) > 0.55 or
+            not is_finite(art.pack_entry_eta(at,velocity))):
+        return {}
+    return opening_guidance
 
 func photo_finish_rival() -> RigidBody3D:
     if not is_instance_valid(game.player) or not game.player.finished:

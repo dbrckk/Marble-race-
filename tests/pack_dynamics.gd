@@ -153,6 +153,8 @@ func _verify() -> void:
             if not _verify_obstacle_pointer(game):
                 quit(1)
                 return
+            if track != 0:
+                assert(_verify_opening_pack(game))
             if track == 0 and not await _verify_woodworks_recovery(game):
                 quit(1)
                 return
@@ -180,6 +182,7 @@ func _verify() -> void:
         "user://qa_adaptive_pack_audio.cfg"))
     print("PACK_DYNAMICS_PASS: 9 real courses, 40 marbles, high-deck exclusion, adaptive original audio and duel framing")
     print("PACK_OBSTACLE_READABILITY_PASS: 9 layouts, real obstacle projection, sightline overlap and touch-safe clearance")
+    print("OPENING_PACK_PASS: 6 layouts, reachable painted lanes, rival cut-ins, camera and entry handoff")
     print("GLACIER_CENTER_MARK_PASS: batched real road paint and occlusion-only camera overlay on three layouts")
     print("GLACIER_EXIT_GAP_PASS: three layouts at 23 m/s, shutter priority, touch HUD and downstream collision")
     print("GLACIER_FINISH_PAIR_PASS: both lanes, three layouts, real finish and manual camera isolation")
@@ -189,6 +192,73 @@ func _verify() -> void:
     print("EXIT_SPEED_PASS: grounded recovery, consecutive obstacles, stable speed, turbo and round reset")
     print("WOODWORKS_RECOVERY_PASS: distant obstacle handoff and occlusion-only last bank on the three layouts")
     quit(0)
+
+func _verify_opening_pack(game: Node3D) -> bool:
+    var art: MeshInstance3D = game.opening_obstacle_art
+    var player: RigidBody3D = game.player
+    var rival: RigidBody3D = game.racers[0]
+    var hud: CanvasLayer = game.ui
+    var moments: RefCounted = game.race_moments
+    game.cam_mode = 0
+    game.airtime.reset_round()
+    moments.reset_round()
+    hud.hide_countdown()
+    for marble in game.racers:
+        if marble != player:
+            marble.global_position = Vector3(80,0,20)
+    var gap: Vector2 = art.entry_gaps[art.entry_gaps.size()/2]
+    var x := art.global_position.x+(gap.x+gap.y)*0.5
+    var z: float = art.entry_z+5.8
+    player.position = Vector3(x,game.height_at(z)+0.45,z)
+    player.linear_velocity = Vector3(0,0,-10.0)
+    player.freeze = false
+    var side := -1.0 if x > art.global_position.x else 1.0
+    var rival_z := z-1.65
+    rival.position = Vector3(x+side*1.8,game.height_at(rival_z)+0.45,rival_z)
+    rival.linear_velocity = Vector3(0,0,-10.0)
+    rival.freeze = false
+    game._update_camera(0.12,true)
+    moments.tick(0.12)
+    var target: Vector3 = moments.opening_guidance.get("target",Vector3.INF)
+    assert(target.is_finite() and is_equal_approx(target.x,x) and is_equal_approx(target.z,art.entry_z),
+        "The chosen entrance must be the reachable, collider-derived gap")
+    hud.label_timer = 0.12
+    hud.update_hud()
+    assert(hud.hazard_label.visible and hud.hazard_label.text == "MINT GAP  •  HOLD LINE")
+    assert(hud.player_locator.evasion_center.is_finite())
+    game.cam_mode = 1
+    assert(moments.live_opening_guidance(player.position,player.linear_velocity).is_empty())
+    game.cam_mode = 0
+    # A currently clear lane closes when a rival drifts across it at arrival.
+    rival.linear_velocity = Vector3(-side*5.0,0,-7.2)
+    moments.tick(0.12)
+    assert(moments.opening_guidance.get("blocked",false))
+    hud.label_timer = 0.12
+    hud.update_hud()
+    assert(hud.hazard_label.visible and hud.hazard_label.text == "ENTRY TRAFFIC  •  SAVE BOOST")
+    assert(not hud.player_locator.evasion_center.is_finite())
+    rival.position.y += 4.0
+    moments.tick(0.12)
+    assert(moments.opening_guidance.is_empty(),"A different height must not block this opening")
+    rival.position.y -= 4.0
+    rival.linear_velocity = Vector3(0,0,-10.0)
+    moments.tick(0.12)
+    assert(moments.opening_guidance.get("target",Vector3.INF).is_finite())
+    player.position.z = art.entry_z-0.25
+    assert(moments.live_opening_guidance(player.position,player.linear_velocity).is_empty(),
+        "Release the cue before reaching the entry even between traffic samples")
+    moments.reset_round()
+    if gap.y-gap.x > 3.0:
+        var farther: float = art.entry_z+8.4
+        player.position = Vector3(x,game.height_at(farther)+0.45,farther)
+        rival.position = Vector3(x,game.height_at(art.entry_z)+0.45,art.entry_z)
+        rival.linear_velocity = Vector3.ZERO
+        moments.tick(0.12)
+        var alternative: Vector3 = moments.opening_guidance.get("target",Vector3.INF)
+        assert(alternative.is_finite() and absf(alternative.x-x) >= 0.95,
+            "Use a reachable portion of a wide gap when a stalled rival occupies its middle")
+    moments.reset_round()
+    return true
 
 func _verify_woodworks_recovery(game: Node3D) -> bool:
     var director: Node3D = game.race_director

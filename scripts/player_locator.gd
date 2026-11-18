@@ -18,6 +18,7 @@ const ICE_IMPACT_ACCENT := Color("#ffb2b9")
 const Air = preload("res://scripts/airtime_director.gd")
 const JumpGuides = preload("res://scripts/jump_guides.gd")
 const ShortcutRoute = preload("res://scripts/shortcut_route.gd")
+const Opening = preload("res://scripts/opening_obstacles.gd")
 const EVASION_ACCENT := Color("#9bf4e5")
 const TURBO_ACCENT := Color("#63efff")
 const MERGE_ACCENT := Color("#ffd383")
@@ -159,6 +160,10 @@ func refresh(delta: float) -> void:
                 evasion_center = pointer
                 if is_shutter_mark:
                     evasion_tint = JumpGuides.SHUTTER_INK
+        if freshness and not evasion_center.is_finite():
+            var velocity: Vector3 = game.net.local_replica_velocity() if game.net.is_client() else marble.linear_velocity
+            var opening: Vector3 = moments.live_opening_guidance(center,velocity).get("target",Vector3.INF)
+            evasion_center = _project_road_mark(camera,center.z,opening,safe,Opening.ENTRY_MARK_MIN_DISTANCE)
         if freshness and not hazard_center.is_finite() and not evasion_center.is_finite():
             bank_center = _project_road_mark(camera,center.z,moments.occluded_bank_mark,safe,JumpGuides.BANK_MARK_MIN_DISTANCE)
         var turbo: Vector3 = moments.occluded_opening_turbo
