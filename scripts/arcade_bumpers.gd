@@ -132,8 +132,11 @@ func _batch(label_text: String, mesh: Mesh, paint: Material,
 func _write_ring_pair(index: int) -> void:
     if not is_instance_valid(glow_rings) or quality_level == 0:
         return
+    # Fast attack, soft falloff: the physical strike reads immediately,
+    # while the halo settles smoothly instead of shrinking linearly.
     var strength: float = clampf(pulse_strength[index],0.0,1.0)
-    var multiplier: float = 1.0+strength*(0.62 if quality_level == 2 else 0.48)
+    var visual_strength: float = strength*strength*(3.0-2.0*strength)
+    var multiplier: float = 1.0+visual_strength*(0.62 if quality_level == 2 else 0.48)
     for edge in range(2):
         var slot: int = index*2+edge
         var baseline: Transform3D = ring_origins[slot]
@@ -144,7 +147,7 @@ func _write_ring_pair(index: int) -> void:
             baseline.origin))
         # Warm-white impact flash fades back to the original biome tint.
         # Outer and inner rims respond independently, with no new draw call.
-        var flash: float = strength*(1.0 if edge == 0 else 0.70)
+        var flash: float = visual_strength*(1.0 if edge == 0 else 0.70)
         glow_rings.multimesh.set_instance_color(slot,Color.WHITE.lerp(
             Color(1.0,0.93,0.76),flash))
 
@@ -179,8 +182,8 @@ func advance_visuals(delta: float) -> void:
         pulse_cooldowns[index] = maxf(0.0,pulse_cooldowns[index]-delta)
         if pulse_strength[index] <= 0.0:
             continue
-        pulse_strength[index] = move_toward(pulse_strength[index],0.0,
-            delta*PULSE_DECAY)
+        pulse_strength[index] = maxf(0.0,
+            pulse_strength[index]-minf(delta,0.10)*PULSE_DECAY)
         # Do not issue GPU writes in economy mode. Returning to balanced or
         # ultra re-synchronizes visible rings with these bounded CPU values.
         _write_ring_pair(index)
