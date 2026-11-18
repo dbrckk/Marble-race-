@@ -261,6 +261,15 @@ func set_quality(quality: int) -> void:
         waistbands.visible = quality_level > 0
     if is_instance_valid(approach_markers):
         approach_markers.visible = quality_level > 0
+        # Rebuild GPU tint from current pulse state when Android auto-quality
+        # restores the markers. Otherwise an old bright contact flash can
+        # remain frozen after the economy tier skipped its GPU writes.
+        if quality_level > 0:
+            for index in range(pulse_strength.size()):
+                var strength: float = clampf(pulse_strength[index],0.0,1.0)
+                var brightness: float = lerpf(0.78,1.0,strength)
+                approach_markers.multimesh.set_instance_color(index,Color(
+                    brightness,brightness,brightness,1.0))
     if is_instance_valid(glow_rings):
         glow_rings.visible = quality_level > 0
         if quality_level > 0:
