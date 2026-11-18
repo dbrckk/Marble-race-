@@ -23,6 +23,26 @@ func _run_checks() -> void:
             swinging += 1
             assert(is_instance_valid(motor.get_node_or_null("OscillatorCenterCap")), "Missing hammer hinge")
     assert(spinning >= 5 and swinging >= 5, "Five matching paddles and hammers needed")
+    # Ground telegraphs must be visible but must never add collision bodies.
+    var spinner_guides := 0
+    var hammer_guides := 0
+    # Guides may be nested under course sections; inspect the scene tree
+    # recursively rather than assuming the course builder's parent layout.
+    var pending: Array[Node] = [race.board]
+    spinner_guides = 0
+    hammer_guides = 0
+    while not pending.is_empty():
+        var node: Node = pending.pop_back()
+        if node.name.begins_with("SpinnerSweepGuide_"):
+            spinner_guides += 1
+            assert(node is MeshInstance3D, "Spinner guide cannot collide")
+        elif node.name == "HammerSweepWarning":
+            hammer_guides += 1
+            assert(node is MeshInstance3D, "Hammer guide cannot collide")
+        for child in node.get_children():
+            pending.append(child)
+    assert(spinner_guides >= spinning * 4, "Missing rotating paddle warnings")
+    assert(hammer_guides >= swinging, "Missing hammer sweep warnings")
     var course_fx = race.board.get_node_or_null("PolishedToyDetails")
     assert(course_fx != null, "Missing checkpoint effects")
     course_fx.pulse_checkpoint(0)
