@@ -113,4 +113,7 @@ func _verify_client_results(game: Node3D) -> bool:
     assert(game.race_state == "COUNTDOWN" and game.built_variation == 2 and game.selected_track == 1)
     assert(hud.touch_controls.enabled and not hud.online_rematch_label.is_visible_in_tree())
     assert(not game.race_moments.finish_seen and game.career.starts == starts)
+    assert(hud.remaining_label.text == "SWITCHBACK  •  LAYOUT 3 / 3")
+    assert("POSTS & PADDLE" in hud.opening_grid_title.text and hud.opening_grid.is_visible_in_tree())
+    assert(hud.opening_grid_gaps == game.opening_obstacle_art.entry_gaps)
     return true

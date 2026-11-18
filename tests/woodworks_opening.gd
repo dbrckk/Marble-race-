@@ -82,9 +82,11 @@ func _run() -> void:
     hud.replay_button_ref.pressed.emit()
     assert(game.race_state == "COUNTDOWN" and game.built_variation == 0)
     assert(not hud.woodworks_guide_active and not hud.checkpoint_label.visible)
+    assert("LAYOUT 1 / 3" in hud.remaining_label.text and "PEG ROWS" in hud.opening_grid_title.text)
     game._end_race()
     hud.next_layout_button.pressed.emit()
     assert(game.race_state == "COUNTDOWN" and game.built_variation == 1)
+    assert("LAYOUT 2 / 3" in hud.remaining_label.text and "POSTS & PADDLE" in hud.opening_grid_title.text)
 
     # Starting a multiplayer round can reuse the already-built solo scene.
     # Its pickups must revert even when _make_course is not called.

@@ -6,6 +6,7 @@ const CAREER_TRANSFER = preload("res://scripts/career_transfer.gd")
 const RACE_MOMENTS = preload("res://scripts/race_moments.gd")
 const PracticeTiming = preload("res://scripts/practice_timing.gd")
 const COURSE_BRIEFING = preload("res://scripts/course_briefing.gd")
+const OPENING_OBSTACLES = preload("res://scripts/opening_obstacles.gd")
 const PLAYER_LOCATOR = preload("res://scripts/player_locator.gd")
 const PROGRESS_RADAR = preload("res://scripts/race_progress_radar.gd")
 const RARE_ITEMS = preload("res://scripts/race_items.gd")
@@ -107,6 +108,10 @@ var quality_button: Button
 var fps_button: Button
 var course_progress: ProgressBar
 var race_radar: Control
+var opening_grid: PanelContainer
+var opening_grid_title: Label
+var opening_grid_lanes: Control
+var opening_grid_gaps: Array[Vector2] = []
 var checkpoint_label: Label
 var practice_sector_label: Label
 var practice_entry_pending := false
@@ -1130,6 +1135,7 @@ func _build_race_hud() -> void:
     countdown_style.content_margin_bottom = 2.0
     countdown_panel.add_theme_stylebox_override("panel",countdown_style)
     countdown_panel.hide()
+    _build_opening_grid()
     # Floating left joystick + independent right-side boost. Full screen touch
     # pointer IDs protect against releases of unrelated fingers.
     touch_controls = TOUCH_CONTROLS.new()
@@ -1160,6 +1166,69 @@ func _build_race_hud() -> void:
     pause_button.pressed.connect(_toggle_pause)
     hud_layer.add_child(pause_button)
     pause_button_ref = pause_button
+
+func _build_opening_grid() -> void:
+    opening_grid = _panel()
+    opening_grid.name = "GridOpeningPreview"
+    opening_grid.anchor_left = 0.335
+    opening_grid.anchor_right = 0.665
+    opening_grid.anchor_top = 0.109
+    opening_grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    hud_layer.add_child(opening_grid)
+    var content := _column(4)
+    content.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    opening_grid.add_child(content)
+    opening_grid_title = _text("",21,TEXT)
+    opening_grid_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    opening_grid_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    content.add_child(opening_grid_title)
+    opening_grid_lanes = Control.new()
+    opening_grid_lanes.custom_minimum_size.y = 19.0
+    opening_grid_lanes.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    content.add_child(opening_grid_lanes)
+    opening_grid_lanes.draw.connect(_draw_opening_grid)
+    opening_grid_lanes.resized.connect(opening_grid_lanes.queue_redraw)
+    var cue := _text("AIM FOR A MINT GAP",17,TIME_GAIN)
+    cue.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    cue.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    content.add_child(cue)
+    opening_grid.hide()
+
+func _draw_opening_grid() -> void:
+    var lanes := opening_grid_lanes
+    var bar := Rect2(Vector2(10.0,0.0),lanes.size-Vector2(20.0,0.0))
+    lanes.draw_rect(bar,Color("#805b41"))
+    var half_width := OPENING_OBSTACLES.ROAD_HALF_WIDTH-OPENING_OBSTACLES.CLEARANCE
+    for gap in opening_grid_gaps:
+        var pixels := (gap+Vector2.ONE*half_width)*bar.size.x/(2.0*half_width)
+        var slot := Rect2(bar.position.x+pixels.x,0.0,pixels.y-pixels.x,bar.size.y)
+        lanes.draw_rect(slot,Color("#3f7269"))
+        var center := slot.get_center()
+        var flank := minf(6.0,slot.size.x*0.23)
+        var tip := center-Vector2(0.0,4.0)
+        lanes.draw_line(center+Vector2(-flank,3.0),tip,TIME_GAIN,2.0,true)
+        lanes.draw_line(tip,center+Vector2(flank,3.0),TIME_GAIN,2.0,true)
+    lanes.draw_rect(bar,Color("#c9a175"),false,1.0)
+
+func _show_opening_grid() -> void:
+    var art: MeshInstance3D = game.opening_obstacle_art
+    remaining_label.text = "%s  •  LAYOUT %d / 3" % [game.track_title(),game.built_variation+1]
+    if not is_instance_valid(art) or art.entry_gaps.is_empty():
+        return
+    opening_grid_gaps = art.entry_gaps
+    var distance := maxi(0,ceili(game.race_start_z-art.entry_z))
+    opening_grid_title.text = "%s  •  ENTRY %d m" % [art.layout_name,distance]
+    remaining_label.add_theme_color_override("font_color",COURSE_BRIEFING.TRACK_COLORS[game.selected_track])
+    opening_grid_lanes.queue_redraw()
+    opening_grid.show()
+    course_progress.hide()
+    race_radar.hide()
+
+func _hide_opening_grid() -> void:
+    opening_grid.hide()
+    course_progress.show()
+    race_radar.show()
+    remaining_label.add_theme_color_override("font_color",TEXT)
 
 func _load_controls_config() -> void:
     var settings := ConfigFile.new()
@@ -1681,6 +1750,7 @@ func _continue_championship() -> void:
 
 func _hide_all() -> void:
     rival_marker.hide()
+    _hide_opening_grid()
     practice_entry_pending = false
     practice_passage_bounds = Vector2.ZERO
     if is_instance_valid(race_radar):
@@ -1740,6 +1810,8 @@ func show_perks() -> void:
 
 func show_race_ui() -> void:
     boost_label.hide()
+    hazard_label.hide()
+    label_timer = 0.12
     touch_controls.set_boost_state(game.boost_energy,false)
     last_seen_rank = -1
     rank_toast_seconds = 0.0
@@ -1796,8 +1868,13 @@ func show_race_ui() -> void:
     network_quality_label.get_parent().visible = game.net.role == "client"
     if is_instance_valid(pause_button_ref):
         pause_button_ref.text = "LEAVE" if game.net.is_active() else "Ⅱ"
+    if game.race_state == "COUNTDOWN":
+        _show_opening_grid()
 
 func show_countdown(value: String) -> void:
+    if value == "GO!":
+        _hide_opening_grid()
+        label_timer = 0.12
     countdown_label.text = value
     countdown_label.add_theme_color_override("font_color",
         Color("#8bf3c5") if value == "GO!" else Color("#ffc481"))
@@ -1806,6 +1883,7 @@ func show_countdown(value: String) -> void:
 
 func hide_countdown() -> void:
     countdown_label.get_parent().hide()
+    _hide_opening_grid()
 
 func release_finished_controls() -> void:
     touch_controls.release_all()
@@ -1965,9 +2043,10 @@ func update_hud() -> void:
         _refresh_race_notification()
     last_seen_rank = place
     place_label.text = "#%d / 40" % place
-    remaining_label.text = "%s  •  %d FINISHED" % [game.track_title(),game.racer_finish_order.size()]
-    if finished:
-        remaining_label.text = "AWAITING RESULTS" if game.net.is_client() else "FINISHED"
+    if game.race_state != "COUNTDOWN":
+        remaining_label.text = "%s  •  %d FINISHED" % [game.track_title(),game.racer_finish_order.size()]
+        if finished:
+            remaining_label.text = "AWAITING RESULTS" if game.net.is_client() else "FINISHED"
     var drafting: bool = playing and not game.net.is_active() and game.slipstream != null and (
         game.slipstream.strength >= 0.30)
     boost_label.visible = drafting
@@ -2040,7 +2119,7 @@ func update_hud() -> void:
     var hazard: Dictionary = game.upcoming_hazard(player_z,downstream_limit)
     # Timed events have their own forecast, so do not show two duplicate
     # hazard banners while also preserving warnings for physical edge gates.
-    hazard_label.visible = not finished and not hazard.is_empty() and not hazard.has("index") and (
+    hazard_label.visible = game.race_state != "COUNTDOWN" and not finished and not hazard.is_empty() and not hazard.has("index") and (
         not hazard.get("final",false))
     var glacier_exit: bool = game.glacier_shutter_exit_active(player_z)
     if glacier_exit and hazard_label.visible and float(hazard["z"]) < game.glacier_first_shutter_z:

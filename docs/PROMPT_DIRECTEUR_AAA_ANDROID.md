@@ -588,6 +588,12 @@ Le chrono s’arrête au franchissement. Le photo-finish apparaît après confir
 
 En ligne, les temps du serveur déclenchent le photo-finish. Le classement reste affiché pendant le compte à rebours jusqu’à la prochaine course. Si le salon n’a plus assez de joueurs, l’écran passe à l’attente et affiche le code des salons privés. Les tests couvrent le franchissement sur les trois circuits, la revanche complète, l’entraînement ciblé et le retour automatique sur la grille en ligne. L’essai sur téléphone Android reste à faire.
 
+### 2026-11-18 — Aperçu du premier obstacle sur la grille (1.155.0-rc)
+
+Pendant le compte à rebours, la grille affiche le circuit, la variante en cours et la distance entre la bille et l’entrée du premier module. Le schéma montre les mêmes passages que les chevrons menthe peints sur la piste, issus des dimensions des colliders. Au signal de départ, la barre de progression, le radar et les alertes de conduite reprennent leur place.
+
+Les tests couvrent les neuf tracés, la revanche solo, le changement de tracé, la revanche en ligne et la reprise du radar au signal. Deux formats paysage ont servi à vérifier le rendu de la grille et la transition au signal. L’essai sur téléphone Android reste à faire.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Rendre le changement de tracé plus lisible sur la grille de revanche et signaler le premier danger avant le départ.
+Faire le lien entre l’aperçu de départ et les passages encore accessibles dans le peloton sur Switchback et Gauntlet.

@@ -55,6 +55,11 @@ func _verify() -> void:
             assert(game.player != null and game.player.racer_id == game.net.local_slot,
                 "Camera must follow assigned online marble")
             assert(game.racers.size() == 40,"Online session must show all 40 physical marbles")
+            var hud: CanvasLayer = game.ui
+            assert(hud.opening_grid.is_visible_in_tree() and
+                hud.remaining_label.text == "%s  •  LAYOUT %d / 3" % [game.track_title(),game.built_variation+1],
+                "The received round must open on the correct circuit and layout preview")
+            assert(hud.opening_grid_gaps == game.opening_obstacle_art.entry_gaps)
             for marble in game.racers:
                 assert(marble.freeze,"Client must not run duplicate physics")
             print("ONLINE_CLIENT_MATCH_STARTED slot=%d" % game.net.local_slot)

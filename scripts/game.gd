@@ -1025,7 +1025,7 @@ func _make_course() -> void:
                 var art := OpeningObstacles.new()
                 art.name = "OpeningObstacleArt" if section == 1 else "FinalObstacleArt"
                 # Paint the visible approach from the same collider geometry.
-                art.build(section_node,self,center_z,section)
+                art.build(section_node,self,center_z,section,layout)
                 section_node.add_child(art)
                 if section == 1:
                     opening_obstacle_art = art

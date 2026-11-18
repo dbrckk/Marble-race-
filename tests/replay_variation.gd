@@ -40,7 +40,7 @@ func _check_rail_batch(game: Node3D, biome: int) -> Mesh:
     game.set_graphics_quality(1)
     return mesh
 
-func _check_start_gate(game: Node3D) -> Mesh:
+func _check_start_gate(game: Node3D, opening_layout: int) -> Mesh:
     var gate: Node3D = game.start_gate
     var towers := gate.get_node("StartTowers") as MeshInstance3D
     var lamps := gate.get_node("SignalLamps") as MultiMeshInstance3D
@@ -55,16 +55,30 @@ func _check_start_gate(game: Node3D) -> Mesh:
     var panel := signal_label.get_parent() as Control
     assert(panel.anchor_right < 0.2 and panel.mouse_filter == Control.MOUSE_FILTER_IGNORE)
     assert(signal_label.is_visible_in_tree() and signal_label.text == "READY")
+    var hud: CanvasLayer = game.ui
+    var art: MeshInstance3D = game.opening_obstacle_art
+    var entry_distance := ceili(game.player.position.z-art.entry_z)
+    assert(hud.remaining_label.text == "%s  •  LAYOUT %d / 3" % [game.track_title(),game.built_variation+1],
+        "The countdown must show the built course, not the next layout index")
+    assert(hud.opening_grid_title.text == "%s  •  ENTRY %d m" % [
+        ["SLALOM BLOCKS","PEG ROWS","POSTS & PADDLE"][opening_layout],entry_distance])
+    assert(hud.opening_grid_gaps == art.entry_gaps)
+    assert(hud.opening_grid.is_visible_in_tree() and hud.opening_grid.mouse_filter == Control.MOUSE_FILTER_IGNORE)
+    assert(hud.opening_grid_lanes.mouse_filter == Control.MOUSE_FILTER_IGNORE and
+        not hud.course_progress.visible and not hud.race_radar.visible)
     assert(gate.signal_stage == -1)
     for count in [3,2,1]:
         game.countdown = float(count)
         game._process(1.0/60.0)
         assert(gate.signal_stage == count and signal_label.text == str(count))
         assert(game.player.freeze and game.race_state == "COUNTDOWN")
+        assert(hud.opening_grid.is_visible_in_tree() and not hud.hazard_label.visible)
     game.countdown = 0.01
     game._process(1.0/60.0)
     assert(gate.signal_stage == 0 and signal_label.text == "GO!")
     assert(not game.player.freeze and game.race_state == "RACING")
+    assert(not hud.opening_grid.visible and hud.race_radar.visible and hud.course_progress.visible)
+    assert(hud.remaining_label.text == "%s  •  0 FINISHED" % game.track_title())
     game.race_time = 1.0
     game._process(1.0/60.0)
     assert(gate.signal_stage == -1 and not signal_label.is_visible_in_tree())
@@ -214,7 +228,7 @@ func _verify() -> void:
                 assert(vertex.y < 0.07 or absf(vertex.x) >= 5.60,
                     "The finish must leave the driving corridor open")
             var profile := _check_rail_batch(game,biome)
-            var frame := _check_start_gate(game)
+            var frame := _check_start_gate(game,opening_layout)
             assert(_check_opening_obstacles(game,opening_layout))
             if biome == 2:
                 assert(await _check_forge_finish(game,finish))
@@ -232,7 +246,7 @@ func _verify() -> void:
             game.return_to_menu()
             await process_frame
     print("RAIL_PROFILE_PASS: 9 layouts, 40 racers, all guards match physics, one rail batch")
-    print("START_GATE_PASS: 9 layouts, 40 racers, open sightline, countdown, launch and reset")
+    print("START_GATE_PASS: 9 built layouts, collider-derived preview, open sightline, countdown and clean launch")
     print("OPENING_ART_PASS: 9 layouts, one mesh, clear first gaps, full paddle sweep, Economy")
     print("FORGE_FINISH_VIEW_PASS: three sets of collider-checked slalom marks, pack occlusion, tall signs and chase framing")
     game.queue_free()

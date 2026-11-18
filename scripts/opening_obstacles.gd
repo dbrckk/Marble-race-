@@ -9,6 +9,7 @@ const ENTRY_DEPTH := 1.30
 const ROAD_HALF_WIDTH := 6.38
 const CLEARANCE := Racer.RADIUS+0.12
 const ENTRY_LEAD := 1.35
+const LAYOUT_NAMES := ["SLALOM BLOCKS","PEG ROWS","POSTS & PADDLE"]
 const FORGE_PASS_INK := Color("#b5ffe6")
 const MARKING_OUTLINE := Color("#20252a")
 const PALETTES := [
@@ -19,6 +20,7 @@ const PALETTES := [
 const PEG_SIDES := [12,8,10]
 const PEG_SHOULDERS := [0.94,0.73,0.87]
 var entry_gaps: Array[Vector2] = []
+var layout_name := ""
 var entry_z := 0.0
 var clear_z := INF
 var passing_marks: Array[Vector2] = []
@@ -29,7 +31,8 @@ var spinner_radius := 0.0
 var baffle_footprints: Array[Rect2] = []
 var spinner_center := Vector2.ZERO
 
-func build(section: Node3D, game: Node3D, floor_z: float, section_index: int) -> void:
+func build(section: Node3D, game: Node3D, floor_z: float, section_index: int, layout: int) -> void:
+    layout_name = LAYOUT_NAMES[layout]
     var palette: Array = PALETTES[game.selected_track]
     var surface := SurfaceTool.new()
     surface.begin(Mesh.PRIMITIVE_TRIANGLES)
