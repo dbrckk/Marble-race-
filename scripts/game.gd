@@ -839,6 +839,24 @@ func _add_spinner(parent: Node3D, z: float, n: int) -> void:
     var spinner_tempo: float = [0.88,1.0,1.12][posmod(built_variation+n,3)]
     pivot.set_meta("spin_speed", (1.0 if n%2==0 else -1.0) * (
         0.72+n*0.022)*(1.0+0.19*selected_track)*spinner_tempo)
+    # The floor warning indicates the actual rotating arm envelope.
+    # Four thin, non-colliding radial guides remain readable on low-end
+    # Android without particle effects or per-frame mesh updates.
+    var warning_radius: float = 3.55
+    for guide in range(4):
+        var warning := MeshInstance3D.new()
+        warning.name = "SpinnerSweepGuide_%d" % guide
+        var guide_mesh := BoxMesh.new()
+        guide_mesh.size = Vector3(0.09,0.025,warning_radius-0.52)
+        warning.mesh = guide_mesh
+        var angle: float = float(guide)*TAU/4.0
+        warning.position = Vector3(
+            sin(angle)*(warning_radius+0.52)*0.25,
+            height_at(z)+0.035,
+            z+cos(angle)*(warning_radius+0.52)*0.25)
+        warning.rotation.y = angle
+        warning.material_override = _mat(Color("#e6b34d"),0.58,0.05)
+        parent.add_child(warning)
     moving_obstacles.append(pivot)
 
 func _start_arch() -> void:
