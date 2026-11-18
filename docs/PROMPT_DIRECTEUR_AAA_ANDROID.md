@@ -482,6 +482,10 @@ Base `8f9d4b7514bed84e3c6beb1f7b264fcdcdf9546d`. Le roulement de la bille locale
 
 Base `2b005f34cd71bc795f8548b301a6848a566ecdb3`. Le vent monte progressivement avec le turbo. Les virages de la piste ou du pont renforcent le son de la bille et réduisent le vent. Le jeu mixe d’abord l’alerte prévue par le HUD et abaisse le son du turbo déjà lancé ou donné par un bonus pendant cette alerte. Il utilise les boucles et les voix audio existantes.
 
+### 2026-11-18 — Glisse et reprise d’adhérence sur Glacier (1.130.0-rc)
+
+Base `158254663ae083a25d51c605817d0c78aef47a54`. Le roulement de la glace démarre après deux contacts avec une plaque ou le pont. La glisse latérale par rapport à l’axe du tracé éclaircit la traînée standard et atténue le vent. Le retour sur une surface plus adhérente produit un son bref et une onde ambrée s’il y a eu une véritable glisse. Les sauts et les corrections réseau ne déclenchent pas de fausse reprise. Les tests couvrent les trois tracés de Glacier avec les collisions existantes.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Mieux faire sentir la perte et la reprise d’adhérence sur les surfaces, en priorité sur Glacier. Mesurer le mix et la fluidité du peloton sur un téléphone Android dès qu’il est disponible.
+Faire ressortir la reprise de contrôle à la réception des sauts et à la sortie des virages relevés. Mesurer le mix et la fluidité du peloton sur un téléphone Android dès qu’il est disponible.

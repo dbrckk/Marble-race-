@@ -21,6 +21,7 @@ const BRIDGE_ROLLS := [
     preload("res://assets/audio/sfx/bridge_steel_roll.ogg")
 ]
 const SURFACE_FADE_SECONDS := 0.22
+const ICE_FADE_SECONDS := 0.12
 const PASS_MIX_SECONDS := 0.42
 const WARNED_BOOST_DB := -29.0
 const AIR = preload("res://assets/audio/sfx/airrush.ogg")
@@ -62,6 +63,10 @@ var roll_level_db := -60.0
 var bridge_mix := 0.0
 var on_bridge := false
 var bridge_grounded := false
+var on_ice := false
+var ice_grounded := false
+var ice_skid_target := 0.0
+var ice_skid_mix := 0.0
 var replica_roll_speed := -1.0
 var air: AudioStreamPlayer
 var percussion: AudioStreamPlayer
@@ -199,11 +204,22 @@ func set_bridge_surface(on_deck: bool, touching: bool, replica_speed := -1.0) ->
     bridge_grounded = touching
     replica_roll_speed = replica_speed
 
+func set_ice_feedback(on_surface: bool, touching: bool, skid: float) -> void:
+    on_ice = on_surface
+    ice_grounded = touching
+    ice_skid_target = clampf(skid,0.0,1.0) if touching and is_finite(skid) else 0.0
+
+func play_grip_return() -> void:
+    if race_active and hazard_cooldown <= 0.0 and collision_duck < 1.9:
+        _voice(WOOD_HITS[1],-21.0,1.05)
+
 func _clear_bridge_roll() -> void:
     set_bridge_surface(false,false)
     bridge_mix = 0.0
     bridge_rolling.volume_db = -80.0
     bridge_rolling.stop()
+    set_ice_feedback(false,false,0.0)
+    ice_skid_mix = 0.0
 
 static func pack_percussion_lift(pressure: float) -> float:
     return 5.5*clampf(pressure,0.0,1.0) if is_finite(pressure) else 0.0
@@ -261,6 +277,7 @@ func _process(delta: float) -> void:
     var turbo_target := 1.0 if turbo_requested and not warning_active else 0.0
     turbo_mix = lerpf(turbo_mix,turbo_target,RaceFeedback.smooth_factor(delta,9.0))
     turn_mix = lerpf(turn_mix,turn_target,RaceFeedback.smooth_factor(delta,7.0))
+    ice_skid_mix = lerpf(ice_skid_mix,ice_skid_target,RaceFeedback.smooth_factor(delta,10.0))
     var music_mix_db := music_target_db+loudness_offset-priority_duck
     if music_fade < 1.0:
         music_fade = minf(1.0,music_fade+maxf(0.0,delta)/MUSIC_FADE_SECONDS)
@@ -289,7 +306,7 @@ func _process(delta: float) -> void:
         pace_target = -36.0 + energy*14.0 + finish_progress*5.0 + (
             [-1.0,-3.0,2.0][track_theme])+pack_percussion_lift(pack_pressure)
         var wind_duck := maxf(hazard_duck*1.8,collision_duck*2.2)
-        wind_duck = maxf(wind_duck,4.5*pass_mix_seconds/PASS_MIX_SECONDS)
+        wind_duck = maxf(wind_duck,maxf(4.5*pass_mix_seconds/PASS_MIX_SECONDS,3.6*ice_skid_mix))
         var corner := turn_mix*(1.0-flight_intensity)
         var thrust := 0.0 if warning_active else turbo_mix
         air_target = -52.0+energy*25.0+flight_intensity*7.0+thrust*2.6*(1.0-corner)-maxf(
@@ -329,21 +346,24 @@ func _update_rolling(delta: float) -> void:
     var corner := turn_mix*(1.0-flight_intensity)
     var corner_roll := corner*2.2*clampf(speed/13.0,0.0,1.0)*(1.0-clampf(foreground/2.0,0.0,1.0))
     var rolling_target := clampf(-41.0+speed*1.65,-48.0,-17.0)-foreground-flight_intensity*14.0+corner_roll
-    if on_bridge and not bridge_grounded:
+    var using_surface_loop := on_ice or on_bridge
+    var floor_missing := (on_ice and not ice_grounded) or (on_bridge and not bridge_grounded)
+    if floor_missing:
         rolling_target = minf(rolling_target,-51.0)
     var response := 26.0
-    if on_bridge:
-        response = 42.0 if bridge_grounded else 105.0
+    if using_surface_loop:
+        response = 105.0 if floor_missing else 42.0
     roll_level_db = move_toward(roll_level_db,rolling_target,delta*response)
     rolling.pitch_scale = clampf(0.63+speed*0.06,0.73,1.65)
-    bridge_mix = move_toward(bridge_mix,float(on_bridge),delta/SURFACE_FADE_SECONDS)
+    var fade_seconds := ICE_FADE_SECONDS if on_ice else SURFACE_FADE_SECONDS
+    bridge_mix = move_toward(bridge_mix,float(using_surface_loop),delta/fade_seconds)
     var angle := bridge_mix*PI*0.5
     rolling.volume_db = roll_level_db+linear_to_db(maxf(0.001,cos(angle)))
     if bridge_mix == 0.0:
         if bridge_rolling.playing:
             bridge_rolling.stop()
         return
-    bridge_rolling.pitch_scale = rolling.pitch_scale
+    bridge_rolling.pitch_scale = rolling.pitch_scale*(1.0+ice_skid_mix*0.08)
     var stream: AudioStreamOggVorbis = BRIDGE_ROLLS[track_theme]
     if bridge_rolling.stream != stream:
         stream.loop = true
@@ -534,8 +554,6 @@ func course_event(kind: String) -> void:
     match kind:
         "speed":
             _voice(TONES["boost"],-14.0,0.91)
-        "ice":
-            _voice(GLASS_HITS[0],-17.0,1.20)
         "vent":
             _voice(METAL_HITS[1],-10.0,0.77)
         "shortcut":

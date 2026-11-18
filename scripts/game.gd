@@ -1403,9 +1403,10 @@ func _process(delta: float) -> void:
             trail.emitting = graphics_quality > 0 and speed > 4.0
             trail.initial_velocity_max = 2.6 if boosting else 0.75
             trail.color = PremiumSkinVisuals.trail_tint(self,boosting)
-            if is_instance_valid(airtime) and airtime.bridge_grounded and not boosting and (
+            if is_instance_valid(airtime) and not boosting and (
                     not is_instance_valid(skins) or skins.active_id() < 0):
-                trail.color = trail.color.lerp(AirtimeDirector.BRIDGE_TINTS[selected_track],0.32)
+                var tint_weight := maxf(0.32 if airtime.bridge_grounded else 0.0,0.62*airtime.ice_skid)
+                trail.color = trail.color.lerp(AirtimeDirector.BRIDGE_TINTS[selected_track],tint_weight)
             var cp := -1
             for sector in range(CHECKPOINT_Z.size()-1,-1,-1):
                 if player.position.z < float(CHECKPOINT_Z[sector]):
@@ -1484,6 +1485,8 @@ func _process(delta: float) -> void:
             is_instance_valid(player) and not player.finished and not player.eliminated)
         audio.set_bridge_surface(local_surface and airtime.rolling_surface == AirtimeDirector.Surface.BRIDGE,
             local_surface and airtime.bridge_grounded,replica_speed)
+        audio.set_ice_feedback(local_surface and airtime.glacier_grip == AirtimeDirector.Grip.ICE,
+            local_surface and airtime.ice_touching,airtime.ice_skid if local_surface else 0.0)
         var drive_audio: bool = local_surface and net.role != "server" and (
             replica_speed >= 0.0 if net.is_client() else not player.freeze)
         audio.set_drive_context(drive_audio and boosting and boost_energy > 0.0,

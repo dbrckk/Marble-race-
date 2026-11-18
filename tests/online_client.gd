@@ -98,12 +98,12 @@ func _verify() -> void:
 func _observe_bridge_feedback() -> void:
     var flight: Node3D = game.airtime
     var sound: Node3D = game.audio
-    if flight.ripple_bridge.has(1) and flight.bridge_grounded and sound.bridge_rolling.playing:
+    if flight.ripple_transition.has(1) and flight.bridge_grounded and sound.bridge_rolling.playing:
         assert(game.player.freeze and game.player.linear_velocity == Vector3.ZERO,
             "Server-driven bridge presentation must not move the frozen replica")
         assert(flight.landing_count == 0)
         bridge_entry_seen = true
-    if bridge_entry_seen and flight.ripple_bridge.has(-1) and not sound.bridge_rolling.playing:
+    if bridge_entry_seen and flight.ripple_transition.has(-1) and not sound.bridge_rolling.playing:
         bridge_exit_seen = true
 
 func _steer_glacier_rider() -> void:

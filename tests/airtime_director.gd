@@ -137,6 +137,9 @@ func _run() -> void:
             if not _verify_bridge_surface(stage,flight,player,biome):
                 quit(1)
                 return
+            if biome == 1 and not _verify_glacier_grip(stage,flight,player):
+                quit(1)
+                return
             stage.return_to_menu()
             assert(not stage.audio.bridge_rolling.playing and stage.audio.bridge_mix == 0.0)
             checked += 1
@@ -148,6 +151,7 @@ func _run() -> void:
         "user://qa_flight_career.cfg"))
     print("AIRTIME_PASS: nine real floor probes, safe jump and touchdown arcs, 40 marble exclusion, mobile pooled ripples and physics integrity")
     print("BRIDGE_SURFACE_PASS: nine real bridge floors, contact confirmation, airborne rejection, pooled ripples and reversible audio fades")
+    print("GLACIER_GRIP_PASS: three real ice layouts, lateral slip, jump rejection and one grounded recovery cue")
     quit(0)
 
 func _verify_bridge_surface(stage: Node3D, flight: Node3D, player: RigidBody3D,
@@ -202,7 +206,7 @@ func _verify_bridge_surface(stage: Node3D, flight: Node3D, player: RigidBody3D,
     assert(player.linear_velocity.is_equal_approx(Vector3(0,0,-13)))
 
     flight._emit_ripple(bridge_hit["ground"],"",1)
-    assert(flight.ripple_bridge[0] == 1)
+    assert(flight.ripple_transition[0] == 1)
     assert(is_equal_approx(flight.ripple_age[0],AIR.BRIDGE_PULSE_LIFETIME))
     flight.advance_visuals(AIR.BRIDGE_PULSE_LIFETIME+0.01)
     assert(is_zero_approx(flight.ripple_age[0]))
@@ -210,4 +214,55 @@ func _verify_bridge_surface(stage: Node3D, flight: Node3D, player: RigidBody3D,
     assert(flight.sample_rolling_surface(bridge_hit,bridge) == 0)
     assert(flight.sample_rolling_surface(bridge_hit,bridge) == 0,
         "A racer placed directly on a bridge needs no entry pulse")
+    return true
+
+func _verify_glacier_grip(stage: Node3D, flight: Node3D, player: RigidBody3D) -> bool:
+    flight.reset_round()
+    var zone: Node3D = stage.course_mechanics.zones[0]
+    var slab := zone.get_node("LowFrictionIce") as StaticBody3D
+    var shape: BoxShape3D = slab.get_child(0).shape
+    var ice_point := slab.to_global(Vector3.UP*shape.size.y*0.5)+Vector3.UP*AIR.RADIUS
+    player.global_position = ice_point
+    var ice_hit: Dictionary = flight.probe_floor(player)
+    assert(ice_hit.get("ice",false) and ice_hit.get("touching",false),
+        "Use a real grounded Glacier slab for all layouts")
+    var slope: float = stage.track_center_at(ice_point.z+0.5)-stage.track_center_at(ice_point.z-0.5)
+    player.linear_velocity = Vector3(-13.0*slope,0,-13.0)
+    flight.tick_physics(0.05)
+    assert(not flight.ice_touching,"One sample is too brief to confirm ice")
+    flight.tick_physics(0.05)
+    assert(flight.ice_touching and flight.ice_skid < 0.01,
+        "Following the ice lane is not a lateral skid")
+    player.linear_velocity.x += 3.6
+    flight.tick_physics(0.05)
+    assert(flight.ice_skid > 0.9 and flight.ice_slide_seen)
+    var sound: Node3D = stage.audio
+    sound.set_ice_feedback(true,true,flight.ice_skid)
+    sound._process(0.12)
+    assert(sound.bridge_rolling.stream == sound.BRIDGE_ROLLS[1] and sound.bridge_rolling.playing)
+    assert(sound.ice_skid_mix > 0.55)
+
+    player.global_position = ice_point+Vector3.UP*0.75
+    flight.tick_physics(0.05)
+    assert(not flight.ice_touching and flight.glacier_grip == AIR.Grip.ICE)
+    assert(not flight.ripple_transition.has(AIR.GRIP_RETURN))
+    var dry_z := ice_point.z
+    var main: float = stage.track_center_at(dry_z)
+    var lane_side := signf(ice_point.x-main)
+    player.global_position = Vector3(main+lane_side*0.65,stage.height_at(dry_z)+0.41,dry_z)
+    var dry_hit: Dictionary = flight.probe_floor(player)
+    assert(dry_hit.get("touching",false) and not dry_hit.get("ice",false))
+    var next_voice: int = sound.current_channel
+    var velocity: Vector3 = player.linear_velocity
+    flight.tick_physics(0.05)
+    assert(sound.current_channel == next_voice,"Require a second solid contact before announcing grip")
+    flight.tick_physics(0.05)
+    assert(flight.glacier_grip == AIR.Grip.DRY and flight.ice_skid == 0.0)
+    assert(flight.ripple_transition.has(AIR.GRIP_RETURN) and sound.channels[next_voice].stream == sound.WOOD_HITS[1])
+    next_voice = sound.current_channel
+    flight.tick_physics(0.05)
+    assert(sound.current_channel == next_voice and player.linear_velocity == velocity)
+    sound.set_ice_feedback(false,false,0.0)
+    sound._update_rolling(0.22)
+    assert(not sound.bridge_rolling.playing)
     return true

@@ -4,7 +4,7 @@ Original **3D Android marble-racing game** inspired by the look and mechanics sh
 
 Independent implementation in **Godot 4.5.1**, focused on real mobile playability, physics, and stylized toy-table graphics. No proprietary material from the reference game is redistributed.
 
-## Current state: Android QA build (v1.129.0-rc, versionCode 143)
+## Current state: Android QA build (v1.130.0-rc, versionCode 144)
 
 **Playable scope (October 2026):** three visually differentiated 3D worlds with physical elevation changes, nine repeatable obstacle layouts, forty individually simulated glass marbles, real banked and elevated side-route shortcuts, six player perks, progression, ghost comparisons and optional online races. Autonomous opponents use deterministic physical steering, real route choices, anticipatory passing and forecasts of moving hazards; human steering stays entirely manual. The phone HUD previews real course geometry and estimates when Forge pistons will be open or blocked on arrival, with a nonrepeating audio danger cue. The three pistons share an illuminated shoulder beacon and matched deck markings for their current phase.
 
@@ -29,6 +29,8 @@ Online clients use two fresh server positions to estimate the speed of their own
 The local marble's rolling sounds at the same level in chase and overhead cameras. The mix lowers wind and light glass contacts in a pack. A confirmed pass briefly lowers wind for a single cue, while predictive danger warnings and strong impacts take priority. The rolling crossfade and the existing spatial impact pool handle both materials without extra audio channels.
 
 Turbo feeds into the existing wind loop. The actual track or bridge bend softens the wind and raises the rolling sound near a turn. The mixer gives predictive warnings priority over turbo ignition and lowers active speed cues during the warning. The same frame orders the HUD warning before the local turbo sound.
+
+Glacier's low-friction slabs and bridge use the ice rolling sound after confirmed floor contact. Lateral slip beyond the current route's heading brightens the ordinary trail and lowers the wind. After a slide, two contacts with grippier road restore the main rolling loop with a short sound and warm surface ripple. The existing local floor probe, rolling voice and ripple pool provide the feedback in solo and online races.
 
 The opening and final modules have darker obstacle shells and outlined amber hazard paint. Paired mint chevrons mark the physical entry gaps and a dashed ring marks the paddle sweep. Each module keeps its single batched mesh and remains visible in Economy.
 
