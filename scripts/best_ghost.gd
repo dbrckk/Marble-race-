@@ -5,10 +5,13 @@ const SAVE_PATH := "user://marble_ghosts.cfg"
 const SAMPLE_SECONDS := 0.10
 const MAX_SAMPLES := 1800
 const MAX_WORLD := 10000.0
+const CHECKPOINT_COUNT := 3
 
 var replay_samples := PackedVector3Array()
 var recording := PackedVector3Array()
 var best_time := 0.0
+var replay_checkpoints := PackedFloat64Array()
+var save_path := SAVE_PATH
 var replay_available := false
 var race_enabled := false
 var recording_elapsed := 0.0
@@ -44,6 +47,7 @@ func storage_key(track: int, variation: int, perk: String) -> String:
 func begin(track: int, variation: int, perk: String, enabled: bool) -> void:
     recording.clear()
     replay_samples.clear()
+    replay_checkpoints.clear()
     best_time = 0.0
     replay_available = false
     recording_elapsed = 0.0
@@ -53,11 +57,11 @@ func begin(track: int, variation: int, perk: String, enabled: bool) -> void:
     if not enabled:
         return
     var cfg := ConfigFile.new()
-    if cfg.load(SAVE_PATH) != OK:
+    if cfg.load(save_path) != OK:
         return
     var stored_time: float = float(cfg.get_value(key,"best_time",0.0))
     var samples: Variant = cfg.get_value(key,"points",PackedVector3Array())
-    if stored_time <= 0.0 or stored_time > 500.0 or not (samples is PackedVector3Array):
+    if not is_finite(stored_time) or stored_time <= 0.0 or stored_time > 500.0 or not (samples is PackedVector3Array):
         return
     if samples.size() < 3 or samples.size() > MAX_SAMPLES:
         return
@@ -67,6 +71,28 @@ func begin(track: int, variation: int, perk: String, enabled: bool) -> void:
     replay_samples = samples
     best_time = stored_time
     replay_available = true
+    var checkpoints: Variant = cfg.get_value(key,"checkpoints",PackedFloat64Array())
+    if checkpoints is PackedFloat64Array and _valid_checkpoints(checkpoints,best_time):
+        replay_checkpoints = checkpoints
+
+func _valid_checkpoints(checkpoints: PackedFloat64Array, finish_time: float) -> bool:
+    if checkpoints.size() != CHECKPOINT_COUNT:
+        return false
+    var previous := 0.0
+    for crossing in checkpoints:
+        if not is_finite(crossing) or crossing <= previous or crossing >= finish_time:
+            return false
+        previous = crossing
+    return true
+
+func crossing_delta(index: int, elapsed: float) -> float:
+    if not race_enabled or not replay_available or not is_finite(elapsed) or elapsed <= 0.0:
+        return NAN
+    if index == CHECKPOINT_COUNT:
+        return elapsed-best_time
+    if index >= 0 and index < replay_checkpoints.size():
+        return elapsed-replay_checkpoints[index]
+    return NAN
 
 func tick(elapsed: float, current_pos: Vector3, quality: int) -> void:
     if not race_enabled:
@@ -97,7 +123,7 @@ func gap_text(player_pos: Vector3) -> String:
         return "YOU AHEAD %dm  |  BEST %.1fs" % [metres,best_time]
     return "GHOST AHEAD %dm  |  BEST %.1fs" % [metres,best_time]
 
-func finish(elapsed: float, completed: bool) -> bool:
+func finish(elapsed: float, completed: bool, checkpoints := PackedFloat64Array()) -> bool:
     visible = false
     if not race_enabled or not completed or not is_finite(elapsed) or elapsed < 0.1:
         return false
@@ -107,10 +133,11 @@ func finish(elapsed: float, completed: bool) -> bool:
         return false
     # If this completes, it becomes the next ghost for the same course layout and perk.
     var cfg := ConfigFile.new()
-    cfg.load(SAVE_PATH)
+    cfg.load(save_path)
     cfg.set_value(key,"best_time",elapsed)
     cfg.set_value(key,"points",recording)
-    if cfg.save(SAVE_PATH) != OK:
+    cfg.set_value(key,"checkpoints",checkpoints if _valid_checkpoints(checkpoints,elapsed) else PackedFloat64Array())
+    if cfg.save(save_path) != OK:
         return false
     best_time = elapsed
     return true

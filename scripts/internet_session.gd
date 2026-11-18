@@ -8,6 +8,8 @@ signal session_closed(message: String)
 const MAX_PLAYERS := 4
 const SLOT_FIRST := 39
 const FRAME_PERIOD := 0.10
+const PRESENTATION_MAX_AGE := FRAME_PERIOD*3.5
+const PRESENTATION_MAX_SPEED := 38.0
 const INPUT_PERIOD := 0.07
 const FLOATS_PER_RACER := 9
 const ROOM_CODE_LENGTH := 6
@@ -37,6 +39,7 @@ var room_mode := ""
 var room_code := ""
 var queue_seconds := 0.0
 var results_seconds := 0.0
+var room_player_count := 0
 var completed_rounds := 0 # Advance the course after each completed online match.
 var frame_clock := 0.0
 var input_clock := 0.0
@@ -48,6 +51,7 @@ var _endpoint := ""
 var _connect_elapsed := 0.0
 var targets: Array[Transform3D] = []
 var targets_received := false
+var snapshot_velocities := PackedVector3Array()
 var ping_ms := -1.0
 var snapshot_age_seconds := 0.0
 var _join_elapsed := 0.0
@@ -70,6 +74,33 @@ func is_client() -> bool:
 
 func is_host() -> bool:
     return role == "server" and match_running
+
+func local_replica_velocity() -> Vector3:
+    return replica_velocity(game.player)
+
+func replica_velocity(racer: RigidBody3D) -> Vector3:
+    if not is_client() or not targets_received or snapshot_age_seconds > PRESENTATION_MAX_AGE or (
+            not is_instance_valid(racer)):
+        return Vector3.INF
+    var slot: int = racer.racer_id
+    if slot < 0 or slot >= snapshot_velocities.size():
+        return Vector3.INF
+    var velocity := snapshot_velocities[slot]
+    if not velocity.is_finite():
+        return Vector3.INF
+    # Wait for large corrections to settle. Interpolating across the track
+    # after a correction is not evidence of rolling over either surface.
+    var allowed_lag := velocity.length()*FRAME_PERIOD*1.6+1.1
+    if racer.global_position.distance_squared_to(targets[slot].origin) > allowed_lag*allowed_lag:
+        return Vector3.INF
+    return velocity
+
+func _clear_snapshots() -> void:
+    targets.clear()
+    snapshot_velocities.clear()
+    targets_received = false
+    last_frame_time = -1.0
+    snapshot_age_seconds = 0.0
 
 func can_host_start() -> bool:
     # Dedicated server automatically starts a room after minimum attendance.
@@ -119,12 +150,10 @@ func connect_server(raw_url: String, mode: String = "public", invite_code: Strin
     _ping_elapsed = 0.0
     _pending_ping = -1
     ping_ms = -1.0
-    snapshot_age_seconds = 0.0
     role = "client"
     connected = false
     local_slot = -1
-    targets.clear()
-    targets_received = false
+    _clear_snapshots()
     _register_signals()
     multiplayer.multiplayer_peer = socket
     lobby_changed.emit("CONNECTING TO SERVER... FREE HOSTS MAY TAKE UP TO 90s TO WAKE")
@@ -203,7 +232,7 @@ func _peer_disconnected(id: int) -> void:
         game.racers[slot].is_player = false # AI resumes even for server's camera slot 39.
     if joined_slots.is_empty():
         _reset_room()
-    elif not match_running and results_seconds <= 0.0:
+    elif not match_running:
         _broadcast_lobby_status()
 
 func _make_code() -> String:
@@ -296,8 +325,9 @@ func _broadcast_lobby_status() -> void:
             _lobby_state.rpc_id(int(peer_id),message,count)
 
 @rpc("authority","call_remote","reliable")
-func _lobby_state(message: String, _count: int) -> void:
+func _lobby_state(message: String, count: int) -> void:
     if role == "client":
+        room_player_count = clampi(count,0,MAX_PLAYERS)
         lobby_changed.emit(message)
 
 # Reply only to accepted players. Bound probing to avoid amplification by spam.
@@ -393,6 +423,11 @@ func _process(delta: float) -> void:
                         var racer: RigidBody3D = game.racers[i]
                         racer.global_position = racer.global_position.lerp(targets[i].origin,amount)
                         racer.quaternion = racer.quaternion.slerp(targets[i].basis.get_rotation_quaternion(),amount)
+            elif results_seconds > 0.0:
+                var previous := ceili(results_seconds)
+                results_seconds = maxf(0.0,results_seconds-delta)
+                if previous != ceili(results_seconds):
+                    game.ui.update_online_rematch()
 
 func _launch_match() -> void:
     if role != "server" or joined_slots.size() < 2 or match_running:
@@ -422,16 +457,20 @@ func _begin_round(track: int, variant: int, slots: PackedInt32Array) -> void:
     if role not in ["client","server"]:
         return
     match_running = true
+    results_seconds = 0.0
+    room_player_count = slots.size()
     game.selected_track = clampi(track,0,2)
     game.race_variation = clampi(variant,0,2)
-    last_frame_time = -1.0
-    snapshot_age_seconds = 0.0
-    targets.clear()
-    targets_received = false
+    _clear_snapshots()
     game.start_race("Grip Tape")
     if role == "server":
         for slot in slots:
-            game.racers[slot].network_controlled = true
+            var marble: RigidBody3D = game.racers[slot]
+            marble.network_controlled = true
+            if game.selected_track == 1:
+                marble.max_contacts_reported = 6
+                marble.contact_monitor = true
+                marble.body_entered.connect(game.airtime.observe_ice_impact.bind(marble))
     else:
         for racer in game.racers:
             racer.freeze = true
@@ -519,16 +558,22 @@ func _receive_snapshot(floats: PackedFloat32Array, timestamp: float, energies: P
         return
     if floats.size() != 40*FLOATS_PER_RACER or not is_finite(timestamp) or timestamp <= last_frame_time:
         return
-    last_frame_time = timestamp
-    snapshot_age_seconds = 0.0
-    game.race_time = timestamp
+    for i in range(40):
+        var j := i*FLOATS_PER_RACER
+        if not Vector3(floats[j],floats[j+1],floats[j+2]).is_finite():
+            return
     if targets.size() != 40:
         targets.resize(40)
+        snapshot_velocities.resize(40)
+    var elapsed := timestamp-last_frame_time
+    var can_measure := targets_received and elapsed >= FRAME_PERIOD*0.35 and elapsed <= PRESENTATION_MAX_AGE
+    var new_finisher := false
     for i in range(40):
         var j := i*FLOATS_PER_RACER
         var xyz := Vector3(floats[j],floats[j+1],floats[j+2])
-        if not xyz.is_finite():
-            return
+        var velocity := (xyz-targets[i].origin)/elapsed if can_measure else Vector3.INF
+        snapshot_velocities[i] = velocity if (
+            velocity.length_squared() <= PRESENTATION_MAX_SPEED*PRESENTATION_MAX_SPEED) else Vector3.INF
         var quat := Quaternion(floats[j+3],floats[j+4],floats[j+5],floats[j+6])
         if not quat.is_normalized():
             quat = Quaternion.IDENTITY
@@ -537,17 +582,24 @@ func _receive_snapshot(floats: PackedFloat32Array, timestamp: float, energies: P
         if not targets_received:
             marble.global_position = xyz
             marble.quaternion = quat
-        marble.finished = floats[j+7] > 0.5
+        var finished := floats[j+7] > 0.5
+        new_finisher = new_finisher or (finished and not marble.finished)
+        marble.finished = finished
         marble.eliminated = floats[j+7] < -0.5
         marble.finish_time = maxf(0.0,floats[j+8])
+    last_frame_time = timestamp
+    snapshot_age_seconds = 0.0
+    game.race_time = timestamp
     targets_received = true
     if local_slot >= 36 and local_slot <= 39 and energies.size() == 4:
         game.boost_energy = clampf(energies[local_slot-36],0.0,1.0)
+    if new_finisher and game.race_state == "RACING":
+        game.race_moments.on_finish()
 
 func notify_course_event(slot: int, kind: String) -> void:
     if role != "server" or not match_running or kind not in ["speed","ice","vent","shortcut","jump",
             "near_miss","near_miss_precision","near_miss_chain","apex",
-            "bridge_gate_1","bridge_gate_2","bridge_perfect"]:
+            "bridge_gate_1","bridge_gate_2","bridge_perfect","ice_impact"]:
         return
     for peer_id in joined_slots.keys():
         if int(joined_slots[peer_id]) == slot and _can_send(int(peer_id)):
@@ -557,6 +609,11 @@ func notify_course_event(slot: int, kind: String) -> void:
 @rpc("authority","call_remote","reliable")
 func _course_event_notice(kind: String) -> void:
     if role != "client" or not match_running or game.race_state != "RACING":
+        return
+    if kind == "ice_impact":
+        if game.selected_track == 1 and is_instance_valid(game.player) and (
+                not game.player.finished and not game.player.eliminated):
+            game.airtime.show_ice_impact()
         return
     if kind not in ["speed","ice","vent","shortcut","jump",
             "near_miss","near_miss_precision","near_miss_chain","apex",
@@ -610,10 +667,11 @@ func on_host_finish() -> void:
     match_running = false
     completed_rounds += 1
     results_seconds = RESULTS_DURATION
+    _broadcast_lobby_status()
 
 @rpc("authority","call_remote","reliable")
 func _show_results(finish_times: PackedFloat32Array, elapsed: float) -> void:
-    if role != "client" or not match_running or finish_times.size() != 40:
+    if role != "client" or not match_running or finish_times.size() != 40 or game.racers.size() != 40:
         return
     for i in range(40):
         var marble: RigidBody3D = game.racers[i]
@@ -621,11 +679,13 @@ func _show_results(finish_times: PackedFloat32Array, elapsed: float) -> void:
         marble.finish_time = maxf(0.0,finish_times[i])
     game.race_time = elapsed
     match_running = false
+    results_seconds = RESULTS_DURATION
     game._end_race()
 
 func _reset_room() -> void:
     match_running = false
     results_seconds = 0.0
+    room_player_count = 0
     queue_seconds = 0.0
     joined_slots.clear()
     completed_rounds = 0
@@ -644,16 +704,16 @@ func leave_room(message: String = "") -> void:
     var was_server := role == "server"
     match_running = false
     connected = false
+    results_seconds = 0.0
+    room_player_count = 0
     _connect_elapsed = 0.0
     _join_elapsed = 0.0
     _ping_elapsed = 0.0
     _pending_ping = -1
     _sent_ping_ms = 0
     ping_ms = -1.0
-    snapshot_age_seconds = 0.0
     _last_ping_by_peer.clear()
-    targets.clear()
-    targets_received = false
+    _clear_snapshots()
     if multiplayer.multiplayer_peer != null:
         multiplayer.multiplayer_peer.close()
         multiplayer.multiplayer_peer = null

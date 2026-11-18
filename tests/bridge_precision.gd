@@ -22,8 +22,43 @@ func _check() -> void:
         assert(route.precision_post_positions.size() == 6)
         var art := route.get_node("BypassPrecisionEdgePosts") as MultiMeshInstance3D
         var arches := route.get_node("BypassPrecisionPortalArches") as MultiMeshInstance3D
+        var stripes := route.get_node("BypassPrecisionSkillStripes") as MultiMeshInstance3D
         assert(art.multimesh.instance_count == 6)
-        assert(arches.multimesh.instance_count == 9)
+        assert(arches.multimesh.instance_count == BYPASS.BRIDGE_POST_Z.size())
+        var stripe_count := 9 if biome == 0 else 3
+        if biome == 2:
+            assert(BYPASS.FORGE_GATE_APPROACH.size() == BYPASS.BRIDGE_POST_Z.size(),
+                "Forge must guide all three real precision gates")
+            for approach: Array in BYPASS.FORGE_GATE_APPROACH:
+                stripe_count += approach.size()*2
+        assert(stripes.multimesh.instance_count == stripe_count)
+        # The dummy renderer exposes instance counts but no transform data.
+        if biome == 2 and DisplayServer.get_name() != "headless":
+            var stripe := 0
+            for gate in range(BYPASS.FORGE_GATE_APPROACH.size()):
+                stripe += 1 # Crossing stripe before the lead-in paint.
+                for distance: float in BYPASS.FORGE_GATE_APPROACH[gate]:
+                    var z: float = BYPASS.BRIDGE_POST_Z[gate]+distance
+                    var left := stripes.multimesh.get_instance_transform(stripe).origin
+                    var right := stripes.multimesh.get_instance_transform(stripe+1).origin
+                    stripe += 2
+                    var center := (left+right)*0.5
+                    var deck: Vector3 = route.point_at(z)
+                    assert(absf(center.z-z) < 0.001 and absf(center.x-deck.x) < 0.001)
+                    assert(absf(left.distance_to(right)-2.0*BYPASS.PRECISION_GATE_HALF_WIDTH) < 0.001)
+                    assert(center.y-deck.y > 0.20 and center.y-deck.y < 0.40,
+                        "The lead paint must sit on the banked bridge")
+        var frame: Mesh = arches.multimesh.mesh
+        assert(frame is ArrayMesh and frame.get_surface_count() == 1)
+        assert(arches.get_child_count() == 0)
+        var profile := frame.surface_get_arrays(0)
+        var vertices: PackedVector3Array = profile[Mesh.ARRAY_VERTEX]
+        var indices: PackedInt32Array = profile[Mesh.ARRAY_INDEX]
+        for offset in range(0,indices.size(),3):
+            var side := signf(vertices[indices[offset]].x)
+            for corner in range(3):
+                assert(side*vertices[indices[offset+corner]].x > 1.5,
+                    "Each portal wing must leave the central sightline open")
         assert(art.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
         assert(arches.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
         for station in range(BYPASS.BRIDGE_POST_Z.size()):
@@ -79,5 +114,5 @@ func _check() -> void:
         await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_bridge_precision.cfg"))
-    print("BRIDGE_PRECISION_PASS: 18 real raised edge colliders, nine GPU arch pieces, three safe racing corridors, 40 marbles")
+    print("BRIDGE_PRECISION_PASS: 18 real raised edge colliders, open instanced frames, three safe racing corridors, 40 marbles")
     quit(0)

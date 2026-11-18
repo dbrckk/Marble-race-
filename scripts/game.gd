@@ -11,13 +11,18 @@ const Audio = preload("res://scripts/audio.gd")
 const Visuals = preload("res://scripts/visuals.gd")
 const TrackFX = preload("res://scripts/track_fx.gd")
 const ContactShadows = preload("res://scripts/contact_shadows.gd")
+const RivalRenderBatch = preload("res://scripts/rival_render_batch.gd")
 const LACQUER_SHADER = preload("res://shaders/lacquer.gdshader")
 const LACQUER_MICRO = preload("res://assets/textures/lacquer_micro.png")
 const MechanismArt = preload("res://scripts/mechanism_art.gd")
 const CourseDressing = preload("res://scripts/course_dressing.gd")
 const ObstacleFinish = preload("res://scripts/obstacle_finish.gd")
+const OpeningObstacles = preload("res://scripts/opening_obstacles.gd")
 const TrackSurface = preload("res://scripts/track_surface.gd")
+const StartGate = preload("res://scripts/start_gate.gd")
+const FinishLine = preload("res://scripts/finish_line.gd")
 const TrackPath = preload("res://scripts/track_path.gd")
+const PracticeTiming = preload("res://scripts/practice_timing.gd")
 const RaceFeedback = preload("res://scripts/race_feedback.gd")
 const RaceMoments = preload("res://scripts/race_moments.gd")
 const TemporarySkins = preload("res://scripts/temporary_skins.gd")
@@ -38,14 +43,35 @@ const TrackUniverses = preload("res://scripts/track_universes.gd")
 const BiomeSignature = preload("res://scripts/biome_signature.gd")
 const CourseSculptures = preload("res://scripts/course_sculptures.gd")
 const AirtimeDirector = preload("res://scripts/airtime_director.gd")
+const JumpGuides = preload("res://scripts/jump_guides.gd")
 
 const MARBLE_COUNT := 40
+const MARBLE_DETAIL_INTERVAL := 0.125
+const MARBLE_DETAIL_NEAR_DISTANCE_SQUARED := 81.0
 const SLOPE := 0.085
 const SEGMENT_LENGTH := 12.0
+const GLACIER_EXIT_REACH := 6.0
+const GLACIER_EXIT_PREVIEW_REACH := 9.0
+const GLACIER_EXIT_WARNING_SECONDS := 0.80
+const FORGE_PISTON_EXIT_REACH := 12.0
+const FORGE_PISTON_EXIT_WARNING_SECONDS := 0.90
+const PASSING_TRAFFIC_CLEARANCE := Racer.RADIUS*2.0+0.16
+const WOODWORKS_RETURN_DEPTH := 8.0
+const WOODWORKS_RETURN_WARNING_SECONDS := 0.90
 const SEGMENTS := 18
+const FINAL_OBSTACLE_SECTION := SEGMENTS-4
+const FINAL_OBSTACLE_Z := 8.0-FINAL_OBSTACLE_SECTION*SEGMENT_LENGTH
 const FINISH_Z := -185.0
+const PLANK_COUNT := 10
+const PLANK_SPACING := 1.34
+const FINISH_HALF_WIDTH := ((PLANK_COUNT-1)*PLANK_SPACING+TrackSurface.PLANK.x)*0.5
+const FINISH_AIR_CLEARANCE := 8.0
+const CHECKPOINT_Z := [-46.0,-106.0,-166.0]
 const RACE_TIMEOUT := 155.0
 const TRACK_NAMES := ["WOODWORKS","SWITCHBACK","GAUNTLET"]
+const SHOWROOM_ROOF_HEIGHT := 14.0
+const SHOWROOM_ROOF_THICKNESS := 0.8
+const BALANCED_SHADOW_RANGES := [36.0,47.0,33.0]
 const TRACK_SUBTITLES := [
     "Woodland workshop & flowing chicanes",
     "Glacier pass & moving gates",
@@ -63,14 +89,21 @@ const WOOD_COLORS := [
 ]
 
 var rng := RandomNumberGenerator.new()
+var jump_guides: Node3D
 var ui: CanvasLayer
 var audio: Node3D
 var camera: Camera3D
 var board: Node3D
 var moving_obstacles: Array[Node3D] = []
+var opening_obstacle_art: MeshInstance3D
+var final_obstacle_art: MeshInstance3D
+var first_obstacle_entry_z := INF
+var final_straight_z := 0.0
 var racers: Array[RigidBody3D] = []
 var player: RigidBody3D
 var racer_finish_order: Array[String] = []
+var finish_crossings: Array[RigidBody3D] = []
+var finish_step_end := -INF
 var render_materials := {}
 var race_state := "MENU"
 var race_time := 0.0
@@ -91,19 +124,28 @@ var slipstream: RefCounted
 var draft_cue_cooldown := 0.0
 var performance_budget: RefCounted
 var camera_lookahead := Vector3.ZERO
+var camera_previous_racer_z := NAN
 var feedback_cooldown := 0.0
 var obstacle_notice := 0.0
 var last_count := -1
 var last_checkpoint := -1
 var checkpoint_splits: Array[float] = []
+var race_start_z := 0.0
+var practice_sector := -1
+var practice_passage := 0
+var practice_previous_time := NAN
+var practice_previous_passages := PackedFloat64Array()
+var practice_timing := PracticeTiming.new()
 var course_flash := 0.0
 var trail: CPUParticles3D
 var skins: Node
 var monetization: Node
 var starting_camera_target := Vector3(0, 0, 0)
-var player_marker: Label3D
 var contact_shadows: Node3D
+var rival_render: Node3D
 var workshop_lamps: Array[OmniLight3D] = []
+var showroom_roof: MeshInstance3D
+var secondary_showroom_art: Array[MeshInstance3D] = []
 var lamp_refresh := 0.0
 var kinetic_time := 0.0
 var obstacle_finish: Node3D
@@ -114,10 +156,13 @@ var course_sculptures: Node3D
 var race_director: Node3D
 var shortcut_route: Node3D
 var track_surface: Node3D
+var start_gate: Node3D
+var finish_origin := Vector3.ZERO
 var track_physics_material: PhysicsMaterial
 var primary_light: DirectionalLight3D
 var world_environment: Environment
 var graphics_quality := 1
+var marble_detail_refresh := 0.0
 var graphics_setting := 1 # 0 economy, 1 balanced, 2 ultra, 3 auto
 var auto_fps_seconds := 0.0
 var auto_fps_accum := 0.0
@@ -131,12 +176,19 @@ var selected_track := 0
 var race_variation := 0
 var built_variation := -1
 var hazard_beacons: Array[Dictionary] = []
+var glacier_first_shutter_z := NAN
+var glacier_exit_obstacles: Array[Dictionary] = []
+var forge_piston_exit_obstacles: Array[Dictionary] = []
+var forge_first_piston_z := NAN
+var woodworks_return_obstacles: Array[Dictionary] = []
+var evasion_probe := SphereShape3D.new()
 var result_saved := false
 var last_result: Dictionary = {}
 const QUALITY_NAMES := ["ECONOMY","BALANCED","ULTRA","AUTO"]
 
 func _ready() -> void:
     rng.seed = 424242
+    evasion_probe.radius = Racer.RADIUS
     career = Career.new()
     career.load_save()
     skins = TemporarySkins.new()
@@ -168,6 +220,9 @@ func _ready() -> void:
     camera.near = 0.16
     camera.far = 140.0
     add_child(camera)
+    rival_render = RivalRenderBatch.new()
+    rival_render.name = "InstancedRivalGlass"
+    add_child(rival_render)
     audio = Audio.new()
     audio.name = "RaceAudio"
     add_child(audio)
@@ -308,9 +363,21 @@ func toggle_fps_overlay() -> bool:
     return show_fps
 
 func _apply_graphics_quality() -> void:
+    var balanced := graphics_quality == 1
     if is_instance_valid(primary_light):
         primary_light.shadow_enabled = graphics_quality > 0
-        primary_light.directional_shadow_max_distance = 72.0 if graphics_quality == 2 else 47.0
+        if balanced:
+            primary_light.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
+            primary_light.directional_shadow_max_distance = BALANCED_SHADOW_RANGES[selected_track]
+        else:
+            primary_light.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
+            primary_light.directional_shadow_max_distance = 72.0 if graphics_quality == 2 else 47.0
+        primary_light.directional_shadow_split_1 = 0.10
+    # The room's walls and overhead beam still shade the course.
+    var secondary_shadows := GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if (
+        balanced and selected_track != 1) else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+    for art in secondary_showroom_art:
+        art.cast_shadow = secondary_shadows
     if is_instance_valid(camera):
         camera.far = [85.0,115.0,155.0][graphics_quality]
     if world_environment != null:
@@ -367,6 +434,7 @@ func _apply_graphics_quality() -> void:
     for marble in racers:
         if is_instance_valid(marble):
             marble.set_render_quality(graphics_quality)
+    rival_render.set_quality(graphics_quality)
 
 func set_track(index: int) -> bool:
     if index < 0 or index >= TRACK_NAMES.size() or not career.is_unlocked(index):
@@ -400,20 +468,496 @@ func upcoming_hazard_distance(at_z: float) -> float:
             result = float(event["distance"])
     return result
 
-func upcoming_hazard(at_z: float) -> Dictionary:
-    # Cached tiny index; UI polls at 9 Hz. Only genuine physical rail gates.
+func upcoming_hazard(at_z: float, downstream_limit := INF) -> Dictionary:
+    # An exterior bridge bypasses main-track hazards upstream of its merge.
+
     var nearest := 25.0
     var notice: Dictionary = {}
     for hazard in hazard_beacons:
-        var distance: float = at_z - float(hazard["z"])
-        if distance >= -1.0 and distance < nearest:
+        var hazard_z := float(hazard["z"])
+        var distance := at_z-hazard_z
+        if hazard_z <= downstream_limit and distance >= -1.0 and distance < nearest:
             nearest = distance
-            notice = {"side":hazard["side"],"distance":maxi(0,int(round(distance)))}
+            notice = {"side":hazard["side"],"distance":maxi(0,int(round(distance))),
+                "z":hazard["z"], "final":hazard.get("final",false)}
     if is_instance_valid(race_director):
-        var event: Dictionary = race_director.event_ahead(at_z)
+        var event: Dictionary = race_director.event_ahead(at_z,downstream_limit)
         if not event.is_empty() and float(event["distance"]) < nearest:
             notice = event
     return notice
+
+func pack_hazard_ahead(at: Vector3, velocity: Vector3) -> Vector3:
+    var forward := -velocity.z
+    if forward < 6.0 or not at.is_finite() or not velocity.is_finite():
+        return Vector3.INF
+    var bridge: bool = shortcut_route.on_separate_deck(at) or (
+        at.z >= ShortcutRoute.EXIT_Z and airtime.bridge_grounded)
+    var limit := ShortcutRoute.EXIT_Z if bridge else INF
+    var nearest := clampf(forward*1.25,9.0,25.0)
+    var target := Vector3.INF
+    var gate: Dictionary = race_director.event_ahead(at.z,limit,nearest)
+    if not gate.is_empty():
+        var index: int = gate["index"]
+        var distance: float = at.z-float(gate["z"])
+        var threatened: bool
+        if selected_track != 0 and index == 0:
+            threatened = is_finite(race_director.first_gate_contact_eta(at,velocity))
+        elif selected_track == 0 and index == RaceDirector.WOODWORKS_RETURN_ARM:
+            threatened = not bridge and (at.z <= ShortcutRoute.EXIT_Z or shortcut_route.merge_traffic_lane(at) >= 0) and is_finite(
+                race_director.woodworks_arm_contact_eta(distance/forward,forward,at.x,velocity.x))
+        else:
+            threatened = race_director.threatens_line(index,race_director.clock,distance/forward,at.x,velocity.x)
+        if threatened:
+            nearest = distance
+            target = race_director.obstacles[index].global_position
+            target.y = maxf(target.y,height_at(target.z)+0.28)
+    for hazard in hazard_beacons:
+        var z: float = hazard["z"]
+        var distance := at.z-z
+        if z > limit or distance < 1.2 or distance >= nearest:
+            continue
+        var body: StaticBody3D = hazard["body"]
+        var center := body.global_position
+        var approach_x := RaceFeedback.projected_lane_x(at.x,velocity.x,distance/forward)
+        if absf(approach_x-center.x) > float(hazard["half_width"])+Racer.RADIUS:
+            continue
+        nearest = distance
+        target = center
+    return target
+
+func woodworks_opening_cleared(z: float) -> bool:
+    return selected_track == 0 and is_instance_valid(opening_obstacle_art) and z < opening_obstacle_art.clear_z
+
+func forge_merge_threat(at: Vector3, velocity: Vector3, bridge_merge: bool) -> Dictionary:
+    # Preview the hazards around the Forge join using the same clocks and
+    # entry times as the HUD. The bridge bypasses the main-track vent.
+    var speed := -velocity.z
+    if selected_track != 2 or not at.is_finite() or not velocity.is_finite() or speed < 6.0 or (
+            at.z > ShortcutRoute.MERGE_TRAFFIC_NEAR):
+        return {}
+    var gate := RaceDirector.FORGE_EXIT_GATE
+    var gate_z: float = race_director.event_z(gate)
+    if at.z <= gate_z or (not bridge_merge and absf(at.y-height_at(at.z)-Racer.RADIUS) > 0.85):
+        return {}
+    var gate_eta := (at.z-gate_z)/speed
+    var piston_eta: float = race_director.forge_piston_contact_eta(
+        gate,gate_eta,speed,NAN if bridge_merge else at.x,velocity.x)
+    if not bridge_merge:
+        var vent: Dictionary = course_mechanics.upcoming_lane(at,velocity,INF)
+        var vent_eta := float(vent.get("contact_eta",INF))
+        if vent_eta <= CourseMechanics.VENT_WARNING_SECONDS and vent_eta < piston_eta:
+            var point: Vector3 = course_mechanics.zones[int(vent["index"])].global_position
+            return {"position":point+Vector3.UP*0.35,"kind":"VENT"}
+    if piston_eta <= RaceDirector.PISTON_WARNING_SECONDS:
+        var point: Vector3 = race_director.position_at(gate,race_director.clock+piston_eta)
+        point.y = maxf(point.y,height_at(gate_z)+0.35)
+        return {"position":point,"kind":"PISTON"}
+    return {}
+
+func glacier_shutter_exit_active(z: float) -> bool:
+    return selected_track == 1 and z >= glacier_first_shutter_z-GLACIER_EXIT_REACH and (
+        z <= glacier_first_shutter_z+GLACIER_EXIT_PREVIEW_REACH)
+
+func glacier_exit_threat(at: Vector3, velocity: Vector3) -> Dictionary:
+    var speed := -velocity.z
+    if not at.is_finite() or not velocity.is_finite() or speed < 5.0 or (
+            not glacier_shutter_exit_active(at.z) or (
+                absf(at.y-height_at(at.z)-Racer.RADIUS) > 0.55 or airtime.airborne)):
+        return {}
+    return _first_exit_contact(at,velocity,glacier_exit_obstacles,0.0,GLACIER_EXIT_WARNING_SECONDS)
+
+func forge_piston_exit_active(z: float) -> bool:
+    return selected_track == 2 and z <= forge_first_piston_z-RaceDirector.BODY_DEPTH*0.5-Racer.RADIUS and (
+        z >= maxf(forge_first_piston_z-FORGE_PISTON_EXIT_REACH,ShortcutRoute.ENTRY_Z+0.5))
+
+func forge_piston_exit_threat(at: Vector3, velocity: Vector3) -> Dictionary:
+    if not at.is_finite() or not velocity.is_finite() or -velocity.z < 5.0 or (
+            not forge_piston_exit_active(at.z) or airtime.airborne or (
+                absf(at.y-height_at(at.z)-Racer.RADIUS) > 0.55 or absf(at.x-track_center_at(at.z)) > 6.3)):
+        return {}
+    var runway := (at.z-ShortcutRoute.ENTRY_Z-0.25)/-velocity.z
+    var horizon := minf(runway,FORGE_PISTON_EXIT_WARNING_SECONDS)
+    var contact := _first_exit_contact(at,velocity,forge_piston_exit_obstacles,0.0,horizon)
+    if not contact.is_empty():
+        contact["blocking"] = true
+        return contact
+    # Preview the next nearby row when the current line already misses
+    # its blockers. The lane solver still checks the whole approach.
+    var next_row: Dictionary = {}
+    var nearest := -velocity.z*horizon
+    for obstacle in forge_piston_exit_obstacles:
+        var point: Vector3 = obstacle["position"]
+        var extent: Vector2 = obstacle["half_size"]
+        var entry := point.z+extent.y+Racer.RADIUS
+        var distance := at.z-entry
+        if obstacle["moving"] or distance < 3.0 or distance >= nearest or (
+                absf(at.x-point.x) > extent.x+2.5):
+            continue
+        nearest = distance
+        next_row = {"position":point,"label":obstacle["label"],"entry_z":entry,
+            "last_z":point.z-extent.y-Racer.RADIUS,"blocking":false}
+    return next_row
+
+func woodworks_return_active(z: float) -> bool:
+    return selected_track == 0 and z <= ShortcutRoute.EXIT_Z+9.0 and (
+        z >= ShortcutRoute.EXIT_Z-WOODWORKS_RETURN_DEPTH-2.0)
+
+func woodworks_return_threat(at: Vector3, velocity: Vector3) -> Dictionary:
+    var speed := -velocity.z
+    if not at.is_finite() or not velocity.is_finite() or speed < 6.0 or (
+            not woodworks_return_active(at.z) or airtime.airborne or not is_instance_valid(shortcut_route)):
+        return {}
+    var bridge: bool = at.z > ShortcutRoute.EXIT_Z and shortcut_route.merge_traffic_lane(at) < 0
+    var delay := 0.0
+    if bridge:
+        delay = (at.z-ShortcutRoute.EXIT_Z)/speed
+        var landing_x := RaceFeedback.projected_lane_x(at.x,velocity.x,delay)
+        if delay >= WOODWORKS_RETURN_WARNING_SECONDS or (
+                absf(landing_x-track_center_at(ShortcutRoute.EXIT_Z)) > 6.3):
+            return {}
+    elif absf(at.y-height_at(at.z)-Racer.RADIUS) > 0.55 or (
+            absf(at.x-track_center_at(at.z)) > 6.3):
+        return {}
+    return _first_exit_contact(at,velocity,woodworks_return_obstacles,delay,WOODWORKS_RETURN_WARNING_SECONDS)
+
+func _first_exit_contact(at: Vector3, velocity: Vector3, obstacles: Array[Dictionary],
+        delay: float, horizon: float) -> Dictionary:
+    var speed := -velocity.z
+    # Preserve the observed drift until the same short limit used by the
+    # other previews. An exterior approach starts at the plane of the join.
+    var split := minf(horizon,maxf(delay,0.40))
+    var origin := Vector2(RaceFeedback.projected_lane_x(at.x,velocity.x,delay),at.z-speed*delay)
+    var pivot := Vector2(RaceFeedback.projected_lane_x(at.x,velocity.x,split),at.z-speed*split)
+    var end := Vector2(pivot.x,at.z-speed*horizon)
+    var soonest := INF
+    var target: Dictionary = {}
+    for obstacle in obstacles:
+        var point: Vector3 = obstacle["position"]
+        var center := Vector2(point.x,point.z)
+        var half_size: Vector2 = obstacle["half_size"]
+        var reach_z := half_size.y+Racer.RADIUS
+        if center.y+reach_z < end.y or center.y-reach_z > origin.y:
+            continue
+        var hit := _predicted_obstacle_contact(obstacle,origin-center,pivot-center,delay,split) if split > delay else INF
+        var eta := delay+hit*(split-delay) if is_finite(hit) else INF
+        if hit == INF and horizon > split:
+            hit = _predicted_obstacle_contact(obstacle,pivot-center,end-center,split,horizon)
+            eta = split+hit*(horizon-split)
+        if eta < soonest:
+            soonest = eta
+            target = obstacle
+    if target.is_empty():
+        return {}
+    var point: Vector3 = target["position"]
+    var half_size: Vector2 = target["half_size"]
+    return {
+        "position":target["position"],"label":target["label"],
+        "entry_z":at.z-soonest*speed,"last_z":point.z-half_size.y-Racer.RADIUS,
+        "moving":target.get("moving",false)
+    }
+
+func _predicted_obstacle_contact(obstacle: Dictionary, from: Vector2, to: Vector2,
+        first: float, last: float) -> float:
+    var spinner := obstacle.get("spinner") as AnimatableBody3D
+    var extent: Vector2 = obstacle["half_size"]
+    var envelope := _exit_obstacle_contact(from,to,extent,obstacle["peg"])
+    if not is_instance_valid(spinner) or net.is_client() or not is_finite(envelope):
+        return envelope
+    # The local spinner advances at a constant angular speed. Rotate each
+    # chord into the arm's frame and cover its movement between samples.
+    var rate: float = spinner.get_meta("spin_speed")
+    var intervals := maxi(1,ceili((last-first)/0.08))
+    var padding := extent.x*absf(rate)*(last-first)/(2.0*intervals)
+    for part in range(intervals):
+        var a := float(part)/intervals
+        var b := float(part+1)/intervals
+        var phase := spinner.rotation.y+rate*lerpf(first,last,(a+b)*0.5)
+        var hit := INF
+        for child in spinner.get_children():
+            if child is CollisionShape3D and child.shape is BoxShape3D:
+                var angle: float = phase+child.rotation.y
+                var size: Vector3 = child.shape.size
+                var half_size := Vector2(size.x,size.z)*0.5+Vector2.ONE*padding
+                hit = minf(hit,_exit_obstacle_contact(
+                    from.lerp(to,a).rotated(angle),from.lerp(to,b).rotated(angle),half_size,false))
+        if is_finite(hit):
+            return lerpf(a,b,hit)
+    return INF
+
+static func _exit_obstacle_contact(from: Vector2, to: Vector2, half_size: Vector2, peg: bool) -> float:
+    if peg:
+        return _glacier_circle_entry(from,to,half_size.x+Racer.RADIUS)
+    # A marble expands the blocker by its radius, with round corners.
+    var entry := minf(
+        _glacier_rect_entry(from,to,half_size+Vector2(Racer.RADIUS,0)),
+        _glacier_rect_entry(from,to,half_size+Vector2(0,Racer.RADIUS)))
+    for side_x in [-1.0,1.0]:
+        for side_z in [-1.0,1.0]:
+            var corner := Vector2(half_size.x*side_x,half_size.y*side_z)
+            entry = minf(entry,_glacier_circle_entry(from-corner,to-corner,Racer.RADIUS))
+    return entry
+
+static func _glacier_circle_entry(from: Vector2, to: Vector2, radius: float) -> float:
+    if from.length_squared() <= radius*radius:
+        return 0.0
+    var hit := Geometry2D.segment_intersects_circle(from,to,Vector2.ZERO,radius)
+    return hit if hit >= 0.0 else INF
+
+static func _glacier_rect_entry(from: Vector2, to: Vector2, reach: Vector2) -> float:
+    var entry := 0.0
+    var exit := 1.0
+    var motion := to-from
+    for axis in range(2):
+        if is_zero_approx(motion[axis]):
+            if absf(from[axis]) > reach[axis]:
+                return INF
+            continue
+        var a := (-reach[axis]-from[axis])/motion[axis]
+        var b := (reach[axis]-from[axis])/motion[axis]
+        entry = maxf(entry,minf(a,b))
+        exit = minf(exit,maxf(a,b))
+    return entry if entry <= exit else INF
+
+func evasion_lane(at: Vector3, velocity: Vector3, hazard: Vector3) -> Vector3:
+    var distance := at.z-hazard.z
+    var speed := -velocity.z
+    if not hazard.is_finite() or not at.is_finite() or not velocity.is_finite() or (
+            speed < 13.0 or distance < 5.0 or distance > speed*1.35 or
+            absf(at.x-track_center_at(at.z)) > 6.1 or
+            absf(at.y-height_at(at.z)-Racer.RADIUS) > 0.28 or
+            shortcut_route.on_separate_deck(at) or airtime.bridge_grounded):
+        return Vector3.INF
+    var entry_z := hazard.z+2.6
+    var end_z := hazard.z-8.0
+    var eta := distance/speed
+    var return_arm: bool = selected_track == 0 and absf(hazard.z-race_director.event_z(RaceDirector.WOODWORKS_RETURN_ARM)) < 0.08
+    var center := track_center_at(hazard.z)
+    var drift := RaceFeedback.projected_lane_x(at.x,velocity.x,eta)
+    const REACTION_SECONDS := 0.10
+    var duration := (distance-RaceDirector.BODY_DEPTH*0.5-Racer.RADIUS)/speed-REACTION_SECONDS
+    var anticipated_x := at.x+velocity.x*REACTION_SECONDS
+    var query := PhysicsShapeQueryParameters3D.new()
+    query.shape = evasion_probe
+    query.collision_mask = 1
+    var ignored: Array[RID] = airtime.ignored_rids.duplicate()
+    for gate in race_director.obstacles:
+        ignored.append(gate.get_rid())
+    query.exclude = ignored
+    var best := Vector3.INF
+    var cost := INF
+    for offset in [0.0,-1.55,1.55,-2.85,2.85]:
+        var x: float = center+offset
+        var change := absf(x-drift)
+        if change >= cost or change > 0.5+5.3*eta:
+            continue
+        var displacement := x-anticipated_x
+        if return_arm:
+            var max_accel := Racer.human_steering_force(1.0,velocity.z,velocity.x,0)*0.72
+            if duration <= 0.0 or maxf(absf(6.0*displacement-4.0*velocity.x*duration),
+                    absf(6.0*displacement-2.0*velocity.x*duration)) > max_accel*duration*duration:
+                continue
+        var blocked := false
+        for index in range(race_director.obstacles.size()):
+            var z: float = race_director.event_z(index)
+            if z >= at.z or z < end_z:
+                continue
+            var arrival := (at.z-z)/speed
+            var lane_x := lerpf(at.x,x,minf(1.0,arrival/eta))+(
+                track_center_at(z)-center if z < hazard.z else 0.0)
+            if return_arm and index == RaceDirector.WOODWORKS_RETURN_ARM:
+                if is_finite(race_director.woodworks_arm_contact_eta(arrival,speed,x,0.0)):
+                    blocked = true
+                    break
+                continue
+            # Check the front, center and rear of the marble crossing.
+            for phase_offset in [-0.06,0.0,0.06]:
+                if race_director.threatens_line(index,race_director.clock,
+                        maxf(0.0,arrival+phase_offset),lane_x,0.0):
+                    blocked = true
+                    break
+            if blocked:
+                break
+        if blocked:
+            continue
+        var middle := Vector3(x,height_at(hazard.z)+0.53,hazard.z)
+        var last := Vector3(track_center_at(end_z)+offset,height_at(end_z)+0.53,end_z)
+        # Test the lane at the obstacle and through the next encounter.
+        # The lateral-reach limit above controls how far ahead it is offered.
+        var start := Vector3(track_center_at(entry_z)+offset,height_at(entry_z)+0.53,entry_z)
+        if return_arm:
+            var previous := Vector3(at.x,height_at(at.z)+0.53,at.z)
+            for step in range(5):
+                var u := float(step)*0.25
+                var z := at.z-speed*(REACTION_SECONDS+u*duration)
+                var path_x := anticipated_x+displacement*u*u*(3.0-2.0*u)+velocity.x*duration*u*(1.0-u)*(1.0-u)
+                var sample := Vector3(path_x,height_at(z)+0.53,z)
+                if not _evasion_span_clear(query,previous,sample):
+                    blocked = true
+                    break
+                previous = sample
+            if blocked:
+                continue
+            start = previous
+        if not _evasion_span_clear(query,start,middle) or not _evasion_span_clear(query,middle,last):
+            continue
+        cost = change
+        best = middle
+    return best
+
+func _evasion_span_clear(query: PhysicsShapeQueryParameters3D, start: Vector3, end: Vector3) -> bool:
+    var space := get_world_3d().direct_space_state
+    query.transform = Transform3D(Basis.IDENTITY,start)
+    query.motion = Vector3.ZERO
+    if not space.intersect_shape(query,1).is_empty():
+        return false
+    query.motion = end-start
+    var travel := space.cast_motion(query)
+    return travel.size() >= 2 and travel[0] >= 0.999
+
+func glacier_exit_lane(at: Vector3, velocity: Vector3, threat: Dictionary) -> Vector3:
+    var speed := -velocity.z
+    if threat.is_empty() or speed < 5.0 or not velocity.is_finite() or not at.is_finite() or (
+            not glacier_shutter_exit_active(at.z) or airtime.airborne or airtime.ice_touching or (
+            shortcut_route.on_separate_deck(at) or airtime.bridge_grounded or (
+                absf(at.y-height_at(at.z)-Racer.RADIUS) > 0.28))):
+        return Vector3.INF
+    return _rolling_exit_lane(at,velocity,threat,true)
+
+func woodworks_return_lane(at: Vector3, velocity: Vector3, threat: Dictionary) -> Vector3:
+    if threat.is_empty() or at.z > ShortcutRoute.EXIT_Z or airtime.bridge_grounded or (
+            absf(at.y-height_at(at.z)-Racer.RADIUS) > 0.35):
+        return Vector3.INF
+    return _rolling_exit_lane(at,velocity,threat,false)
+
+func forge_piston_exit_lane(at: Vector3, velocity: Vector3, threat: Dictionary,
+        rivals: Array[RigidBody3D]) -> Vector3:
+    if threat.is_empty() or not at.is_finite() or not velocity.is_finite() or -velocity.z < 5.0 or (
+            not forge_piston_exit_active(at.z) or airtime.airborne) or (
+            absf(at.y-height_at(at.z)-Racer.RADIUS) > 0.35):
+        return Vector3.INF
+    return _rolling_exit_lane(at,velocity,threat,false,rivals)
+
+func _rolling_exit_lane(at: Vector3, velocity: Vector3, threat: Dictionary, watch_shutter: bool,
+        rivals: Array[RigidBody3D] = []) -> Vector3:
+    var speed := -velocity.z
+    var blocker: Vector3 = threat["position"]
+    var forge_exit := selected_track == 2
+    var nose_z: float = 2.0*blocker.z-float(threat["last_z"])+0.04
+    if forge_exit and threat.get("moving",false):
+        nose_z = float(threat["entry_z"])+0.25
+    var mark_z := minf(blocker.z,nose_z-0.55) if forge_exit else blocker.z
+    var steering_time := (at.z-nose_z)/speed
+    if steering_time < 0.22 or at.z-mark_z < 2.6:
+        return Vector3.INF
+    var shutter := RaceDirector.GLACIER_FIRST_SHUTTER
+    var shutter_eta := (at.z-glacier_first_shutter_z)/speed
+    var half_window := (RaceDirector.BODY_DEPTH*0.5+Racer.RADIUS)/speed
+    var shutter_ahead := watch_shutter and shutter_eta+half_window >= 0.0
+    if shutter_ahead and race_director.glacier_shutter_threatens_crossing(
+            shutter,shutter_eta,speed,at.x,velocity.x):
+        return Vector3.INF
+
+    # Leave one forecast interval for the player to see the cue, then require
+    # room to settle the lateral movement before the blocker’s front face.
+    const REACTION_SECONDS := 0.10
+    var duration := steering_time-REACTION_SECONDS
+    var start_x := at.x+velocity.x*REACTION_SECONDS
+    # Racer applies the steering force scaled by mass. Leave headroom for
+    # rolling contact and damping before treating a lane as reachable.
+    var max_accel := Racer.human_steering_force(1.0,velocity.z,velocity.x,selected_track)*0.72
+    var center := track_center_at(mark_z)
+    var query := PhysicsShapeQueryParameters3D.new()
+    query.shape = evasion_probe
+    query.collision_mask = 1
+    query.margin = 0.04
+    var ignored: Array[RID] = airtime.ignored_rids.duplicate()
+    if watch_shutter:
+        ignored.append(race_director.obstacles[shutter].get_rid())
+    if forge_exit and not net.is_client():
+        for obstacle in forge_piston_exit_obstacles:
+            var spinner := obstacle.get("spinner") as AnimatableBody3D
+            if is_instance_valid(spinner):
+                ignored.append(spinner.get_rid())
+    query.exclude = ignored
+    var rival_positions := PackedVector2Array()
+    var rival_velocities := PackedVector2Array()
+    for rival in rivals:
+        var motion: Vector3 = net.replica_velocity(rival) if net.is_client() else (
+            Vector3.ZERO if rival.freeze else rival.linear_velocity)
+        if not motion.is_finite():
+            return Vector3.INF
+        rival_positions.append(Vector2(rival.global_position.x,rival.global_position.z))
+        rival_velocities.append(Vector2(motion.x,motion.z))
+    var exit_z := blocker.z-2.4 if watch_shutter else float(threat["last_z"])-0.55
+    if forge_exit and exit_z < ShortcutRoute.ENTRY_Z+0.25:
+        return Vector3.INF
+    var best := Vector3.INF
+    var best_cost := INF
+    var offsets := [0.0,-0.55,0.55,-1.10,1.10,-1.65,1.65,-2.20,2.20,-2.75,2.75]
+    if not watch_shutter:
+        offsets.append_array([-3.30,3.30,-3.85,3.85,-4.40,4.40])
+    if forge_exit:
+        offsets.push_front(clampf(start_x-center,-5.1,5.1))
+    for offset in offsets:
+        var lane_x: float = center+offset
+        var cost := absf(lane_x-start_x)
+        # Cubic steering path with the measured approach velocity and zero
+        # sideways speed through the gap. Acceleration peaks at an endpoint.
+        var displacement := lane_x-start_x
+        var start_accel := (6.0*displacement-4.0*velocity.x*duration)/(duration*duration)
+        var end_accel := (-6.0*displacement+2.0*velocity.x*duration)/(duration*duration)
+        if cost >= best_cost or maxf(absf(start_accel),absf(end_accel)) > max_accel:
+            continue
+        var path_x := func(t: float) -> float:
+            if t <= REACTION_SECONDS:
+                return at.x+velocity.x*t
+            var u := minf(1.0,(t-REACTION_SECONDS)/duration)
+            return start_x+displacement*u*u*(3.0-2.0*u)+velocity.x*duration*u*(1.0-u)*(1.0-u)
+        if shutter_ahead:
+            var first := maxf(0.0,shutter_eta-half_window)
+            var last := shutter_eta+half_window
+            var lanes := Vector2(INF,-INF)
+            for fraction in [0.0,0.25,0.5,0.75,1.0]:
+                var t := lerpf(first,last,fraction)
+                var gap: float = path_x.call(t)-race_director.position_at(shutter,race_director.clock+t).x
+                lanes = Vector2(minf(lanes.x,gap),maxf(lanes.y,gap))
+            if lanes.x < RaceDirector.LANE_THREAT_RADIUS and lanes.y > -RaceDirector.LANE_THREAT_RADIUS:
+                continue
+        var previous := Vector3(at.x,height_at(at.z)+0.53,at.z)
+        var previous_time := 0.0
+        var clear := true
+        for part in range(1,5):
+            var t := REACTION_SECONDS+duration*float(part-1)/3.0
+            var z := at.z-speed*t
+            var sample := Vector3(path_x.call(t),height_at(z)+0.53,z)
+            if not _evasion_span_clear(query,previous,sample) or (forge_exit and not (
+                    _forge_exit_span_clear(previous,sample,previous_time,t,rival_positions,rival_velocities))):
+                clear = false
+                break
+            previous = sample
+            previous_time = t
+        # Clear the blocker’s entire depth and leave space for the next turn.
+        var end := Vector3(lane_x,height_at(exit_z)+0.53,exit_z)
+        if clear and _evasion_span_clear(query,previous,end) and (not forge_exit or (
+                _forge_exit_span_clear(previous,end,previous_time,(at.z-exit_z)/speed,rival_positions,rival_velocities))):
+            best = Vector3(lane_x,height_at(mark_z)+0.53,mark_z)
+            best_cost = cost
+    return best
+
+func _forge_exit_span_clear(start: Vector3, end: Vector3, first: float, last: float,
+        rivals: PackedVector2Array, velocities: PackedVector2Array) -> bool:
+    var from := Vector2(start.x,start.z)
+    var to := Vector2(end.x,end.z)
+    if not RaceFeedback.traffic_span_clear(from,to,first,last,rivals,velocities,PASSING_TRAFFIC_CLEARANCE):
+        return false
+    for obstacle in forge_piston_exit_obstacles:
+        if not obstacle["moving"]:
+            continue
+        var center: Vector3 = obstacle["position"]
+        var local := Vector2(center.x,center.z)
+        if is_finite(_predicted_obstacle_contact(obstacle,from-local,to-local,first,last)):
+            return false
+    return true
 
 func current_timeout() -> float:
     return RACE_TIMEOUT + selected_track * 24.0
@@ -431,10 +975,11 @@ func track_center_at(z: float) -> float:
     # Identical centerline across local clients, bots and authoritative server.
     return TrackPath.center_at(z,selected_track)
 
-func recovery_center_at(location: Vector3) -> float:
+func recovery_center_at(location: Vector3, main_center := NAN) -> float:
+    var center := track_center_at(location.z) if is_nan(main_center) else main_center
     if is_instance_valid(shortcut_route):
-        return shortcut_route.recovery_center_at(location)
-    return track_center_at(location.z)
+        return shortcut_route.recovery_center_at(location,center)
+    return center
 
 func _mat(color: Color, roughness := 0.74, metalness := 0.0) -> StandardMaterial3D:
     var key = color.to_html() + "_" + str(roughness) + "_" + str(metalness)
@@ -498,12 +1043,14 @@ func _box(parent: Node3D, location: Vector3, dimensions: Vector3, material: Mate
     parent.add_child(holder)
     return holder
 
-func _cylinder(parent: Node3D, location: Vector3, radius: float, tall: float, color: Color) -> StaticBody3D:
+func _cylinder(parent: Node3D, location: Vector3, radius: float, tall: float, color: Color,
+        section: int) -> StaticBody3D:
     var body = StaticBody3D.new()
     body.name = "ToyPeg"
     body.position = location
     parent.add_child(body)
-    if is_instance_valid(obstacle_finish):
+    var batched_art := section == 1 or section == FINAL_OBSTACLE_SECTION
+    if not batched_art and is_instance_valid(obstacle_finish):
         obstacle_finish.register_post(body.global_position,radius,tall,color)
     var hitbox = CollisionShape3D.new()
     var cylinder = CylinderShape3D.new()
@@ -511,6 +1058,9 @@ func _cylinder(parent: Node3D, location: Vector3, radius: float, tall: float, co
     cylinder.height = tall
     hitbox.shape = cylinder
     body.add_child(hitbox)
+    _register_exit_obstacle(body,Vector2.ONE*radius,"PEG",true)
+    if batched_art:
+        return body
     var art = MeshInstance3D.new()
     var mesh = CylinderMesh.new()
     mesh.top_radius = radius
@@ -539,13 +1089,29 @@ func _make_course() -> void:
         remove_child(board)
         board.queue_free()
     hazard_beacons.clear()
+    glacier_exit_obstacles.clear()
+    forge_piston_exit_obstacles.clear()
+    woodworks_return_obstacles.clear()
     workshop_lamps.clear()
+    secondary_showroom_art.clear()
+    opening_obstacle_art = null
+    first_obstacle_entry_z = INF
     board = Node3D.new()
     board.name = "HandcraftedWoodenCourse"
     board.set_meta("track_index",selected_track)
     built_variation = race_variation
+    glacier_first_shutter_z = RaceDirector.event_z_for(1,built_variation,RaceDirector.GLACIER_FIRST_SHUTTER) if (
+        selected_track == 1) else NAN
+    forge_first_piston_z = RaceDirector.event_z_for(2,built_variation,0) if selected_track == 2 else NAN
+    board.set_meta("solo_course_clearance",_uses_solo_course_clearance(built_variation))
+    var last_bank: int = CourseSculptures.BANK_SECTIONS.back()
+    final_straight_z = CourseSculptures.bank_z(last_bank,built_variation)-(
+        CourseSculptures.BANK_HALF_LENGTH+Racer.RADIUS)
     add_child(board)
     moving_obstacles.clear()
+    # A freshly assembled course must not inherit the previous race's
+    # hammer phase. Finishing faster on another track changes no start phase.
+    kinetic_time = 0.0
     TrackUniverses.apply_atmosphere(world_environment,primary_light,selected_track)
     obstacle_finish = ObstacleFinish.new()
     obstacle_finish.name = "PremiumObstacleFinishes"
@@ -553,21 +1119,25 @@ func _make_course() -> void:
     track_surface = TrackSurface.new()
     track_surface.name = "InstancedTrackSurface"
     board.add_child(track_surface)
+    jump_guides = JumpGuides.new()
+    jump_guides.game = self
+    board.add_child(jump_guides)
     for section in range(SEGMENTS):
         var center_z = 8.0 - float(section) * SEGMENT_LENGTH
         var section_node = Node3D.new()
         section_node.name = "Course_%02d" % section
         section_node.position.x = track_center_at(center_z)
         board.add_child(section_node)
-        for lane in range(10):
-            var x := (float(lane) - 4.5) * 1.34
+        for lane in range(PLANK_COUNT):
+            var x := (float(lane) - (PLANK_COUNT-1)*0.5) * PLANK_SPACING
             var material_index := (lane + section * 3) % WOOD_COLORS.size()
             var shade: Color = _themed_wood(WOOD_COLORS[material_index])
             var plank_at := Vector3(x,height_at(center_z)-0.34,center_z)
             # Render-only planks share GPU draw calls by material. Each keeps
             # the exact original independent tilted BoxShape3D collider.
-            _box(section_node,plank_at,
-                Vector3(1.315,0.65,SEGMENT_LENGTH+0.08),_wood_mat(shade),true,true,false)
+            var floor_body := _box(section_node,plank_at,
+                TrackSurface.PLANK,_wood_mat(shade),true,true,false)
+            floor_body.set_meta(TrackSurface.ROAD_FLOOR,true)
             track_surface.register_plank(plank_at+section_node.position,material_index,track_grade_at(center_z))
             for j in range(2):
                 var z: float = center_z+(float(j)-0.5)*4.4
@@ -579,17 +1149,20 @@ func _make_course() -> void:
                     section_node.set_meta("shortcut_portal",side)
                     continue
                 var z: float = center_z+(rail_piece-1)*4.02
-                var color_idx := (section+rail_piece+(0 if side==1 else 3))%BARRIER_COLORS.size()
                 var pos := Vector3(side*6.84,height_at(z)+0.58,z)
-                _box(section_node,pos,Vector3(0.57,1.26,4.04),
-                    _lacquer(BARRIER_COLORS[color_idx]),true,true,false)
-                track_surface.register_rail(pos+section_node.position,color_idx,track_grade_at(z))
+                _box(section_node,pos,TrackSurface.RAIL,null,true,true,false)
+                track_surface.register_rail(pos+section_node.position,track_grade_at(z))
         if section in [3, 9, 14]:
             _terrain_ramp(section_node,center_z,section)
-        if section > 0 and section < SEGMENTS - 3:
+        if section > 0 and section <= FINAL_OBSTACLE_SECTION:
             # Edge-specific baffles eliminate the dominant strategy of riding
             # permanently against either rail. Passages remain physically open.
-            _edge_baffles(section_node,center_z,section)
+            var glacier_return := selected_track == 1 and section >= ShortcutRoute.EXIT_SECTION and (
+                section <= ShortcutRoute.EXIT_SECTION+2)
+            _edge_baffles(section_node,center_z,section,glacier_return)
+            if glacier_return:
+                _glacier_return_obstacles(section_node,center_z,section)
+                continue
             var layout := _obstacle_layout(section)
             if layout == 1:
                 _pegs(section_node, center_z, section)
@@ -597,6 +1170,17 @@ func _make_course() -> void:
                 _gate_with_posts(section_node, center_z, section)
             else:
                 _slalom(section_node, center_z, section)
+            if section == 1 or section == FINAL_OBSTACLE_SECTION:
+                var art := OpeningObstacles.new()
+                art.name = "OpeningObstacleArt" if section == 1 else "FinalObstacleArt"
+                # Paint the visible approach from the same collider geometry.
+                art.build(section_node,self,center_z,section,layout)
+                section_node.add_child(art)
+                if section == 1:
+                    opening_obstacle_art = art
+                    first_obstacle_entry_z = art.entry_z
+                else:
+                    final_obstacle_art = art
 
     _connect_winding_sections()
     # Real banked line options, plus collision-free landmark arches. The
@@ -611,17 +1195,17 @@ func _make_course() -> void:
     shortcut_route = ShortcutRoute.new()
     board.add_child(shortcut_route)
     shortcut_route.setup(self,selected_track)
+    for ramp in shortcut_route.launch_ramps:
+        var shape: BoxShape3D = ramp.get_child(0).shape
+        jump_guides.add_ramp(ramp,shape.size,true)
     obstacle_finish.rebuild()
     var woods: Array = []
     for color in WOOD_COLORS:
         woods.append(_wood_mat(_themed_wood(color)))
-    var barriers: Array = []
-    for color in BARRIER_COLORS:
-        barriers.append(_lacquer(color))
-    track_surface.finish(woods,barriers,_mat(Color("#82563d")))
-    _start_arch()
-    _finish_arch()
-    _checkpoint_arches()
+    track_surface.finish(woods,selected_track,_mat(Color("#82563d")))
+    _make_start_gate()
+    _make_finish_line()
+    _edge_checkpoint_markers()
     _decorations()
     _showroom()
     var universe := TrackUniverses.new()
@@ -644,7 +1228,7 @@ func _make_course() -> void:
     # Six post arts / twelve light rings render in just two GPU batches.
     arcade_bumpers = ArcadeBumpers.new()
     board.add_child(arcade_bumpers)
-    arcade_bumpers.setup(self,selected_track,built_variation)
+    arcade_bumpers.setup(selected_track,built_variation,board.get_meta("solo_course_clearance"))
     arcade_bumpers.set_quality(graphics_quality)
     var cosmetic = TrackFX.new()
     cosmetic.name = "PolishedToyDetails"
@@ -668,6 +1252,7 @@ func _connect_winding_sections() -> void:
         var seam := _box(board,Vector3(mid,height_at(seam_z)-0.34,seam_z),
             Vector3(13.2+absf(drift),0.66,2.8),_wood_mat(_themed_wood(WOOD_COLORS[section%WOOD_COLORS.size()])),true,true,false)
         seam.name = "ContinuousBendFloor_%02d" % section
+        seam.set_meta(TrackSurface.ROAD_FLOOR,true)
         for side in [-1.0,1.0]:
             var rail := _box(board,Vector3(mid+side*6.84,height_at(seam_z)+0.58,seam_z),
                 Vector3(0.57,1.26,sqrt(3.6*3.6+drift*drift)+0.28),
@@ -695,31 +1280,66 @@ func _themed_wood(base: Color) -> Color:
         return base.lerp(Color("#aa6353"),0.29)
     return base
 
+func _uses_solo_course_clearance(layout: int) -> bool:
+    return (selected_track == 2 or layout == (0 if selected_track == 1 else 2)) and (
+        net != null and not net.is_active())
+
 func _terrain_ramp(parent: Node3D, center_z: float, section: int) -> void:
     # Short, low physical crests alter suspension/rolling lines without
     # closing the entire lane or trapping the 40-marble pack.
-    if selected_track == 0 and section != 9:
+    if selected_track == 0 and section != ShortcutRoute.EXIT_SECTION:
         return
     var lane := -2.2 if (section+selected_track)%2 == 0 else 2.2
     var z := center_z+1.5
+    var size := Vector3(3.55,0.22,2.35)
+    if section == FINAL_OBSTACLE_SECTION and board.get_meta("solo_course_clearance"):
+        # The first Forge layout can trap a no-input marble against the
+        # initial final peg row when this crest overlaps its exit. Give
+        # every solo layout the same bank-separated physical release path.
+        # Online geometry remains identical to the deployed server.
+        # Give the crest its own stretch past the last bank, clear of the
+        # gate posts and the paddle's sweep.
+        z = CourseSculptures.bank_z(CourseSculptures.BANK_SECTIONS.back(),built_variation)-5.8
+        lane += track_center_at(z)-parent.position.x
+    if selected_track == 1 and section == ShortcutRoute.EXIT_SECTION:
+        # The raised crest belongs on the opposite shoulder. The main lane
+        # next to the bridge is the passing line for the two converging roads.
+        lane = 3.05
+        z = center_z+2.9
+        size = Vector3(1.75,0.22,2.35)
     var ramp := _box(parent,Vector3(lane,height_at(z)+0.12,z),
-        Vector3(3.55,0.22,2.35),_lacquer(TRACK_COLORS[selected_track].lightened(0.20)),true,true)
+        size,_lacquer(TRACK_COLORS[selected_track].lightened(0.20)),true,true)
     ramp.name = "RideableCrest_%02d" % section
     ramp.rotation.x += -0.09 if selected_track == 1 else -0.16
+    jump_guides.add_ramp(ramp,size)
 
-func _edge_baffles(parent: Node3D, center_z: float, section: int) -> void:
+func _edge_baffles(parent: Node3D, center_z: float, section: int, glacier_return: bool) -> void:
     # Two solid edge shutters per module, plus a staggered inboard obstacle
     # for advanced circuits. These are real collisions, not cosmetic warnings.
     for side in [-1.0, 1.0]:
         var z: float = center_z + (3.75 if side < 0.0 else -3.75)
         var material_color: Color = TRACK_COLORS[selected_track].darkened(0.13)
-        var size := Vector3(2.72,1.05,1.32)
-        var node := _box(parent,Vector3(side * 5.17,height_at(z)+0.49,z),
-            size,_lacquer(material_color),true,true)
+        # At Glacier's return, leave a shoulder for racers nudged sideways
+        # as both lines merge. Keep the baffle visible and collidable by the rail.
+        var woodworks_lip: bool = selected_track == 0 and section == ShortcutRoute.EXIT_SECTION and side > 0.0
+        var merge_side: bool = woodworks_lip or (glacier_return and section == ShortcutRoute.EXIT_SECTION+1 and side < 0.0)
+        var size := Vector3(0.94 if merge_side else 2.72,1.05,1.32)
+        var edge_offset := 6.04 if merge_side else 5.17
+        if selected_track == 2 and section == 1 and side > 0.0:
+            # Leave space on the inside of the downstream shoulder baffle
+            # for a pack exiting the opening pegs or staggered blocks.
+            size.x = 2.10
+            edge_offset = 5.33
+        var batched_art := section == 1 or section == FINAL_OBSTACLE_SECTION
+        var node := _box(parent,Vector3(side*edge_offset,height_at(z)+0.49,z),
+            size,_lacquer(material_color),true,true,not batched_art)
         node.name = "AntiEdgeBaffle_%02d_%s" % [section, "L" if side < 0.0 else "R"]
-        hazard_beacons.append({"z":z,"side":"LEFT" if side < 0.0 else "RIGHT"})
-        obstacle_finish.register_block(node.global_transform,size,material_color)
-    if selected_track >= 1 and section % 3 == 0:
+        hazard_beacons.append({"z":z,"side":"LEFT" if side < 0.0 else "RIGHT",
+            "final":section == FINAL_OBSTACLE_SECTION,"body":node,"half_width":size.x*0.5})
+        _register_exit_obstacle(node,Vector2(size.x,size.z)*0.5,"EDGE BLOCK")
+        if not batched_art:
+            obstacle_finish.register_block(node.global_transform,size,material_color)
+    if not glacier_return and selected_track >= 1 and section % 3 == 0:
         # This diagonal gate reaches further into the lane but leaves a
         # broad side opening. Alternates its side across modules.
         var side := -1.0 if (section/2 + race_variation)%2==0 else 1.0
@@ -730,7 +1350,34 @@ func _edge_baffles(parent: Node3D, center_z: float, section: int) -> void:
         var gate := _box(parent,Vector3(x,height_at(z)+0.37,z),
             wide,_lacquer(tint),true,true)
         gate.name = "Chicane_%02d" % section
+        if selected_track == 2:
+            _register_exit_obstacle(gate,Vector2(wide.x,wide.z)*0.5,"CHICANE")
         obstacle_finish.register_block(gate.global_transform,wide,tint)
+
+func _glacier_return_obstacles(parent: Node3D, center_z: float, section: int) -> void:
+    # Keep an inward chicane opposite the bridge and leave both evasive
+    # lines open around the timed shutter farther down the course.
+    if section == ShortcutRoute.EXIT_SECTION:
+        var tint: Color = TRACK_COLORS[selected_track].lightened(0.05)
+        var size := Vector3(2.66,0.82,1.25)
+        var block := _box(parent,Vector3(4.82,height_at(center_z)+0.37,center_z),
+            size,_lacquer(tint),true,true)
+        block.name = "Chicane_%02d" % section
+        obstacle_finish.register_block(block.global_transform,size,tint)
+        return
+    for flank in [-1.0,1.0]:
+        var x: float = flank*(4.95 if section == ShortcutRoute.EXIT_SECTION+1 else 4.65)
+        var z: float = center_z+flank*(1.45+float(built_variation)*0.75)
+        var tint: Color = BARRIER_COLORS[(section+built_variation+int(flank))%BARRIER_COLORS.size()]
+        if (section+built_variation+int(flank))%3 == 0:
+            var peg := _cylinder(parent,Vector3(x,height_at(z)+0.71,z),0.38,1.42,tint,section)
+            peg.name = "ToyPeg_GlacierShoulder_%02d_%s" % [section,"L" if flank < 0 else "R"]
+        else:
+            var size := Vector3(1.56,0.84,1.06)
+            var block := _box(parent,Vector3(x,height_at(z)+0.40,z),
+                size,_lacquer(tint),true,true)
+            block.name = "GlacierShoulderBlock_%02d_%s" % [section,"L" if flank < 0 else "R"]
+            obstacle_finish.register_block(block.global_transform,size,tint)
 
 func _pegs(parent: Node3D, center_z: float, n: int) -> void:
     # Checkerboard of rounded vertical posts, with traversable gaps.
@@ -743,22 +1390,34 @@ func _pegs(parent: Node3D, center_z: float, n: int) -> void:
             var shift := sin(float(n*9+row*3+race_variation*7))*0.23
             shift += (float(race_variation)-1.0)*0.19*(1.0 if row%2==0 else -1.0)
             var x = (c - 2) * 2.20 + (0.56 if row % 2 == 1 else 0.0) + shift
+            var peg_z: float = z
+            if selected_track == 0 and n == ShortcutRoute.EXIT_SECTION and row == 2 and c == 4:
+                x = 3.55
+                peg_z += 0.70
             var tint = BARRIER_COLORS[(n + c + row) % BARRIER_COLORS.size()]
-            _cylinder(parent, Vector3(x, height_at(z)+0.8, z), 0.31, 1.6, tint)
+            _cylinder(parent, Vector3(x,height_at(peg_z)+0.8,peg_z),0.31,1.6,tint,n)
 
 func _gate_with_posts(parent: Node3D, center_z: float, n: int) -> void:
+    var batched_art := n == 1 or n == FINAL_OBSTACLE_SECTION
     for row in range(3 if selected_track == 2 else 2):
         var z = center_z + 3.2 - row * (4.2 if selected_track == 2 else 6.0)
         for i in range(3):
             var x = -4.6 + i * 4.7 + (0.65 if row == 1 else 0.0)
+            if selected_track == 0 and n == ShortcutRoute.EXIT_SECTION and row == 1 and i == 2:
+                x = 3.72
             var gate_color: Color = BARRIER_COLORS[(n+row+i)%6]
             var size := Vector3(0.91,1.37,1.25)
             var block := _box(parent, Vector3(x,height_at(z)+0.67,z),
-                size,_lacquer(gate_color),true,true)
+                size,_lacquer(gate_color),true,true,not batched_art)
             block.name = "GatePost_%02d_%02d_%02d" % [n,row,i]
-            obstacle_finish.register_block(block.global_transform,size,gate_color)
+            _register_exit_obstacle(block,Vector2(size.x,size.z)*0.5,"GATE POST")
+            if not batched_art:
+                obstacle_finish.register_block(block.global_transform,size,gate_color)
     _add_spinner(parent, center_z, n)
-    _swing_hammer(parent, center_z - 1.6, n)
+    # Reduce overlap with the Forge paddle so a marble can roll out from
+    # between the two mechanisms before reaching the next post.
+    var forge_clearance: bool = selected_track == 2 and board.get_meta("solo_course_clearance")
+    _swing_hammer(parent,center_z-(3.2 if forge_clearance else 1.6),n)
 
 func _swing_hammer(parent: Node3D, z: float, n: int) -> void:
     var hinge = AnimatableBody3D.new()
@@ -773,6 +1432,9 @@ func _swing_hammer(parent: Node3D, z: float, n: int) -> void:
     hit.shape = shape
     hit.position.y = -0.45
     hinge.add_child(hit)
+    if selected_track == 2:
+        var reach := Vector2(size.x*0.5,absf(hit.position.y)+size.y*0.5).length()
+        _register_exit_obstacle(hinge,Vector2(reach,size.z*0.5),"HAMMER SWEEP",false,true)
     var art = MeshInstance3D.new()
     art.mesh = Visuals.rounded_box(size, 0.15)
     art.position = hit.position
@@ -800,6 +1462,7 @@ func _swing_hammer(parent: Node3D, z: float, n: int) -> void:
     moving_obstacles.append(hinge)
 
 func _slalom(parent: Node3D, center_z: float, n: int) -> void:
+    var batched_art := n == 1 or n == FINAL_OBSTACLE_SECTION
     for i in range(5 if selected_track == 2 else 4):
         var z = center_z + 4.4 - float(i) * (2.2 if selected_track == 2 else 2.8)
         # The alternating barrier rhythm changes between layouts, but the
@@ -808,13 +1471,36 @@ func _slalom(parent: Node3D, center_z: float, n: int) -> void:
         var x: float = side*(3.5+0.20*sin(float(n*3+i)))
         var slalom_color: Color = BARRIER_COLORS[(n+i)%6]
         var size := Vector3(3.4,0.75,1.05)
+        if selected_track == 2 and n == 1 and i == 1 and side > 0.0:
+            # This block and the trailing baffle used to funnel the opening
+            # pack into the same shoulder. Keep the block close to the rail.
+            x = 5.30
+            size.x = 1.65
+        if selected_track == 0 and n == ShortcutRoute.EXIT_SECTION and i == 3:
+            # Keep the physical route from the bridge through the open rail.
+            x = 2.35
+            size.x = 2.80
         var block := _box(parent, Vector3(x,height_at(z)+0.36,z),
-            size,_lacquer(slalom_color),true,true)
+            size,_lacquer(slalom_color),true,true,not batched_art)
         block.name = "SlalomBlock_%02d_%02d" % [n,i]
-        obstacle_finish.register_block(block.global_transform,size,slalom_color)
+        _register_exit_obstacle(block,Vector2(size.x,size.z)*0.5,"SLALOM BLOCK")
+        if not batched_art:
+            obstacle_finish.register_block(block.global_transform,size,slalom_color)
     for i in range(3):
         var z = center_z + 2.3 - i * 3.5
-        _cylinder(parent, Vector3(0, height_at(z)+0.65, z), 0.34, 1.3, BARRIER_COLORS[(n+2*i)%6])
+        _cylinder(parent, Vector3(0, height_at(z)+0.65, z), 0.34, 1.3, BARRIER_COLORS[(n+2*i)%6],n)
+
+func _register_exit_obstacle(body: Node3D, half_size: Vector2, label: String, peg := false, moving := false) -> void:
+    var center := body.global_position
+    if glacier_shutter_exit_active(center.z) and center.z < glacier_first_shutter_z:
+        glacier_exit_obstacles.append({"position":center,"half_size":half_size,"label":label,"peg":peg})
+    elif selected_track == 0 and center.z <= ShortcutRoute.EXIT_Z and (
+            center.z >= ShortcutRoute.EXIT_Z-WOODWORKS_RETURN_DEPTH):
+        woodworks_return_obstacles.append({"position":center,"half_size":half_size,"label":label,"peg":peg})
+    elif selected_track == 2 and center.z-half_size.y < forge_first_piston_z and (
+            center.z+half_size.y >= maxf(forge_first_piston_z-FORGE_PISTON_EXIT_REACH-3.0,ShortcutRoute.ENTRY_Z-0.5)):
+        forge_piston_exit_obstacles.append({"position":center,"half_size":half_size,"label":label,
+            "peg":peg,"moving":moving,"spinner":body if label == "PADDLE SWEEP" else null})
 
 func _add_spinner(parent: Node3D, z: float, n: int) -> void:
     var pivot = AnimatableBody3D.new()
@@ -824,6 +1510,7 @@ func _add_spinner(parent: Node3D, z: float, n: int) -> void:
     parent.add_child(pivot)
     var color = BARRIER_COLORS[(n + 1) % BARRIER_COLORS.size()]
     # A single wide paddle that rotates and pushes marbles physically.
+    var sweep_radius := 0.0
     for i in range(2):
         var spoke = Node3D.new()
         spoke.rotation.y = PI * 0.5 * i
@@ -837,10 +1524,13 @@ func _add_spinner(parent: Node3D, z: float, n: int) -> void:
         var hit = CollisionShape3D.new()
         var shape = BoxShape3D.new()
         shape.size = arm_size
+        sweep_radius = maxf(sweep_radius,Vector2(arm_size.x,arm_size.z).length()*0.5)
         hit.shape = shape
         hit.rotation.y = spoke.rotation.y
         pivot.add_child(hit)
         MechanismArt.stripe_arm(spoke,arm_size, _mat(Color("#242936"),0.37,0.24))
+    if selected_track == 2:
+        _register_exit_obstacle(pivot,Vector2.ONE*sweep_radius,"PADDLE SWEEP",true,true)
     var axle = MeshInstance3D.new()
     var cyl = CylinderMesh.new()
     cyl.height = 1.3
@@ -879,41 +1569,87 @@ func _add_spinner(parent: Node3D, z: float, n: int) -> void:
         parent.add_child(warning)
     moving_obstacles.append(pivot)
 
-func _start_arch() -> void:
-    var z = 2.25
-    for x in [-6.0, 6.0]:
-        _box(board, Vector3(x+track_center_at(z), height_at(z)+1.7, z), Vector3(0.52, 3.2, 0.45),
-            _mat(Color("#c84d40")), false)
-    _box(board, Vector3(track_center_at(z), height_at(z)+3.1, z),
-        Vector3(12.4, 0.63, 0.52), _mat(Color("#ca5645")), false)
-    _floating_sign("START · 40 MARBLES", Vector3(track_center_at(z), height_at(z)+3.64, z))
+func _make_start_gate() -> void:
+    var z := StartGate.TRACK_Z
+    start_gate = StartGate.new()
+    start_gate.name = "StartGate"
+    start_gate.position = Vector3(track_center_at(z),height_at(z),z)
+    start_gate.setup(selected_track)
+    board.add_child(start_gate)
 
-func _finish_arch() -> void:
-    # Visual finish stripe and physical finish detector coincide.
-    var z = FINISH_Z
-    for x in [-6.0, 6.0]:
-        _box(board, Vector3(x+track_center_at(z), height_at(z)+1.35, z),
-            Vector3(0.48, 2.8, 0.45), _mat(Color("#eee1bd")), false)
-    _box(board, Vector3(track_center_at(z), height_at(z)+2.62, z),
-        Vector3(12.6, 0.52, 0.55), _mat(Color("#f3d779")), false)
-    _floating_sign("FINISH", Vector3(track_center_at(z), height_at(z)+3.12, z))
-    # Checkered line visible on the wooden surface.
-    for i in range(12):
-        _box(board, Vector3(track_center_at(z)-5.75 + i*1.04, height_at(z)+0.034, z),
-            Vector3(1.02, 0.045, 0.63), _mat(Color("#f2e5d0") if i%2==0 else Color("#342a28")), false)
+func _make_finish_line() -> void:
+    var finish := FinishLine.new()
+    finish.name = "FinishLine"
+    # Place the paint on the same tilted plank plane as the physical deck.
+    var module_z := 8.0-roundf((8.0-FINISH_Z)/SEGMENT_LENGTH)*SEGMENT_LENGTH
+    var grade := track_grade_at(module_z)
+    var pitch := atan(grade)
+    var floor_y := height_at(module_z)-0.34+0.325/cos(pitch)+grade*(FINISH_Z-module_z)
+    finish_origin = Vector3(track_center_at(module_z),floor_y,FINISH_Z)
+    finish.position = finish_origin
+    finish.setup(selected_track,grade)
+    board.add_child(finish)
 
-func _checkpoint_arches() -> void:
-    for n in [4,9,14]:
-        var z = 8.0 - float(n) * SEGMENT_LENGTH
-        var y = height_at(z)
-        for side in [-1.0,1.0]:
-            _box(board,Vector3(side*6.28+track_center_at(z),y+2.4,z),Vector3(0.21,4.7,0.28),
-                _mat(Color("#e6c488"),0.3,0.28),false)
-        _box(board,Vector3(track_center_at(z),y+4.65,z),Vector3(12.7,0.32,0.38),
-            _mat(Color("#dfb66c"),0.35,0.2),false)
-        _floating_sign("CHECKPOINT %d" % int(n/5+1),Vector3(track_center_at(z),y+5.22,z))
+func finish_crossing_fraction(previous: Vector3, current: Vector3) -> float:
+    if previous.z < FINISH_Z or current.z >= FINISH_Z:
+        return -1.0
+    var fraction := (previous.z-FINISH_Z)/(previous.z-current.z)
+    var crossing := previous.lerp(current,fraction)-finish_origin
+    return fraction if absf(crossing.x) <= FINISH_HALF_WIDTH and (
+        crossing.y >= 0.0 and crossing.y <= FINISH_AIR_CLEARANCE) else -1.0
 
-func _floating_sign(message: String, location: Vector3) -> void:
+func _edge_checkpoint_markers() -> void:
+    var forge := selected_track == 2
+    var biome_name: String = ["Woodworks","Glacier","Forge"][selected_track]
+    var shell := _mat([Color("#564233"),Color("#315266"),Color("#51383b")][selected_track],0.34,0.62)
+    var enamel := _mat([Color("#efc487"),Color("#a8efff"),Color("#f0b56a")][selected_track],0.41,0.18)
+    var post_x := CourseSculptures.EDGE_SECTOR_POST_OFFSET
+    var sign_y := CourseSculptures.EDGE_SECTOR_SIGN_HEIGHT
+    var pillar := BoxMesh.new()
+    pillar.size = Vector3(0.28,2.2,0.42)
+    var plaque := BoxMesh.new()
+    plaque.size = Vector3(1.28,0.88,0.26)
+    var lip := BoxMesh.new()
+    lip.size = Vector3(1.42,0.095,0.33)
+    var assembly := SurfaceTool.new()
+    assembly.append_from(pillar,0,Transform3D(Basis(),Vector3.UP*1.10))
+    assembly.append_from(plaque,0,Transform3D(Basis(),Vector3.UP*sign_y))
+    assembly.append_from(lip,0,Transform3D(Basis(),Vector3.UP*(sign_y+0.43)))
+    var mesh := assembly.commit()
+    var posts := MultiMesh.new()
+    posts.transform_format = MultiMesh.TRANSFORM_3D
+    posts.mesh = mesh
+    posts.instance_count = CHECKPOINT_Z.size()*2
+    var post_art := MultiMeshInstance3D.new()
+    post_art.name = biome_name+"SectorPostBatch"
+    post_art.multimesh = posts
+    post_art.material_override = shell
+    post_art.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    board.add_child(post_art)
+    for sector in range(CHECKPOINT_Z.size()):
+        var z: float = CHECKPOINT_Z[sector]
+        var floor_y: float = height_at(z)
+        var center_x: float = track_center_at(z)
+        var marker := Node3D.new()
+        marker.name = "%sSectorMarker%d" % [biome_name,sector+1]
+        marker.position = Vector3(center_x,floor_y,z)
+        board.add_child(marker)
+        for flank in range(2):
+            var side := -1.0 if flank == 0 else 1.0
+            posts.set_instance_transform(sector*2+flank,Transform3D(
+                Basis(),marker.position+Vector3(side*post_x,0,0)))
+            var number := _floating_sign("SECTOR %02d" % (sector+1),
+                Vector3(side*post_x,sign_y,0.148),marker)
+            number.font_size = 32
+            number.pixel_size = 0.0085
+            number.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+            var stripe := _box(marker,Vector3(side*5.35,0.055,0),
+                Vector3(0.98,0.02,0.32),enamel,false)
+            stripe.rotation.x = -atan(track_grade_at(z))
+            for paint in stripe.get_children():
+                (paint as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+func _floating_sign(message: String, location: Vector3, parent: Node3D = null) -> Label3D:
     var label = Label3D.new()
     label.text = message
     label.font_size = 34
@@ -922,7 +1658,14 @@ func _floating_sign(message: String, location: Vector3) -> void:
     label.modulate = Color("#fff5e1")
     label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
     label.position = location
-    board.add_child(label)
+    var holder := board if parent == null else parent
+    holder.add_child(label)
+    return label
+
+func _secondary_showroom_box(location: Vector3, dimensions: Vector3,
+        material: Material, tilt := false) -> void:
+    var holder := _box(board,location,dimensions,material,false,tilt)
+    secondary_showroom_art.append(holder.get_child(0) as MeshInstance3D)
 
 func _decorations() -> void:
     # Cleaner studio: keep real structural supports, omit the bright unrelated
@@ -931,36 +1674,35 @@ func _decorations() -> void:
         var z = 5.0 - k * 17.0
         for side in [-1,1]:
             var x = side * 5.0
-            _box(board, Vector3(x+track_center_at(z),height_at(z)-2.6,z),
-                Vector3(0.6, 4.4, 0.65), _mat(Color("#79523b")), false)
+            _secondary_showroom_box(Vector3(x+track_center_at(z),height_at(z)-2.6,z),
+                Vector3(0.6,4.4,0.65),_mat(Color("#79523b")))
 
 func _showroom() -> void:
     # Warm miniature workshop: walnut workbench, paneled walls, lit windows and
     # hanging display lamps. Deliberately sparse near the play area for 60fps.
     for i in range(SEGMENTS):
         var z = 8.0 - i * SEGMENT_LENGTH
-        _box(board,Vector3(0,height_at(z)-3.7,z),
-            Vector3(35.0,0.75,SEGMENT_LENGTH+0.12),_wood_mat(Color("#604535")),false,true)
+        _secondary_showroom_box(Vector3(0,height_at(z)-3.7,z),
+            Vector3(35.0,0.75,SEGMENT_LENGTH+0.12),_wood_mat(Color("#604535")),true)
         for side in [-1.0,1.0]:
             var base_x = side * 17.0
             _box(board,Vector3(base_x,height_at(z)+4.5,z),
                 Vector3(1.3,19.0,SEGMENT_LENGTH+0.05),_mat(Color("#37353a")),false)
             if i%2==0:
-                _box(board,Vector3(base_x-side*0.73,height_at(z)+0.5,z),
-                    Vector3(0.2,0.28,SEGMENT_LENGTH-0.6),
-                    _mat(Color("#957052"),0.64),false)
+                _secondary_showroom_box(Vector3(base_x-side*0.73,height_at(z)+0.5,z),
+                    Vector3(0.2,0.28,SEGMENT_LENGTH-0.6),_mat(Color("#957052"),0.64))
     # Exposed beams, side shelves and colored toy cartons.
     for i in range(8):
         var z = 7.5-i*25.0
         for side in [-1.0,1.0]:
             var x=side*15.5
-            _box(board,Vector3(x,height_at(z)+3.9,z),Vector3(2.5,0.28,8.5),
-                _wood_mat(Color("#91715a")),false)
+            _secondary_showroom_box(Vector3(x,height_at(z)+3.9,z),Vector3(2.5,0.28,8.5),
+                _wood_mat(Color("#91715a")))
             # One restrained branded trophy block per shelf (rather than
             # two random bright boxes) reduces clutter and draw calls.
             var trophy_color: Color = TRACK_COLORS[selected_track].darkened(0.34)
-            _box(board,Vector3(x-side*0.25,height_at(z)+4.5,z),
-                Vector3(0.80,0.85,1.15),_mat(trophy_color,0.37,0.22),false)
+            _secondary_showroom_box(Vector3(x-side*0.25,height_at(z)+4.5,z),
+                Vector3(0.80,0.85,1.15),_mat(trophy_color,0.37,0.22))
         var lamp=OmniLight3D.new()
         lamp.name="PendantLight_%02d" % i
         lamp.position=Vector3(0,height_at(z)+10.5,z)
@@ -983,17 +1725,23 @@ func _showroom() -> void:
         glass.material_override=mat
         glass.position=lamp.position
         board.add_child(glass)
+        secondary_showroom_art.append(glass)
     # Deep charcoal overhead beam frames the miniature track without glare.
-    _box(board,Vector3(0,14,-80),Vector3(38,0.8,192),_mat(Color("#343339")),false)
+    var roof := _box(board,Vector3(0,SHOWROOM_ROOF_HEIGHT,-80),
+        Vector3(38,SHOWROOM_ROOF_THICKNESS,192),_mat(Color("#343339")),false)
+    roof.name = "ShowroomRoofBeam"
+    showroom_roof = roof.get_child(0) as MeshInstance3D
 
 func _spawn_racers() -> void:
+    marble_detail_refresh = 0.0
     for m in racers:
         if is_instance_valid(m):
             remove_child(m)
             m.queue_free()
     racers.clear()
     racer_finish_order.clear()
-    player_marker = null
+    finish_crossings.clear()
+    finish_step_end = -INF
     player = null
     var player_slot: int = net.local_slot if net.match_running else MARBLE_COUNT-1
     for i in range(MARBLE_COUNT):
@@ -1017,9 +1765,6 @@ func _spawn_racers() -> void:
             player = m
             m.contact_monitor = true
             m.max_contacts_reported = 6
-            _add_player_marker(m)
-            if not net.is_active() and is_instance_valid(player_marker):
-                player_marker.modulate = Racer.PLAYER_STYLE_BASE[career.selected_style].lightened(0.14)
             _add_player_trail(m)
             PremiumSkinVisuals.apply(self)
 
@@ -1033,23 +1778,8 @@ func _spawn_racers() -> void:
         trail.amount = [12,22,36][graphics_quality]
     if is_instance_valid(contact_shadows):
         contact_shadows.bind_racers(racers)
-
-func _add_player_marker(m: RigidBody3D) -> void:
-    var tag = Label3D.new()
-    tag.text = "▼ YOU"
-    if not net.is_active() and career.league_tier() >= 1:
-        tag.text += "  •  " + career.league_name()
-    tag.name = "PlayerTag"
-    tag.font_size = 41
-    tag.pixel_size = 0.014
-    tag.outline_size = 8
-    tag.modulate = Color("#ffcb70")
-    tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-    tag.no_depth_test = true
-    tag.position = Vector3(0, 1.23, 0)
-    m.add_child(tag)
-    tag.top_level = true
-    player_marker = tag
+    if net.role != "server":
+        rival_render.refresh(racers,camera)
 
 func _add_player_trail(m: RigidBody3D) -> void:
     trail = CPUParticles3D.new()
@@ -1091,23 +1821,42 @@ func _camera_bump(body: Node) -> void:
     # own short rearm window and never changes the authoritative physics.
     var intensity: float = RaceFeedback.impact_intensity(
         player.linear_velocity,body)
+    var ice_impact := false
+    if net.role == "offline":
+        ice_impact = airtime.observe_ice_impact(body,player)
+        if not ice_impact:
+            audio._on_marble_collision(body)
     if is_instance_valid(arcade_bumpers):
         arcade_bumpers.notify_contact(body,intensity)
     if intensity < 0.17 or feedback_cooldown > 0.0:
         return
     camera_shake = minf(0.14,camera_shake+RaceFeedback.shake_strength(intensity))
-    obstacle_notice = 0.46 if intensity > 0.45 else 0.22
+    if not ice_impact:
+        obstacle_notice = 0.46 if intensity > 0.45 else 0.22
     feedback_cooldown = RaceFeedback.feedback_interval(intensity)
 
-func start_race(perk_name: String) -> void:
+func sector_entry_z(sector: int) -> float:
+    return race_start_z if sector == 0 else CHECKPOINT_Z[sector-1]
+
+func start_race(perk_name: String, sector_to_practice := -1, previous_sector_time := NAN,
+        previous_passages := PackedFloat64Array(), passage_to_practice := 0) -> void:
     selected_perk = perk_name
+    practice_sector = sector_to_practice if (
+        not net.is_active() and sector_to_practice >= 0 and sector_to_practice <= CHECKPOINT_Z.size()) else -1
+    practice_passage = passage_to_practice if practice_sector >= 0 and (
+        passage_to_practice >= 1 and passage_to_practice <= PracticeTiming.PASSAGES) else 0
+    practice_previous_time = previous_sector_time if (
+        practice_sector >= 0 and is_finite(previous_sector_time) and previous_sector_time > 0.0) else NAN
+    practice_previous_passages = previous_passages if is_finite(practice_previous_time) else PackedFloat64Array()
     if not net.is_active():
         career.begin()
     result_saved = false
     last_result = {}
     # Alternating geometry order on repeat attempts avoids an identical course
     # without changing the course identity or difficulty.
-    if not is_instance_valid(board) or race_variation != built_variation or int(board.get_meta("track_index",-1)) != selected_track:
+    if not is_instance_valid(board) or race_variation != built_variation or (
+        int(board.get_meta("track_index",-1)) != selected_track or
+        board.get_meta("solo_course_clearance") != _uses_solo_course_clearance(race_variation)):
         _make_course()
         audio.bind_mechanisms(moving_obstacles)
         audio.set_track_theme(selected_track)
@@ -1136,6 +1885,9 @@ func start_race(perk_name: String) -> void:
     if performance_budget != null:
         performance_budget.reset()
     _spawn_racers()
+    race_start_z = player.position.z
+    if not net.is_active():
+        practice_timing.begin(player.position,CHECKPOINT_Z,FINISH_Z)
     if is_instance_valid(race_items):
         race_items.reset_round()
     if is_instance_valid(course_mechanics):
@@ -1155,14 +1907,47 @@ func start_race(perk_name: String) -> void:
     player.body_entered.connect(_camera_bump)
     audio.begin_race()
     last_count = -1
+    start_gate.set_signal(-1)
     ui.show_race_ui()
-    ui.show_countdown("READY?")
+    ui.show_countdown("READY")
     _update_camera(0.1, true)
 
 func restart_race() -> void:
     start_race(selected_perk)
 
+func retry_current_layout(sector_to_practice := -1) -> void:
+    var previous_time := NAN
+    var passages := PackedFloat64Array()
+    var target_passage := 0
+    if race_state == "RESULTS" and bool(last_result.get("finished",false)):
+        var times: Array = last_result.get("sector_times",[])
+        if times.size() == CHECKPOINT_Z.size()+1 and sector_to_practice >= 0 and sector_to_practice < times.size():
+            previous_time = float(times[sector_to_practice])
+            var recorded: Array = last_result.get("passage_times",[])
+            if sector_to_practice < recorded.size():
+                passages = recorded[sector_to_practice]
+            var practice: Dictionary = last_result.get("practice_comparison",{})
+            if int(practice.get("sector",-1)) == sector_to_practice:
+                var loss: Dictionary = practice.get("worst_passage",{})
+                target_passage = int(loss.get("number",0))
+    elif race_state in ["COUNTDOWN","RACING"] and sector_to_practice == practice_sector:
+        previous_time = practice_previous_time
+        passages = practice_previous_passages
+        target_passage = practice_passage
+    race_variation = built_variation
+    kinetic_time = 0.0
+    for obstacle in moving_obstacles:
+        if is_instance_valid(obstacle):
+            obstacle.rotation = Vector3.ZERO
+    start_race(selected_perk,sector_to_practice,previous_time,passages,target_passage)
+
 func return_to_menu() -> void:
+    practice_sector = -1
+    practice_passage = 0
+    practice_previous_time = NAN
+    practice_previous_passages.clear()
+    if race_moments != null:
+        race_moments.reset_round()
     if is_instance_valid(airtime):
         airtime.reset_round()
     if slipstream != null:
@@ -1175,10 +1960,11 @@ func return_to_menu() -> void:
             remove_child(m)
             m.queue_free()
     racers.clear()
-    player_marker = null
     player = null
     if is_instance_valid(contact_shadows):
         contact_shadows.clear_racers()
+    rival_render.clear()
+    start_gate.set_signal(-1)
     race_state = "MENU"
     audio.menu_music()
     ui.show_menu()
@@ -1194,9 +1980,17 @@ func _process(delta: float) -> void:
         airtime.advance_visuals(delta)
     if race_state == "RACING" and is_instance_valid(course_sculptures):
         course_sculptures.advance_visuals(delta)
-    if show_fps and race_state == "RACING" and performance_budget != null:
-        performance_budget.tick(delta)
+    if show_fps and is_instance_valid(player) and not player.finished and not player.eliminated:
+        if race_state == "COUNTDOWN" and countdown <= PerformanceBudget.GRID_SECONDS:
+            performance_budget.record_frame(Time.get_ticks_usec(),-1,PerformanceBudget.Focus.GRID)
+        elif race_state == "RACING":
+            var z := player.position.z
+            var phase := 2 if z <= CHECKPOINT_Z[-1] else int(z <= CHECKPOINT_Z[0])
+            var focus := PerformanceBudget.focus_at(race_time,z,ShortcutRoute.EXIT_Z)
+            var near_opening := PerformanceBudget.near_first_obstacle(z,first_obstacle_entry_z)
+            performance_budget.record_frame(Time.get_ticks_usec(),phase,focus,near_opening)
     world_time += delta
+    var replica_speed := -1.0
     feedback_cooldown = maxf(0.0,feedback_cooldown-delta)
     obstacle_notice = maxf(0.0,obstacle_notice-delta)
     lamp_refresh -= delta
@@ -1207,14 +2001,13 @@ func _process(delta: float) -> void:
             if is_instance_valid(lamp) and lamp.is_inside_tree():
                 var illumination_range := 0.0 if graphics_quality == 0 else (42.0 if graphics_quality == 2 else 29.0)
                 lamp.visible = absf(lamp.global_position.z - view_z) < illumination_range
-    if is_instance_valid(player_marker) and is_instance_valid(player):
-        player_marker.global_position = player.global_position + Vector3(0.0,1.22 + sin(world_time*3.6)*0.075,0.0)
     if race_state == "COUNTDOWN":
         countdown -= delta
         if countdown > 0.0:
             var count := int(ceil(countdown))
-            ui.show_countdown(str(count))
             if count != last_count and count < 4:
+                start_gate.set_signal(count)
+                ui.show_countdown(str(count))
                 audio.tone("count")
                 last_count = count
         else:
@@ -1224,25 +2017,37 @@ func _process(delta: float) -> void:
                     m.freeze = false
                     m.sleeping = false
             ui.show_countdown("GO!")
+            start_gate.set_signal(0)
             audio.tone("start")
     elif race_state == "RACING":
+        if net.is_client() and is_instance_valid(player) and not player.finished and not player.eliminated:
+            var replica_velocity: Vector3 = net.local_replica_velocity()
+            if replica_velocity.is_finite():
+                replica_speed = Vector2(replica_velocity.x,replica_velocity.z).length()
         race_time += delta
+        if not net.is_active() and is_instance_valid(player) and not player.finished and not player.eliminated:
+            practice_timing.sample(self,player.position,race_time)
         if is_instance_valid(best_ghost) and is_instance_valid(player):
             best_ghost.tick(race_time,player.global_position,graphics_quality)
-        if race_time > 1.0:
+        if race_time > 1.0 and start_gate.signal_stage == 0:
             ui.hide_countdown()
+            start_gate.set_signal(-1)
         if is_instance_valid(trail) and is_instance_valid(player):
             audio.update_progress(clampf(-player.position.z/absf(FINISH_Z),0.0,1.0))
-            trail.emitting = graphics_quality > 0 and player.linear_velocity.length() > 4.0
+            var speed: float = replica_speed if net.is_client() else player.linear_velocity.length()
+            trail.emitting = graphics_quality > 0 and speed > 4.0
             trail.initial_velocity_max = 2.6 if boosting else 0.75
             trail.color = PremiumSkinVisuals.trail_tint(self,boosting)
+            if is_instance_valid(airtime) and not boosting and (
+                    not is_instance_valid(skins) or skins.active_id() < 0):
+                var tint_weight := maxf(0.32 if airtime.bridge_grounded else 0.0,0.62*airtime.ice_skid)
+                tint_weight = maxf(tint_weight,0.78*airtime.ice_entry_weight())
+                trail.color = trail.color.lerp(AirtimeDirector.BRIDGE_TINTS[selected_track],tint_weight)
             var cp := -1
-            if player.position.z < -46.0:
-                cp = 0
-            if player.position.z < -106.0:
-                cp = 1
-            if player.position.z < -166.0:
-                cp = 2
+            for sector in range(CHECKPOINT_Z.size()-1,-1,-1):
+                if player.position.z < float(CHECKPOINT_Z[sector]):
+                    cp = sector
+                    break
             # Award split times only when the marble actually passes a sector
             # within the rolling surface; falling out of bounds is not progress.
             if cp > last_checkpoint and absf(player.global_position.x-track_center_at(player.global_position.z)) < 6.75 and (
@@ -1261,7 +2066,10 @@ func _process(delta: float) -> void:
                     var duration: float = maxf(0.01,race_time-previous)
                     checkpoint_splits.append(race_time)
                     var prior_best: float = career.best_sector(selected_track,sector)
-                    ui.show_checkpoint(sector+1,duration,prior_best)
+                    var ghost_delta: float = NAN
+                    if not net.is_active() and checkpoint_splits.size() == sector+1:
+                        ghost_delta = best_ghost.crossing_delta(sector,race_time)
+                    ui.show_checkpoint(sector+1,duration,prior_best,ghost_delta)
                     audio.tone("checkpoint")
                     var cosmetics := board.get_node_or_null("PolishedToyDetails")
                     if is_instance_valid(cosmetics):
@@ -1297,7 +2105,10 @@ func _process(delta: float) -> void:
     if race_state == "RACING" or race_state == "COUNTDOWN":
         if race_moments != null:
             race_moments.tick(delta)
+        _update_marble_detail(delta)
         ui.update_hud()
+    if not racers.is_empty() and net.role != "server":
+        rival_render.refresh(racers,camera)
     # Audio tension reads the local HUD's existing 10Hz physics snapshot.
     # No extra 40-racer scans, AI updates or online rewards.
     if is_instance_valid(audio):
@@ -1306,6 +2117,19 @@ func _process(delta: float) -> void:
             net.role != "server") else 0.0)
         audio.set_flight_intensity(airtime.camera_weight() if (
             race_state == "RACING" and is_instance_valid(airtime)) else 0.0)
+        var local_surface: bool = race_state == "RACING" and is_instance_valid(airtime) and (
+            is_instance_valid(player) and not player.finished and not player.eliminated)
+        audio.set_bridge_surface(local_surface and airtime.rolling_surface == AirtimeDirector.Surface.BRIDGE,
+            local_surface and airtime.bridge_grounded,replica_speed)
+        audio.set_ice_feedback(local_surface and airtime.glacier_grip == AirtimeDirector.Grip.ICE,
+            local_surface and airtime.ice_touching,airtime.ice_skid if local_surface else 0.0,
+            airtime.ice_entry_weight() if local_surface else 0.0)
+        audio.set_control_recovery(airtime.control_weight() if local_surface else 0.0)
+        var drive_audio: bool = local_surface and net.role != "server" and (
+            replica_speed >= 0.0 if net.is_client() else not player.freeze)
+        audio.set_drive_context(drive_audio and boosting and boost_energy > 0.0,
+            race_moments.turn_weight if drive_audio and race_moments != null else 0.0,
+            race_moments.exit_speed_weight() if drive_audio and race_moments != null else 0.0)
 
 func _physics_process(delta: float) -> void:
     steer = move_toward(steer,steer_target,delta*8.5)
@@ -1331,6 +2155,9 @@ func _physics_process(delta: float) -> void:
         airtime.tick_physics(delta)
     if race_state != "RACING" or net.is_client():
         return
+    if is_instance_valid(ui) and ui.woodworks_guide_active and not net.is_active() and (
+        is_instance_valid(player) and not player.freeze and not player.finished and not player.eliminated):
+        ui.record_woodworks_controls(steer,boosting and boost_energy > 0.0)
     if is_instance_valid(race_items):
         race_items.tick(delta,racers,net)
     if is_instance_valid(course_mechanics):
@@ -1358,6 +2185,10 @@ func _physics_process(delta: float) -> void:
         if draft > 0.001:
             player.apply_central_force(
                 Vector3(0.0,0.0,-Slipstream.FORWARD_FORCE*draft)*player.mass)
+    finish_crossings.clear()
+    # Several physics ticks can share one render-clock timestamp. Keep
+    # consecutive finish intervals ordered without changing the race clock.
+    var sample_end := maxf(race_time,finish_step_end+delta)
     for m in racers:
         if not is_instance_valid(m):
             continue
@@ -1366,17 +2197,26 @@ func _physics_process(delta: float) -> void:
         var axis: float = remote_input.x if m.network_controlled else (steer if m.is_player and not net.is_host() else 0.0)
         var turbo: bool = remote_input.y>0.5 if m.network_controlled else (boosting and boost_energy>0.0 and m.is_player and not net.is_host())
         m.drive(delta,race_time,axis,turbo)
-        if not m.finished and not m.eliminated and m.position.z < FINISH_Z:
+        var current: Vector3 = m.position
+        var fraction := finish_crossing_fraction(m.previous_race_position,current) if (
+            not m.finished and not m.eliminated) else -1.0
+        m.previous_race_position = current
+        if fraction >= 0.0:
             m.finished = true
-            m.finish_time = race_time
+            m.finish_time = maxf(0.0,sample_end-delta*(1.0-fraction))
             m.freeze = true
             # A finished frozen sphere must not become a permanent obstacle
             # at the timing stripe. Keep it for ranking, disable its contacts.
             m.set_deferred("collision_layer",0)
             m.set_deferred("collision_mask",0)
+            finish_crossings.append(m)
+    if not finish_crossings.is_empty():
+        finish_step_end = sample_end
+        finish_crossings.sort_custom(_finisher_precedes)
+        for m in finish_crossings:
             racer_finish_order.append(m.display_name)
-            if m == player and not net.is_active() and race_moments != null:
-                race_moments.on_finish()
+        if not net.is_active() and race_moments != null and is_instance_valid(player) and player.finished:
+            race_moments.on_finish()
     if selected_perk == "Sticky Magnet" and is_instance_valid(player) and not player.finished:
         for m in racers:
             if m == player or m.finished or m.eliminated:
@@ -1390,15 +2230,39 @@ func _physics_process(delta: float) -> void:
     if racer_finish_order.size() == MARBLE_COUNT:
         _end_race()
 
+func _update_marble_detail(delta: float) -> void:
+    if graphics_quality != 1 or net.role == "server" or not (
+        is_instance_valid(player) and is_instance_valid(camera)):
+        return
+    marble_detail_refresh -= delta
+    if marble_detail_refresh > 0.0:
+        return
+    marble_detail_refresh = MARBLE_DETAIL_INTERVAL
+    var eye := camera.global_position
+    var forward := -camera.global_basis.z
+    var driver := player.global_position
+    var diameter_scale := 720.0*Racer.RADIUS/tan(deg_to_rad(camera.fov*0.5))
+    var featured: RigidBody3D = race_moments.closest_rival if race_moments != null else null
+    for marble in racers:
+        if not is_instance_valid(marble) or marble == player:
+            continue
+        var at := marble.global_position
+        var depth := forward.dot(at-eye)
+        var keep_detail := marble == featured or at.distance_squared_to(driver) <= (
+            MARBLE_DETAIL_NEAR_DISTANCE_SQUARED)
+        marble.update_render_detail(diameter_scale/maxf(depth,0.01),keep_detail)
+
 func _update_camera(delta: float, force := false) -> void:
     if not is_instance_valid(camera):
         return
     if race_state == "MENU" or not is_instance_valid(player):
         camera_shake = 0.0
+        camera_previous_racer_z = NAN
         camera.set_meta("previous_jitter",Vector3.ZERO)
         camera.set_meta("smoothed_bank",0.0)
         camera.set_meta("smoothed_fov",64.0)
         _position_intro_camera(force)
+        _update_roof_visibility()
         return
     # A corrupt physics sample during Android resume must not reach the
     # course-height functions or camera.look_at(). Keep the last valid view
@@ -1410,20 +2274,93 @@ func _update_camera(delta: float, force := false) -> void:
         return
     # Use the centerline ahead so the racer can see approaching turns.
     # Pure math; multiplayer does not need camera replication.
-    var ahead_x: float = track_center_at(player.global_position.z-12.0)
-    # The HUD and AI also inspect hazards; camera only needs the nearest
-    # distance, not an allocated dictionary on every rendered frame.
-    var distance: float = upcoming_hazard_distance(player.global_position.z)
+    var racer_z := player.global_position.z
+    var ahead_x: float = track_center_at(racer_z-12.0)
+    var behind_x: float = track_center_at(racer_z+5.0)
+    var next_gate: Dictionary = upcoming_hazard(racer_z)
+    var distance: float = float(next_gate.get("distance",-1.0))
+    var airborne_weight: float = airtime.camera_weight() if is_instance_valid(airtime) else 0.0
+    var jump_preview: Dictionary = airtime.jump_preview if cam_mode == 0 and race_state == "RACING" and (
+        not player.finished and not player.eliminated and is_instance_valid(airtime)) else {}
+    var velocity: Vector3 = player.linear_velocity
+    if net.is_client() and race_state == "RACING" and cam_mode == 0:
+        var replica: Vector3 = net.local_replica_velocity()
+        if replica.is_finite():
+            velocity = replica
+        else:
+            velocity = Vector3.ZERO
+            jump_preview = {}
+    var forge_view: bool = selected_track == 2 and cam_mode == 0 and race_state == "RACING" and (
+        not player.finished and not player.eliminated and is_instance_valid(final_obstacle_art))
+    var woodworks_view: bool = selected_track == 0 and cam_mode == 0 and race_state == "RACING" and (
+        not player.finished and not player.eliminated and is_instance_valid(opening_obstacle_art))
+    if woodworks_view and is_instance_valid(shortcut_route) and (
+            shortcut_route.on_separate_deck(player.global_position)):
+        var deck_weight := smoothstep(0.0,4.0,ShortcutRoute.OUTER_START-racer_z)*(
+            smoothstep(0.0,5.0,racer_z-ShortcutRoute.OUTER_END))
+        var deck_ahead: Vector3 = shortcut_route.point_at(maxf(racer_z-12.0,ShortcutRoute.OUTER_END))
+        var deck_behind: Vector3 = shortcut_route.point_at(racer_z+5.0)
+        ahead_x = lerpf(ahead_x,deck_ahead.x,deck_weight)
+        behind_x = lerpf(behind_x,deck_behind.x,deck_weight)
+    var reading_art: MeshInstance3D = final_obstacle_art if forge_view else (
+        opening_obstacle_art if woodworks_view else null)
+    if reading_art != null and racer_z >= reading_art.clear_z:
+        var release := 1.0-smoothstep(0.0,3.5,racer_z-reading_art.clear_z)
+        var module_distance := maxf(racer_z-reading_art.entry_z,release*RaceFeedback.HAZARD_MAX_PREVIEW)
+        distance = minf(distance,module_distance) if distance >= 0.0 else module_distance
+
     var pose: Dictionary = RaceFeedback.camera_pose(
-        player.global_position,player.linear_velocity,
+        player.global_position,velocity,
         ahead_x,cam_mode,boosting,distance,
         race_moments != null and race_state == "RACING" and
         race_moments.side_by_side_active,
-        airtime.camera_weight() if is_instance_valid(airtime) else 0.0)
+        airborne_weight,
+        float(race_moments.closest_rival_side) if race_moments != null else 0.0,
+        race_moments.pack_pressure if race_moments != null and race_state == "RACING" else 0.0,
+        jump_preview,
+        race_moments.evasion_target if race_moments != null and race_state == "RACING" and (
+            not net.is_client() or velocity != Vector3.ZERO) else Vector3.INF)
     var desired: Vector3 = pose["position"]
     var focus: Vector3 = pose["focus"]
-    # Match the camera to the real 3D grade, not the old flat slope.
-    # Smooth interpolation remains unchanged; no per-frame raycasts.
+    var target_fov: float = pose["fov"]
+    if forge_view and jump_preview.is_empty():
+        var clear_z := minf(final_straight_z,final_obstacle_art.clear_z)
+        var finish_weight := RaceFeedback.finish_focus_weight(racer_z,clear_z,FINISH_Z,-velocity.z)*(
+            1.0-0.65*airborne_weight)
+        var target := Vector3(finish_origin.x,finish_origin.y+1.3,minf(focus.z,FINISH_Z))
+        focus = focus.lerp(target,finish_weight*0.58)
+        desired.y += finish_weight*0.56
+    elif woodworks_view or (selected_track == 1 and cam_mode == 0 and race_state == "RACING" and (
+            not player.finished and not player.eliminated)):
+        var clear_z := final_straight_z
+        if woodworks_view and is_instance_valid(final_obstacle_art):
+            clear_z = minf(clear_z,final_obstacle_art.clear_z)
+        var weight := RaceFeedback.finish_view_weight(racer_z,clear_z,FINISH_Z,-velocity.z)
+        var competing_cue := maxf(airborne_weight,float(jump_preview.get("weight",0.0)))
+        if woodworks_view and race_moments != null and race_moments.evasion_target.is_finite():
+            competing_cue = 1.0
+        weight *= 1.0-0.65*competing_cue
+        if weight > 0.0:
+            var rival: RigidBody3D = race_moments.closest_rival if (
+                race_moments != null and race_moments.side_by_side_active) else null
+            var offset := Vector3.ZERO
+            if is_instance_valid(rival) and not rival.finished and not rival.eliminated:
+                var separation := rival.global_position-player.global_position
+                if absf(separation.x) >= 0.55 and absf(separation.x) <= 2.65 and (
+                        absf(separation.z) <= 1.70 and absf(separation.y) <= 1.25):
+                    offset = separation
+            var has_pair := offset != Vector3.ZERO
+            var pair_x := player.global_position.x+offset.x*0.5
+            var finish_weight := RaceFeedback.finish_focus_weight(racer_z,clear_z,FINISH_Z,-velocity.z)
+            var line_x := lerpf(ahead_x,finish_origin.x,finish_weight)
+            var reading_x := lerpf(line_x,pair_x,0.62 if has_pair else 0.18)
+            desired.x = lerpf(desired.x,pair_x,0.72*weight) if has_pair else desired.x
+            desired.y += weight*(1.0 if has_pair else 0.54)
+            desired.z += weight*(0.72 if has_pair else 0.23)
+            focus.x = lerpf(focus.x,reading_x,weight*0.65)
+            focus.z = lerpf(focus.z,minf(focus.z,FINISH_Z),finish_weight*weight*0.56)
+            target_fov = minf(RaceFeedback.FOV_MAX,target_fov+weight*(1.25 if has_pair else 0.45))
+    # Match the camera to the real 3D grade without per-frame raycasts.
     focus = RaceFeedback.terrain_safe_focus(focus,height_at(focus.z))
     desired = RaceFeedback.terrain_safe_camera(desired,height_at(desired.z))
     var previous_jitter: Vector3 = camera.get_meta(
@@ -1432,17 +2369,23 @@ func _update_camera(delta: float, force := false) -> void:
         previous_jitter = Vector3.ZERO
     var follow_rate: float = lerpf(4.5,6.0,float(pose["pace"]))
     var step: float = RaceFeedback.smooth_factor(delta,follow_rate)
-    var base: Vector3 = camera.global_position-previous_jitter
-    # Android can suspend rendering while physics advances or the racer is
-    # teleported after recovery. Never interpolate from an invalid or
-    # kilometres-distant camera transform: that would hide the next turn.
+    var forward_step := Vector3.ZERO
+    if race_state == "RACING" and cam_mode == 0 and not force:
+        forward_step.z = RaceFeedback.chase_forward_step(
+            racer_z-camera_previous_racer_z,delta)
+    camera_previous_racer_z = racer_z
+    var base: Vector3 = camera.global_position-previous_jitter+forward_step
+    # Combine physical forward-motion continuity with Android resume and
+    # checkpoint-jump snap guards. Neither changes the rigidbody state.
     var snap_camera: bool = force or not base.is_finite() or (
         base.distance_squared_to(desired) > 36.0*36.0)
     camera.global_position = desired if snap_camera else base.lerp(desired,step)
     var focus_step: float = RaceFeedback.smooth_factor(delta,7.0)
-    var snap_focus: bool = snap_camera or not camera_lookahead.is_finite() or (
-        camera_lookahead.distance_squared_to(focus) > 36.0*36.0)
-    camera_lookahead = focus if snap_focus else camera_lookahead.lerp(
+    var shifted_focus: Vector3 = camera_lookahead+forward_step
+    var snap_focus: bool = snap_camera or not shifted_focus.is_finite() or (
+        shifted_focus.distance_squared_to(focus) > 36.0*36.0)
+    camera_lookahead = focus if snap_focus else shifted_focus.lerp(
+
         focus,focus_step)
     # A recovery teleport is not a collision. Drop any residual shake so
     # the newly snapped camera does not jump on the very next rendered frame.
@@ -1480,7 +2423,6 @@ func _update_camera(delta: float, force := false) -> void:
     camera.rotate_object_local(Vector3.FORWARD,bank)
     # A quick lens response sells a real turbo activation, while a slower
     # recovery prevents FOV pumping when boost is tapped repeatedly.
-    var target_fov: float = float(pose["fov"])
     var previous_fov: float = float(camera.get_meta("smoothed_fov",camera.fov))
     if not is_finite(previous_fov):
         previous_fov = 64.0
@@ -1489,6 +2431,20 @@ func _update_camera(delta: float, force := false) -> void:
         previous_fov,target_fov,RaceFeedback.smooth_factor(delta,fov_rate))
     camera.fov = clampf(smoothed_fov,63.0,78.0)
     camera.set_meta("smoothed_fov",camera.fov)
+    _update_roof_visibility()
+
+func _update_roof_visibility() -> void:
+    if not is_instance_valid(showroom_roof):
+        return
+    # Cut away the ceiling for elevated viewpoints while keeping its
+    # cast shadow. Use the actual eye so the transition is safe as well.
+    var underside := showroom_roof.global_position.y-SHOWROOM_ROOF_THICKNESS*0.5
+    var roof_mode := GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY if (
+        camera.global_position.y >= underside-camera.near) else (
+        GeometryInstance3D.SHADOW_CASTING_SETTING_ON)
+    if showroom_roof.cast_shadow != roof_mode:
+        showroom_roof.cast_shadow = roof_mode
+
 
 func _position_intro_camera(force: bool) -> void:
     var target = Vector3(6.5, 12.6, 22.0)
@@ -1496,13 +2452,16 @@ func _position_intro_camera(force: bool) -> void:
     camera.global_position = target if force else camera.global_position.lerp(target, 0.035)
     camera.look_at(focus, Vector3.UP)
 
+static func _finisher_precedes(a: RigidBody3D, b: RigidBody3D) -> bool:
+    return a.racer_id < b.racer_id if a.finish_time == b.finish_time else a.finish_time < b.finish_time
+
 func get_rankings() -> Array:
     var copy = racers.duplicate()
     copy.sort_custom(func(a,b):
         if a.finished != b.finished:
             return a.finished
         if a.finished and b.finished:
-            return a.finish_time < b.finish_time
+            return _finisher_precedes(a,b)
         if a.eliminated != b.eliminated:
             return not a.eliminated
         return a.global_position.z < b.global_position.z
@@ -1527,12 +2486,11 @@ func change_steer(value: float) -> void:
     steer_target = clampf(value, -1.0, 1.0)
 
 func change_boost(value: bool) -> void:
-    if value and not boosting and boost_energy > 0.08:
-        audio.boost()
     boosting = value and boost_energy > 0.03
 
 func _unhandled_input(event: InputEvent) -> void:
-    if race_state != "RACING":
+    if race_state != "RACING" or ui.online_leave_layer.visible or (
+            is_instance_valid(player) and player.finished):
         return
     if event is InputEventKey:
         if event.echo:
@@ -1580,6 +2538,8 @@ func _burst(where: Vector3, finale: bool) -> void:
 func _end_race() -> void:
     if race_state == "RESULTS":
         return
+    start_gate.set_signal(-1)
+    ui.hide_countdown()
     if is_instance_valid(player) and player.finished:
         _burst(player.global_position, true)
     race_state = "RESULTS"
@@ -1589,28 +2549,40 @@ func _end_race() -> void:
     if not result_saved:
         result_saved = true
         var completed: bool = is_instance_valid(player) and player.finished
+        var outcome := "FINISHED" if completed else "DNF"
+        if not completed and not net.is_active():
+            outcome = "OFF TRACK" if is_instance_valid(player) and player.eliminated else "TIME OUT"
+        var durations: Array[float] = []
+        var previous_split := 0.0
+        for elapsed in checkpoint_splits:
+            durations.append(maxf(0.01,elapsed-previous_split))
+            previous_split = elapsed
+        if completed and checkpoint_splits.size() == CHECKPOINT_Z.size():
+            var finish_at: float = player.finish_time
+            if is_finite(finish_at) and finish_at > previous_split:
+                durations.append(finish_at-previous_split)
+        var complete_sectors := durations.size() == CHECKPOINT_Z.size()+1
+        var ghost_deltas: Array[float] = []
         var ghost_record: bool = false
-        if is_instance_valid(best_ghost):
-            ghost_record = best_ghost.finish(
-                player.finish_time if completed else race_time,completed)
+        if not net.is_active() and is_instance_valid(best_ghost):
+            if completed and best_ghost.replay_available:
+                for sector in CHECKPOINT_Z.size():
+                    # Compare to the ghost that started this race, before saving a new PB.
+                    var gap: float = best_ghost.crossing_delta(sector,checkpoint_splits[sector]) if (
+                        complete_sectors) else NAN
+                    ghost_deltas.append(gap)
+                ghost_deltas.append(best_ghost.crossing_delta(CHECKPOINT_Z.size(),player.finish_time))
+            ghost_record = best_ghost.finish(player.finish_time if completed else race_time,
+                completed,PackedFloat64Array(checkpoint_splits))
         if net.is_active():
             # Network races have physical results but never rewrite solo career.
             last_result = {"finished":completed,"stars":0,"record":false,"unlocked":false}
         else:
             last_result = career.complete(selected_track,player_rank(),
                 player.finish_time if completed else race_time,completed)
-        var durations: Array[float] = []
-        var previous_split := 0.0
-        for elapsed in checkpoint_splits:
-            durations.append(maxf(0.01,elapsed-previous_split))
-            previous_split = elapsed
-        # Fourth and final sector is measured at the actual finish crossing,
-        # not at the later presentation of the results screen.
-        if completed and checkpoint_splits.size() == 3:
-            var finish_at: float = player.finish_time
-            if is_finite(finish_at) and finish_at > previous_split:
-                durations.append(finish_at-previous_split)
+        last_result["outcome"] = outcome
         last_result["ghost_record"] = ghost_record
+        last_result["ghost_deltas"] = ghost_deltas
         last_result["clean_passes"] = race_director.clean_pass_count(player.racer_id) if (
             is_instance_valid(race_director) and is_instance_valid(player)) else 0
         last_result["apex_passes"] = course_sculptures.apex_pass_count(
@@ -1643,6 +2615,21 @@ func _end_race() -> void:
             not net.is_active() and race_moments != null) else 0
         last_result["sector_times"] = durations
         last_result["sector_records"] = career.record_sectors(selected_track,durations) if completed and not net.is_active() else [false,false,false,false]
+        if completed and complete_sectors and not net.is_active():
+            var passage_times: Array[PackedFloat64Array] = []
+            for sector in durations.size():
+                var entry := 0.0 if sector == 0 else checkpoint_splits[sector-1]
+                var exit: float = player.finish_time if sector == CHECKPOINT_Z.size() else checkpoint_splits[sector]
+                passage_times.append(practice_timing.durations(sector,entry,exit))
+            last_result["passage_times"] = passage_times
+            if practice_sector >= 0 and is_finite(practice_previous_time):
+                var current_passages := passage_times[practice_sector]
+                last_result["practice_comparison"] = {
+                    "sector":practice_sector,"previous":practice_previous_time,
+                    "target_passage":PracticeTiming.target_comparison(practice_passage,
+                        practice_previous_passages,current_passages),
+                    "worst_passage":practice_timing.worst_loss(practice_sector,
+                        practice_previous_passages,current_passages)}
         # An offline, genuinely finished race is the only source of mastery.
         # Client snapshots and server online races must never modify career.
         if not net.is_active():
@@ -1677,4 +2664,6 @@ func _end_race() -> void:
     if is_instance_valid(player) and player.finished:
         audio.finish_fanfare()
     audio.menu_music()
-    ui.show_results(player_rank(), race_time, get_rankings())
+    var recorded_time: float = player.finish_time if is_instance_valid(player) and player.finished else race_time
+    var rankings := get_rankings()
+    ui.show_results(rankings.find(player)+1,recorded_time,rankings)

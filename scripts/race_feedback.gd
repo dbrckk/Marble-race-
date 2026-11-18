@@ -28,9 +28,31 @@ static func smooth_factor(delta: float, rate: float) -> float:
     # from 60 fps to 30 fps in a crowded hazard section.
     return 1.0-exp(-clampf(delta,0.0,0.12)*rate)
 
+static func chase_forward_step(traveled: float, delta: float) -> float:
+    # Carry continuous forward motion into the damped camera frame. Large
+    # position corrections still go through the original smoothing.
+    var limit := 1.5+30.0*clampf(delta,0.0,0.12)
+    return traveled*0.87 if is_finite(traveled) and absf(traveled) <= limit else 0.0
+
 const HAZARD_PREVIEW_SECONDS := 1.55
 const HAZARD_MIN_PREVIEW := 9.0
 const HAZARD_MAX_PREVIEW := 37.0
+
+static func projected_lane_x(current_x: float, lateral_speed: float, eta: float) -> float:
+    # Predict short-term drift while leaving room for the player's next input.
+    return current_x+clampf(lateral_speed,-5.0,5.0)*minf(eta,0.40)
+
+static func traffic_span_clear(from: Vector2, to: Vector2, first: float, last: float,
+        origins: PackedVector2Array, velocities: PackedVector2Array, clearance: float) -> bool:
+    for i in range(origins.size()):
+        var origin := origins[i]
+        var speed := velocities[i]
+        var before := from-Vector2(projected_lane_x(origin.x,speed.x,first),origin.y+speed.y*first)
+        var after := to-Vector2(projected_lane_x(origin.x,speed.x,last),origin.y+speed.y*last)
+        var nearest := Geometry2D.get_closest_point_to_segment(Vector2.ZERO,before,after)
+        if nearest.length_squared() < clearance*clearance:
+            return false
+    return true
 
 static func hazard_preview_weight(distance: float, forward_speed: float) -> float:
     if not is_finite(distance) or not is_finite(forward_speed) or (
@@ -42,10 +64,22 @@ static func hazard_preview_weight(distance: float, forward_speed: float) -> floa
     # A 3m near-field buffer prevents abrupt framing on a passed gate.
     return clampf((reach-distance)/maxf(4.0,reach*0.78),0.0,1.0)
 
+static func finish_focus_weight(racer_z: float, clear_z: float, finish_z: float, speed: float) -> float:
+    if not is_finite(racer_z) or not is_finite(speed) or racer_z <= finish_z:
+        return 0.0
+    return smoothstep(0.0,4.5,clear_z-racer_z)*smoothstep(4.0,16.0,speed)
+
+static func finish_view_weight(racer_z: float, bank_exit_z: float, finish_z: float, speed: float) -> float:
+    if not is_finite(racer_z) or not is_finite(speed) or racer_z <= finish_z:
+        return 0.0
+    return (1.0-smoothstep(3.0,12.0,racer_z-bank_exit_z))*smoothstep(8.0,21.0,speed)
+
 static func camera_pose(position: Vector3, velocity: Vector3,
     center_ahead_x: float, camera_mode: int, boosting: bool,
     hazard_distance: float, close_duel: bool = false,
-    airborne_weight: float = 0.0) -> Dictionary:
+    airborne_weight: float = 0.0, duel_side: float = 0.0,
+    pack_pressure: float = 0.0, jump_preview: Dictionary = {},
+    evasion_target := Vector3.INF) -> Dictionary:
     # Invalid physics samples must not propagate NaNs into camera transforms.
     # This is presentation-only and leaves actual marble physics untouched.
     if not position.is_finite():
@@ -58,6 +92,7 @@ static func camera_pose(position: Vector3, velocity: Vector3,
         return {"position":position+Vector3(0.0,7.0,12.0),
             "focus":position+Vector3(0.0,0.25,-5.0),
             "fov":64.0,"pace":0.0,"risk":0.0}
+
     var planar_speed: float = Vector2(velocity.x,velocity.z).length()
     var pace: float = clampf((planar_speed-3.0)/19.0,0.0,1.0)
     # Chase view reacts to the actual velocity, not merely the boost button.
@@ -83,12 +118,14 @@ static func camera_pose(position: Vector3, velocity: Vector3,
             desired = position+Vector3(bend*0.20,19.0+pace*1.0,2.5)
             focus = position+Vector3(bend*0.38,0.0,-3.5-lead*0.36)
         _:
+            var early_view := risk*smoothstep(13.0,24.0,-velocity.z)
             desired = position+Vector3(
-                bend*0.30,6.6+pace*0.75+risk*1.0+speed_pullback*0.30,
-                11.6+pace*1.6+risk*1.0+speed_pullback*1.25)
+                bend*0.30,
+                6.6+pace*0.75+risk+early_view*0.40+speed_pullback*0.30,
+                11.6+pace*1.6+risk+speed_pullback*1.25)
             focus = position+Vector3(
                 bend*0.72+clampf(velocity.x*0.10,-0.7,0.7),
-                0.25,-5.6-lead*0.70)
+                0.25,-5.6-lead*0.70-early_view*1.15)
     # Reveal more of the actual track before a high-speed hazard. This is
     # a camera-only focus adjustment: no new raycasts or physics impulses.
     # The additional lookahead is deliberately capped to keep the player
@@ -97,13 +134,15 @@ static func camera_pose(position: Vector3, velocity: Vector3,
         var anticipation: float = risk*clampf((-velocity.z-7.0)/17.0,0.0,1.0)
         focus += Vector3(bend*0.12*anticipation,0.18*anticipation,
             -2.0*anticipation)
+
     # Lift the chase framing gently while the REAL marble is airborne.
     # Overhead/user alternate cameras are immutable; no camera physics.
     var air: float = clampf(airborne_weight,0.0,1.0) if (
         is_finite(airborne_weight)) else 0.0
     if camera_mode == 0 and air > 0.0:
         desired += Vector3(0.0,1.15*air,0.65*air)
-        focus += Vector3(0.0,0.36*air,-0.35*air)
+        # Keep the landing line in view as the marble rises.
+        focus += Vector3(0.0,-0.55*air,-0.35*air)
     # A verified sustained duel gets slightly more framing room to see
     # the competing sphere. Only camera mode 0 changes; overhead/manual
     # modes retain their exact original framing and human control.
@@ -112,7 +151,27 @@ static func camera_pose(position: Vector3, velocity: Vector3,
         var intensity: float = clampf((planar_speed-7.0)/13.0,0.0,1.0)
         duel_lift = 0.9*intensity
         desired += Vector3(0.0,duel_lift,1.3*intensity)
-        focus += Vector3(0.0,0.0,0.65*intensity)
+        var framing_side := clampf(duel_side,-1.0,1.0) if is_finite(duel_side) else 0.0
+        focus += Vector3(0.72*framing_side*intensity,0.0,0.65*intensity)
+    if camera_mode == 0 and is_finite(pack_pressure):
+        # Use the existing same-deck sample to reveal the road paint.
+        # Share the height allowance with the duel and fade it during jumps.
+        var crowd := clampf((pack_pressure-0.25)/0.75,0.0,1.0)
+        var crowd_lift := 2.20*crowd*pace*risk
+        desired.y += maxf(0.0,crowd_lift-duel_lift)*(1.0-air)
+    if camera_mode == 0 and not jump_preview.is_empty():
+        var weight: float = jump_preview["weight"]*(1.0-0.45*risk)
+        var landing: Vector3 = jump_preview["landing"]
+        # Reveal the landing line with a small lift and a bounded look ahead.
+        # Obstacle anticipation and the player's overhead views still win.
+        desired.y += 0.64*weight*(1.0-0.50*air)
+        focus.x += clampf(landing.x-focus.x,-2.2,2.2)*0.30*weight
+        focus.z -= clampf(focus.z-landing.z,0.0,3.0)*0.44*weight
+    if camera_mode == 0 and evasion_target.is_finite():
+        var approach := hazard_preview_weight(position.z-evasion_target.z,-velocity.z)*(1.0-air)
+        focus.x += clampf(evasion_target.x-focus.x,-2.4,2.4)*0.35*approach
+        focus.z -= clampf(focus.z-evasion_target.z,0.0,4.0)*0.44*approach
+        desired.y += 0.55*approach
     var fov: float = clampf(
         64.0+pace*9.0+(3.1 if boosting else 0.0)+risk*1.4+
         duel_lift*2.1+(1.5*air if camera_mode == 0 else 0.0),
@@ -141,7 +200,8 @@ static func collision_kind(other: Node) -> String:
     var label: String = other.name if is_instance_valid(other) else ""
     if label.begins_with("ToyPeg") or label.begins_with("AntiEdgeBaffle") or (
         label.begins_with("Chicane_") or label.begins_with("SlalomBlock_") or
-        label.begins_with("GatePost_") or label.begins_with("BypassGuard_") or
+        label.begins_with("GatePost_") or label.begins_with("GlacierShoulderBlock_") or
+        label.begins_with("BypassGuard_") or
         label.begins_with("PinballKicker_") or
         label.begins_with("BypassPrecisionPost_")):
         return "bumper"
@@ -150,6 +210,9 @@ static func collision_kind(other: Node) -> String:
     return "surface"
 
 static func impact_intensity(velocity: Vector3, other: Node) -> float:
+    # Invalid replicated velocities must never leak NaN into camera shake,
+    # audio volume or cooldown calculations.
+
     if not velocity.is_finite() or not is_instance_valid(other):
         return 0.0
     var kind: String = collision_kind(other)
@@ -159,10 +222,11 @@ static func impact_intensity(velocity: Vector3, other: Node) -> float:
         return clampf((-velocity.y-3.0)/10.0,0.0,1.0)
     var speed: float = velocity.length()
     if kind == "glass" and other is RigidBody3D:
-        var other_velocity: Vector3 = (other as RigidBody3D).linear_velocity
-        if not other_velocity.is_finite():
+        var rival_velocity: Vector3 = (other as RigidBody3D).linear_velocity
+        if not rival_velocity.is_finite():
             return 0.0
-        speed = (velocity-other_velocity).length()
+        speed = (velocity-rival_velocity).length()
+
     elif kind == "mechanism":
         speed += 1.3
     return clampf((speed-2.7)/14.0,0.0,1.0)

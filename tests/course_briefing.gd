@@ -42,12 +42,39 @@ func _run() -> void:
     var button_bottom: float = game.ui.start_button.get_global_rect().end.y
     assert(button_bottom <= panel_end+1.0 and button_bottom > 0.0,
         "The pinned start action must not be clipped outside the card")
+    assert(not scroll.is_ancestor_of(game.ui.course_strategy_label) and
+        game.ui.course_strategy_label.get_theme_font_size("font_size") >= 23,
+        "Main driving advice must be large and stay in view while scrolling")
+    assert(game.ui.briefing_title.text == game.track_title())
+    for button: Button in game.ui.select_buttons:
+        assert(scroll.get_global_rect().encloses(button.get_global_rect()),
+            "All six perk choices must be visible on entry before scrolling")
+        assert(button.get_theme_font_size("font_size") >= 20)
+    assert(overview.get_global_rect().position.y >= game.ui.select_buttons[-1].get_global_rect().end.y)
+    var last_perk: Button = game.ui.select_buttons[-1]
+    var pointer := InputEventMouseMotion.new()
+    pointer.position = last_perk.get_global_rect().get_center()
+    root.push_input(pointer,true)
+    var click := InputEventMouseButton.new()
+    click.position = pointer.position
+    click.button_index = MOUSE_BUTTON_LEFT
+    click.pressed = true
+    root.push_input(click,true)
+    var release := click.duplicate() as InputEventMouseButton
+    release.pressed = false
+    root.push_input(release,true)
+    await process_frame
+    assert(game.ui.selected_name == "Head Start" and not game.ui.start_button.disabled,
+        "The last visible perk must respond to a tap at its centre")
     var track_colors := []
     for track in range(3):
         assert(game.set_track(track))
         game.ui.show_perks()
         await process_frame
         assert(overview.course == track and overview.variation == game.race_variation)
+        assert(game.ui.briefing_title.text == game.track_title())
+        assert(game.ui.course_strategy_label.text.contains(
+            "BRIDGE RIGHT" if ROUTE.side_for(track) > 0 else "BRIDGE LEFT"))
         assert(overview.describe().contains(
             "RIGHT SHORTCUT" if ROUTE.side_for(track) > 0 else "LEFT SHORTCUT"))
         track_colors.append(MAP.TRACK_COLORS[track])
@@ -126,6 +153,17 @@ func _run() -> void:
                     assert(overview.kicker_marker(station,side).distance_to(
                         overview.project(actual.z,actual.x)) < 0.01,
                         "Pre-race neon spring posts must match real collider placements")
+            var landmarks: Array[Dictionary] = []
+            for sector in range(game.CHECKPOINT_Z.size()+1):
+                overview.focus_sector(sector)
+                var bounds: Vector2 = overview.sector_bounds()
+                assert(not overview.sector_landmarks.is_empty())
+                var last_z := bounds.x
+                for landmark in overview.sector_landmarks:
+                    assert(landmark["z"] <= last_z and landmark["z"] > bounds.y)
+                    assert(landmark["approach_z"] >= landmark["z"])
+                    last_z = landmark["z"]
+                landmarks.append_array(overview.sector_landmarks)
             for i in range(DIRECTOR.EVENT_Z.size()):
                 assert(MAP.hazard_side(track,next_variant,i) ==
                     game.race_director.side_at(i),
@@ -133,6 +171,21 @@ func _run() -> void:
                 assert(is_equal_approx(overview.hazard_z_at(i),
                     game.race_director.event_z(i)),
                     "Previewed hazard Z must match the real obstacle in every rematch")
+                var gate_z: float = game.race_director.event_z(i)
+                var marking := game.race_director.get_node("GateApproachMarkings_%02d" % i) as MultiMeshInstance3D
+                assert(marking.multimesh.instance_count == 12)
+                var approach_z := DIRECTOR.approach_row_z(gate_z,2,track)
+                assert(landmarks.any(func(feature: Dictionary) -> bool:
+                    return feature["title"] == DIRECTOR.EVENT_NAMES[track] and (
+                        is_equal_approx(feature["z"],gate_z) and is_equal_approx(feature["approach_z"],approach_z))),
+                    "The sector approach chevron must match the first painted row at the real gate")
+            if track == 1:
+                for index in ZONES.ZONE_Z.size():
+                    var first_grip_paint: Vector3 = game.course_mechanics.grip_mark_origins[index*ZONES.GRIP_MARK_OFFSETS.size()]
+                    assert(landmarks.any(func(feature: Dictionary) -> bool:
+                        return feature["title"] == "ICE PATCH" and (
+                            is_equal_approx(feature["z"],float(ZONES.ZONE_Z[index])) and
+                            is_equal_approx(feature["approach_z"],first_grip_paint.z))))
             game.return_to_menu()
         assert(game.ui.start_button.visible)
     assert(track_colors[0] != track_colors[1] and
@@ -148,5 +201,5 @@ func _run() -> void:
         await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_course_briefing.cfg"))
-    print("COURSE_BRIEFING_PASS: real road map, 3x3 rematches, fixed phone actions and touch safety")
+    print("COURSE_BRIEFING_PASS: real road map, sector landmarks and approach paint on 3x3 rematches, fixed phone actions")
     quit()

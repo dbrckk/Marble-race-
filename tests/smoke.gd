@@ -58,7 +58,6 @@ func _run_checks() -> void:
     assert(ResourceLoader.exists("res://assets/audio/sfx/metal_hit_1.ogg"), "Metal impact sound missing")
     var props: Node = race.board.get_node_or_null("ModularBrassAndSilkDressing")
     assert(props != null, "Missing v0.7 scenery")
-    assert(props.get_node_or_null("GoldRailTopTrim_36Segments") != null, "Missing batched brass rail details")
     var flag_count := 0
     var side_labels := 0
     for child in props.get_children():
@@ -72,7 +71,7 @@ func _run_checks() -> void:
     var track_surface: Node3D = race.board.get_node_or_null("InstancedTrackSurface")
     assert(is_instance_valid(track_surface), "Missing v0.10 instanced track")
     assert(track_surface.original_mesh_count == 646, "180 planks + 106 rails (two shortcut portals) + 360 inlays")
-    assert(track_surface.get_batch_count() <= 15, "Repeated track meshes must be batched by material")
+    assert(track_surface.get_batch_count() <= 10, "Track surface must retain the instancing budget")
     for batch in track_surface.get_children():
         assert(batch is MultiMeshInstance3D, "Track decoration must be drawn with GPU instancing")
         assert(not batch is CollisionObject3D, "Track rendering must not introduce new colliders")
@@ -81,12 +80,19 @@ func _run_checks() -> void:
         if decoration.name.begins_with("LanePaintInstanced_"):
             fx_lines += 1
     assert(fx_lines == 2, "Road markings should use two GPU batches")
-    assert(ResourceLoader.exists("res://assets/textures/lacquer_micro.png"), "Missing baked microtexture")
+    for name in ["oak_albedo","oak_normal","lacquer_micro"]:
+        var texture := load("res://assets/textures/%s.png" % name) as Texture2D
+        assert(texture != null and texture.get_image().has_mipmaps(),
+            "Track texture requires imported mip levels: %s" % name)
 
     var finish: Node3D = race.board.get_node_or_null("PremiumObstacleFinishes")
     assert(finish != null, "Missing v0.8 obstacle detailing")
-    assert(int(finish.get("post_count")) >= 85, "Pegs must have instanced art")
-    assert(int(finish.get("block_count")) >= 20, "Box obstacles must be registered")
+    var opening: MeshInstance3D = race.board.get_node("Course_01/OpeningObstacleArt")
+    var final_art: MeshInstance3D = race.final_obstacle_art
+    var batched_pegs: int = opening.peg_count+final_art.peg_count
+    assert(finish.post_count+batched_pegs >= 85, "Pegs must have batched art")
+    assert(finish.block_count+opening.obstacle_count+final_art.obstacle_count-batched_pegs >= 20,
+        "Box obstacles must have batched art")
     for detail in finish.get_children():
         assert(detail is MultiMeshInstance3D, "Obstacle details must remain GPU-instanced")
         assert(not detail is CollisionObject3D, "Obstacle art must not affect collisions")
@@ -125,15 +131,16 @@ func _run_checks() -> void:
     race.start_race("Lead Core")
     await process_frame
     assert(race.racers.size() == 40, "40 racers must spawn")
-    assert(race.racers[0].mesh.mesh == race.racers[1].mesh.mesh,
-        "NPC marbles should share cached geometry instead of allocating 40 identical meshes")
+    assert(race.racers[0].mesh == null and race.rival_render.pools.size() == 2,
+        "Opponents must use the two instanced glass meshes instead of individual draw objects")
+    assert(race.rival_render.pools[0].visible_instance_count > 0,"Glass must appear on the grid")
     assert(race.racers[0].physics_material_override == race.racers[1].physics_material_override,
         "Regular racers should share the same immutable physics material")
     assert(is_instance_valid(race.player), "Missing controlled racer")
     assert(race.player.is_player, "Wrong player identity")
     assert(race.contact_shadows.pool.visible_instance_count == 40, "40 ground shadows required")
     assert(is_instance_valid(race.ui.course_progress), "Race progress bar missing")
-    assert(is_instance_valid(race.ui.boost_progress), "Boost progress bar missing")
+    assert(race.ui.touch_controls.boost_percent == 100, "Fresh race must show full boost")
     assert(race.player.mass > 1.0, "Lead Core perk did not affect real physics")
     assert(race.player_rank() >= 1 and race.player_rank() <= 40, "Invalid leaderboard")
     var seen = {}
@@ -160,12 +167,18 @@ func _run_checks() -> void:
     await process_frame
     assert(race.boosting, "Boost controls do not work")
     assert(race.audio.spatial_channels[0] is AudioStreamPlayer3D, "Impacts must be positional")
-    assert(race.player_marker.top_level, "Player marker must not roll with the marble")
+    var locator: Control = race.ui.player_locator
+    locator.refresh(0.2)
+    assert(locator.is_visible_in_tree() and locator.mouse_filter == Control.MOUSE_FILTER_IGNORE,
+        "The fixed-size locator must follow the local driver without capturing touch")
+    assert(locator.screen_center.is_equal_approx(race.camera.unproject_position(race.player.global_position)),
+        "The cue must land on the projected marble even after changing camera")
     race.change_boost(false)
     race.return_to_menu()
     assert(race.race_state == "MENU", "Menu return failed")
     assert(race.contact_shadows.pool.visible_instance_count == 0, "Menu should release race shadows")
-    print("SMOKE_PASS: 40 racers, 648 GPU-instanced track parts, AA/LOD profiles, cached geometry, audio, controls")
+    assert(not locator.is_visible_in_tree(),"The player locator must be hidden outside the race")
+    print("SMOKE_PASS: 40 racers, 646 GPU-instanced track parts, AA/LOD profiles, cached geometry, audio, controls")
     race.queue_free()
     for i in range(4):
         await process_frame

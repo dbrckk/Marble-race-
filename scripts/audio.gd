@@ -2,6 +2,7 @@ extends Node3D
 ## Offline CC0 Foley (Kenney), plus original composed loop and tonal race cues.
 ## Eight pooled voice channels prevent hard-cutting a sound every time a marble collides.
 const RaceFeedback = preload("res://scripts/race_feedback.gd")
+const HazardAudio = preload("res://scripts/hazard_audio.gd")
 const SCORE = preload("res://assets/audio/music/marble_workshop.ogg")
 # Three separately composed and mastered 12-bar scores, rather than the
 # same backing track retuned for every world. All three resolve to the
@@ -14,6 +15,15 @@ const THEME_SCORES = [
 const THEME_TITLES := ["WOODLAND OVERTURE","GLACIER PRISM","FORGE VELOCITY"]
 const MUSIC_FADE_SECONDS := 0.92
 const ROLL = preload("res://assets/audio/sfx/wood_roll.ogg")
+const BRIDGE_ROLLS := [
+    preload("res://assets/audio/sfx/bridge_timber_roll.ogg"),
+    preload("res://assets/audio/sfx/bridge_ice_roll.ogg"),
+    preload("res://assets/audio/sfx/bridge_steel_roll.ogg")
+]
+const SURFACE_FADE_SECONDS := 0.22
+const ICE_FADE_SECONDS := 0.12
+const PASS_MIX_SECONDS := 0.42
+const WARNED_BOOST_DB := -29.0
 const AIR = preload("res://assets/audio/sfx/airrush.ogg")
 const PERCUSSION = preload("res://assets/audio/music/pace_percussion.ogg")
 const FANFARE = preload("res://assets/audio/sfx/fanfare.ogg")
@@ -47,7 +57,20 @@ const TONES = {
 var music: AudioStreamPlayer
 var music_previous: AudioStreamPlayer
 var music_fade := 1.0
-var rolling: AudioStreamPlayer3D
+var rolling: AudioStreamPlayer
+var bridge_rolling: AudioStreamPlayer
+var roll_level_db := -60.0
+var bridge_mix := 0.0
+var on_bridge := false
+var bridge_grounded := false
+var on_ice := false
+var ice_grounded := false
+var ice_skid_target := 0.0
+var ice_skid_mix := 0.0
+var ice_entry_mix := 0.0
+var control_recovery := 0.0
+var exit_speed := 0.0
+var replica_roll_speed := -1.0
 var air: AudioStreamPlayer
 var percussion: AudioStreamPlayer
 var race_active := false
@@ -60,12 +83,22 @@ var mechanism: AudioStreamPlayer3D
 var moving_props: Array[Node3D] = []
 var mechanism_timer := 0.0
 var collision_duck := 0.0
+var last_impact_intensity := 0.0
+var pass_mix_seconds := 0.0
 # Play at most one predictive danger cue for each real timed gate per race.
 var warned_timed_gates: Dictionary = {}
+var warned_vents: Dictionary = {}
+var hazard_cues: Array[AudioStreamWAV] = []
+var hazard_duck := 0.0
+var hazard_cooldown := 0.0
 var target_marble: RigidBody3D
 var enabled := true
 var collision_delay := 0.0
 var boost_delay := 0.0
+var turbo_requested := false
+var turbo_mix := 0.0
+var turn_target := 0.0
+var turn_mix := 0.0
 var current_channel := 0
 var music_target_db := -22.0
 var track_theme := 0
@@ -118,15 +151,19 @@ func _ready() -> void:
     air.volume_db = -75.0
     add_child(air)
     air.play()
-    rolling = AudioStreamPlayer3D.new()
+    # The local player's rolling belongs to the driver. Changing cameras
+    # should not move it further from the listener. Impacts stay spatial.
+    rolling = AudioStreamPlayer.new()
     rolling.name = "WoodenMarbleRolling"
     rolling.stream = ROLL
     if rolling.stream is AudioStreamOggVorbis:
         (rolling.stream as AudioStreamOggVorbis).loop = true
     rolling.volume_db = -55
-    rolling.max_distance = 24.0
-    rolling.unit_size = 3.0
     add_child(rolling)
+    bridge_rolling = AudioStreamPlayer.new()
+    bridge_rolling.name = "BridgeMarbleRolling"
+    bridge_rolling.volume_db = -80.0
+    add_child(bridge_rolling)
     mechanism = AudioStreamPlayer3D.new()
     mechanism.name = "KineticToyMotor"
     mechanism.stream = preload("res://assets/audio/sfx/mechanism_loop.ogg")
@@ -157,17 +194,61 @@ func bind_mechanisms(props: Array[Node3D]) -> void:
 
 func bind_marble(marble: RigidBody3D) -> void:
     target_marble = marble
+    replica_roll_speed = -1.0
+    _clear_bridge_roll()
     if rolling.playing:
         rolling.stop()
     rolling.play()
-    if not marble.body_entered.is_connected(_on_marble_collision):
-        marble.body_entered.connect(_on_marble_collision)
+
+func set_bridge_surface(on_deck: bool, touching: bool, replica_speed := -1.0) -> void:
+    on_bridge = on_deck
+    bridge_grounded = touching
+    replica_roll_speed = replica_speed
+
+func set_ice_feedback(on_surface: bool, touching: bool, skid: float, entry := 0.0) -> void:
+    on_ice = on_surface
+    ice_grounded = touching
+    ice_skid_target = clampf(skid,0.0,1.0) if touching and is_finite(skid) else 0.0
+    ice_entry_mix = clampf(entry,0.0,1.0) if touching and is_finite(entry) else 0.0
+
+func play_ice_entry() -> void:
+    if race_active and hazard_cooldown <= 0.0 and collision_duck < 1.9:
+        _voice(GLASS_HITS[2],-23.0,1.27)
+
+func play_grip_return() -> void:
+    if race_active and hazard_cooldown <= 0.0 and collision_duck < 1.9:
+        _voice(WOOD_HITS[1],-21.0,1.05)
+
+func play_ice_impact(intensity: float) -> void:
+    if not enabled or not race_active:
+        return
+    _collision_haptics(intensity)
+    if hazard_cooldown <= 0.0:
+        # Short glass attack, distinct from the brighter entry and the wood
+        # contact of regained grip. Allow the next grip cue to stay audible.
+        collision_duck = maxf(collision_duck,1.2)
+        _voice(GLASS_HITS[0],lerpf(-22.0,-12.0,intensity),0.94)
+
+func play_bank_exit() -> void:
+    if race_active and hazard_cooldown <= 0.0 and collision_duck < 1.9:
+        _voice([WOOD_HITS[0],GLASS_HITS[1],METAL_HITS[0]][track_theme],-25.0,1.05)
+
+func set_control_recovery(weight: float) -> void:
+    control_recovery = clampf(weight,0.0,1.0) if is_finite(weight) else 0.0
+
+func _clear_bridge_roll() -> void:
+    set_bridge_surface(false,false)
+    bridge_mix = 0.0
+    bridge_rolling.volume_db = -80.0
+    bridge_rolling.stop()
+    set_ice_feedback(false,false,0.0)
+    ice_skid_mix = 0.0
 
 static func pack_percussion_lift(pressure: float) -> float:
     return 5.5*clampf(pressure,0.0,1.0) if is_finite(pressure) else 0.0
 
-static func pack_wind_lift(pressure: float) -> float:
-    return 2.0*clampf(pressure,0.0,1.0) if is_finite(pressure) else 0.0
+static func pack_wind_trim(pressure: float) -> float:
+    return 3.0*clampf(pressure,0.0,1.0) if is_finite(pressure) else 0.0
 
 func set_pack_pressure(value: float) -> void:
     # Never alters physics, coins, finish positions or a multiplayer result.
@@ -176,6 +257,14 @@ func set_pack_pressure(value: float) -> void:
 
 func set_flight_intensity(weight: float) -> void:
     flight_intensity_target = clampf(weight,0.0,1.0) if is_finite(weight) else 0.0
+
+func set_drive_context(turbo: bool, turn: float, exit_weight := 0.0) -> void:
+    # The HUD has already dispatched its earliest warning for this frame.
+    if turbo and not turbo_requested:
+        boost()
+    turbo_requested = turbo
+    turn_target = clampf(turn,0.0,1.0) if is_finite(turn) else 0.0
+    exit_speed = clampf(exit_weight,0.0,1.0) if is_finite(exit_weight) else 0.0
 
 func touchdown(grade: String, impact_speed: float) -> void:
     # Already bundled CC0/original cues; no new concurrent audio channel.
@@ -204,7 +293,16 @@ func _process(delta: float) -> void:
     boost_delay = maxf(0.0,boost_delay-delta)
     haptic_cooldown = maxf(0.0,haptic_cooldown-delta)
     collision_duck = move_toward(collision_duck,0.0,delta*9.0)
-    var music_mix_db: float = music_target_db + loudness_offset - collision_duck
+    pass_mix_seconds = maxf(0.0,pass_mix_seconds-delta)
+    hazard_cooldown = maxf(0.0,hazard_cooldown-delta)
+    hazard_duck = move_toward(hazard_duck,0.0,delta*13.0)
+    var priority_duck := maxf(collision_duck,hazard_duck)
+    var warning_active := hazard_cooldown > 0.0
+    var turbo_target := 1.0 if turbo_requested and not warning_active else 0.0
+    turbo_mix = lerpf(turbo_mix,turbo_target,RaceFeedback.smooth_factor(delta,9.0))
+    turn_mix = lerpf(turn_mix,turn_target,RaceFeedback.smooth_factor(delta,7.0))
+    ice_skid_mix = lerpf(ice_skid_mix,ice_skid_target,RaceFeedback.smooth_factor(delta,10.0))
+    var music_mix_db := music_target_db+loudness_offset-priority_duck
     if music_fade < 1.0:
         music_fade = minf(1.0,music_fade+maxf(0.0,delta)/MUSIC_FADE_SECONDS)
         # Equal-power fades keep perceived loudness stable even in menu
@@ -218,38 +316,95 @@ func _process(delta: float) -> void:
         if music_fade >= 1.0:
             music_previous.stop()
     else:
-        music.volume_db = move_toward(music.volume_db,music_mix_db,delta*7.0)
+        var music_response := 55.0 if priority_duck > 0.0 and music_mix_db < music.volume_db else 7.0
+        music.volume_db = move_toward(music.volume_db,music_mix_db,delta*music_response)
     mechanism_timer -= delta
     if mechanism_timer <= 0.0:
         mechanism_timer = 0.20
         _update_mechanism_sound()
     var pace_target := -72.0
     var air_target := -72.0
-    if enabled and race_active and is_instance_valid(target_marble):
-        var speed_now = target_marble.linear_velocity.length()
-        var energy = clampf((speed_now-3.0)/11.0,0.0,1.0)
+    var speed := _rolling_speed()
+    if enabled and speed >= 0.0:
+        var energy := clampf((speed-3.0)/11.0,0.0,1.0)
         pace_target = -36.0 + energy*14.0 + finish_progress*5.0 + (
             [-1.0,-3.0,2.0][track_theme])+pack_percussion_lift(pack_pressure)
-        air_target = -52.0 + energy*25.0+pack_wind_lift(pack_pressure)+(
-            flight_intensity*6.0)
-        air.pitch_scale = lerpf(0.85,1.5,energy) * [1.0,0.94,1.08][track_theme]
+        var wind_duck := maxf(hazard_duck*1.8,collision_duck*2.2)
+        wind_duck = maxf(wind_duck,maxf(4.5*pass_mix_seconds/PASS_MIX_SECONDS,3.6*ice_skid_mix))
+        wind_duck = maxf(wind_duck,5.0*control_recovery)
+        wind_duck = maxf(wind_duck,ice_entry_mix*3.2)
+        var corner := turn_mix*(1.0-flight_intensity)
+        var thrust := 0.0 if warning_active else turbo_mix
+        var release := exit_speed*(1.0-flight_intensity)*(1.0-corner)*(
+            1.0-clampf(wind_duck/2.5,0.0,1.0)) if not warning_active and not turbo_requested else 0.0
+        air_target = -52.0+energy*25.0+flight_intensity*7.0+thrust*2.6*(1.0-corner)-maxf(
+            maxf(pack_wind_trim(pack_pressure)*(1.0-flight_intensity),corner*3.8),wind_duck)
+        air_target += 2.8*release
+        pace_target -= maxf(priority_duck,ice_entry_mix*2.3)
+        air.pitch_scale = (lerpf(0.85,1.5,energy)+thrust*0.09+release*0.055)*(1.0-0.06*corner)*[
+            1.0,0.94,1.08][track_theme]
     if not enabled:
         pace_target = -80.0
         air_target = -80.0
-    percussion.volume_db = move_toward(percussion.volume_db,pace_target,delta*11.0)
-    air.volume_db = move_toward(air.volume_db,air_target,delta*13.0)
-    if not is_instance_valid(target_marble) or target_marble.freeze:
-        rolling.volume_db = move_toward(rolling.volume_db,-60.0,delta*45.0)
-        return
+    var pace_response := 48.0 if priority_duck > 0.0 and pace_target < percussion.volume_db else 11.0
+    percussion.volume_db = move_toward(percussion.volume_db,pace_target,delta*pace_response)
+    var wind_response := 110.0 if air_target < air.volume_db else 16.0
+    air.volume_db = move_toward(air.volume_db,air_target,delta*wind_response)
+    _update_rolling(delta)
+
+func _rolling_speed() -> float:
+    if not race_active or not is_instance_valid(target_marble):
+        return -1.0
+    if target_marble.freeze:
+        return replica_roll_speed
+    var velocity := target_marble.linear_velocity
+    return Vector2(velocity.x,velocity.z).length()
+
+func _update_rolling(delta: float) -> void:
     if not enabled:
         rolling.volume_db = -80.0
         return
-    rolling.global_position = target_marble.global_position
-    var speed = target_marble.linear_velocity.length()
-    var rolling_target: float = clampf(-37.0+speed*1.45,-46.0,-13.0)-(
-        flight_intensity*14.0)
-    rolling.volume_db = move_toward(rolling.volume_db,rolling_target,delta*26)
+    var speed := _rolling_speed()
+    if speed < 0.0:
+        roll_level_db = move_toward(roll_level_db,-60.0,delta*45.0)
+        rolling.volume_db = roll_level_db
+        if bridge_mix > 0.0:
+            _clear_bridge_roll()
+        return
+    var foreground := maxf(hazard_duck*0.56,collision_duck*0.48)
+    var corner := turn_mix*(1.0-flight_intensity)
+    var corner_roll := corner*2.2*clampf(speed/13.0,0.0,1.0)*(1.0-clampf(foreground/2.0,0.0,1.0))
+    var recovery_roll := 2.6*control_recovery*(1.0-clampf(foreground/2.0,0.0,1.0))
+    var rolling_target := clampf(-41.0+speed*1.65,-48.0,-17.0)-foreground-flight_intensity*14.0+maxf(corner_roll,recovery_roll)
+    var using_surface_loop := on_ice or on_bridge
+    var floor_missing := (on_ice and not ice_grounded) or (on_bridge and not bridge_grounded)
+    if floor_missing:
+        rolling_target = minf(rolling_target,-51.0)
+    var response := 26.0
+    if using_surface_loop:
+        response = 105.0 if floor_missing else 42.0
+    if control_recovery > 0.0:
+        response = maxf(response,56.0)
+    roll_level_db = move_toward(roll_level_db,rolling_target,delta*response)
     rolling.pitch_scale = clampf(0.63+speed*0.06,0.73,1.65)
+    var fade_seconds := ICE_FADE_SECONDS if on_ice else SURFACE_FADE_SECONDS
+    bridge_mix = move_toward(bridge_mix,float(using_surface_loop),delta/fade_seconds)
+    var angle := bridge_mix*PI*0.5
+    rolling.volume_db = roll_level_db+linear_to_db(maxf(0.001,cos(angle)))
+    if bridge_mix == 0.0:
+        if bridge_rolling.playing:
+            bridge_rolling.stop()
+        return
+    bridge_rolling.pitch_scale = rolling.pitch_scale*(1.0+ice_skid_mix*0.08)
+    var stream: AudioStreamOggVorbis = BRIDGE_ROLLS[track_theme]
+    if bridge_rolling.stream != stream:
+        stream.loop = true
+        bridge_rolling.stream = stream
+    # Match the quiet board loop while keeping a little extra floor detail.
+    var entry_lift := 2.4*ice_entry_mix*(1.0-clampf(foreground/1.9,0.0,1.0))
+    bridge_rolling.volume_db = roll_level_db-4.0+linear_to_db(maxf(0.001,sin(angle)))+entry_lift
+    if not bridge_rolling.playing:
+        bridge_rolling.play()
 
 func _update_mechanism_sound() -> void:
     if not enabled or not race_active or not is_instance_valid(target_marble):
@@ -294,7 +449,8 @@ func _voice(stream: AudioStream, loudness := -10.0, pitch := 1.0) -> void:
     current_channel = (current_channel + 1) % channels.size()
     p.stream = stream
     p.pitch_scale = pitch
-    p.volume_db = loudness
+    p.volume_db = minf(loudness,WARNED_BOOST_DB) if (
+        stream == TONES["boost"] and hazard_cooldown > 0.0) else loudness
     p.play()
 
 func ui_click() -> void:
@@ -341,6 +497,10 @@ func begin_race() -> void:
     flight_intensity = 0.0
     flight_intensity_target = 0.0
     warned_timed_gates.clear()
+    warned_vents.clear()
+    if hazard_cues.is_empty() and enabled:
+        hazard_cues = HazardAudio.build()
+    _reset_priority_mix()
     pack_pressure = 0.0
     pack_pressure_target = 0.0
     music_target_db = ([-20.0,-22.5,-18.5][track_theme]) if enabled else -80.0
@@ -357,6 +517,23 @@ func menu_music() -> void:
     race_active = false
     finish_progress = 0.0
     target_marble = null
+    _reset_priority_mix()
+    _clear_bridge_roll()
+
+func _reset_priority_mix() -> void:
+    collision_delay = 0.0
+    collision_duck = 0.0
+    last_impact_intensity = 0.0
+    pass_mix_seconds = 0.0
+    hazard_duck = 0.0
+    hazard_cooldown = 0.0
+    turbo_requested = false
+    turbo_mix = 0.0
+    turn_target = 0.0
+    turn_mix = 0.0
+    boost_delay = 0.0
+    control_recovery = 0.0
+    exit_speed = 0.0
 
 func update_progress(ratio: float) -> void:
     finish_progress = clampf(ratio,0.0,1.0)
@@ -371,8 +548,9 @@ func race_moment(kind: String) -> void:
         return
     match kind:
         "overtake":
-            _voice(UI_SELECT,-22.0,1.30)
-            _voice(TONES["checkpoint"],-25.0,1.16)
+            if hazard_cooldown <= 0.0 and collision_duck < 1.9:
+                pass_mix_seconds = PASS_MIX_SECONDS
+                _voice(UI_SELECT,-22.0,1.30)
         "duel":
             # One short, quiet crowd-race ping per truly sustained side duel.
             # Existing licensed UI sample, no new persistent mixer channel.
@@ -387,21 +565,30 @@ func race_moment(kind: String) -> void:
             _voice(TONES["boost"],-24.0,0.84)
 
 func warn_timed_gate(index: int, blocking: bool) -> void:
-    # A short original countdown tone makes a single danger cue per gate,
-    # avoiding irritating warning loops or adding any audio mixer voices.
-    # Open Forge pistons are deliberately silent: never warn of false danger.
-    if not enabled or not race_active or not blocking or index < 0 or (
-        warned_timed_gates.has(index)):
+    if blocking:
+        _warn_hazard(warned_timed_gates,index,track_theme)
+
+func warn_vent(index: int) -> void:
+    if track_theme == 2:
+        _warn_hazard(warned_vents,index,3)
+
+func _warn_hazard(played: Dictionary, index: int, cue: int) -> void:
+    if not enabled or not race_active or index < 0 or played.has(index) or hazard_cooldown > 0.0:
         return
-    warned_timed_gates[index] = true
-    _voice(TONES["count"],-20.0,[1.26,1.03,0.84][track_theme])
+    if hazard_cues.is_empty():
+        hazard_cues = HazardAudio.build()
+    played[index] = true
+    hazard_cooldown = 0.36
+    hazard_duck = 4.5
+    for voice in channels:
+        if voice.playing and voice.stream == TONES["boost"]:
+            voice.volume_db = minf(voice.volume_db,WARNED_BOOST_DB)
+    _voice(hazard_cues[cue],-15.0)
 
 func course_event(kind: String) -> void:
     match kind:
         "speed":
             _voice(TONES["boost"],-14.0,0.91)
-        "ice":
-            _voice(GLASS_HITS[0],-17.0,1.20)
         "vent":
             _voice(METAL_HITS[1],-10.0,0.77)
         "shortcut":
@@ -444,17 +631,20 @@ func item_pickup(kind: String) -> void:
             _voice(UI_SELECT,-9.0,1.12)
 
 func boost() -> void:
-    if boost_delay <= 0.0:
+    if enabled and race_active and boost_delay <= 0.0 and hazard_cooldown <= 0.0:
         tone("boost")
         boost_delay = 1.5
 
 func _on_marble_collision(other: Node) -> void:
-    if collision_delay > 0.0 or not is_instance_valid(target_marble):
+    if not enabled or not race_active or not is_instance_valid(target_marble):
         return
     var intensity: float = RaceFeedback.impact_intensity(
         target_marble.linear_velocity,other)
     if intensity < 0.14:
         return
+    if collision_delay > 0.0 and intensity < last_impact_intensity+0.27:
+        return
+    last_impact_intensity = intensity
     var contact: String = RaceFeedback.collision_kind(other)
     collision_delay = RaceFeedback.feedback_interval(intensity)
     var samples: Array
@@ -467,20 +657,26 @@ func _on_marble_collision(other: Node) -> void:
             samples = GLASS_HITS
         _:
             samples = WOOD_HITS
-    if intensity > 0.40 and haptic_cooldown <= 0.0 and OS.has_feature("mobile"):
-        # Vibration follows actual relative contact severity, not simply
-        # rolling speed. Ignore repeated harmless board touch events.
-        Input.vibrate_handheld(12 if intensity < 0.70 else 26)
-        haptic_cooldown = 0.48
+    _collision_haptics(intensity)
     var idx: int = rng.randi_range(0,samples.size()-1)
     if contact == "bumper" and other.name.begins_with("PinballKicker_"):
         # The existing soft/hard CC0 samples now distinguish a true
         # spring-post tap from a strong rebound. Keep the same voice pool.
         idx = 1 if intensity >= 0.55 else 0
-    collision_duck = maxf(collision_duck,lerpf(0.4,2.8,intensity))
+    var loudness := lerpf(-24.0,-8.0,intensity)
+    if contact == "glass":
+        # Frequent light contacts in a pack should sound like glass
+        # chatter and leave room for real impacts and track warnings.
+        loudness -= lerpf(1.5,5.0,pack_pressure)*(1.0-smoothstep(0.24,0.70,intensity))
+    collision_duck = maxf(collision_duck,3.5*smoothstep(0.18,1.0,intensity))
     _spatial_voice(samples[idx],target_marble.global_position,
-        lerpf(-24.0,-8.0,intensity),rng.randf_range(0.94,1.08)*
+        loudness,rng.randf_range(0.94,1.08)*
         lerpf(0.90,1.08,intensity))
+
+func _collision_haptics(intensity: float) -> void:
+    if intensity > 0.40 and haptic_cooldown <= 0.0 and OS.has_feature("mobile"):
+        Input.vibrate_handheld(12 if intensity < 0.70 else 26)
+        haptic_cooldown = 0.48
 
 func toggle_sound() -> bool:
     enabled = not enabled
@@ -498,6 +694,10 @@ func toggle_sound() -> bool:
     rolling.volume_db = -80 if not enabled else -36
     mechanism.volume_db = -80 if not enabled else -30
     if not enabled:
+        _reset_priority_mix()
+        _clear_bridge_roll()
+        for speaker in channels:
+            speaker.stop()
         for speaker in spatial_channels:
             speaker.stop()
     return enabled

@@ -42,6 +42,21 @@ func _run() -> void:
                 "Timed obstacles must have nonzero physical collision geometry")
             var shape := collider.shape as BoxShape3D
             assert(shape.size.x > 1.5 and shape.size.x < 2.2)
+            var art := body.get_node("TimedObstacleArt") as MeshInstance3D
+            var detail_name: String = ["SweepingArmCautionBands","IceShutterFrostInlays","PistonSteelCap"][course]
+            var detail := body.get_node(detail_name) as MeshInstance3D
+            assert(art.mesh.get_surface_count() == 1 and detail.mesh.get_surface_count() == 1,
+                "Each obstacle must stay within two shared render batches")
+            assert(art.mesh == director.obstacles[0].get_node("TimedObstacleArt").mesh and
+                detail.mesh == director.obstacles[0].get_node(detail_name).mesh)
+            assert(art.get_aabb().size.x >= shape.size.x*0.96 and (
+                art.get_aabb().size.y >= shape.size.y*0.90),
+                "The render silhouette must mark the actual blocking envelope")
+            var visual_bounds := art.get_aabb().merge(detail.get_aabb())
+            assert(AABB(-shape.size*0.5,shape.size).grow(0.025).encloses(visual_bounds),
+                "Baked visuals must remain within the collision body plus trim allowance")
+            assert(art.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF and
+                detail.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
             assert(absf(body.position.x-game.track_center_at(body.position.z)) <= 5.2,
                 "Hazard must remain inside the driveable corridor")
             assert(body.position.z == director.event_z(i),

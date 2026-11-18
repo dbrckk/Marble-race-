@@ -128,6 +128,12 @@ func _run() -> void:
     stage.audio._on_marble_collision(hammer)
     assert(stage.audio.collision_delay > 0.0,
         "Kinetic obstacles need spatially located impact Foley")
+    if not _verify_race_mix(stage,opponent,hammer):
+        quit(1)
+        return
+    if not _verify_drive_transition(stage):
+        quit(1)
+        return
     var strength_before: float = stage.camera_shake
     for mode in range(3):
         stage.cam_mode = mode
@@ -137,8 +143,12 @@ func _run() -> void:
         assert(stage.camera.fov >= 60.0 and stage.camera.fov <= 80.0)
         assert(stage.camera_shake <= strength_before)
         strength_before = stage.camera_shake
+    assert(stage.showroom_roof.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY,
+        "The overhead camera must see the road through the ceiling while keeping its shadow")
     stage.cam_mode = 0
     stage._update_camera(0.016,true)
+    assert(stage.showroom_roof.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_ON,
+        "The roof should return when switching back to the chase camera")
     var before: Vector3 = stage.camera.global_position
     # Inspect the actual integrated follow camera near the strongest terrain
     # profile: the lookahead must stay above local collidable ground.
@@ -165,6 +175,22 @@ func _run() -> void:
     stage._update_camera(0.016,false)
     assert(stage.camera.global_position.distance_to(before) < 1.3,
         "A 60Hz frame should not snap the camera as marbles jostle")
+    assert(RaceFeedback.chase_forward_step(-12.0,1.0/60.0) == 0.0,
+        "Recovery teleports must still use normal camera damping")
+    stage.player.linear_velocity = Vector3(0,0,-23)
+    for fps: int in [30,60]:
+        var delta := 1.0/float(fps)
+        stage.player.position.z = -64.0
+        stage._update_camera(delta,true)
+        for frame in fps:
+            stage.player.position.z -= 23.0*delta
+            stage._update_camera(delta)
+        var target: Dictionary = RaceFeedback.camera_pose(stage.player.global_position,
+            stage.player.linear_velocity,stage.track_center_at(stage.player.position.z-12.0),
+            0,false,float(stage.upcoming_hazard(stage.player.position.z).get("distance",-1.0)))
+        var offset: float = stage.camera.global_position.z-target["position"].z
+        print("CHASE_DAMPING ",fps,"FPS ",offset,"m")
+        assert(absf(offset) < 1.25,"Chase camera must stay near its desired offset at speed")
     var beacon: Dictionary = stage.hazard_beacons[0]
     stage.player.position.z = float(beacon["z"])+8.0
     stage.player.linear_velocity = Vector3(0,0,-18)
@@ -183,3 +209,105 @@ func _run() -> void:
     await process_frame
     print("RACE_FEEL_PASS: camera modes, stable damping, impact filtering, spatial Foley, hazard ETA")
     quit()
+
+func _verify_race_mix(stage: Node3D, opponent: RigidBody3D, hammer: Node3D) -> bool:
+    var sound: Node3D = stage.audio
+    sound._reset_priority_mix()
+    stage.player.linear_velocity = Vector3(0,0,-18)
+    for frame in range(40):
+        sound._process(0.10)
+    var open_wind: float = sound.air.volume_db
+    var board_roll: float = sound.rolling.volume_db
+    sound.set_pack_pressure(1.0)
+    for frame in range(35):
+        sound._process(0.10)
+    var crowded_wind: float = sound.air.volume_db
+    assert(crowded_wind < open_wind-2.9 and is_equal_approx(sound.rolling.volume_db,board_roll))
+    assert(sound.rolling is AudioStreamPlayer and sound.bridge_rolling is AudioStreamPlayer)
+
+    var next_voice: int = (sound.current_channel+1)%sound.channels.size()
+    sound.race_moment("overtake")
+    assert(sound.current_channel == next_voice,"One clean pass uses one short cue")
+    sound._process(0.04)
+    assert(sound.air.volume_db < crowded_wind-1.0)
+    assert(is_equal_approx(sound.rolling.volume_db,board_roll))
+
+    opponent.linear_velocity = Vector3(0,0,-12.5)
+    sound._on_marble_collision(opponent)
+    var soft_impact: float = sound.last_impact_intensity
+    assert(soft_impact >= 0.14 and soft_impact < 0.25 and sound.collision_duck < 0.1)
+    sound._on_marble_collision(hammer)
+    assert(sound.last_impact_intensity > soft_impact+0.5,
+        "A strong obstacle hit must survive a recent light glass tap")
+    sound._process(0.05)
+    assert(sound.air.volume_db < crowded_wind-3.0)
+
+    sound.warn_timed_gate(0,true)
+    next_voice = sound.current_channel
+    sound.race_moment("overtake")
+    assert(sound.current_channel == next_voice,"Predictive warnings have priority over pass cues")
+    sound._process(0.05)
+    assert(sound.air.volume_db < crowded_wind-3.5)
+    for frame in range(20):
+        sound._process(0.10)
+    assert(absf(sound.air.volume_db-crowded_wind) < 0.1 and sound.pass_mix_seconds == 0.0)
+    sound.set_pack_pressure(0.0)
+    assert(stage.player.linear_velocity == Vector3(0,0,-18))
+    return true
+
+func _verify_drive_transition(stage: Node3D) -> bool:
+    var sound: Node3D = stage.audio
+    sound.begin_race()
+    stage.player.global_position = Vector3(0,stage.height_at(-6.0)+0.45,-6.0)
+    stage.player.linear_velocity = Vector3(0,0,-19)
+    for frame in range(40):
+        sound._process(0.10)
+    var clean_wind: float = sound.air.volume_db
+    var rotation_roll: float = sound.rolling.volume_db
+    var channel: int = sound.current_channel
+    stage.change_boost(true)
+    assert(sound.current_channel == channel,"Dispatch turbo after the HUD decides warning priority")
+    stage._process(0.016)
+    var ignition: AudioStreamPlayer = sound.channels[channel]
+    assert(ignition.stream == sound.TONES["boost"] and ignition.playing)
+    for frame in range(18):
+        sound._process(0.05)
+    assert(sound.air.volume_db > clean_wind+2.0)
+    sound.set_drive_context(true,1.0)
+    for frame in range(18):
+        sound._process(0.05)
+    assert(sound.air.volume_db < clean_wind-3.0 and sound.rolling.volume_db > rotation_roll+1.9)
+    sound.warn_timed_gate(1,true)
+    assert(ignition.volume_db <= sound.WARNED_BOOST_DB,"Warnings lower any turbo sound already playing")
+    sound._process(0.05)
+    assert(sound.air.volume_db < clean_wind-5.0)
+    channel = sound.current_channel
+    sound.item_pickup("turbo")
+    assert(sound.channels[channel].volume_db <= sound.WARNED_BOOST_DB)
+    stage.change_boost(false)
+    sound.set_drive_context(false,0.0)
+    for frame in range(20):
+        sound._process(0.10)
+    stage.change_boost(true)
+    sound.warn_timed_gate(2,true)
+    channel = sound.current_channel
+    stage._process(0.016)
+    assert(sound.current_channel == channel and stage.boosting,
+        "A simultaneous warning takes the sound priority while turbo still engages")
+    stage.change_boost(false)
+    sound.set_drive_context(false,0.0)
+    for frame in range(20):
+        sound._process(0.10)
+    assert(absf(sound.air.volume_db-clean_wind) < 0.1 and sound.turbo_mix < 0.01)
+    channel = sound.current_channel
+    var wind_pitch: float = sound.air.pitch_scale
+    sound.set_drive_context(false,0.0,1.0)
+    for frame in range(8):
+        sound._process(0.05)
+    assert(sound.current_channel == channel and sound.air.volume_db > clean_wind+2.5 and (
+        sound.air.pitch_scale > wind_pitch+0.045))
+    sound.warn_timed_gate(0,true)
+    sound._process(0.05)
+    assert(sound.air.volume_db < clean_wind and is_equal_approx(sound.air.pitch_scale,wind_pitch),
+        "An active obstacle warning overrides the speed release")
+    return true

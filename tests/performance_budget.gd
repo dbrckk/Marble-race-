@@ -35,6 +35,43 @@ func _run() -> void:
     model.reset()
     assert(model.frame_ms.is_empty() and model.report.is_empty() and model.cursor == 0,
         "Each race needs a clean isolated performance window")
+    assert(model.race_summary().is_empty())
+    assert(Budget.focus_at(4.99,5.0,-104.0) == Budget.Focus.LAUNCH)
+    assert(Budget.focus_at(5.0,5.0,-104.0) == Budget.Focus.NONE)
+    assert(Budget.focus_at(12.0,-96.0,-104.0) == Budget.Focus.BRIDGE_RETURN)
+    assert(Budget.focus_at(12.0,-112.0,-104.0) == Budget.Focus.BRIDGE_RETURN)
+    assert(Budget.focus_at(12.0,-112.01,-104.0) == Budget.Focus.NONE)
+    model.record_frame(0,0,Budget.Focus.LAUNCH)
+    model.record_frame(16667,1)
+    model.record_frame(56667,1,Budget.Focus.BRIDGE_RETURN)
+    model.suspend()
+    model.record_frame(10000000,2,Budget.Focus.BRIDGE_RETURN)
+    model.record_frame(10400000,2)
+    var measurements: String = model.race_summary()
+    assert(measurements.contains("START | 1 frames | P95 17 ms | >33.3 ms 0.0%"))
+    assert(measurements.contains("MID-RACE | 1 frames | P95 40 ms | >33.3 ms 100.0%"))
+    assert(measurements.contains("FINAL SECTOR | 1 frames | P95 250+ ms | >33.3 ms 100.0%"),
+        "A real slow foreground frame counts, while the pause interval is skipped")
+    assert(measurements.contains("FIRST 5s | 1 frames | P95 17 ms"))
+    assert(measurements.contains("BRIDGE RETURN ±8 m | 1 frames | P95 250+ ms"),
+        "Only the preceding frame's window receives the interval")
+    assert(model.focus_windows[Budget.Focus.BRIDGE_RETURN].monitor_samples == 1,
+        "Short windows get a monitor sample even between periodic reports")
+    assert(Budget.near_first_obstacle(-10.0,-6.0))
+    assert(not Budget.near_first_obstacle(-10.01,-6.0))
+    assert(not Budget.near_first_obstacle(0.0,INF))
+    model.reset()
+    model.record_frame(0,-1,Budget.Focus.GRID)
+    model.record_frame(32000,-1,Budget.Focus.GRID)
+    model.record_frame(48000,0,Budget.Focus.LAUNCH,true)
+    model.record_frame(95000,0,Budget.Focus.LAUNCH)
+    model.record_frame(110000,0)
+    measurements = model.race_summary()
+    assert(measurements.contains("GRID LAST 1.15s | 2 frames | P95 32 ms"))
+    assert(measurements.contains("FIRST OBSTACLE ±4 m | 1 frames | P95 47 ms"))
+    assert(measurements.contains("FIRST 5s | 2 frames | P95 47 ms") and
+        measurements.contains("START | 2 frames | P95 47 ms"),
+        "Grid stays separate and the obstacle window overlaps the launch")
 
     var game = load("res://scenes/main.tscn").instantiate()
     root.add_child(game)
@@ -54,7 +91,21 @@ func _run() -> void:
     assert(game.racers.size() == 40, "Maintain all 40 real rigid-body marbles")
     assert(game.performance_budget.frame_ms.is_empty(),
         "New races reset frame pacing samples")
+    var entry: MeshInstance3D = game.board.find_child("OpeningObstacleArt",true,false)
+    assert(is_equal_approx(game.first_obstacle_entry_z,entry.entry_z))
+    game.countdown = 0.70
+    game._process(1.0/60.0)
+    game._process(1.0/60.0)
     game.race_state = "RACING"
+    var grid_position: Vector3 = game.player.global_position
+    game.player.global_position = Vector3(game.track_center_at(entry.entry_z),
+        game.height_at(entry.entry_z)+0.65,entry.entry_z)
+    game._process(1.0/60.0)
+    game._process(1.0/60.0)
+    assert(game.performance_budget.focus_windows[Budget.Focus.GRID].frames == 2 and
+        game.performance_budget.focus_windows[Budget.Focus.FIRST_OBSTACLE].frames == 1)
+    game.player.global_position = grid_position
+    game.performance_budget.reset()
     for i in range(120):
         game.performance_budget.tick(1.0/60.0)
     game.ui.label_timer = 0.5
@@ -100,7 +151,36 @@ func _run() -> void:
     assert(game.race_items.eligible_collectors.is_empty(),
         "Finished players cannot farm arcade items")
     game.player.finished = false
-    if not originally_visible:
+    game.set_graphics_quality(1)
+    var previous_layout: int = game.built_variation
+    var previous_perk: String = game.selected_perk
+    game.performance_budget.record_frame(1000,0)
+    game.performance_budget.record_frame(17667,0)
+    game._end_race()
+    assert(game.ui.performance_actions.is_visible_in_tree() and
+        game.ui.performance_text.contains("BALANCED") and
+        game.ui.performance_text.contains("FINAL SECTOR | NO SAMPLES") and
+        game.ui.performance_text.contains("BRIDGE RETURN ±8 m | NO SAMPLES"),
+        "Results identify the measured profile and distinguish an unreached phase")
+    var report: String = game.ui.performance_text
+    game.ui._show_fps_report(report)
+    await process_frame
+    assert(game.ui.performance_report_dialog.visible and
+        game.ui.performance_report_input.text == report and
+        not game.ui.performance_report_input.editable,
+        "The fallback exposes the complete report without changing its contents")
+    game.ui.compare_performance.pressed.emit()
+    assert(not game.ui.performance_report_dialog.visible,
+        "An old report must close when a new race begins")
+    assert(game.race_state == "COUNTDOWN" and game.built_variation == previous_layout and
+        game.selected_perk == previous_perk and game.graphics_setting == 0 and
+        game.performance_budget.race_summary().is_empty(),
+        "Compare switches profiles and starts a fresh capture on the same layout and perk")
+    game.toggle_fps_overlay()
+    game._end_race()
+    assert(not game.ui.performance_actions.is_visible_in_tree(),
+        "Performance actions must stay hidden when metrics are disabled")
+    if originally_visible:
         game.toggle_fps_overlay()
     game.return_to_menu()
     game.queue_free()

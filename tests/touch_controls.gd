@@ -22,8 +22,14 @@ func _run() -> void:
     print("TOUCH_TEST_ANALOG ",pad.steer," finger ",pad.joystick_finger)
     assert(pad.steer > 0.4, "Analog finger movement not calibrated")
     assert(race.steer_target > 0.4, "Touch steering not connected to game")
+    pad._move_finger(1,Vector2(600,590))
+    assert(is_equal_approx(pad.joystick_tip.x-pad.joystick_origin.x,pad.steering_radius()))
+    assert(is_equal_approx(pad.steer,1.0),"The drawn rim must coincide with full steering")
     pad._finger_event(2,Vector2(1000,585),true)
     assert(pad.boost_pressed and race.boosting, "Second finger should boost")
+    race.boost_energy = 0.54
+    race.ui.update_hud()
+    assert(pad.boost_percent == 54 and pad.boost_active,"Boost ring must follow actual race state")
     pad._finger_event(2,Vector2(1000,585),false)
     assert(not pad.boost_pressed and not race.boosting, "Boost release should not latch")
     assert(pad.steer > 0.4, "Second-finger release should not cancel joystick")
@@ -39,6 +45,10 @@ func _run() -> void:
     race.ui.left_handed = false
     race.ui._hand_pressed()
     assert(pad.left_handed, "Left handed layout not activated")
+    assert(pad.boost_center_fraction() < 0.5)
+    race.boost_energy = 0.0
+    race.ui.update_hud()
+    assert(pad.boost_percent == 0 and not pad.boost_active,"Empty charge must display recharge")
     pad._finger_event(4,Vector2(1060,585),true)
     pad._move_finger(4,Vector2(965,585))
     assert(pad.steer < -0.3, "Left handed joystick should work on right side")

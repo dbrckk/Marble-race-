@@ -105,12 +105,14 @@ func _check() -> void:
     follower.drive(0.016,5.0,0.0,false)
     assert(follower.ai_traffic_timer == 0.0,
         "Opening pack must preserve the physically tested racing line")
-    var final_z := -135.0
+    # Test the true clear final section. The AI reserves up to 15 metres
+    # before hazards at race speed, rather than the historical 3.5 metres.
+    var final_z := -165.0
     var final_center: float = game.track_center_at(final_z)
     var final_hazard: Dictionary = game.upcoming_hazard(final_z)
     assert(final_hazard.is_empty() or (
-        float(final_hazard["distance"]) >= 3.5),
-        "Later overtaking test needs a real clear corridor")
+        float(final_hazard["distance"]) >= 15.0),
+        "Later overtaking test requires enough clearance for a full-speed pass")
     follower.global_position = Vector3(final_center,
         game.height_at(final_z)+0.8,final_z)
     follower.ai_traffic_timer = 0.0

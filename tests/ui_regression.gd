@@ -18,6 +18,31 @@ func _run() -> void:
     assert(not game.ui.track_buttons[0].disabled)
     assert(game.ui.track_buttons[1].disabled)
     assert(game.ui.track_buttons[2].disabled)
+    await process_frame
+    var picker: PanelContainer = game.ui.menu_layer.get_node("CircuitPicker")
+    var options: GridContainer = game.ui.menu_layer.get_node("MenuOptions")
+    var skins: Button = options.get_node("ExclusiveTemporarySkins")
+    var backup: Button = options.get_node("SaveRestore")
+    for button: Button in options.get_children():
+        assert(button.get_global_rect().size.y >= 51.0)
+        assert(not button.get_global_rect().intersects(picker.get_global_rect()),
+            "Circuit picker must not intercept any menu option")
+    for button: Button in [skins,backup]:
+        var click := InputEventMouseButton.new()
+        click.button_index = MOUSE_BUTTON_LEFT
+        click.position = button.get_global_rect().get_center()
+        var hover := InputEventMouseMotion.new()
+        hover.position = click.position
+        root.push_input(hover,true)
+        click.pressed = true
+        root.push_input(click,true)
+        click = click.duplicate()
+        click.pressed = false
+        root.push_input(click,true)
+        await process_frame
+        assert(not game.ui.menu_layer.visible,"%s must receive actual clicks" % button.name)
+        game.ui.show_menu()
+        await process_frame
     game.ui._select_track(2)
     assert(game.selected_track==0,"Locked course must not be selectable")
     game.career.unlocked=3

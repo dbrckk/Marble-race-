@@ -35,8 +35,35 @@ func _run() -> void:
     assert(stage.racer_finish_order.size() >= 8, "Course should have finishers after 110 seconds")
     assert(stage.player.finished,
         "Unsteered player must finish: a wedged marble breaks the race loop")
+    stage.return_to_menu()
+    stage.career.unlocked = 3
+    assert(stage.set_track(2))
+    assert(await _clears_forge_wedge(stage),
+        "A persistent Forge slalom and baffle wedge must release without teleporting")
     stage.queue_free()
     for n in range(4):
         await process_frame
     print("RACE_DIAGNOSTIC_PASS")
     quit(0)
+
+func _clears_forge_wedge(stage: Node3D) -> bool:
+    stage.start_race("Grip Tape")
+    stage.countdown = 0.01
+    for frame in range(8):
+        await physics_frame
+    for marble in stage.racers:
+        if marble != stage.player:
+            marble.freeze = true
+    var player: RigidBody3D = stage.player
+    # Reproduced at the contact point of SlalomBlock_11_03 and
+    # AntiEdgeBaffle_11_R during the full Forge race.
+    player.global_position = Vector3(2.91925,-11.020,-126.6997)
+    player.linear_velocity = Vector3.ZERO
+    player.angular_velocity = Vector3.ZERO
+    var retried := false
+    for frame in range(1350):
+        await physics_frame
+        retried = retried or player.recovery_count >= 5
+        if player.position.z < -128.0:
+            return retried and not player.eliminated
+    return false

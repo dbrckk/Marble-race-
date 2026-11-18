@@ -2,6 +2,7 @@ extends SceneTree
 ## Race presentation is based on actual crossing geometry, never positions
 ## invented from rankings or data written by network clients.
 const Moments = preload("res://scripts/race_moments.gd")
+const Feedback = preload("res://scripts/race_feedback.gd")
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -41,6 +42,12 @@ func _run() -> void:
     assert(Moments.edge_intensity(7.0,true,1) > 0.0,
         "Boost ignition should remain perceptible below maximum speed")
 
+    var motion := Vector3(0,0,-15)
+    var left: Vector3 = Feedback.camera_pose(Vector3.ZERO,motion,0.0,0,false,-1.0,true,0.0,-1.0)["focus"]
+    var right: Vector3 = Feedback.camera_pose(Vector3.ZERO,motion,0.0,0,false,-1.0,true,0.0,1.0)["focus"]
+    assert(left.x < 0.0 and right.x > 0.0 and is_equal_approx(left.z,right.z),
+        "Duel framing reveals the rival's side with no change to lookahead")
+
     var stage = load("res://scenes/main.tscn").instantiate()
     root.add_child(stage)
     await process_frame
@@ -60,6 +67,31 @@ func _run() -> void:
     for quad in stage.ui.speed_stripes:
         assert(quad.mouse_filter == Control.MOUSE_FILTER_IGNORE,
             "Speed FX must never steal joystick or boost touches")
+    var locator: Control = stage.ui.player_locator
+    var camera_pose: Transform3D = stage.camera.global_transform
+    stage.race_state = "COUNTDOWN"
+    locator.refresh(0.2)
+    assert(locator.is_visible_in_tree() and locator.bracket_strength == 1.0,
+        "Identify the local marble on the crowded grid")
+    stage.race_state = "RACING"
+    stage.race_time = 0.9
+    stage.race_moments.nearby_pack_count = 2
+    locator.refresh(0.2)
+    assert(locator.bracket_strength == 1.0,"Keep the outline in a physical pack")
+    var center: Vector2 = locator.screen_center
+    p.rotation.y += 0.8
+    locator.refresh(0.2)
+    assert(locator.screen_center.is_equal_approx(center),"Rolling cannot move the locator")
+    stage.race_moments.nearby_pack_count = 0
+    locator.refresh(0.2)
+    assert(locator.is_visible_in_tree() and locator.bracket_strength == 0.0,
+        "The solo badge should stay while the crowd outline clears")
+    stage.camera.look_at(stage.camera.global_position+(stage.camera.global_position-p.global_position),
+        Vector3.UP)
+    locator.refresh(0.2)
+    assert(not locator.visible,"Avoid clamped or mirrored markers for a racer behind the camera")
+    stage.camera.global_transform = camera_pose
+    stage.race_time = 0.0
     var rival: RigidBody3D = stage.racers[0]
     var second_rival: RigidBody3D = stage.racers[1]
     var third_rival: RigidBody3D = stage.racers[2]
@@ -80,11 +112,19 @@ func _run() -> void:
     assert(stage.ui.duel_label.visible and
         stage.ui.duel_label.text.contains("CHASE"),
         "Player should see the nearest opponent ahead")
+    assert(stage.ui.rival_marker.visible and not stage.ui.rival_marker.no_depth_test)
+    assert(stage.ui.rival_marker.global_position.distance_to(
+        rival.global_position+Vector3.UP*0.88) < 0.01)
     p.global_position = Vector3(0,elevation,-23.5)
     stage.race_moments.tick(0.12)
     assert(stage.race_moments.unique_overtakes == 1,
         "A real relative crossing should count exactly one rival")
-    assert(stage.ui.race_moment_label.text == "CLEAN OVERTAKE!")
+    assert(stage.audio.pass_mix_seconds > 0.0,"A confirmed pass should briefly clear the wind mix")
+    assert(stage.ui.race_moment_label.text.begins_with("CLEAN OVERTAKE!") and
+        stage.ui.race_moment_label.text.contains(rival.display_name))
+    stage.ui.show_race_moment("TURBO",0.6)
+    assert(stage.ui.race_moment_label.text.contains(rival.display_name),
+        "A speed effect must not overwrite a confirmed pass")
     stage.ui.label_timer = 0.50
     stage.ui.update_hud()
     assert(stage.ui.duel_label.visible and
@@ -114,6 +154,12 @@ func _run() -> void:
     stage.race_moments.message_at = -100.0
     p.global_position = Vector3(0,stage.height_at(-161.0)+0.8,-161.0)
     stage.race_moments.tick(0.12)
+    assert(not stage.race_moments.final_stretch_seen,
+        "The finish cue starts downstream of the remaining obstacles")
+    var sprint_z: float = stage.final_straight_z-0.6
+    var sprint_x: float = stage.track_center_at(sprint_z)
+    p.global_position = Vector3(sprint_x,stage.height_at(sprint_z)+0.65,sprint_z)
+    stage.race_moments.tick(0.12)
     assert(stage.race_moments.final_stretch_seen)
     assert(stage.ui.race_moment_label.text == "FINAL STRAIGHT")
     stage.race_moments.tick(0.12)
@@ -122,6 +168,10 @@ func _run() -> void:
     assert(stage.race_moments.unique_overtakes == 0 and
         not stage.race_moments.final_stretch_seen,
         "Rematches must reset local one-time race direction flags")
+
+    _verify_pack_passes(stage,rival,second_rival,third_rival)
+    stage.race_moments.reset_round()
+    stage.ui.clear_overtake_feedback()
 
     # Hold a true same-level two-marble duel for multiple real 10Hz
     # samples. Only that verified fight may receive a one-shot cue.
@@ -141,17 +191,24 @@ func _run() -> void:
     assert(stage.race_moments.side_by_side_active and
         stage.race_moments.side_by_side_events == 1,
         "A sustained honest wheel-to-wheel duel must get exactly one cue")
-    assert(stage.ui.race_moment_label.text == "SIDE BY SIDE!",
-        "Duel announcement must come from actual rigid-body track positions")
+    assert(stage.ui.race_moment_label.text != "SIDE BY SIDE!",
+        "The rival row already announces the duel, without a duplicate toast")
     stage.ui.label_timer = 0.5
     stage.ui.update_hud()
     assert(stage.ui.duel_label.visible and
-        stage.ui.duel_label.text.contains("SIDE BY SIDE"),
-        "Android's existing no-touch duel banner should identify a real contest")
+        stage.ui.duel_label.text.contains("SIDE BY SIDE") and
+        stage.ui.duel_label.text.contains("RIGHT"),
+        "The duel banner identifies the real opponent and their side")
+    second_rival.global_position = Vector3(duel_center-1.35,duel_height,duel_z-0.04)
+    second_rival.linear_velocity.z = -13.1
+    stage.race_moments.tick(0.12)
+    assert(stage.race_moments.closest_rival == rival,
+        "A marginally closer rival must not steal an established duel")
     for sample in range(15):
         stage.race_moments.tick(0.12)
     assert(stage.race_moments.side_by_side_events == 1,
         "Staying alongside the same opponent must not spam sound and alerts")
+    second_rival.global_position.y += 5.0
     rival.global_position.y += 5.0
     stage.race_moments.tick(0.12)
     assert(not stage.race_moments.side_by_side_active,
@@ -173,23 +230,45 @@ func _run() -> void:
     stage.race_moments.on_finish()
     assert(stage.ui.race_moment_label.text == "PHOTO FINISH!",
         "Repeated finish signals must not retrigger the cinematic cue")
+    stage.race_moments.reset_round()
+    stage.ui.moment_remaining = 0.0
+    rival.finished = false
+    rival.freeze = false
+    rival.global_position = stage.finish_origin+Vector3(stage.FINISH_HALF_WIDTH+1.0,0.45,0.8)
+    rival.linear_velocity = Vector3(0,0,-14)
+    stage.race_moments.on_finish()
+    assert(stage.ui.race_moment_label.text != "PHOTO FINISH!",
+        "A rival outside the timing stripe does not qualify for a photo finish")
+    rival.global_position = stage.finish_origin+Vector3(1.4,0.45,0.8)
+    stage.race_moments.on_finish()
+    assert(not stage.race_moments.photo_finish_seen,
+        "A rival on course can still collide or stall before the stripe")
+    rival.finished = true
+    rival.finish_time = 52.13
+    stage.race_moments.on_finish()
+    assert(stage.race_moments.photo_finish_seen and stage.ui.race_moment_label.text == "PHOTO FINISH!")
+    rival.finished = false
 
     # Both Android graphic tiers and rest screen stay usable without
     # any postprocess shaders or gameplay camera changes.
     p.finished = false
-    stage.race_moments.local_speed = 25.0
+    p.linear_velocity = Vector3(0.0,0.0,-25.0)
     for quality in range(3):
         stage.set_graphics_quality(quality)
         stage.ui.label_timer = 0.50
-        stage.ui.update_hud()
+        for frame in range(16):
+            stage.ui.update_hud()
         for streak in stage.ui.speed_stripes:
             assert(streak.visible == (quality > 0),
                 "Only BALANCED and ULTRA are allowed speed streaks")
             assert(streak.color.a <= 0.20,
                 "Speed streaks must not obscure track visibility")
-    stage.ui.show_race_moment("TEST",0.1)
+    # The photo-finish fixture owns the banner until its timer expires.
+    stage.ui.moment_remaining = 0.0
+    stage.ui.toast_remaining = 0.0
+    stage.ui.show_race_moment("TEST",0.9)
     stage.ui.update_hud()
-    assert(stage.ui.race_moment_label.visible)
+    assert(stage.ui.race_moment_label.visible and stage.ui.race_moment_label.text == "TEST")
     # Solo results show presentation stats, but no online rewards are
     # credited from this locally computed number.
     stage.last_result = {"finished":true,"stars":1,
@@ -199,9 +278,63 @@ func _run() -> void:
     assert(summary.text.contains("OVERTAKES 4"),
         "Physical pass total must appear on solo results without affecting rewards")
     stage.return_to_menu()
+    assert(not stage.ui.rival_marker.visible)
     stage.queue_free()
     await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://test_arcade_race_moments.cfg"))
-    print("RACE_MOMENTS_PASS: legitimate overtakes, held side duels, clean resets, finish drama, mobile HUD, no ranking cheats")
+    print("RACE_MOMENTS_PASS: close pack crossings, stable duel tracking, direction, HUD priority and rematch cleanup")
     quit()
+
+func _verify_pack_passes(stage: Node3D, rival: RigidBody3D, second: RigidBody3D,
+        third: RigidBody3D) -> void:
+    var player: RigidBody3D = stage.player
+    var z := -124.0
+    var y: float = stage.height_at(z)+0.8
+    player.global_position = Vector3(0,y,z)
+    rival.global_position = Vector3(1.3,y,z-1.3)
+    second.global_position = Vector3(-1.4,y,z-2.1)
+    third.global_position = Vector3(0.2,y+3.0,z-1.2)
+    stage.race_moments.tick(0.12)
+    player.global_position.z -= 1.5
+    stage.race_moments.tick(0.12)
+    assert(stage.race_moments.unique_overtakes == 0,
+        "A first crossing still needs separation")
+    player.global_position.z -= 1.0
+    stage.race_moments.tick(0.12)
+    assert(stage.race_moments.unique_overtakes == 1)
+    player.global_position.z -= 1.0
+    stage.race_moments.tick(0.12)
+    assert(stage.race_moments.unique_overtakes == 2 and
+        stage.ui.race_moment_label.text == "DOUBLE PASS!",
+        "Two close passes over consecutive samples form one double pass")
+    # Rebuild a crossing across different levels. Once on the ground,
+    # the opponent must not retroactively become a clean pass.
+    stage.race_moments.reset_round()
+    third.global_position = Vector3(0.2,y+3.0,player.global_position.z-1.2)
+    stage.race_moments.tick(0.12)
+    player.global_position.z -= 1.4
+    stage.race_moments.tick(0.12)
+    third.global_position.y = y
+    player.global_position.z -= 1.5
+    stage.race_moments.tick(0.12)
+    assert(stage.race_moments.unique_overtakes == 0)
+    var bridge: Vector3 = stage.shortcut_route.point_at(-76.0)
+    assert(stage.shortcut_route.on_separate_deck(bridge+Vector3.UP*0.55))
+    var main := Vector3(stage.track_center_at(bridge.z),stage.height_at(bridge.z)+0.55,bridge.z)
+    assert(not stage.shortcut_route.on_separate_deck(main))
+    player.global_position = main
+    rival.global_position = bridge+Vector3.UP*0.55
+    stage.race_moments.tick(0.12)
+    stage.race_moments.tick(0.12)
+    assert(stage.race_moments.closest_rival != rival)
+    stage.net.role = "client"
+    stage.race_moments.reset_round()
+    rival.global_position = main+Vector3(1.3,0,-1.4)
+    stage.race_moments.tick(0.12)
+    player.global_position.z -= 3.0
+    stage.race_moments.tick(0.12)
+    stage.ui.label_timer = 0.5
+    stage.ui.update_hud()
+    assert(stage.race_moments.unique_overtakes == 0 and not stage.ui.rival_marker.visible)
+    stage.net.role = "offline"

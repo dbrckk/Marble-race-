@@ -2,7 +2,9 @@ name: Verify and build Android APK
 
 on:
   push:
-    branches: [main]
+    # Validate commits created directly on the active development branch,
+    # even when no pull_request workflow is scheduled for that head SHA.
+    branches: [main, woodworks-race-flow]
   pull_request:
   workflow_dispatch:
 
@@ -86,11 +88,20 @@ jobs:
           set -euo pipefail
           timeout 75s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 240 --path . --script res://tests/touch_controls.gd 2>&1 | tee touch-controls.log
           grep -Fq "TOUCH_CONTROLS_PASS:" touch-controls.log
-      - name: Four-race replay and hazard UI regression
+      - name: Woodworks first race, two-finger guidance and one-tap replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          XDG_DATA_HOME="$(mktemp -d)" timeout 75s ./Godot_v4.5.1-stable_linux.x86_64 --headless --fixed-fps 60 --quit-after 600 --path . --script res://tests/woodworks_opening.gd 2>&1 | tee woodworks-opening.log
+          grep -Fq "WOODWORKS_OPENING_PASS:" woodworks-opening.log
+      - name: Nine race layouts, starting signal and opening obstacle guidance
         shell: bash
         run: |
           set -euo pipefail
           timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --path . --script res://tests/replay_variation.gd 2>&1 | tee replay-variation.log
+          grep -Fq 'RAIL_PROFILE_PASS' replay-variation.log
+          grep -Fq 'START_GATE_PASS' replay-variation.log
+          grep -Fq 'OPENING_ART_PASS' replay-variation.log
           grep -Fq "VARIATION_AND_HAZARD_PASS:" replay-variation.log
       - name: Scroll-safe Android prerace controls and real course map
         shell: bash
@@ -128,6 +139,13 @@ jobs:
           set -euo pipefail
           GODOT_BIN="$PWD/Godot_v4.5.1-stable_linux.x86_64" GAME_DIR="$PWD" NETWORK_LOG_DIR="$RUNNER_TEMP/world-race" timeout 80s bash server/online_integration.sh 2>&1 | tee worldwide-e2e.log
           grep -Fq "WORLDWIDE_PROTOCOL_E2E_PASS:" worldwide-e2e.log
+      - name: Remote cut-ins at the Glacier shutter on all three layouts
+        shell: bash
+        run: |
+          set -euo pipefail
+          for layout in 0 1 2; do
+            GLACIER_ONLINE_LAYOUT="$layout" GODOT_BIN="$PWD/Godot_v4.5.1-stable_linux.x86_64" GAME_DIR="$PWD" NETWORK_LOG_DIR="$RUNNER_TEMP/glacier-online-$layout" timeout 40s bash server/online_integration.sh
+          done
       - name: Internet packet freshness and ping regression
         shell: bash
         run: |
@@ -227,6 +245,7 @@ jobs:
         run: |
           set -euo pipefail
           timeout 95s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 1200 --path . --script res://tests/rare_item_navigation.gd 2>&1 | tee rare-item-navigation.log
+          if grep -Eq 'SCRIPT ERROR|Parse Error' rare-item-navigation.log; then exit 1; fi
           grep -Fq "RARE_ITEM_NAVIGATION_PASS:" rare-item-navigation.log
       - name: Continuous winding ground, guard seams and AI path regression
         shell: bash
@@ -288,12 +307,25 @@ jobs:
           set -euo pipefail
           timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 650 --path . --script res://tests/ai_traffic.gd 2>&1 | tee ai-traffic.log
           grep -Fq "AI_TRAFFIC_PASS:" ai-traffic.log
+      - name: Physical AI braking, queues, overtaking and cut-ins at the Glacier shutter
+        shell: bash
+        run: |
+          set -euo pipefail
+          XDG_DATA_HOME="$(mktemp -d)" timeout 75s ./Godot_v4.5.1-stable_linux.x86_64 --headless --fixed-fps 60 --quit-after 5250 --path . --script res://tests/glacier_shutter_traffic.gd 2>&1 | tee glacier-shutter-traffic.log
+          grep -Fq "GLACIER_SHUTTER_TRAFFIC_PASS:" glacier-shutter-traffic.log
       - name: Real moving-gate Android HUD and predictive audio warnings
         shell: bash
         run: |
           set -euo pipefail
           timeout 95s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 1150 --path . --script res://tests/timed_gate_hud.gd 2>&1 | tee timed-gate-hud.log
+          if grep -Eq 'SCRIPT ERROR|Parse Error' timed-gate-hud.log; then exit 1; fi
           grep -Fq "TIMED_HUD_PASS:" timed-gate-hud.log
+      - name: Glacier bridge return, queue recovery, ten-marble traffic and shutter phases
+        shell: bash
+        run: |
+          set -euo pipefail
+          XDG_DATA_HOME="$(mktemp -d)" timeout 110s ./Godot_v4.5.1-stable_linux.x86_64 --headless --fixed-fps 60 --quit-after 20000 --path . --script res://tests/glacier_bridge_return.gd 2>&1 | tee glacier-bridge-return.log
+          grep -Fq "GLACIER_BRIDGE_RETURN_PASS:" glacier-bridge-return.log
       - name: Predictive physical timed-hazard AI across nine course layouts
         shell: bash
         run: |
@@ -378,7 +410,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          timeout 150s ./Godot_v4.5.1-stable_linux.x86_64 --headless --fixed-fps 60 --quit-after 7200 --path . --script res://tests/race_diagnostic.gd 2>&1 | tee race-diagnostic.log
+          timeout 150s ./Godot_v4.5.1-stable_linux.x86_64 --headless --fixed-fps 60 --quit-after 8600 --path . --script res://tests/race_diagnostic.gd 2>&1 | tee race-diagnostic.log
           grep -Fq "RACE_DIAGNOSTIC_PASS" race-diagnostic.log
       - name: Four-sector split records and DNF regression
         shell: bash
@@ -434,6 +466,18 @@ jobs:
           set -euo pipefail
           timeout 180s ./Godot_v4.5.1-stable_linux.x86_64 --headless --fixed-fps 60 --quit-after 46000 --path . --script res://tests/end_to_end.gd 2>&1 | tee career-end-to-end.log
           grep -Fq "END_TO_END_PASS:" career-end-to-end.log
+      - name: Finish stripe rejects off-course crossings
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 60s ./Godot_v4.5.1-stable_linux.x86_64 --headless --fixed-fps 60 --quit-after 450 --path . --script res://tests/finish_crossing.gd 2>&1 | tee finish-crossing.log
+          grep -Fq "FINISH_CROSSING_PASS:" finish-crossing.log
+      - name: Final obstacle recovery with 40 marbles on all nine layouts
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 180s ./Godot_v4.5.1-stable_linux.x86_64 --headless --fixed-fps 60 --quit-after 41500 --path . --script res://tests/final_pack.gd 2>&1 | tee final-pack.log
+          grep -Fq "FINAL_PACK_PASS:" final-pack.log
       - name: Configure Android SDK
         shell: bash
         run: |
@@ -491,8 +535,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          version="$(sed -n 's|^version/name="\\(.*\\)"|\\1|p' export_presets.cfg | head -n 1)"
-          code="$(sed -n 's|^version/code=\\([0-9]*\\)|\\1|p' export_presets.cfg | head -n 1)"
+          badging="$(grep -m 1 '^package: ' build/apk-badging.txt)"
+          version="$(sed -n "s/.* versionName='\([^']*\)'.*/\1/p" <<<"$badging")"
+          code="$(sed -n "s/.* versionCode='\([0-9][0-9]*\)'.*/\1/p" <<<"$badging")"
+          [[ -n "$version" && -n "$code" ]]
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs --verbose build/marble-race-debug.apk > "$RUNNER_TEMP/debug-apksigner.txt"
           signer="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/debug-apksigner.txt" | head -n 1)"
           test -n "$signer"

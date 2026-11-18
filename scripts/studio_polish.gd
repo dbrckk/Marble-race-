@@ -72,13 +72,14 @@ func _checkpoint_stripes(tint: Color) -> void:
 
 func _warning_stripes(stage: Node3D, tint: Color) -> void:
     var points: Array[Vector3] = []
-    for warning in stage.hazard_beacons:
+    # Both end modules have collision-aligned paint in their obstacle meshes.
+    for warning in stage.hazard_beacons.slice(2,-2):
         var z: float = float(warning["z"])+2.6
         var x := -5.18 if warning["side"] == "LEFT" else 5.18
         for i in range(3):
             var ahead := z+float(i)*0.48
             points.append(Vector3(x+_track_center(ahead),_height(ahead)+0.052,ahead))
-    _batch("WarningTactileApproach_84",Vector3(1.22,0.018,0.16),
+    _batch("WarningTactileApproach",Vector3(1.22,0.018,0.16),
         points,tint.lightened(0.2),0.24)
 
 func set_quality(value: int) -> void:

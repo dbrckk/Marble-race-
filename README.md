@@ -4,11 +4,135 @@ Original **3D Android marble-racing game** inspired by the look and mechanics sh
 
 Independent implementation in **Godot 4.5.1**, focused on real mobile playability, physics, and stylized toy-table graphics. No proprietary material from the reference game is redistributed.
 
-## Current state: Android QA build (v1.41.0-rc, versionCode 55)
+## Current state: Android QA build (v1.163.0-rc, versionCode 177)
 
-**Playable scope (October 2026):** three visually differentiated 3D worlds with physical elevation changes, nine repeatable obstacle layouts, forty individually simulated glass marbles, real banked and elevated side-route shortcuts, six player perks, progression, ghost comparisons and optional online races. Autonomous opponents use deterministic physical steering, real route choices, anticipatory passing and forecasts of moving hazards; human steering stays entirely manual. The phone HUD previews real course geometry and estimates when Forge pistons will be open or blocked on arrival, with a nonrepeating audio danger cue.
+**Playable scope (October 2026):** three visually differentiated 3D worlds with physical elevation changes, nine repeatable obstacle layouts, forty individually simulated glass marbles, real banked and elevated side-route shortcuts, six player perks, progression, ghost comparisons and optional online races. Autonomous opponents use deterministic physical steering, real route choices, anticipatory passing and forecasts of moving hazards; human steering stays entirely manual. The phone HUD previews real course geometry and estimates when Forge pistons will be open or blocked on arrival, with a nonrepeating audio danger cue. The three pistons share an illuminated shoulder beacon and matched deck markings for their current phase.
 
-The latest game-feel addition is a **genuine solo slipstream**: follow a moving rival on the same physical level to earn a modest, gradual turbo recharge and force-driven acceleration, with a readable DRAFT cue. It scans nearby opponents at ~7 Hz, resets on every rematch and cannot grant unauthoritative boosts in network sessions. See [v1.41 slipstream mechanics and constraints](docs/SLIPSTREAM_SOLO.md).
+The briefing keeps the circuit name, layout and leading driving advice above the perk choices. All six perks appear before the map, with the full map and reference notes underneath. Start and Back remain pinned when the player scrolls. In race, fork guidance takes precedence over distant clear-gate forecasts and rival labels, while physical gate warnings and the rival's world-space marker stay available.
+
+At the Gauntlet fork, the HUD compares approaching traffic on the main line and the bridge entrance. A congested entrance favors the main track when the player is lined up for it. The bridge remains an option when its entrance is within steering reach. The HUD advises saving boost when the traffic forecast offers no alternative.
+
+Once the player's marble is on the Gauntlet bridge, the HUD switches to the first precision gate. It reads the next part of the bend before forecasting alignment at the gate. Amber stripes trace the scoring corridor on the banked deck.
+
+When a nearby rival could occupy that line, the gate cue advises saving boost. Traffic from the lower road stays out of the forecast. In online races, uncertain nearby motion prompts the player to check traffic.
+
+Crossing each precision portico switches the cue to the next. Amber approach stripes extend through the third and final physical gate, with traffic warnings when a rival occupies the crossing corridor. After the third gate, the exit piston forecast resumes. At the return to the main road, the race director compares arrival times of opposing marbles on Woodworks and Gauntlet. The HUD distinguishes single traffic from a pack, advises saving boost when the lane is occupied, and keeps the closest crossing rival highlighted.
+
+A fixed-size **YOU** badge projects from the local marble onto the driving view. Two contrast brackets appear at the starting grid and in close traffic, then fade as the pack opens. The overlay uses the existing 10 Hz rivalry sample, leaves camera and touch controls available, and preserves the look of equipped skins. The ceiling stops obscuring the road when a camera rises above it, while still shading the track.
+
+In solo races, a single in-world marker and the HUD identify the relevant nearby rival by name and side. A stable side-by-side contest gains slightly wider chase framing. Actual same-level passes show the overtaken racer or combine quickly successive passes into one callout.
+
+Woodworks, Glacier and Forge have individually shaped guardrails with timber, ice and steel finishes. Each circuit draws its main guardrails in one instanced batch, including the colored trim. The physical guards and shortcut openings follow the existing course geometry.
+
+Each circuit opens with its own pair of starting towers. The six lamps count down with the HUD and turn green when the race starts. The countdown sits under the speed panel to leave the track, the marbles and the first obstacles visible.
+
+The three timed hazards have their own silhouettes: a banded timber arm, a chamfered ice shutter and a ribbed forge piston. Per-biome geometry is shared across all layouts, with two visible meshes per moving body. The Woodworks and Glacier approach paint uses a bright stripe over a dark border. At the same six camera viewpoints, the draw-call count matches the previous build.
+
+The precision bridges have bent timber frames, faceted ice fins or vented foundry frames. Their open tops keep the chase-camera sightline clear. The bridge piers and main-road vault pillars reuse one mesh per biome. Bridge braces and precision frames keep their existing render batches and the real posts still define the same racing corridor. Nine matched desktop GL Compatibility views report the same draw-call counts as the previous build.
+
+In solo play the existing airtime probe confirms contact with a real bridge floor twice before crossfading to a timber, ice or steel rolling loop. It lowers the rolling sound during a jump and fades back to the main-road loop at the merge. Short local entry and exit ripples reuse the landing pool on Balanced and Ultra. The standard trail picks up the bridge tint on contact. Build the original bridge Foley with `python3 tools/generate_bridge_foley.py` (NumPy and FFmpeg).
+
+Online clients use two fresh server positions to estimate the speed of their own marble. The same nearby floor probe drives the bridge crossfade, trail and transition ripples. Stalled snapshots and large corrections suspend these effects until the visible marble catches up. The local WebSocket integration checks both clients through a bridge approach and merge.
+
+The local marble's rolling sounds at the same level in chase and overhead cameras. The mix lowers wind and light glass contacts in a pack. A confirmed pass briefly lowers wind for a single cue, while predictive danger warnings and strong impacts take priority. The rolling crossfade and the existing spatial impact pool handle both materials without extra audio channels.
+
+Turbo feeds into the existing wind loop. The actual track or bridge bend softens the wind and raises the rolling sound near a turn. The mixer gives predictive warnings priority over turbo ignition and lowers active speed cues during the warning. The same frame orders the HUD warning before the local turbo sound.
+
+Glacier's low-friction slabs and bridge use the ice rolling sound after confirmed floor contact. Lateral slip beyond the current route's heading brightens the ordinary trail and lowers the wind. After a slide, two contacts with grippier road restore the main rolling loop with a short sound and warm surface ripple. The existing local floor probe, rolling voice and ripple pool provide the feedback in solo and online races.
+
+After a real jump or the downstream edge of a banked apex, two stable road samples trigger a short return from wind to rolling sound. The ring follows the physical floor normal and bank departures use a short biome-specific contact sound. Online clients derive the same local presentation from fresh server positions and the local floor probe. Airborne statistics continue to be recorded in the solo race flow.
+
+The opening and final modules have darker obstacle shells and outlined amber hazard paint. Paired mint chevrons mark the physical entry gaps and a dashed ring marks the paddle sweep. Each module keeps its single batched mesh and remains visible in Economy.
+
+Rival marble glass uses two GPU instance batches, one for each level of detail. The camera culls each rival before submission, while the original roll, palette, collision body and race logic remain independent. The player's glass keeps its own material for skins and boost. Matched 640 × 360 GL Compatibility frames at the start of the three circuits use 38 fewer draw calls each. This is a rendering workload measurement on a desktop, with handset frame times to be measured separately.
+
+The chase camera carries forward travel through its damping so the player marble stays framed at racing speed. The touch stick rim matches full analog travel, and the boost button displays its charge and depletion directly. Driving notices sit higher on the screen and a farther edge forecast yields when a closer warning and the route choice are both visible. Circuit selection and menu options have separate space, including direct access to skins and backup.
+
+At the first fork, pale mint arrows trace the main road and amber arrows lead through the physical opening onto the bridge. The HUD gives the direction and time to the turn, then prompts at the opening. Woodworks and Glacier have open checkpoint wings that keep both choices in view from the chase camera.
+
+Bridge exits now share deck-aligned return arrows and a sign at the lip. Woodworks keeps the camera clear at the second checkpoint and keeps the merge cue through the lip. Glacier presents the merge direction and upcoming shutter in one panel, then hands off to the normal collision warning when the marble rejoins the track.
+
+The finish is marked by a two-row checker stripe and lateral oak, ice or steel pylons. The third checkpoint keeps its signs beside the track so the finish remains visible. Results pin the recorded crossing time, rank and layout above the scrollable details. A fall and a timeout have separate outcomes. Retry restarts the current layout with the same perk and its matching personal ghost, while Next Layout rotates the obstacles.
+
+The race checks where the marble crosses the finish plane between physics ticks. Rolling and airborne crossings above the deck count. Passes beneath the deck or beside it do not enter the standings. Offline Forge leaves more space between the rotating paddle and hammer where their combined contacts could push a marble through the deck.
+
+A completed solo run records four passages per sector. A same-layout practice retry compares the selected sector with the preceding run and highlights the passage with the largest time loss on the map. The comparison works along the main road and the elevated bridge. Missing measurements keep the normal sector summary available. Retrying that sector again marks the highlighted passage on the race radar. The driving panel shows the distance to its entry or exit when nearby, and clears it after crossing. Urgent hazard cues still take priority.
+
+Solo checkpoints show the cumulative lead or gap against a ghost recorded with the same layout and perk. The results pin all four sector times, the time gained or lost in each sector, and the sector with the greatest loss. The finish comparison uses the ghost you started with, including when the race sets a new record. Older ghosts supply a finish comparison and acquire sector times when a new record with valid checkpoints is saved.
+
+Open **View Map** after completing all four timed sectors. Tap a section of the map or use the four sector buttons to see its time, entry and exit alongside the physical course features. The greatest loss to the ghost is selected when available. **Retry Same Layout** from the map targets your selection with the same obstacles and perk.
+
+The selected sector numbers its obstacle groups, moving gates, surface zones, spring posts and bridge transitions in race order. Approach chevrons mark the painted route cues or the leading edge of the corresponding physical feature.
+
+On that retry, the radar marks the sector entry. An approach cue displays the remaining distance and appears sooner at higher speed. Sector 1 is announced during the countdown. Hazard warnings and race feedback take priority in the HUD.
+
+The radar and HUD then follow the next numbered feature on the chosen route, using its approach and obstacle positions from the map. The bridge merge appears on the bridge route. Passed features clear as the marble advances.
+
+Finish the guided retry to see the targeted sector's previous time, current time and time gained or lost in **VS LAST TRY**. Restarting that retry from pause keeps its reference time. Returning to the same layout again from the results uses the just-completed attempt. After targeting a specific passage, the results show its previous and current times and the change to the hundredth. The map button can still lead to a different passage if it cost more time on that attempt.
+
+Enable **FPS DISPLAY** before racing to collect frame pacing by course phase. Results offer **COPY FPS REPORT** and an Economy/Balanced comparison on the same layout and perk in solo races.
+
+During an online race, Leave opens a confirmation without pausing the match. Career saves are staged and checked before replacing the live file. Woodworks and Glacier share one snapshot of eligible marble positions per physics tick. Forge checks the active vents directly.
+
+In solo races, a marble trapped after repeated recovery attempts near the final obstacles can back away briefly and roll around the obstruction. A crowded physics replay checks that the player crosses the stripe on all nine layouts.
+
+On the third solo Forge layout, the low crest sits after the final banked turn. The approach to the central gate post stays clear even when a pack arrives together. Online races use the crest position on the deployed server.
+
+On the third solo Woodworks layout, the left spring post has more room beside the rail and matches its marker on the course map. On the first solo Glacier layout, the last crest sits after the banked turn. Both changes are checked with a 40-marble pack launched earlier into the sector.
+
+At Glacier’s bridge exit, the race authority checks for a rider cutting across a pass. The bot cancels the move and opens a longitudinal gap while steering back. A dedicated WebSocket server and two clients exercise the maneuver on all three layouts.
+
+After yielding at Glacier’s bridge exit, a bot remembers the slowdown when evaluating the next passing opportunity. An occupied passing lane keeps it in line. Six touch-driven replays check speed recovery and completed passes across the three layouts.
+
+A bot following a rival that yields at Glacier’s bridge exit can now slow down before the shutter. Six close-queue replays measure actual contact between all three bots and the player as the group crosses the join.
+
+When a player steers off the Glacier bridge into traffic, approaching bots estimate when the two lines will meet and ease off if the player is directly ahead. Six touch-driven trials cover the merge and shutter across all three layouts.
+
+At Glacier’s return shutter, a bot rechecks the passing lane as soon as it commits. If a rival cuts in, the bot cancels the pass, steers back toward its previous line and follows traffic through the shutter. Nine physics replays cover early and late cut-ins across the three layouts.
+
+A Glacier bot that brakes behind a slower racer can resume its pass once the lane opens. A trailing bot waits for the lane change to finish, and bots recheck nearby traffic more often during the maneuver.
+
+Glacier’s bots now compare stopping distances while following traffic. Three bots can slow behind a near-stationary marble and regain speed through the shutter in order. On Forge, a solo marble repeatedly wedged between a slalom block and a baffle can back out before turning inward.
+
+When the Glacier return lane is occupied, a bot eases off and brakes based on the gap and relative speed of the marble ahead. The existing physics carries it back up to speed as space opens.
+
+When a faster bot catches a slow racer at Glacier’s return shutter, it checks the lane opposite the sweep before committing to a pass. It rechecks that lane while passing and yields if another racer occupies it.
+
+Glacier forecasts the return shutter at the entry, midpoint and exit of a marble’s crossing. A slower marble gets a longer warning window, and ten-marble regression runs cover twelve offsets across the shutter cycle on each layout.
+
+Glacier’s first left baffle after the bridge is narrower and closer to the rail, giving a marble pushed sideways by traffic room to recover. The physical regression now sends ten marbles through the merge at mixed speeds.
+
+At Glacier’s bridge return, the raised crest sits on the far shoulder. Marbles on the main track have a clear passing line alongside racers coming off the bridge.
+
+Glacier’s bridge rejoins through a wider opening. Staggered shoulder obstacles leave a usable line from the bridge to the timed shutter on all three layouts. The shutter still varies by layout.
+
+At Glacier’s bridge exit, flanking ice ribs leave both driving lines visible. The last bridge frame opens up and paired sector beacons mark the actual timing line, so racers can see the return arrows and the shutter ahead.
+
+Glacier’s shortcut keeps its right-merge cue through the actual junction. Amber arrows mark the bridge exit and the route toward the middle of the main track, while the HUD previews the next shutter and reserves the live dodge warning for the main track.
+
+Glacier also coordinates an ice slab with the shutter immediately after it. If the shutter sweeps the normally grippy side, the approach paint guides racers toward the center. The HUD sequences the ice and shutter instructions as the racer crosses the join.
+
+Glacier outlines each physical low-friction slab and uses amber chevrons on the grippier approach. The HUD previews the side and time to the ice, and prompts gentler steering when the marble enters it.
+
+In Forge the HUD now shows one piston or vent forecast at a time. An approaching threat takes priority over clear-line messages, and a rare pickup stays visible when it comes before the hazard.
+
+While still on Forge’s bridge, the HUD forecasts the first piston across the full crossing window and shows where to aim after merging. The hazard’s shoulder sign and floor stripes display its current phase.
+
+Forge marks the main line in mint and the bridge entry in amber. The route HUD gives the distance and estimated arrival time, then holds the merge direction for bridge racers until the roads rejoin.
+
+Forge’s three overhead passages now use open industrial ribs with lateral lights. Numbered edge markers and their pulsing beacons sit on the three timed sector lines, keeping the road and upcoming mechanisms visible through each passage.
+
+The racing HUD reserves the center for driving cues and shows one performance notification beside the track. Rival identification and urgent piston warnings stay legible when a sector split and a double pass arrive together.
+
+Moving hazards now carry contrasting approach markings, and Forge pistons and vents show their active states on the floor. At racing speed the HUD reads farther ahead and points to the clear side. Four original sound cues identify genuinely threatened lines while briefly lowering the music and wind.
+
+Glacier marks the real low-friction strips and previews the grippy side of the lane. In solo, a marble repeatedly wedged near the edge now gets a physical inward recovery impulse after the usual attempts have failed. Forge forecasts physical vent crossings and gives the direction to pass a piston when it will block the chosen line. All three circuits now mark the actual bridge opening, and bypassed main-track hazards are filtered from the HUD.
+
+In solo races, the four instant human-only pickups now have authored lines on Glacier and Forge. Their distinct silhouettes, shared pre-race map positions and speed-scaled previews help distinguish the four effects. The forecast yields to earlier urgent moving-gate warnings. A repeatedly wedged solo marble on Forge can now back away from the rail and slalom with a physical recovery impulse.
+
+The first solo Woodworks race teaches steering and boost as soon as each control takes effect. The guide explains how to collect the instant turbo diamond and where the amber bridge arrows lead. Either route completes the guide once both controls have been used. Urgent hazard warnings take priority.
+
+A **genuine solo slipstream**: follow a moving rival on the same physical level to earn a modest, gradual turbo recharge and force-driven acceleration, with a readable DRAFT cue. It scans nearby opponents at ~7 Hz, resets on every rematch and cannot grant unauthoritative boosts in network sessions. See [v1.41 slipstream mechanics and constraints](docs/SLIPSTREAM_SOLO.md).
 
 This is an **Android debug candidate** with rare-item route previews and touch HUD guidance; its newest changes are accepted only after the full CI build passes. It is not a Play Store production release. GitHub Actions covers a 120-second full-physics AI race on each world, route/contact regressions, touch UI, server integration and Android APK packaging. Physical Redmi/Android frame-time, heat and touch feel remain to be verified on the actual handset; production signing and a release AAB are separate tasks. See [safe Android updates](docs/ANDROID_UPDATES.md).
 

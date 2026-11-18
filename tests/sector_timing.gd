@@ -1,4 +1,9 @@
 extends SceneTree
+
+func _practice_from_results(hud: CanvasLayer) -> void:
+    hud.sector_result_hint.pressed.emit()
+    assert(hud.sector_map_panel.is_visible_in_tree())
+    hud.sector_map_panel.find_child("RetryFromSectorMap",true,false).pressed.emit()
 ## Four-sector race timing, persistence and anti-skip regression.
 const Career = preload("res://scripts/career.gd")
 func _initialize() -> void:
@@ -27,7 +32,17 @@ func _verify() -> void:
     await process_frame
     game.career.save_path = "user://test_live_splits_v14.cfg"
     game.career.sector_best.fill(0.0)
+    game.best_ghost.save_path = "user://test_live_ghost_splits.cfg"
+    game.race_variation = 1
+    var ghost_key: String = game.best_ghost.storage_key(0,game.race_variation,"Grip Tape")
+    var ghost := ConfigFile.new()
+    ghost.set_value(ghost_key,"best_time",100.0)
+    ghost.set_value(ghost_key,"checkpoints",PackedFloat64Array([21.0,44.0,80.0]))
+    ghost.set_value(ghost_key,"points",PackedVector3Array([Vector3(0,1,8),Vector3(0,1,6),Vector3(0,1,4)]))
+    assert(ghost.save(game.best_ghost.save_path) == OK)
+    game.set_graphics_quality(0)
     game.start_race("Grip Tape")
+    var grid_z: float = game.player.position.z
     game.countdown = 0.01
     await process_frame
     for marble in game.racers:
@@ -43,6 +58,9 @@ func _verify() -> void:
         assert(game.checkpoint_splits.size() == k+1,"Sector not captured")
         assert(game.last_checkpoint == k,"Sector number incorrect")
         assert(game.ui.checkpoint_label.text.contains("SECTOR %d" % (k+1)))
+        var expected := "+1.02s" if k == 1 else "-0.98s"
+        assert(game.ui.checkpoint_label.text.contains(expected + " VS GHOST"),
+            "HUD must compare cumulative crossings even in Economy")
     game.player.finished = true
     game.player.finish_time = 98.0
     game._end_race()
@@ -52,12 +70,226 @@ func _verify() -> void:
     var splits: Array = result["sector_times"]
     assert(absf(float(splits[3])-19.0) < 0.05,"Finish sector must use actual finish time")
     assert(game.career.best_sector(0,3) > 18.9)
-    var summary = game.ui.results_layer.find_child("Summary",true,false) as Label
-    assert(summary.text.contains("SECTORS 1"),"Results screen missing split summary")
+    var hud = game.ui
+    assert(hud.sector_results.is_visible_in_tree() and hud.sector_result_row.is_visible_in_tree())
+    assert(hud.sector_result_times[0].text == "20.02s ★")
+    assert(hud.sector_result_times[3].text == "18.98s ★")
+    var expected_gaps := ["-0.98s","+2.00s","-2.00s","-1.02s"]
+    for sector in expected_gaps.size():
+        assert(hud.sector_result_gaps[sector].text == expected_gaps[sector],
+            "Results must show time gained or lost in this sector")
+    assert(hud.sector_result_hint.is_visible_in_tree() and
+        hud.sector_result_hint.text.contains("SECTOR 2  +2.00s"))
+    assert(hud.sector_result_header.text.contains("FINISH -2.00s VS GHOST"),
+        "Show the old ghost difference even after replacing it")
+    var summary := hud.results_scroll.get_node("Summary") as Label
+    assert(summary.text.contains("S1 -0.98s  •  S2 +1.02s  •  S3 -0.98s"),
+        "The detailed report should retain cumulative checkpoint gaps")
+    assert(bool(result["ghost_record"]) and is_equal_approx(game.best_ghost.best_time,98.0))
+
+    game.career.unlocked = 2
+    game.show_fps = true
+    game.performance_budget.reset()
+    game.performance_budget.record_frame(1000000,0)
+    game.performance_budget.record_frame(1016000,0)
+    hud.show_results(game.player_rank(),98.0,game.get_rankings())
+    for frame in range(4):
+        await process_frame
+    assert(hud.performance_actions.is_visible_in_tree() and hud.next_course_button.is_visible_in_tree())
+    var sectors_rect: Rect2 = hud.sector_results.get_global_rect()
+    var report_rect: Rect2 = hud.results_scroll.get_global_rect()
+    assert(sectors_rect.end.y <= report_rect.position.y and report_rect.size.y > 70.0,
+        "Pinned sectors must leave the report scrollable with all actions visible")
+    assert(hud.replay_button_ref.get_global_rect().end.y <= hud.next_course_button.get_global_rect().position.y)
+    game.show_fps = false
+
+    hud.sector_result_hint.pressed.emit()
+    for frame in range(4):
+        await process_frame
+    assert(hud.sector_map_panel.is_visible_in_tree() and not hud.results_card.visible)
+    assert(hud.sector_map_title.text.contains("LAYOUT 2") and hud.sector_map.variation == 1)
+    assert(hud.sector_map.sector_bounds() == Vector2(game.CHECKPOINT_Z[0],game.CHECKPOINT_Z[1]))
+    assert(hud.sector_map_boundaries.text.contains("EXIT  SECTOR 2 SIGN"))
+    assert(hud.sector_map_landmarks.text.contains("BRIDGE FORK") and hud.sector_map_landmarks.text.contains("BRIDGE MERGE"))
+    assert(hud.sector_map.drawn_sections == 65 and hud.sector_map.mouse_filter == Control.MOUSE_FILTER_STOP)
+    assert(hud.sector_map.get_global_rect().end.y < hud.sector_map_back.get_global_rect().position.y)
+    assert(hud.sector_map_buttons[1].button_pressed)
+    var tap := InputEventScreenTouch.new()
+    tap.pressed = true
+    var map_x: float = hud.sector_map.project((game.CHECKPOINT_Z[1]+game.CHECKPOINT_Z[2])*0.5,0.0).x
+    tap.position = hud.sector_map.get_global_transform_with_canvas()*Vector2(map_x,hud.sector_map.size.y*0.35)
+    root.push_input(tap,true)
+    tap.pressed = false
+    root.push_input(tap,true)
+    assert(hud.sector_map.focused_sector == 2 and hud.sector_map_buttons[2].button_pressed,
+        "A touch between two checkpoints must select the physical sector")
+    assert(not hud.sector_map_buttons[1].button_pressed and hud.sector_map_title.text.contains("SECTOR 3"))
+    assert(hud.sector_map_landmarks.text.contains("FINAL OBSTACLES") and not hud.sector_map_landmarks.text.contains("BRIDGE FORK"))
+    var back := InputEventAction.new()
+    back.action = "ui_cancel"
+    back.pressed = true
+    hud._unhandled_input(back)
+    assert(hud.results_card.is_visible_in_tree() and not hud.sector_map_panel.visible)
+
+    game.net.role = "client"
+    hud.show_results(game.player_rank(),98.0,game.get_rankings())
+    assert(not hud.sector_results.visible and summary.text.begins_with("TOP FINISHERS"))
+    game.net.role = "offline"
+
+    result["ghost_deltas"] = [-1.0,-1.5,-1.51,-1.51]
+    hud.show_results(game.player_rank(),98.0,game.get_rankings())
+    assert(hud.sector_result_hint.text == "VIEW MAP  →  CHOOSE A SECTOR" and hud.sector_result_gaps[3].text == "0.00s")
+    result["ghost_deltas"] = [NAN,NAN,NAN,-0.25]
+    hud.show_results(game.player_rank(),98.0,game.get_rankings())
+    assert(hud.sector_result_row.is_visible_in_tree() and
+        hud.sector_result_header.text.contains("FINISH -0.25s VS GHOST"))
+    for gap_label in hud.sector_result_gaps:
+        assert(not gap_label.visible, "Legacy ghosts only supply a finish gap")
+    result["ghost_deltas"] = []
+    hud.show_results(game.player_rank(),98.0,game.get_rankings())
+    assert(hud.sector_result_header.text == "SECTOR TIMES" and hud.sector_result_hint.visible)
+    hud.sector_result_hint.pressed.emit()
+    assert(hud.sector_map.focused_sector == 0 and not hud.sector_map_title.text.contains("VS GHOST"))
+    hud.sector_map_buttons[1].pressed.emit()
+    assert(hud.sector_map.focused_sector == 1 and hud.sector_map_title.text.contains("25.00s"))
+    hud.sector_map_back.pressed.emit()
+
+    result["ghost_deltas"] = [2.5,1.0,1.0,1.0]
+    hud.show_results(game.player_rank(),98.0,game.get_rankings())
+    hud.sector_result_hint.pressed.emit()
+    assert(hud.sector_map.sector_bounds().is_equal_approx(Vector2(grid_z,game.CHECKPOINT_Z[0])))
+    assert(hud.sector_map_boundaries.text.contains("ENTRY  START GRID"))
+    hud.sector_map_buttons[3].pressed.emit()
+    assert(hud.slowest_sector == 0 and hud.sector_map_buttons[3].button_pressed)
+    assert(hud.sector_map.sector_bounds() == Vector2(game.CHECKPOINT_Z[-1],game.FINISH_Z))
+    assert(hud.sector_map_boundaries.text.contains("EXIT  FINISH LINE"))
+    hud.sector_map_panel.find_child("RetryFromSectorMap",true,false).pressed.emit()
+    assert(not hud.sector_map_panel.visible and game.race_state == "COUNTDOWN")
+    assert(game.built_variation == 1 and game.selected_perk == "Grip Tape")
+    assert(is_equal_approx(game.best_ghost.crossing_delta(0,20.016),0.0))
+    assert(game.practice_sector == 3 and hud.practice_entry_pending)
+    assert(is_equal_approx(game.practice_previous_time,float(splits[3])))
+    assert(hud.practice_landmarks == hud.sector_map.sector_landmarks,
+        "The guided retry must reuse the landmarks shown on the map")
+    var entry: float = game.CHECKPOINT_Z[2]
+    assert(is_equal_approx(hud.race_radar.practice_progress,-entry/absf(game.FINISH_Z)))
+    game.race_state = "RACING"
+    # A fast approach needs an earlier cue than a slow approach at the same spot.
+    game.player.position.z = entry+30.0
+    game.player.linear_velocity = Vector3(0.0,0.0,-5.0)
+    hud.label_timer = 0.12
+    hud.update_hud()
+    assert(not hud.practice_hint_ready and not hud.practice_sector_label.visible)
+    game.player.linear_velocity.z = -22.0
+    hud.label_timer = 0.12
+    hud.update_hud()
+    assert(hud.practice_hint_ready and hud.practice_sector_label.text.contains("30 m TO ENTRY"))
+    hud.timed_gate_backdrop.hide()
+    hud.final_danger_active = false
+    hud._refresh_race_notification()
+    assert(hud.practice_sector_label.visible and hud.practice_sector_label.mouse_filter == Control.MOUSE_FILTER_IGNORE)
+    hud.show_checkpoint(3,13.0)
+    assert(hud.checkpoint_label.visible and not hud.practice_sector_label.visible)
+    hud.toast_remaining = 0.0
+    hud.timed_gate_backdrop.show()
+    hud._refresh_race_notification()
+    assert(not hud.practice_sector_label.visible and is_finite(hud.race_radar.practice_progress))
+
+    game.player.position.z = entry-0.1
+    hud.label_timer = 0.12
+    hud.update_hud()
+    assert(not hud.practice_entry_pending and hud.practice_sector_label.text.begins_with("1  SPEED STRIP"))
+    assert(is_equal_approx(hud.race_radar.practice_progress,168.0/absf(game.FINISH_Z)))
+    game.player.position.z = -168.1
+    hud.label_timer = 0.12
+    hud.update_hud()
+    assert(hud.practice_sector_label.text.begins_with("2  SPRING POSTS"))
+    hud.timed_gate_backdrop.show()
+    hud._refresh_race_notification()
+    assert(not hud.practice_sector_label.visible and is_finite(hud.race_radar.practice_progress))
+    game.player.position.z = entry+3.0
+    hud.label_timer = 0.12
+    hud.update_hud()
+    assert(not hud.practice_entry_pending and hud.practice_sector_label.text.begins_with("2  SPRING POSTS"),
+        "Crossing back must not rearm an earlier landmark or sector entry")
+    game.player.position.z = game.FINISH_Z-0.1
+    hud.label_timer = 0.12
+    hud.update_hud()
+    assert(hud.practice_landmarks.is_empty() and is_nan(hud.race_radar.practice_progress))
+
+    game.checkpoint_splits.assign([20.0,44.0,78.0])
+    game.player.finished = true
+    game.player.finish_time = 96.0
+    game._end_race()
+    assert(hud.sector_retry_comparison.is_visible_in_tree())
+    assert(hud.sector_retry_comparison.text == "SECTOR 4 VS LAST TRY   18.98s → 18.00s   •   0.98s FASTER")
+    assert(hud.sector_result_header.text.contains("FINISH -2.00s VS GHOST"))
+
+    result["ghost_deltas"] = [2.5,1.0,1.0,1.0]
+    game.last_result = result
+    game.race_state = "RESULTS"
+    hud.show_results(game.player_rank(),98.0,game.get_rankings())
+    _practice_from_results(hud)
+    hud.label_timer = 0.12
+    hud.update_hud()
+    assert(game.practice_sector == 0 and hud.practice_sector_label.visible and
+        hud.practice_sector_label.text.contains("FROM THE START"))
+    hud.pause_race()
+    hud._restart_from_pause()
+    assert(game.practice_sector == 0 and hud.practice_entry_pending)
+    assert(is_equal_approx(game.practice_previous_time,float(splits[0])))
+
+    game.checkpoint_splits.assign([21.0,45.0,79.0])
+    game.player.finished = true
+    game.player.finish_time = 98.9
+    game._end_race()
+    assert(hud.sector_retry_comparison.text == "SECTOR 1 VS LAST TRY   20.02s → 21.00s   •   0.98s SLOWER")
+    assert(hud.slowest_sector == 0)
+    game.show_fps = true
+    game.performance_budget.record_frame(1000000,0)
+    game.performance_budget.record_frame(1016000,0)
+    hud.show_results(game.player_rank(),98.9,game.get_rankings())
+    for frame in range(4):
+        await process_frame
+    assert(hud.performance_actions.is_visible_in_tree() and hud.sector_result_hint.is_visible_in_tree())
+    assert(hud.sector_retry_comparison.is_visible_in_tree() and hud.results_scroll.size.y > 70.0)
+    game.show_fps = false
+    _practice_from_results(hud)
+    assert(is_equal_approx(game.practice_previous_time,21.0),"A second retry must use the latest completed run")
+    game.checkpoint_splits.assign([21.004,45.0,79.0])
+    game.player.finished = true
+    game.player.finish_time = 98.9
+    game._end_race()
+    assert(hud.sector_retry_comparison.text.ends_with("SAME TIME"))
+    game.net.role = "client"
+    hud.show_results(game.player_rank(),98.9,game.get_rankings())
+    assert(not hud.sector_retry_comparison.visible)
+    game.net.role = "offline"
+    hud.show_results(game.player_rank(),98.9,game.get_rankings())
+    _practice_from_results(hud)
+    assert(is_finite(game.practice_previous_time))
+    game.player.eliminated = true
+    game._end_race()
+    assert(not game.last_result.has("practice_comparison") and not hud.sector_retry_comparison.visible)
+
+    game.retry_current_layout(1)
+    game.race_state = "RACING"
+    game.player.position = game.shortcut_route.point_at(-80.0)+Vector3.UP*0.6
+    game.player.linear_velocity = Vector3(0.0,0.0,-22.0)
+    hud.label_timer = 0.12
+    hud.update_hud()
+    assert(hud.bridge_approach_active and hud.practice_sector_label.text.contains("BRIDGE MERGE"))
+    assert(is_equal_approx(hud.race_radar.practice_progress,89.0/absf(game.FINISH_Z)))
+    game.player.position = Vector3(game.track_center_at(-80.0),game.height_at(-80.0)+0.6,-80.0)
+    hud.label_timer = 0.12
+    hud.update_hud()
+    assert(not hud.bridge_approach_active and hud.practice_sector_label.text.contains("SPEED STRIP"))
+    assert(not hud.practice_sector_label.text.contains("MERGE"))
 
     var first_best: float = game.career.best_sector(0,0)
     game.return_to_menu()
     game.start_race("Grip Tape")
+    assert(game.practice_sector == -1 and is_nan(game.practice_previous_time) and is_nan(hud.race_radar.practice_progress))
     game.countdown = 0.01
     await process_frame
     for marble in game.racers:
@@ -69,10 +301,150 @@ func _verify() -> void:
     assert(game.checkpoint_splits.is_empty(),"Skipped checkpoints must invalidate splits")
     game._end_race()
     assert(game.career.best_sector(0,0) == first_best,"DNF must retain previous record")
+    assert(game.last_result["ghost_deltas"].is_empty() and not hud.sector_results.visible)
+    await _verify_passage_loss(game)
+    DirAccess.remove_absolute(ProjectSettings.globalize_path(game.best_ghost.save_path))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(c.save_path))
     DirAccess.remove_absolute(ProjectSettings.globalize_path(game.career.save_path))
-    print("SECTOR_TIMING_PASS: 4 timed sectors, finish split, PB persistence, skip/DNF protection")
+    print("SECTOR_TIMING_PASS: shared map landmarks, route-aware retry guidance, matched passages, timing, legacy saves and DNF protection")
     game.queue_free()
     for k in range(4):
         await process_frame
     quit(0)
+
+
+func _verify_passage_loss(game: Node3D) -> void:
+    game.start_race("Grip Tape")
+    var timing: RefCounted = game.practice_timing
+    var start: float = game.race_start_z
+    var exit: float = game.CHECKPOINT_Z[0]
+    var first := lerpf(start,exit,0.25)
+    # A teleport onto the course and a below-deck crossing both fail to
+    # manufacture a split. A legitimate crossing after returning does count.
+    timing.sample(game,_road_point(game,first-0.15),0.05)
+    assert(is_nan(timing.crossings[0]))
+    timing.sample(game,_road_point(game,first+0.15)-Vector3.UP*3.0,2.0)
+    timing.sample(game,_road_point(game,first-0.15)-Vector3.UP*3.0,2.05)
+    assert(is_nan(timing.crossings[0]))
+    _sample_first_sector(game,[5.0,10.0,15.0])
+    var bridge_plane: float = lerpf(game.CHECKPOINT_Z[0],game.CHECKPOINT_Z[1],0.5)
+    timing.sample(game,game.shortcut_route.point_at(bridge_plane+0.15)+Vector3.UP*0.6,34.95)
+    timing.sample(game,game.shortcut_route.point_at(bridge_plane-0.15)+Vector3.UP*0.6,35.05)
+    assert(is_equal_approx(timing.crossings[4],35.0),"The elevated route must count")
+    _finish_passage_fixture(game,20.0)
+    var source: Array = game.last_result["passage_times"]
+    assert(source[0].size() == 4 and source[1].is_empty(),
+        "Missing passages must not be fabricated across sector boundaries")
+    assert(not game.last_result.has("practice_comparison"))
+    var layout: int = game.built_variation
+    game.retry_current_layout(0)
+    assert(game.built_variation == layout and game.practice_previous_passages == source[0])
+    game.retry_current_layout(0)
+    assert(game.practice_previous_passages == source[0],"Restart must retain the same passages")
+    _sample_first_sector(game,[4.0,10.5,14.5])
+    _finish_passage_fixture(game,19.0)
+    var loss: Dictionary = game.last_result["practice_comparison"]["worst_passage"]
+    assert(loss["number"] == 2 and is_equal_approx(loss["loss"],1.5))
+    assert(loss["span"].is_equal_approx(Vector2(first,lerpf(start,exit,0.5))))
+    var hud: CanvasLayer = game.ui
+    assert(hud.sector_retry_comparison.text.contains("1.00s FASTER"))
+    assert(hud.sector_result_hint.text.contains("PASSAGE 2  +1.50s"))
+    hud.sector_result_hint.pressed.emit()
+    assert(hud.sector_map.focused_sector == 0 and hud.sector_map.passage_span == loss["span"])
+    assert(hud.sector_map_boundaries.text.contains("PASSAGE 2 +1.50s"))
+    hud.sector_map_buttons[1].pressed.emit()
+    assert(hud.sector_map.passage_span == Vector2.ZERO,"Loss must stay on its measured sector")
+    hud.sector_map_back.pressed.emit()
+    _practice_from_results(hud)
+    assert(game.practice_sector == 0 and is_equal_approx(game.practice_previous_passages[1],6.5))
+    assert(game.practice_passage == 2 and hud.practice_passage_bounds == loss["span"])
+    _verify_live_passage_cue(game,loss["span"])
+    _sample_first_sector(game,[4.2,9.4,14.6])
+    _finish_passage_fixture(game,19.0)
+    var attempt: Dictionary = game.last_result["practice_comparison"]
+    assert(attempt["target_passage"]["number"] == 2)
+    assert(attempt["worst_passage"]["number"] == 3,
+        "A distinct new loss must not replace the practiced passage in its comparison")
+    assert(hud.passage_retry_comparison.text == "TARGET PASSAGE 2 VS LAST TRY   6.50s → 5.20s   •   1.30s FASTER")
+    assert(hud.sector_result_hint.text.contains("PASSAGE 3  +1.20s"))
+    hud.sector_result_hint.pressed.emit()
+    assert(hud.sector_map.passage_span == attempt["worst_passage"]["span"])
+    hud.sector_map_back.pressed.emit()
+    game.show_fps = true
+    game.performance_budget.record_frame(1000000,0)
+    game.performance_budget.record_frame(1016000,0)
+    hud.show_results(game.player_rank(),98.9,game.get_rankings())
+    for frame in range(4):
+        await process_frame
+    assert(hud.passage_retry_comparison.is_visible_in_tree() and hud.performance_actions.is_visible_in_tree())
+    assert(hud.results_scroll.size.y > 70.0,"Both retry comparisons must leave room for the details")
+    game.show_fps = false
+    game.retry_current_layout(0)
+    assert(game.practice_passage == 3)
+    _sample_first_sector(game,[4.2,9.4,14.6])
+    _finish_passage_fixture(game,19.0)
+    assert(hud.passage_retry_comparison.text.ends_with("SAME TIME"))
+    assert(game.last_result["practice_comparison"]["worst_passage"].is_empty())
+    assert(not hud.sector_result_hint.text.contains("PASSAGE"))
+    game.net.role = "client"
+    hud.show_results(game.player_rank(),98.9,game.get_rankings())
+    assert(not hud.passage_retry_comparison.visible)
+    game.net.role = "offline"
+    game.retry_current_layout(0)
+    assert(game.practice_passage == 0 and hud.race_radar.passage_progress == Vector2.ZERO)
+    game.start_race("Grip Tape",0,19.0,PackedFloat64Array([4.2,5.2,5.2,4.4]),3)
+    _sample_first_sector(game,[4.2,9.4,15.1])
+    _finish_passage_fixture(game,19.0)
+    assert(hud.passage_retry_comparison.text.ends_with("0.50s SLOWER"))
+    game.retry_current_layout(0)
+    _finish_passage_fixture(game,19.0)
+    assert(not hud.passage_retry_comparison.visible,"Missing crossings must not invent a comparison")
+    game.return_to_menu()
+    assert(hud.practice_passage_bounds == Vector2.ZERO and hud.race_radar.passage_progress == Vector2.ZERO)
+
+func _verify_live_passage_cue(game: Node3D, span: Vector2) -> void:
+    var hud: CanvasLayer = game.ui
+    var radar: Control = hud.race_radar
+    var expected := Vector2(maxf(0.0,-span.x),-span.y)/absf(game.FINISH_Z)
+    assert(radar.passage_progress.is_equal_approx(expected),"The radar marks the same interval as the map")
+    hud.pause_race()
+    hud._restart_from_pause()
+    assert(game.practice_passage == 2 and radar.passage_progress.is_equal_approx(expected),
+        "Restarting in pause must keep the guided passage")
+    game.race_state = "RACING"
+    game.player.position = _road_point(game,span.x+7.9)
+    hud._update_practice_sector(12.0)
+    assert(hud.practice_hint_ready and hud.practice_sector_label.text == "PASSAGE 2\n8 m TO ENTRY")
+    assert(not radar.inside_passage)
+    hud.timed_gate_backdrop.show()
+    hud._refresh_race_notification()
+    assert(not hud.practice_sector_label.visible and radar.passage_progress.is_equal_approx(expected),
+        "A timed danger has text priority while the radar interval stays visible")
+    hud.timed_gate_backdrop.hide()
+
+    game.player.position = _road_point(game,span.y+4.9)
+    hud._update_practice_sector(12.0)
+    assert(radar.inside_passage and hud.practice_sector_label.text == "PASSAGE 2\n5 m TO EXIT")
+    game.player.position = _road_point(game,span.y-0.5)
+    hud._update_practice_sector(12.0)
+    assert(radar.passage_progress == Vector2.ZERO and not radar.inside_passage)
+    game.player.position = _road_point(game,span.y+4.9)
+    hud._update_practice_sector(12.0)
+    assert(radar.passage_progress == Vector2.ZERO,"Backing up must not bring back the completed target")
+
+func _sample_first_sector(game: Node3D, times: Array) -> void:
+    var timing: RefCounted = game.practice_timing
+    for index in times.size():
+        var plane := lerpf(game.race_start_z,game.CHECKPOINT_Z[0],float(index+1)/4.0)
+        timing.sample(game,_road_point(game,plane+0.15),float(times[index])-0.05)
+        timing.sample(game,_road_point(game,plane-0.15),float(times[index])+0.05)
+        assert(is_equal_approx(timing.crossings[index],float(times[index])))
+
+func _road_point(game: Node3D, z: float) -> Vector3:
+    return Vector3(game.track_center_at(z),game.height_at(z)+0.6,z)
+
+func _finish_passage_fixture(game: Node3D, first_split: float) -> void:
+    game.checkpoint_splits.assign([first_split,45.0,79.0])
+    game.player.finished = true
+    game.player.finish_time = 98.9
+    game._end_race()

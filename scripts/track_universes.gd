@@ -1,6 +1,7 @@
 extends Node3D
 ## Three lightweight track worlds. Decoration never owns collisions or alters lap physics.
 ## MultiMesh keeps the Android draw-call budget bounded across 18 track sections.
+const Bridge = preload("res://scripts/shortcut_route.gd")
 const THEMES := ["WOODLAND WORKSHOP", "GLACIER PASS", "EMBER FORGE"]
 const THEME_FOG := [Color("#333c39"),Color("#142c42"),Color("#39201c")]
 const THEME_SKY := [Color("#202923"),Color("#12283f"),Color("#2f1b1b")]
@@ -84,19 +85,24 @@ func setup(track: int, stage: Node3D) -> void:
             var bank_basis := Basis().scaled(Vector3(3.7,1.6+0.3*(section%3),4.3))
             bases.append(Transform3D(bank_basis,Vector3(x,floor_y-1.7,z)))
             var high := 0.78+float(section%4)*0.11
+            var spire_z := z-2.0
+            var spire_x := bridge_safe_prop_x(stage.shortcut_route,x+side*0.5+jitter,
+                spire_z,side,pillar_mesh.bottom_radius*high)
             spires.append(Transform3D(
                 Basis(Vector3.UP,float(section)*0.4).scaled(Vector3(high,high,high)),
-                Vector3(x+side*0.5+jitter,floor_y+0.25+1.9*high,z-2.0)))
+                Vector3(spire_x,floor_y+0.25+1.9*high,spire_z)))
             if theme == 0:
                 # Evergreen canopy above short trunk, preserving the race sightline.
                 tops.append(Transform3D(Basis().scaled(Vector3(0.55,1.0,0.55)),
-                    Vector3(x+side*0.5+jitter,floor_y+0.3,z-2.0)))
+                    Vector3(spire_x,floor_y+0.3,spire_z)))
             elif theme == 1:
+                var crystal_z := z+2.8
+                var crystal_x := bridge_safe_prop_x(stage.shortcut_route,x+side*2.0,crystal_z,side,0.25)
                 tops.append(Transform3D(Basis(Vector3.UP,1.0).scaled(Vector3(0.53,0.8,0.53)),
-                    Vector3(x+side*2.0,floor_y+0.9,z+2.8)))
+                    Vector3(crystal_x,floor_y+0.9,crystal_z)))
             else:
                 tops.append(Transform3D(Basis().scaled(Vector3(0.8,0.42,0.8)),
-                    Vector3(x+side*0.5,floor_y+4.1,z-2.0)))
+                    Vector3(spire_x,floor_y+4.1,spire_z)))
     _batch("RollingSideTerrain",slope_mesh,bases)
     _batch("SignatureWorldSpires",pillar_mesh,spires)
     _batch("WorldAccentForms",secondary,tops)
@@ -104,6 +110,17 @@ func setup(track: int, stage: Node3D) -> void:
     _signature_landmarks(theme,stage)
     _course_beacons(theme,stage)
     set_quality(stage.graphics_quality)
+
+static func bridge_safe_prop_x(route: Node3D, x: float, z: float, side: float, radius: float) -> float:
+    if side != route.side or z-radius > Bridge.ENTRY_Z or z+radius < Bridge.EXIT_Z:
+        return x
+    # Measure across the prop footprint so decorations clear the curving
+    # guard rail and leave a margin in the chase view.
+    var edge := side*x
+    for sample_z in [z-radius,z,z+radius]:
+        var deck: Vector3 = route.point_at(sample_z)
+        edge = maxf(edge,side*deck.x+Bridge.WIDTH*0.5+radius+0.78)
+    return side*edge
 
 func _landscape_depth(theme: int, stage: Node3D) -> void:
     # Avoid a flat 2D skybox: 12 large geological silhouettes create real

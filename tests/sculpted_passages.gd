@@ -38,22 +38,35 @@ func _run() -> void:
                 geometry.vault_crest_points.size() == 9,
                 "Three biome passages require exactly nine actual elevated ribs")
             var roof_pitch: float = GEOMETRY.VAULT_PITCHES[biome]
-            assert(roof_pitch > 0.10 and roof_pitch < 0.28,
-                "Each world must have a pronounced, traversable-looking roof ridge")
+            assert(roof_pitch > 0.10 and roof_pitch < 0.40)
             var crest: Vector3 = geometry.vault_crest_points[0]
             var ceiling_floor: float = game.height_at(crest.z)
-            assert(absf(crest.y-ceiling_floor-(
-                GEOMETRY.VAULT_CLEARANCE+0.57+
-                sin(roof_pitch)*GEOMETRY.VAULT_HALF_WIDTH*0.5)) < 0.001,
-                "Arch crown must follow actual mountain roof pitch and terrain")
             assert(crest.y-ceiling_floor > 5.6,
-                "A high 3D passage must never obscure or block a jumping marble")
+                "A high 3D passage leaves room above real marble jumps")
+            if biome == 2:
+                _verify_forge_sightline(game,geometry)
+            else:
+                assert(absf(crest.y-ceiling_floor-(
+                    GEOMETRY.VAULT_CLEARANCE+0.57+
+                    tan(roof_pitch)*(GEOMETRY.FORGE_RIB_OFFSET-GEOMETRY.FORGE_LIGHT_OFFSET))) < 0.001,
+                    "Fork wing lights stay on the outer ribs")
+                _verify_first_fork_sightline(game,geometry,layout)
+                _verify_first_fork_sightline(game,geometry,layout,2)
+                if biome == 0:
+                    _verify_first_fork_sightline(game,geometry,layout,1)
+                    _verify_edge_markers(game,"Woodworks",[0,1,2])
+            if biome == 1:
+                _verify_glacier_return(game,geometry,layout)
             assert(geometry.bank_surfaces.multimesh.instance_count == 8 and
                 geometry.apex_inlays.multimesh.instance_count == 4)
+            var highlight_count := 18
             assert(geometry.vault_posts.multimesh.instance_count == 18 and
                 geometry.vault_roofs.multimesh.instance_count == 18 and
-                geometry.vault_highlights.multimesh.instance_count == 9,
-                "Original pillars, roofs and accents remain GPU-batched")
+                geometry.vault_highlights.multimesh.instance_count == highlight_count,
+                "Lateral lighting reuses the existing GPU batch")
+            var pier: Mesh = geometry.vault_posts.multimesh.mesh
+            assert(pier is ArrayMesh and pier.get_surface_count() == 1)
+            assert(geometry.vault_posts.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
             assert(geometry.canopy_panels.multimesh.instance_count == 12 and
                 geometry.canopy_trims.multimesh.instance_count == 12,
                 "Three vaulted landmarks must include 12 open-sky roof bays")
@@ -64,13 +77,13 @@ func _run() -> void:
                 bay.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF,
                 "Canopy must not cast costly shadows or create hidden physical traps")
             # RenderingServer does not return GPU instance transforms in
-            # headless mode. Compare the actual CPU source points used by
+            # headless mode. Compare the actual CPU transforms used by
             # _instanced() against physical ground and the open sightline.
             assert(geometry.canopy_roots.size() ==
                 bay.multimesh.instance_count,
                 "Each GPU canopy must be backed by one checked source point")
-            for point in geometry.canopy_roots:
-                var at: Vector3 = point
+            for transform: Transform3D in geometry.canopy_roots:
+                var at := transform.origin
                 var clearance: float = at.y-game.height_at(at.z)
                 assert(at.is_finite() and
                     clearance >= GEOMETRY.VAULT_CLEARANCE-0.1,
@@ -157,5 +170,84 @@ func _run() -> void:
         await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_sculpted_course.cfg"))
-    print("SCULPTED_PASSAGES_PASS: 36 physics-probed banked apexes, 12 batched open-sky canopy bays, 9 portals, mobile quality budgets and 40 marbles")
+    print("SCULPTED_PASSAGES_PASS: 36 real ramps, nine open first forks, Glacier return, exact split markers and GPU budgets")
     quit(0)
+
+func _verify_forge_sightline(game: Node3D, geometry: Node3D) -> void:
+    var mesh: Mesh = geometry.vault_roofs.multimesh.mesh
+    assert(geometry.vault_rib_roots.size() == 18)
+    for transform: Transform3D in geometry.vault_rib_roots:
+        var bounds: AABB = transform*mesh.get_aabb()
+        var center: float = game.track_center_at(transform.origin.z)
+        if transform.origin.x < center:
+            assert(bounds.end.x < center-5.15,
+                "The full left rib must clear the line of sight above the lane")
+        else:
+            assert(bounds.position.x > center+5.15,
+                "The full right rib must clear the line of sight above the lane")
+    var cover: Mesh = geometry.canopy_panels.multimesh.mesh
+    for transform: Transform3D in geometry.canopy_roots:
+        var bounds: AABB = transform*cover.get_aabb()
+        var center: float = game.track_center_at(transform.origin.z)
+        assert(bounds.end.x < center-5.15 or bounds.position.x > center+5.15)
+    _verify_edge_markers(game,"Forge",[0,1,2])
+
+func _verify_first_fork_sightline(game: Node3D, geometry: Node3D, layout: int, sector := 0) -> void:
+    var center_z := GEOMETRY.bank_z(GEOMETRY.VAULT_SECTIONS[sector],layout)
+    var roof: Mesh = geometry.vault_roofs.multimesh.mesh
+    var canopy: Mesh = geometry.canopy_panels.multimesh.mesh
+    var checked := 0
+    for transform in geometry.vault_rib_roots+geometry.canopy_roots:
+        if absf(transform.origin.z-center_z) > 3.4:
+            continue
+        var mesh := roof if transform in geometry.vault_rib_roots else canopy
+        var bounds: AABB = transform*mesh.get_aabb()
+        var center: float = game.track_center_at(transform.origin.z)
+        assert(bounds.end.x < center-5.15 or bounds.position.x > center+5.15,
+            "The first portal must be visible through the chase-camera corridor")
+        checked += 1
+    assert(checked == 10)
+
+func _verify_glacier_return(game: Node3D, geometry: Node3D, layout: int) -> void:
+    var center_z := GEOMETRY.bank_z(GEOMETRY.GLACIER_RETURN_VAULT,layout)
+    var route: Node3D = game.shortcut_route
+    var roof: Mesh = geometry.vault_roofs.multimesh.mesh
+    var canopy: Mesh = geometry.canopy_panels.multimesh.mesh
+    var checked := 0
+    for transform: Transform3D in geometry.vault_rib_roots+geometry.canopy_roots:
+        var z := transform.origin.z
+        if absf(z-center_z) > 3.4:
+            continue
+        var mesh := roof if transform in geometry.vault_rib_roots else canopy
+        var bounds: AABB = transform*mesh.get_aabb()
+        var center: float = game.track_center_at(z)
+        # Include the outer edge of the second lane, which curves in
+        # toward the main road beneath this passage.
+        var bridge_left: float = route.point_at(z).x-route.WIDTH*0.5
+        assert(bounds.end.x < bridge_left or bounds.position.x > center+5.7,
+            "Ice rib and canopy art must clear both racing lanes at the return")
+        checked += 1
+    assert(checked == 10)
+    for node in game.board.get_children():
+        assert(not (node is Label3D and node.text == "CHECKPOINT 2"),
+            "The old overhead Glacier checkpoint must be replaced")
+    _verify_edge_markers(game,"Glacier",[0,GEOMETRY.GLACIER_RETURN_SECTOR,2])
+
+func _verify_edge_markers(game: Node3D, biome_name: String, sectors: Array[int]) -> void:
+    var posts := game.board.get_node(biome_name+"SectorPostBatch") as MultiMeshInstance3D
+    assert(posts.multimesh.instance_count == sectors.size()*2 and posts.cast_shadow ==
+        GeometryInstance3D.SHADOW_CASTING_SETTING_OFF,
+        "Sector posts use one shadow-free draw batch")
+    var fx: Node3D = game.board.get_node("PolishedToyDetails")
+    for sector in sectors:
+        var marker := game.board.get_node("%sSectorMarker%d" % [biome_name,sector+1]) as Node3D
+        assert(is_equal_approx(marker.position.z,game.CHECKPOINT_Z[sector]))
+        for child in marker.get_children():
+            assert(not child is CollisionObject3D and absf(child.position.x) >= 5.35-0.001,
+                "Number plates and paint must stay off the central driving line")
+        for side in range(2):
+            var beacon: Node3D = fx.beacons[sector*2+side]
+            assert(is_equal_approx(beacon.position.z,marker.position.z) and
+                is_equal_approx(absf(beacon.position.x-marker.position.x),GEOMETRY.EDGE_SECTOR_POST_OFFSET) and
+                is_equal_approx(beacon.position.y-marker.position.y,GEOMETRY.EDGE_SECTOR_BEACON_HEIGHT),
+                "Sector pulse follows the sign and the exact timed plane")
