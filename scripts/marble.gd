@@ -297,7 +297,7 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
                         course_owner.racers,center_ahead,ai_lane_goal,
                         AIPath.temperament(racer_id,
                             course_owner.selected_track,
-                            course_owner.built_variation))
+                            course_owner.built_variation),ai_traffic_goal)
                 ai_traffic_offset = move_toward(ai_traffic_offset,
                     ai_traffic_goal,delta*4.5)
                 side_force = clampf((
