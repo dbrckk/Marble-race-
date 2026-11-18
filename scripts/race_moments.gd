@@ -62,6 +62,7 @@ var merge_traffic := 0
 var occluded_hazard := Vector3.INF
 var occluded_hazard_kind := ""
 var occluded_shutter_mark := Vector3.INF
+var occluded_passing_mark := Vector3.INF
 var glacier_exit_threat: Dictionary = {}
 var glacier_gap_marked := false
 var evasion_target := Vector3.INF
@@ -169,6 +170,7 @@ func reset_round() -> void:
     occluded_hazard = Vector3.INF
     occluded_hazard_kind = ""
     occluded_shutter_mark = Vector3.INF
+    occluded_passing_mark = Vector3.INF
     glacier_exit_threat.clear()
     glacier_gap_marked = false
     evasion_target = Vector3.INF
@@ -266,6 +268,7 @@ func tick(delta: float) -> void:
         occluded_hazard = Vector3.INF
         occluded_hazard_kind = ""
         occluded_shutter_mark = Vector3.INF
+        occluded_passing_mark = Vector3.INF
         glacier_exit_threat.clear()
         glacier_gap_marked = false
         evasion_target = Vector3.INF
@@ -303,12 +306,13 @@ func tick(delta: float) -> void:
     occluded_hazard = Vector3.INF
     occluded_hazard_kind = ""
     occluded_shutter_mark = Vector3.INF
+    occluded_passing_mark = Vector3.INF
     glacier_exit_threat.clear()
     glacier_gap_marked = false
     evasion_target = Vector3.INF
     var candidate := Vector3.INF
     var candidate_kind := ""
-    var shutter_mark := Vector3.INF
+    var road_mark := Vector3.INF
     var eyes := Vector3.ZERO
     if game.net.role != "server":
         var preview_velocity: Vector3 = game.player.linear_velocity
@@ -346,7 +350,11 @@ func tick(delta: float) -> void:
             eyes = game.camera.global_position
             if game.selected_track == 1 and preview_speed >= 5.0 and not player_on_bridge and (
                     absf(p.y-game.height_at(p.z)-0.39) <= 0.50 and not evasion_target.is_finite()):
-                shutter_mark = game.jump_guides.shutter_mark_ahead(p.z)
+                road_mark = game.jump_guides.shutter_mark_ahead(p.z)
+            elif game.selected_track == 2 and is_instance_valid(game.final_obstacle_art) and (
+                    not evasion_target.is_finite() and not game.airtime.airborne and (
+                        absf(p.y-game.height_at(p.z)-0.39) <= 0.55)):
+                road_mark = game.final_obstacle_art.passing_mark_ahead(game,p,preview_velocity)
     for marble in game.racers:
         if not is_instance_valid(marble) or marble == game.player:
             continue
@@ -378,10 +386,13 @@ func tick(delta: float) -> void:
             if road.merge_traffic_lane(opponent) == -merge_lane:
                 merge_traffic = merge_lane
         if same_route:
-            if shutter_mark.is_finite() and gap < -0.20 and opponent.z >= shutter_mark.z-0.40 and (
-                    covers_hazard(eyes,shutter_mark,opponent)):
-                occluded_shutter_mark = shutter_mark
-                shutter_mark = Vector3.INF
+            if road_mark.is_finite() and gap < -0.20 and opponent.z >= road_mark.z-0.40 and (
+                    covers_hazard(eyes,road_mark,opponent)):
+                if game.selected_track == 1:
+                    occluded_shutter_mark = road_mark
+                else:
+                    occluded_passing_mark = road_mark
+                road_mark = Vector3.INF
             var rival_forward: float = -marble.linear_velocity.z
             if genuine_pack_rival(gap,offset.x,offset.y,own_forward,rival_forward):
                 pack_count += 1

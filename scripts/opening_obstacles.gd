@@ -1,14 +1,15 @@
 extends MeshInstance3D
 ## Baked shells and ground paint for the first and last obstacle modules.
-## Only the opening uses entry arrows. The final approach already has a
-## timed gate with independently changing lines.
+## Forge’s final module also paints local openings outside moving sweeps.
 const Racer = preload("res://scripts/marble.gd")
 const Visuals = preload("res://scripts/visuals.gd")
 const RaceFeedback = preload("res://scripts/race_feedback.gd")
+const CourseMechanics = preload("res://scripts/course_mechanics.gd")
 const ENTRY_DEPTH := 1.30
 const ROAD_HALF_WIDTH := 6.38
 const CLEARANCE := Racer.RADIUS+0.12
 const ENTRY_LEAD := 1.35
+const FORGE_PASS_INK := Color("#b5ffe6")
 const MARKING_OUTLINE := Color("#20252a")
 const PALETTES := [
     [Color("#3d3029"),Color("#62472e"),Color("#ffbd5e"),Color("#b6ffdc")],
@@ -19,6 +20,8 @@ const PEG_SIDES := [12,8,10]
 const PEG_SHOULDERS := [0.94,0.73,0.87]
 var entry_gaps: Array[Vector2] = []
 var entry_z := 0.0
+var clear_z := INF
+var passing_marks: Array[Vector2] = []
 var obstacle_count := 0
 var peg_count := 0
 var danger_footprints: Array[Rect2] = []
@@ -50,6 +53,7 @@ func build(section: Node3D, game: Node3D, floor_z: float, section_index: int) ->
         obstacle_count += 1
         var footprint := _footprint(marker)
         danger_footprints.append(footprint)
+        clear_z = minf(clear_z,footprint.position.y-CLEARANCE)
         if body.name.begins_with("AntiEdgeBaffle"):
             baffle_footprints.append(footprint)
         first_edge = maxf(first_edge,footprint.end.y)
@@ -66,15 +70,18 @@ func build(section: Node3D, game: Node3D, floor_z: float, section_index: int) ->
     if spinner != null:
         spinner_radius = _sweep_radius(spinner)
         spinner_center = Vector2(spinner.position.x,spinner.position.z)
+        clear_z = minf(clear_z,spinner_center.y-spinner_radius-CLEARANCE)
         # Intersect the circular sweep with the approach band, not its full
         # square bounds. The rest is marked by the dashed ring further in.
         var depth := maxf(0.0,first_edge-ENTRY_DEPTH-spinner_center.y)
-        if depth < spinner_radius:
+        if section_index == 1 and depth < spinner_radius:
             var width := sqrt(spinner_radius*spinner_radius-depth*depth)
             danger_footprints.append(Rect2(spinner_center+Vector2(-width,depth),
                 Vector2(width*2.0,spinner_radius-depth)))
         _sweep_arcs(surface,game,floor_z,spinner_center,spinner_radius,palette[2])
     entry_z = first_edge+ENTRY_LEAD
+    if game.selected_track == 2 and section_index == game.FINAL_OBSTACLE_SECTION:
+        _forge_passing_marks(surface,section,game,floor_z,section_index)
     if section_index == 1:
         entry_gaps = _entry_gaps(danger_footprints,first_edge)
     for gap in entry_gaps:
@@ -97,6 +104,78 @@ func build(section: Node3D, game: Node3D, floor_z: float, section_index: int) ->
     material.emission_energy_multiplier = 0.24
     material_override = material
     cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+func _forge_passing_marks(surface: SurfaceTool, section: Node3D, game: Node3D,
+        floor_z: float, section_index: int) -> void:
+    var obstructions := danger_footprints.duplicate()
+    var last_vent := CourseMechanics.ZONE_Z.size()-1
+    var vent := CourseMechanics.placement_at(last_vent,2,game.built_variation)
+    var vent_radius := sqrt(CourseMechanics.VENT_RADIUS_SQUARED)
+    obstructions.append(Rect2(vent.x-section.global_position.x-vent_radius,
+        vent.z-vent_radius,2.0*vent_radius,2.0*vent_radius))
+    var ramp := section.get_node_or_null("RideableCrest_%02d" % section_index)
+    if ramp != null:
+        obstructions.append(_footprint(ramp.get_child(0) as CollisionShape3D))
+    var hammer := section.get_node_or_null("SwingHammer_%02d" % section_index) as AnimatableBody3D
+    if hammer != null:
+        var hit := hammer.get_child(0) as CollisionShape3D
+        var size: Vector3 = (hit.shape as BoxShape3D).size
+        var radius := Vector2(size.x*0.5,absf(hit.position.y)+size.y*0.5).length()
+        var footprint := Rect2(hammer.position.x-radius,hammer.position.z-size.z*0.5,2.0*radius,size.z)
+        obstructions.append(footprint)
+        clear_z = minf(clear_z,footprint.position.y-CLEARANCE)
+    for offset: float in [4.85,1.65,-1.55,-4.65]:
+        var z := floor_z+offset
+        var near := z+0.52
+        var far := z-2.1
+        var blocked: Array[Vector2] = []
+        for footprint in obstructions:
+            if footprint.end.y+CLEARANCE >= far and footprint.position.y-CLEARANCE <= near:
+                blocked.append(Vector2(footprint.position.x-CLEARANCE,footprint.end.x+CLEARANCE))
+        if spinner_radius > 0.0:
+            var depth := clampf(spinner_center.y,far-CLEARANCE,near+CLEARANCE)-spinner_center.y
+            if absf(depth) < spinner_radius:
+                var width := sqrt(spinner_radius*spinner_radius-depth*depth)+CLEARANCE
+                blocked.append(Vector2(spinner_center.x-width,spinner_center.x+width))
+        var gaps := _open_intervals(blocked)
+        for side in [-1.0,1.0]:
+            var best := Vector2.INF
+            var best_x := INF
+            var error := INF
+            for gap in gaps:
+                var inset := minf(0.33,(gap.y-gap.x)*0.45)
+                var x := clampf(side*2.0,gap.x+inset,gap.y-inset)
+                if x*side > 0.18 and absf(x-side*2.0) < error:
+                    best = gap
+                    best_x = x
+                    error = absf(x-side*2.0)
+            if not best.is_finite():
+                continue
+            var mark := Vector2(best_x,z)
+            var half_width := clampf(minf(best_x-best.x,best.y-best_x)+0.12,0.32,0.60)
+            for flank in [-1.0,1.0]:
+                _marked_strip(surface,game,floor_z,mark+Vector2(flank*half_width,0.42),
+                    mark-Vector2(0,0.30),0.24,FORGE_PASS_INK)
+            passing_marks.append(mark)
+
+func passing_mark_ahead(game: Node3D, at: Vector3, velocity: Vector3) -> Vector3:
+    var speed := -velocity.z
+    if not at.is_finite() or not velocity.is_finite() or speed < 8.0 or (
+            at.z > entry_z+13.0 or at.z < clear_z):
+        return Vector3.INF
+    var best := Vector3.INF
+    var cost := INF
+    var reach := minf(13.0,speed*0.74)
+    for mark in passing_marks:
+        var distance := at.z-mark.y
+        if distance < 3.2 or distance > reach:
+            continue
+        var x := mark.x+global_position.x
+        var lateral := absf(x-RaceFeedback.projected_lane_x(at.x,velocity.x,distance/speed))
+        if lateral <= 2.4 and distance+2.0*lateral < cost:
+            best = Vector3(x,game.height_at(mark.y)+0.10,mark.y)
+            cost = distance+2.0*lateral
+    return best
 
 func approach_warning(position_at: Vector3, velocity: Vector3, reach_seconds: float) -> Dictionary:
     var local := to_local(position_at)
@@ -139,6 +218,9 @@ static func _entry_gaps(footprints: Array[Rect2], first_edge: float) -> Array[Ve
     for footprint in footprints:
         if footprint.end.y >= first_edge-ENTRY_DEPTH:
             occupied.append(Vector2(footprint.position.x-CLEARANCE,footprint.end.x+CLEARANCE))
+    return _open_intervals(occupied)
+
+static func _open_intervals(occupied: Array[Vector2]) -> Array[Vector2]:
     occupied.sort_custom(func(a: Vector2,b: Vector2) -> bool: return a.x < b.x)
     var gaps: Array[Vector2] = []
     var cursor := -ROAD_HALF_WIDTH+CLEARANCE

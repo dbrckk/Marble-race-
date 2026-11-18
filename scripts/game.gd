@@ -1944,6 +1944,13 @@ func _update_camera(delta: float, force := false) -> void:
         else:
             velocity = Vector3.ZERO
             jump_preview = {}
+    var racer_z := player.global_position.z
+    var forge_view: bool = selected_track == 2 and cam_mode == 0 and race_state == "RACING" and (
+        not player.finished and not player.eliminated and is_instance_valid(final_obstacle_art))
+    if forge_view and racer_z >= final_obstacle_art.clear_z:
+        var release := 1.0-smoothstep(0.0,3.5,racer_z-final_obstacle_art.clear_z)
+        var module_distance := maxf(racer_z-final_obstacle_art.entry_z,release*RaceFeedback.HAZARD_MAX_PREVIEW)
+        distance = minf(distance,module_distance) if distance >= 0.0 else module_distance
     var pose: Dictionary = RaceFeedback.camera_pose(
         player.global_position,velocity,
         ahead_x,cam_mode,boosting,distance,
@@ -1957,6 +1964,13 @@ func _update_camera(delta: float, force := false) -> void:
             not net.is_client() or velocity != Vector3.ZERO) else Vector3.INF)
     var desired: Vector3 = pose["position"]
     var focus: Vector3 = pose["focus"]
+    if forge_view and jump_preview.is_empty():
+        var clear_z := minf(final_straight_z,final_obstacle_art.clear_z)
+        var finish_weight := RaceFeedback.finish_focus_weight(racer_z,clear_z,FINISH_Z,-velocity.z)*(
+            1.0-0.65*airborne_weight)
+        var target := Vector3(finish_origin.x,finish_origin.y+1.3,minf(focus.z,FINISH_Z))
+        focus = focus.lerp(target,finish_weight*0.58)
+        desired.y += finish_weight*0.56
     # Match the camera to the real 3D grade without per-frame raycasts.
     focus = RaceFeedback.terrain_safe_focus(focus,height_at(focus.z))
     desired = RaceFeedback.terrain_safe_camera(desired,height_at(desired.z))
@@ -1964,7 +1978,6 @@ func _update_camera(delta: float, force := false) -> void:
         "previous_jitter",Vector3.ZERO)
     var follow_rate: float = lerpf(4.5,6.0,float(pose["pace"]))
     var step: float = RaceFeedback.smooth_factor(delta,follow_rate)
-    var racer_z := player.global_position.z
     var forward_step := Vector3.ZERO
     if race_state == "RACING" and cam_mode == 0 and not force:
         forward_step.z = RaceFeedback.chase_forward_step(racer_z-camera_previous_racer_z,delta)

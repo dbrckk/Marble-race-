@@ -52,6 +52,11 @@ static func hazard_preview_weight(distance: float, forward_speed: float) -> floa
     # A 3m near-field buffer prevents abrupt framing on a passed gate.
     return clampf((reach-distance)/maxf(4.0,reach*0.78),0.0,1.0)
 
+static func finish_focus_weight(racer_z: float, clear_z: float, finish_z: float, speed: float) -> float:
+    if not is_finite(racer_z) or not is_finite(speed) or racer_z <= finish_z:
+        return 0.0
+    return smoothstep(0.0,4.5,clear_z-racer_z)*smoothstep(4.0,16.0,speed)
+
 static func camera_pose(position: Vector3, velocity: Vector3,
     center_ahead_x: float, camera_mode: int, boosting: bool,
     hazard_distance: float, close_duel: bool = false,

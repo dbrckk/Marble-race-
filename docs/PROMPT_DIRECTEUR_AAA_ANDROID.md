@@ -542,6 +542,10 @@ Sur les trois tracés de Glacier, la caméra de poursuite cadre une ouverture si
 
 Les prévisions du piston et de l’évent utilisent le premier instant où le danger est actif sur la trajectoire. L’alerte du piston couvre tout le passage de la bille, y compris une remontée après le milieu du passage. Un piston orange ou un évent jaune apparaît au-dessus de sa position réelle quand une bille du peloton le masque. Le pont conserve l’annonce du piston en aval et écarte l’évent de la voie principale qu’il contourne.
 
+### 2026-11-18 — Dernière chicane et arrivée de Forge (1.145.0-rc)
+
+Des chevrons turquoise indiquent des ouvertures locales entre les obstacles du dernier module. Les marques tiennent compte du volume d’une bille, de la rampe, du balayage des mécanismes et du dernier évent. Elles font partie du maillage existant et restent visibles en mode Économie. Un chevron à l’écran indique la marque lorsqu’une bille située devant la masque, sous réserve de laisser lisibles les alertes et le repère du joueur. La caméra de poursuite révèle la chicane à l’approche, puis recentre progressivement la vraie ligne d’arrivée après le dernier virage. Les panneaux d’arrivée de Forge sont rehaussés sur leurs deux poteaux latéraux.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Vérifier la lisibilité des trajectoires de dépassement dans la dernière chicane de Forge et le cadrage de la ligne d’arrivée. Mesurer le mix et la fluidité sur un téléphone Android dès qu’il est disponible.
+Rendre la sortie du dernier virage de Glacier plus lisible quand plusieurs billes attaquent l’arrivée côte à côte. Mesurer le mix et la fluidité sur un téléphone Android dès qu’il est disponible.

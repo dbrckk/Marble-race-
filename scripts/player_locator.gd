@@ -117,14 +117,24 @@ func refresh(delta: float) -> void:
                 hazard_kind = kind
         var lane: Vector3 = moments.evasion_target
         var is_shutter_mark: bool = not lane.is_finite() and moments.occluded_shutter_mark.is_finite()
+        var is_passing_mark: bool = not lane.is_finite() and moments.occluded_passing_mark.is_finite()
         if is_shutter_mark:
             lane = moments.occluded_shutter_mark
+        elif is_passing_mark:
+            lane = moments.occluded_passing_mark
         var separation := 2.6 if moments.glacier_gap_marked else 3.7
         if is_shutter_mark:
             separation = JumpGuides.SHUTTER_MARK_MIN_DISTANCE
+        elif is_passing_mark:
+            separation = 3.2
         if freshness and lane.is_finite() and center.z-lane.z > separation and not camera.is_position_behind(lane):
-            var pointer := camera.unproject_position(lane)-Vector2(0.0,12.0) if is_shutter_mark else (
-                camera.unproject_position(lane))
+            var pointer := camera.unproject_position(lane)
+            if is_shutter_mark or is_passing_mark:
+                pointer.y -= 12.0
+            if is_passing_mark:
+                var badge_clearance := _badge_rect().grow(5.0)
+                if Rect2(pointer-Vector2(17,12),Vector2(34,26)).intersects(badge_clearance):
+                    pointer.y = badge_clearance.position.y-14.0
             if safe.has_point(pointer) and pointer.distance_to(screen_center) > screen_radius+26.0 and (
                     not hazard_center.is_finite() or pointer.distance_to(hazard_center) > 29.0):
                 evasion_center = pointer

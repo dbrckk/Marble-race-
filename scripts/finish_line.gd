@@ -27,9 +27,9 @@ func setup(biome: int, grade: float) -> void:
         var sign := Label3D.new()
         sign.text = "FINISH"
         sign.font_size = 52
-        sign.pixel_size = 0.012
+        sign.pixel_size = 0.015 if biome == 2 else 0.012
         sign.outline_size = 7
-        sign.position = Vector3(side*SIDE_OFFSET,2.42,0.41)
+        sign.position = Vector3(side*SIDE_OFFSET,3.45 if biome == 2 else 2.42,0.41)
         sign.modulate = Color("#fff2da")
         add_child(sign)
 
@@ -63,6 +63,12 @@ static func _build(biome: int) -> ArrayMesh:
                 _box(surface,Vector3(x+side*0.38,1.07,0),Vector3(0.29,1.67,0.52),palette[0],-side*0.27)
                 for y in [0.73,1.00,1.27,1.54,1.81]:
                     _box(surface,Vector3(x,y,0.33),Vector3(0.38,0.10,0.06),palette[2],0.16)
+                _box(surface,Vector3(x,3.07,0.0),Vector3(0.53,0.82,0.52),palette[1])
+                _box(surface,Vector3(x,3.45,0.01),Vector3(1.58,0.70,0.65),palette[0])
+                _box(surface,Vector3(x,3.86,0.02),Vector3(1.51,0.15,0.63),palette[2])
+                for tile in range(6):
+                    var stripe := Color("#ffe5a9") if tile%2 == 0 else Color("#2c2531")
+                    _box(surface,Vector3(x+(float(tile)-2.5)*0.22,4.05,0.27),Vector3(0.22,0.27,0.20),stripe)
     surface.index()
     return surface.commit()
 

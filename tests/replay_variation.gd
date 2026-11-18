@@ -2,6 +2,7 @@ extends SceneTree
 const TrackSurface = preload("res://scripts/track_surface.gd")
 const OpeningObstacles = preload("res://scripts/opening_obstacles.gd")
 const FinishLine = preload("res://scripts/finish_line.gd")
+const Racer = preload("res://scripts/marble.gd")
 
 func _initialize() -> void:
     call_deferred("_verify")
@@ -96,6 +97,70 @@ func _check_opening_obstacles(game: Node3D, layout: int) -> bool:
     game.set_graphics_quality(1)
     return true
 
+func _check_forge_finish(game: Node3D, finish: FinishLine) -> bool:
+    var art: MeshInstance3D = game.final_obstacle_art
+    assert(art.mesh.get_surface_count() == 1 and art.passing_marks.size() >= 3)
+    assert(finish.mesh.get_aabb().end.y > 4.0 and (finish.get_child(0) as Label3D).position.y > 3.0)
+    var probe := SphereShape3D.new()
+    probe.radius = Racer.RADIUS
+    var query := PhysicsShapeQueryParameters3D.new()
+    query.shape = probe
+    query.collision_mask = 1
+    query.exclude = game.airtime.ignored_rids
+    for frame in range(4):
+        await physics_frame
+    for mark: Vector2 in art.passing_marks:
+        var x := art.global_position.x+mark.x
+        var start := Vector3(x,game.height_at(mark.y+0.46)+0.55,mark.y+0.46)
+        var end := Vector3(x,game.height_at(mark.y-2.1)+0.55,mark.y-2.1)
+        assert(game._evasion_span_clear(query,start,end),"Painted opening intersects a real blocker")
+    var mark: Vector2 = art.passing_marks[0]
+    var approach_z := mark.y+5.0
+    var approach := Vector3(art.global_position.x+mark.x,game.height_at(approach_z)+0.43,approach_z)
+    var velocity := Vector3(0,0,-23.0)
+    game.cam_mode = 0
+    game.airtime.reset_round()
+    game.race_moments.reset_round()
+    game.player.global_position = approach
+    game.player.linear_velocity = velocity
+    game._update_camera(0.1,true)
+    var eye: Vector3 = game.camera.global_position
+    var point: Vector3 = art.passing_mark_ahead(game,approach,velocity)
+    assert(point.is_finite())
+    var block := eye.lerp(point,(point.z+0.5-eye.z)/(point.z-eye.z))
+    block.y = game.height_at(block.z)+Racer.RADIUS
+    var rival: RigidBody3D = game.racers[0]
+    rival.global_position = block
+    game.race_moments.tick(0.12)
+    var locator: Control = game.ui.player_locator
+    locator.refresh(0.12)
+    assert(game.race_moments.occluded_passing_mark.is_equal_approx(point) and locator.evasion_center.is_finite(),
+        "A racer masking the physical mark should reveal the passing chevron")
+    rival.global_position.x += 2.8
+    game.race_moments.tick(0.12)
+    locator.refresh(0.12)
+    assert(not game.race_moments.occluded_passing_mark.is_finite() and not locator.evasion_center.is_finite())
+    var z: float = game.FINISH_Z+6.2
+    game.player.global_position = Vector3(game.track_center_at(z)+2.85,game.height_at(z)+0.43,z)
+    game.player.linear_velocity = Vector3(0,0,-23.0)
+    game.airtime.reset_round()
+    game.race_moments.reset_round()
+    game.cam_mode = 0
+    game._update_camera(0.1,true)
+    var finish_offset := absf(game.camera_lookahead.x-finish.global_position.x)
+    game.cam_mode = 1
+    game._update_camera(0.1,true)
+    var overhead: Vector3 = game.camera_lookahead
+    game.final_obstacle_art = null
+    game._update_camera(0.1,true)
+    assert(game.camera_lookahead.is_equal_approx(overhead),"Player-controlled cameras must retain their pose")
+    game.cam_mode = 0
+    game._update_camera(0.1,true)
+    assert(finish_offset < absf(game.camera_lookahead.x-finish.global_position.x),
+        "The chase camera should draw the real stripe toward center")
+    game.final_obstacle_art = art
+    return true
+
 func _verify() -> void:
     var game = load("res://scenes/main.tscn").instantiate()
     root.add_child(game)
@@ -148,6 +213,8 @@ func _verify() -> void:
             var profile := _check_rail_batch(game,biome)
             var frame := _check_start_gate(game)
             assert(_check_opening_obstacles(game,opening_layout))
+            if biome == 2:
+                assert(await _check_forge_finish(game,finish))
             if layout == 0:
                 assert(profile not in profiles, "Each biome needs its own geometry")
                 assert(frame not in gates_by_biome, "Each biome needs its own starting towers")
@@ -164,6 +231,7 @@ func _verify() -> void:
     print("RAIL_PROFILE_PASS: 9 layouts, 40 racers, all guards match physics, one rail batch")
     print("START_GATE_PASS: 9 layouts, 40 racers, open sightline, countdown, launch and reset")
     print("OPENING_ART_PASS: 9 layouts, one mesh, clear first gaps, full paddle sweep, Economy")
+    print("FORGE_FINISH_VIEW_PASS: three sets of collider-checked slalom marks, pack occlusion, tall signs and chase framing")
     game.queue_free()
     for n in range(4):
         await process_frame
