@@ -1292,8 +1292,11 @@ func _terrain_ramp(parent: Node3D, center_z: float, section: int) -> void:
     var lane := -2.2 if (section+selected_track)%2 == 0 else 2.2
     var z := center_z+1.5
     var size := Vector3(3.55,0.22,2.35)
-    if section == FINAL_OBSTACLE_SECTION and board.get_meta("solo_course_clearance") and (
-        selected_track != 2 or built_variation == 2):
+    if section == FINAL_OBSTACLE_SECTION and board.get_meta("solo_course_clearance"):
+        # The first Forge layout can trap a no-input marble against the
+        # initial final peg row when this crest overlaps its exit. Give
+        # every solo layout the same bank-separated physical release path.
+        # Online geometry remains identical to the deployed server.
         # Give the crest its own stretch past the last bank, clear of the
         # gate posts and the paddle's sweep.
         z = CourseSculptures.bank_z(CourseSculptures.BANK_SECTIONS.back(),built_variation)-5.8
