@@ -18,39 +18,6 @@ static func temperament(racer_id: int, track: int, variation: int) -> int:
     # 0 defensive, 1 balanced, 2 opportunistic. No random client input.
     return posmod(racer_id*7 + track*5 + variation*4,3)
 
-static func _lane_occupancy(target_x: float, own: RigidBody3D,
-    rivals: Array[RigidBody3D]) -> float:
-    var penalty := 0.0
-    for other in rivals:
-        if other == own or not is_instance_valid(other) or (
-            other.finished or other.eliminated):
-            continue
-        var dz: float = absf(other.position.z-own.position.z)
-        var dy: float = absf(other.position.y-own.position.y)
-        if dz > 5.5 or dy > TRAFFIC_HEIGHT:
-            continue
-        # A rival changing lanes is dangerous before its current sphere
-        # overlaps the intended corridor. Predict only a short, bounded
-        # window from authoritative velocity; no physics or RNG is added.
-        var current_dx: float = absf(other.position.x-target_x)
-        var predicted_x: float = other.position.x+clampf(
-            other.linear_velocity.x,-5.0,5.0)*0.42
-        var future_dx: float = absf(predicted_x-target_x)
-        var dx: float = minf(current_dx,future_dx)
-        if dx < 1.10:
-            penalty += (1.10-dx)*2.4*(
-                1.0-clampf(dz/5.5,0.0,1.0))
-            # A faster racer approaching from behind has right of way.
-            # Avoid cutting across their lane even if they are still
-            # several metres back. Uses only existing velocity snapshots.
-            var behind: float = other.position.z-own.position.z
-            var closing_speed: float = own.linear_velocity.z-other.linear_velocity.z
-            if behind > 0.0 and closing_speed > 2.0:
-                var time_to_contact: float = behind/closing_speed
-                penalty += (1.10-dx)*clampf(
-                    (1.5-time_to_contact)/1.5,0.0,1.0)*4.5
-    return penalty
-
 # A rival cutting laterally into the same narrow racing corridor deserves
 # a measured evasive line. Read existing velocity snapshots only during the
 # already throttled AI traffic scan; never change a player's input, velocity,
