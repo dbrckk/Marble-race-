@@ -478,6 +478,10 @@ Base `6be2b1671518d64430fd05a2b56d7c5a925e4146`. Le client estime la vitesse de 
 
 Base `8f9d4b7514bed84e3c6beb1f7b264fcdcdf9546d`. Le roulement de la bille locale a le même niveau dans les différentes caméras. Le vent baisse dans le peloton et pendant les dépassements confirmés. Les alertes et les impacts forts réduisent brièvement le fond sonore. Un choc important reste audible après un contact léger, et les impacts restent spatialisés. Les voix existantes suffisent au mix.
 
+### 2026-11-18 — Enchaînement turbo, alertes et virages (1.129.0-rc)
+
+Base `2b005f34cd71bc795f8548b301a6848a566ecdb3`. Le vent monte progressivement avec le turbo. Les virages de la piste ou du pont renforcent le son de la bille et réduisent le vent. Le jeu mixe d’abord l’alerte prévue par le HUD et abaisse le son du turbo déjà lancé ou donné par un bonus pendant cette alerte. Il utilise les boucles et les voix audio existantes.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Contrôler le mix sur les haut-parleurs d’un téléphone Android et la fluidité du peloton. Vérifier la lisibilité des relais sonores entre le turbo, les alertes et les entrées de virage.
+Mieux faire sentir la perte et la reprise d’adhérence sur les surfaces, en priorité sur Glacier. Mesurer le mix et la fluidité du peloton sur un téléphone Android dès qu’il est disponible.

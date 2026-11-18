@@ -22,6 +22,7 @@ const BRIDGE_ROLLS := [
 ]
 const SURFACE_FADE_SECONDS := 0.22
 const PASS_MIX_SECONDS := 0.42
+const WARNED_BOOST_DB := -29.0
 const AIR = preload("res://assets/audio/sfx/airrush.ogg")
 const PERCUSSION = preload("res://assets/audio/music/pace_percussion.ogg")
 const FANFARE = preload("res://assets/audio/sfx/fanfare.ogg")
@@ -86,6 +87,10 @@ var target_marble: RigidBody3D
 var enabled := true
 var collision_delay := 0.0
 var boost_delay := 0.0
+var turbo_requested := false
+var turbo_mix := 0.0
+var turn_target := 0.0
+var turn_mix := 0.0
 var current_channel := 0
 var music_target_db := -22.0
 var track_theme := 0
@@ -214,6 +219,13 @@ func set_pack_pressure(value: float) -> void:
 func set_flight_intensity(weight: float) -> void:
     flight_intensity_target = clampf(weight,0.0,1.0) if is_finite(weight) else 0.0
 
+func set_drive_context(turbo: bool, turn: float) -> void:
+    # The HUD has already dispatched its earliest warning for this frame.
+    if turbo and not turbo_requested:
+        boost()
+    turbo_requested = turbo
+    turn_target = clampf(turn,0.0,1.0) if is_finite(turn) else 0.0
+
 func touchdown(grade: String, impact_speed: float) -> void:
     # Already bundled CC0/original cues; no new concurrent audio channel.
     if grade == "BIG AIR":
@@ -245,6 +257,10 @@ func _process(delta: float) -> void:
     hazard_cooldown = maxf(0.0,hazard_cooldown-delta)
     hazard_duck = move_toward(hazard_duck,0.0,delta*13.0)
     var priority_duck := maxf(collision_duck,hazard_duck)
+    var warning_active := hazard_cooldown > 0.0
+    var turbo_target := 1.0 if turbo_requested and not warning_active else 0.0
+    turbo_mix = lerpf(turbo_mix,turbo_target,RaceFeedback.smooth_factor(delta,9.0))
+    turn_mix = lerpf(turn_mix,turn_target,RaceFeedback.smooth_factor(delta,7.0))
     var music_mix_db := music_target_db+loudness_offset-priority_duck
     if music_fade < 1.0:
         music_fade = minf(1.0,music_fade+maxf(0.0,delta)/MUSIC_FADE_SECONDS)
@@ -274,10 +290,13 @@ func _process(delta: float) -> void:
             [-1.0,-3.0,2.0][track_theme])+pack_percussion_lift(pack_pressure)
         var wind_duck := maxf(hazard_duck*1.8,collision_duck*2.2)
         wind_duck = maxf(wind_duck,4.5*pass_mix_seconds/PASS_MIX_SECONDS)
-        air_target = -52.0+energy*25.0+flight_intensity*7.0-maxf(
-            pack_wind_trim(pack_pressure)*(1.0-flight_intensity),wind_duck)
+        var corner := turn_mix*(1.0-flight_intensity)
+        var thrust := 0.0 if warning_active else turbo_mix
+        air_target = -52.0+energy*25.0+flight_intensity*7.0+thrust*2.6*(1.0-corner)-maxf(
+            maxf(pack_wind_trim(pack_pressure)*(1.0-flight_intensity),corner*3.8),wind_duck)
         pace_target -= priority_duck
-        air.pitch_scale = lerpf(0.85,1.5,energy) * [1.0,0.94,1.08][track_theme]
+        air.pitch_scale = (lerpf(0.85,1.5,energy)+thrust*0.09)*(1.0-0.06*corner)*[
+            1.0,0.94,1.08][track_theme]
     if not enabled:
         pace_target = -80.0
         air_target = -80.0
@@ -307,8 +326,9 @@ func _update_rolling(delta: float) -> void:
             _clear_bridge_roll()
         return
     var foreground := maxf(hazard_duck*0.56,collision_duck*0.48)
-    var rolling_target := clampf(-41.0+speed*1.65,-48.0,-17.0)-foreground-(
-        flight_intensity*14.0)
+    var corner := turn_mix*(1.0-flight_intensity)
+    var corner_roll := corner*2.2*clampf(speed/13.0,0.0,1.0)*(1.0-clampf(foreground/2.0,0.0,1.0))
+    var rolling_target := clampf(-41.0+speed*1.65,-48.0,-17.0)-foreground-flight_intensity*14.0+corner_roll
     if on_bridge and not bridge_grounded:
         rolling_target = minf(rolling_target,-51.0)
     var response := 26.0
@@ -376,7 +396,8 @@ func _voice(stream: AudioStream, loudness := -10.0, pitch := 1.0) -> void:
     current_channel = (current_channel + 1) % channels.size()
     p.stream = stream
     p.pitch_scale = pitch
-    p.volume_db = loudness
+    p.volume_db = minf(loudness,WARNED_BOOST_DB) if (
+        stream == TONES["boost"] and hazard_cooldown > 0.0) else loudness
     p.play()
 
 func ui_click() -> void:
@@ -453,6 +474,11 @@ func _reset_priority_mix() -> void:
     pass_mix_seconds = 0.0
     hazard_duck = 0.0
     hazard_cooldown = 0.0
+    turbo_requested = false
+    turbo_mix = 0.0
+    turn_target = 0.0
+    turn_mix = 0.0
+    boost_delay = 0.0
 
 func update_progress(ratio: float) -> void:
     finish_progress = clampf(ratio,0.0,1.0)
@@ -499,6 +525,9 @@ func _warn_hazard(played: Dictionary, index: int, cue: int) -> void:
     played[index] = true
     hazard_cooldown = 0.36
     hazard_duck = 4.5
+    for voice in channels:
+        if voice.playing and voice.stream == TONES["boost"]:
+            voice.volume_db = minf(voice.volume_db,WARNED_BOOST_DB)
     _voice(hazard_cues[cue],-15.0)
 
 func course_event(kind: String) -> void:
@@ -549,7 +578,7 @@ func item_pickup(kind: String) -> void:
             _voice(UI_SELECT,-9.0,1.12)
 
 func boost() -> void:
-    if boost_delay <= 0.0:
+    if enabled and race_active and boost_delay <= 0.0 and hazard_cooldown <= 0.0:
         tone("boost")
         boost_delay = 1.5
 

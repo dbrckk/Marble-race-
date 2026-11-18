@@ -131,6 +131,9 @@ func _run() -> void:
     if not _verify_race_mix(stage,opponent,hammer):
         quit(1)
         return
+    if not _verify_drive_transition(stage):
+        quit(1)
+        return
     var strength_before: float = stage.camera_shake
     for mode in range(3):
         stage.cam_mode = mode
@@ -250,4 +253,50 @@ func _verify_race_mix(stage: Node3D, opponent: RigidBody3D, hammer: Node3D) -> b
     assert(absf(sound.air.volume_db-crowded_wind) < 0.1 and sound.pass_mix_seconds == 0.0)
     sound.set_pack_pressure(0.0)
     assert(stage.player.linear_velocity == Vector3(0,0,-18))
+    return true
+
+func _verify_drive_transition(stage: Node3D) -> bool:
+    var sound: Node3D = stage.audio
+    sound.begin_race()
+    stage.player.global_position = Vector3(0,stage.height_at(-6.0)+0.45,-6.0)
+    stage.player.linear_velocity = Vector3(0,0,-19)
+    for frame in range(40):
+        sound._process(0.10)
+    var clean_wind: float = sound.air.volume_db
+    var rotation_roll: float = sound.rolling.volume_db
+    var channel: int = sound.current_channel
+    stage.change_boost(true)
+    assert(sound.current_channel == channel,"Dispatch turbo after the HUD decides warning priority")
+    stage._process(0.016)
+    var ignition: AudioStreamPlayer = sound.channels[channel]
+    assert(ignition.stream == sound.TONES["boost"] and ignition.playing)
+    for frame in range(18):
+        sound._process(0.05)
+    assert(sound.air.volume_db > clean_wind+2.0)
+    sound.set_drive_context(true,1.0)
+    for frame in range(18):
+        sound._process(0.05)
+    assert(sound.air.volume_db < clean_wind-3.0 and sound.rolling.volume_db > rotation_roll+1.9)
+    sound.warn_timed_gate(1,true)
+    assert(ignition.volume_db <= sound.WARNED_BOOST_DB,"Warnings lower any turbo sound already playing")
+    sound._process(0.05)
+    assert(sound.air.volume_db < clean_wind-5.0)
+    channel = sound.current_channel
+    sound.item_pickup("turbo")
+    assert(sound.channels[channel].volume_db <= sound.WARNED_BOOST_DB)
+    stage.change_boost(false)
+    sound.set_drive_context(false,0.0)
+    for frame in range(20):
+        sound._process(0.10)
+    stage.change_boost(true)
+    sound.warn_timed_gate(2,true)
+    channel = sound.current_channel
+    stage._process(0.016)
+    assert(sound.current_channel == channel and stage.boosting,
+        "A simultaneous warning takes the sound priority while turbo still engages")
+    stage.change_boost(false)
+    sound.set_drive_context(false,0.0)
+    for frame in range(20):
+        sound._process(0.10)
+    assert(absf(sound.air.volume_db-clean_wind) < 0.1 and sound.turbo_mix < 0.01)
     return true

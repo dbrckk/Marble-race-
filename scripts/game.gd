@@ -1484,6 +1484,10 @@ func _process(delta: float) -> void:
             is_instance_valid(player) and not player.finished and not player.eliminated)
         audio.set_bridge_surface(local_surface and airtime.rolling_surface == AirtimeDirector.Surface.BRIDGE,
             local_surface and airtime.bridge_grounded,replica_speed)
+        var drive_audio: bool = local_surface and net.role != "server" and (
+            replica_speed >= 0.0 if net.is_client() else not player.freeze)
+        audio.set_drive_context(drive_audio and boosting and boost_energy > 0.0,
+            race_moments.turn_weight if drive_audio and race_moments != null else 0.0)
 
 func _physics_process(delta: float) -> void:
     steer = move_toward(steer,steer_target,delta*8.5)
@@ -1699,8 +1703,6 @@ func change_steer(value: float) -> void:
     steer_target = clampf(value, -1.0, 1.0)
 
 func change_boost(value: bool) -> void:
-    if value and not boosting and boost_energy > 0.08:
-        audio.boost()
     boosting = value and boost_energy > 0.03
 
 func _unhandled_input(event: InputEvent) -> void:

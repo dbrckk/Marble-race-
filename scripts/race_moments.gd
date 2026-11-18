@@ -26,6 +26,7 @@ const PACK_X_RANGE := 3.8
 const PACK_Y_RANGE := 1.45
 const PACK_MIN_SPEED := 3.0
 const PACK_SATURATION := 4
+const TURN_FULL_ANGLE := [0.025,0.056,0.059]
 
 var game: Node3D
 var elapsed := 0.0
@@ -54,6 +55,7 @@ var side_by_side_events := 0
 var duel_announced: Dictionary = {}
 var nearby_pack_count := 0
 var pack_pressure := 0.0
+var turn_weight := 0.0
 
 static func genuine_pack_rival(gap_z: float, side_gap: float,
         height_gap: float, own_speed: float, rival_speed: float) -> bool:
@@ -96,6 +98,25 @@ func reset_round() -> void:
     duel_announced.clear()
     nearby_pack_count = 0
     pack_pressure = 0.0
+    turn_weight = 0.0
+
+func approach_turn_weight(z: float, forward: float, on_bridge: bool) -> float:
+    if not is_finite(forward) or forward < 6.0:
+        return 0.0
+    var step := clampf(forward*0.45,3.5,9.0)
+    var road: Node3D = game.shortcut_route
+    if on_bridge:
+        step = minf(step,(z-road.EXIT_Z)*0.5)
+        if step < 2.0:
+            return 0.0
+    var current: float = road.point_at(z).x if on_bridge else game.track_center_at(z)
+    var middle: float = road.point_at(z-step).x if on_bridge else game.track_center_at(z-step)
+    var ahead_x: float = road.point_at(z-step*2.0).x if on_bridge else game.track_center_at(z-step*2.0)
+    # A constant heading produces no cue, even when the road points
+    # diagonally across the board. Woodworks has wider, gentler bends.
+    var angle := absf(atan2(ahead_x-middle,step)-atan2(middle-current,step))
+    var full_turn: float = 0.20 if on_bridge else TURN_FULL_ANGLE[game.selected_track]
+    return smoothstep(0.006,full_turn,angle)*smoothstep(6.0,13.0,forward)
 
 static func genuine_side_duel(gap_z: float, lateral: float,
     vertical: float, own_forward: float, rival_forward: float) -> bool:
@@ -164,6 +185,7 @@ func tick(delta: float) -> void:
         side_by_side_active = false
         nearby_pack_count = 0
         pack_pressure = 0.0
+        turn_weight = 0.0
         sampled_once = false
     if not final_stretch_seen and p.z < game.final_straight_z and p.z > game.FINISH_Z and (
             elapsed-message_at > NOTIFICATION_COOLDOWN and
@@ -190,6 +212,14 @@ func tick(delta: float) -> void:
     var local_race: bool = not game.net.is_active()
     var road: Node3D = game.shortcut_route
     var player_on_bridge: bool = is_instance_valid(road) and road.on_separate_deck(p)
+    if game.net.role != "server":
+        var preview_speed := own_forward
+        if game.net.is_client():
+            var velocity: Vector3 = game.net.local_replica_velocity()
+            preview_speed = -velocity.z if velocity.is_finite() else 0.0
+        var bridge_contact: bool = is_instance_valid(road) and is_instance_valid(game.airtime) and (
+            game.airtime.rolling_surface == game.AirtimeDirector.Surface.BRIDGE)
+        turn_weight = approach_turn_weight(p.z,preview_speed,bridge_contact)
     for marble in game.racers:
         if not is_instance_valid(marble) or marble == game.player:
             continue

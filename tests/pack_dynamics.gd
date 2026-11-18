@@ -67,6 +67,13 @@ func _verify() -> void:
             game.start_race("Grip Tape")
             game.race_state = "RACING"
             assert(game.built_variation == layout and game.racers.size() == 40)
+            var bend_z: float = [-128.0,-43.0,-113.0][track]
+            assert(game.race_moments.approach_turn_weight(bend_z,19.0,false) > 0.45)
+            assert(game.race_moments.approach_turn_weight(bend_z,2.0,false) == 0.0)
+            assert(game.race_moments.approach_turn_weight(-6.0,19.0,false) < 0.1)
+            assert(game.race_moments.approach_turn_weight(-55.0,19.0,true) >
+                game.race_moments.approach_turn_weight(-55.0,19.0,false)+0.25,
+                "Follow the actual bridge bend rather than the main course below it")
             var player: RigidBody3D = game.player
             var z := -82.0
             var center: float = game.track_center_at(z)
