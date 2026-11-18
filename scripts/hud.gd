@@ -1947,6 +1947,9 @@ func update_hud() -> void:
         speed_label.text += "  /  SLIDE "+("←" if ice_drift < 0 else "→")
     elif ice_entry > 0.12:
         speed_label.text += "  /  ICE"
+    elif released >= 0.25 and game.selected_track == 0 and not return_arm_warning and (
+            game.player.global_position.z < game.race_director.event_z(RACE_DIRECTOR.WOODWORKS_RETURN_ARM)):
+        speed_label.text += "  ↑"
     if is_instance_valid(game.best_ghost):
         ghost_label.get_parent().visible = game.best_ghost.replay_available and (
             not game.net.is_active() and not countdown_label.is_visible_in_tree())

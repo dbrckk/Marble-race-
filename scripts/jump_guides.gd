@@ -3,10 +3,12 @@ extends Node3D
 const ShortcutRoute = preload("res://scripts/shortcut_route.gd")
 const Feedback = preload("res://scripts/race_feedback.gd")
 const TrackSurface = preload("res://scripts/track_surface.gd")
+const Sculptures = preload("res://scripts/course_sculptures.gd")
 const LANDING_OFFSETS := [2.8,4.4,6.0,1.6]
 const SHUTTER_MARK_OFFSETS := [1.35,2.95,4.55,6.15,7.75,9.35]
 const SHUTTER_INK := Color("#ffdf99")
 const SHUTTER_MARK_MIN_DISTANCE := 3.2
+const BANK_MARK_MIN_DISTANCE := 3.2
 const TAKEOFF_INK := [Color("#ffd084"),Color("#ffe098"),Color("#ffd187")]
 const LANDING_INK := [Color("#c5ffba"),Color("#a9faff"),Color("#aaf5e4")]
 const BACKING := Color("#25282b")
@@ -81,11 +83,12 @@ func _bake() -> void:
             break
     if game.selected_track == 1:
         _paint_shutter_center(marks,inks,ignored)
-        _paint_final_bank(marks,inks)
+    if game.selected_track <= 1:
+        _paint_final_bank(marks,inks,ignored)
     _make_batch(marks,inks)
     baked = true
 
-func _paint_final_bank(marks: Array[Transform3D], inks: Array[Color]) -> void:
+func _paint_final_bank(marks: Array[Transform3D], inks: Array[Color], ignored: Array[RID]) -> void:
     # These four stripes lie on the actual two tilted halves of the bank.
     # The brighter edge faces the main track where the lanes come together.
     var banks: Array[StaticBody3D] = game.course_sculptures.banks
@@ -95,9 +98,43 @@ func _paint_final_bank(marks: Array[Transform3D], inks: Array[Color]) -> void:
         var inside := -signf(body.global_position.x-game.track_center_at(body.global_position.z))
         for edge: float in [-1.0,1.0]:
             var point := body.to_global(Vector3(edge*(extent.x-0.18),extent.y+0.027,0.0))
+            if game.selected_track == 0:
+                # The wooden blocks can cover part of either slope. Only
+                # paint where the bank is the first surface under the mark.
+                var open := true
+                for offset: float in [-0.85,0.0,0.85]:
+                    var sample := point+body.global_basis.z*offset
+                    var ray := PhysicsRayQueryParameters3D.create(sample+Vector3.UP*1.75,
+                        sample-Vector3.UP*0.10,1,ignored)
+                    var hit: Dictionary = game.get_world_3d().direct_space_state.intersect_ray(ray)
+                    if hit.get("collider") != body:
+                        open = false
+                        break
+                if not open:
+                    continue
             _stroke(marks,inks,point,body.global_basis,Vector2(0.19,extent.z*1.70),
-                LANDING_INK[1] if edge == inside else SHUTTER_INK)
+                LANDING_INK[game.selected_track] if edge == inside else SHUTTER_INK)
             final_bank_marks.append(point)
+
+func woodworks_bank_mark_ahead(at: Vector3, velocity: Vector3) -> Vector3:
+    var speed := -velocity.z
+    if game.selected_track != 0 or final_bank_marks.is_empty() or speed < 8.0 or not at.is_finite() or not velocity.is_finite():
+        return Vector3.INF
+    var bank: Vector3 = game.course_sculptures.bank_roots.back()
+    var reach := clampf(speed*0.63,6.0,14.0)
+    if at.z < bank.z+Sculptures.BANK_HALF_LENGTH or at.z > bank.z+reach+Sculptures.BANK_HALF_LENGTH:
+        return Vector3.INF
+    var aim := Feedback.projected_lane_x(at.x,velocity.x,(at.z-bank.z)/speed)
+    if absf(aim-bank.x) > Sculptures.BANK_WIDTH*0.5+0.38:
+        return Vector3.INF
+    var best := Vector3.INF
+    var best_distance := INF
+    for point in final_bank_marks:
+        var distance := at.z-point.z
+        if distance > BANK_MARK_MIN_DISTANCE and distance <= reach and distance < best_distance:
+            best = point
+            best_distance = distance
+    return best
 
 func _paint_shutter_center(marks: Array[Transform3D], inks: Array[Color],
         ignored: Array[RID]) -> void:

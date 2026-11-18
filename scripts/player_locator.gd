@@ -41,6 +41,7 @@ var turbo_center := Vector2.INF
 var fork_main_center := Vector2.INF
 var fork_bridge_center := Vector2.INF
 var merge_rival_center := Vector2.INF
+var bank_center := Vector2.INF
 
 func configure(stage: Node3D) -> void:
     game = stage
@@ -64,6 +65,7 @@ func begin_round() -> void:
     fork_main_center = Vector2.INF
     fork_bridge_center = Vector2.INF
     merge_rival_center = Vector2.INF
+    bank_center = Vector2.INF
     badge_text = "YOU"
     if not game.net.is_active() and game.career.league_tier() >= 1:
         badge_text += "  •  "+game.career.league_name()
@@ -81,6 +83,7 @@ func refresh(delta: float) -> void:
     fork_main_center = Vector2.INF
     fork_bridge_center = Vector2.INF
     merge_rival_center = Vector2.INF
+    bank_center = Vector2.INF
     var marble: RigidBody3D = game.player
     var camera: Camera3D = game.camera
     if game.net.role == "server" or not is_instance_valid(marble) or not is_instance_valid(camera) or (
@@ -156,6 +159,8 @@ func refresh(delta: float) -> void:
                 evasion_center = pointer
                 if is_shutter_mark:
                     evasion_tint = JumpGuides.SHUTTER_INK
+        if freshness and not hazard_center.is_finite() and not evasion_center.is_finite():
+            bank_center = _project_road_mark(camera,center.z,moments.occluded_bank_mark,safe,JumpGuides.BANK_MARK_MIN_DISTANCE)
         var turbo: Vector3 = moments.occluded_opening_turbo
         if freshness and turbo.is_finite() and center.z-turbo.z > 2.3 and (
                 is_instance_valid(game.race_items) and game.race_items.items[0].visible and (
@@ -168,8 +173,8 @@ func refresh(delta: float) -> void:
             if safe.has_point(pointer) and pointer.distance_to(screen_center) > screen_radius+23.0:
                 turbo_center = pointer
         if freshness and not turbo_center.is_finite():
-            fork_bridge_center = _project_fork_mark(camera,center.z,moments.occluded_fork_bridge,safe)
-            fork_main_center = _project_fork_mark(camera,center.z,moments.occluded_fork_main,safe)
+            fork_bridge_center = _project_road_mark(camera,center.z,moments.occluded_fork_bridge,safe)
+            fork_main_center = _project_road_mark(camera,center.z,moments.occluded_fork_main,safe)
             if fork_bridge_center.is_finite() and fork_main_center.is_finite() and (
                     fork_main_center.distance_to(fork_bridge_center) < 32.0):
                 fork_main_center = Vector2.INF
@@ -192,8 +197,9 @@ func refresh(delta: float) -> void:
     show()
     queue_redraw()
 
-func _project_fork_mark(camera: Camera3D, z: float, target: Vector3, safe: Rect2) -> Vector2:
-    if not target.is_finite() or z-target.z <= ShortcutRoute.FORK_MARK_MIN_DISTANCE or (
+func _project_road_mark(camera: Camera3D, z: float, target: Vector3, safe: Rect2,
+        min_distance := ShortcutRoute.FORK_MARK_MIN_DISTANCE) -> Vector2:
+    if not target.is_finite() or z-target.z <= min_distance or (
             camera.is_position_behind(target)):
         return Vector2.INF
     var pointer := camera.unproject_position(target)-Vector2(0.0,15.0)
@@ -243,6 +249,11 @@ func _draw() -> void:
         _draw_fork_arrow(fork_main_center,Vector2.UP,ShortcutRoute.FORK_MAIN_COLOR)
     if fork_bridge_center.is_finite():
         _draw_fork_arrow(fork_bridge_center,Vector2(0.59,-0.81),ShortcutRoute.FORK_BRIDGE_COLOR)
+    if bank_center.is_finite():
+        var crest := PackedVector2Array([bank_center+Vector2(-13,6),bank_center+Vector2(-6,-4),
+            bank_center+Vector2(6,-4),bank_center+Vector2(13,6)])
+        draw_polyline(crest,INK,8.0,true)
+        draw_polyline(crest,JumpGuides.SHUTTER_INK,3.5,true)
     if merge_rival_center.is_finite():
         var point := merge_rival_center
         var left := PackedVector2Array([point+Vector2(-6,-8),point+Vector2(-13,-8),

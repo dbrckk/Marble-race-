@@ -572,6 +572,10 @@ La barrière extérieure rétrécit au raccord. Le bloc de slalom ou le poteau q
 
 Après le pont, la prévision couvre le balayage du bras pendant tout le passage de la bille. La direction d’évitement s’affiche si la bille peut rejoindre le passage et si un rival ne risque pas de l’occuper. Un pictogramme de balayage signale le bras lorsqu’il est masqué. Le repère du rival reste en course pendant l’alerte. Les notifications de dépassement encore actives réapparaissent dès que la trajectoire est libre.
 
+### 2026-11-18 — Reprise de vitesse et dernière montée de Woodworks (1.152.0-rc)
+
+Après le bras, le HUD conserve le suivi de la reprise de vitesse tant que le prochain obstacle reste à distance. Une flèche à côté du compteur accompagne l'accélération mesurée, y compris en mode Économie. La dernière montée porte des liserés sur ses deux pentes physiques. Un pictogramme de pente indique le relief quand une bille masque le marquage, et cède la place aux avertissements de conduite.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Affiner la reprise de vitesse et les repères en peloton entre le bras mobile de Woodworks et la dernière montée. Mesurer le mix et la fluidité sur un téléphone Android dès qu’il est disponible.
+Vérifier les duels et la lecture de la ligne d’arrivée à la sortie de la dernière montée de Woodworks. Mesurer le mix et la fluidité sur un téléphone Android dès qu’il est disponible.

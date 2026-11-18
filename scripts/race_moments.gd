@@ -30,6 +30,7 @@ const PACK_SATURATION := 4
 const TURN_FULL_ANGLE := [0.025,0.056,0.059]
 const OCCLUSION_RADIUS := 0.43
 const EXIT_FEEDBACK_SECONDS := 0.60
+const WOODWORKS_EXIT_LEAD_SECONDS := 0.58
 
 var game: Node3D
 var elapsed := 0.0
@@ -65,6 +66,7 @@ var occluded_hazard := Vector3.INF
 var occluded_hazard_kind := ""
 var occluded_shutter_mark := Vector3.INF
 var occluded_passing_mark := Vector3.INF
+var occluded_bank_mark := Vector3.INF
 var occluded_opening_turbo := Vector3.INF
 var occluded_fork_main := Vector3.INF
 var occluded_fork_bridge := Vector3.INF
@@ -89,13 +91,19 @@ func _clear_exit_sample() -> void:
 func exit_speed_weight() -> float:
     return exit_feedback_left/EXIT_FEEDBACK_SECONDS
 
-func sample_obstacle_exit(z: float, speed: float, hazard_z: float, grounded: bool, turbo: bool) -> void:
+func sample_obstacle_exit(z: float, speed: float, hazard_z: float, grounded: bool, turbo: bool,
+        woodworks_arm_z := INF) -> void:
     if not grounded or turbo or not is_finite(speed) or speed < 5.0:
         _clear_exit_sample()
         exit_feedback_left = 0.0
         return
     if is_finite(exit_gate_z) and elapsed >= exit_deadline:
         _clear_exit_sample()
+    # An obstacle farther down the next section must not interrupt the
+    # recovered pace while there's still time to drive a clear line.
+    if z < woodworks_arm_z-1.15 and z > woodworks_arm_z-9.0 and (
+            hazard_z < woodworks_arm_z-8.5 and z-hazard_z > speed*WOODWORKS_EXIT_LEAD_SECONDS):
+        hazard_z = INF
     var ahead := z-hazard_z
     if is_finite(hazard_z) and ahead >= 0.0 and ahead < 10.5:
         exit_feedback_left = 0.0
@@ -178,6 +186,7 @@ func reset_round() -> void:
     occluded_hazard_kind = ""
     occluded_shutter_mark = Vector3.INF
     occluded_passing_mark = Vector3.INF
+    occluded_bank_mark = Vector3.INF
     occluded_opening_turbo = Vector3.INF
     occluded_fork_main = Vector3.INF
     occluded_fork_bridge = Vector3.INF
@@ -281,6 +290,7 @@ func tick(delta: float) -> void:
         occluded_hazard_kind = ""
         occluded_shutter_mark = Vector3.INF
         occluded_passing_mark = Vector3.INF
+        occluded_bank_mark = Vector3.INF
         occluded_opening_turbo = Vector3.INF
         occluded_fork_main = Vector3.INF
         occluded_fork_bridge = Vector3.INF
@@ -325,6 +335,7 @@ func tick(delta: float) -> void:
     occluded_hazard_kind = ""
     occluded_shutter_mark = Vector3.INF
     occluded_passing_mark = Vector3.INF
+    occluded_bank_mark = Vector3.INF
     occluded_opening_turbo = Vector3.INF
     occluded_fork_main = Vector3.INF
     occluded_fork_bridge = Vector3.INF
@@ -335,6 +346,7 @@ func tick(delta: float) -> void:
     var candidate := Vector3.INF
     var candidate_kind := ""
     var road_mark := Vector3.INF
+    var bank_mark := Vector3.INF
     var turbo_mark := Vector3.INF
     var fork_main := Vector3.INF
     var fork_bridge := Vector3.INF
@@ -361,8 +373,10 @@ func tick(delta: float) -> void:
         if not woodworks_return_threat.is_empty():
             next_hazard = woodworks_return_threat["position"]
         var driving: bool = game.net.is_client() or not game.player.freeze
+        var woodworks_arm_z: float = game.race_director.event_z(game.race_director.WOODWORKS_RETURN_ARM) if (
+            game.selected_track == 0) else INF
         sample_obstacle_exit(p.z,preview_speed,next_hazard.z,driving and (
-            game.airtime.course_grounded and not game.airtime.airborne),game.boosting)
+            game.airtime.course_grounded and not game.airtime.airborne),game.boosting,woodworks_arm_z)
         if game.cam_mode == 0 and is_instance_valid(game.camera):
             candidate = next_hazard
             var bridge_merge: bool = game.selected_track == 2 and is_instance_valid(road) and (
@@ -389,6 +403,10 @@ func tick(delta: float) -> void:
                     not game.airtime.airborne and absf(p.y-game.height_at(p.z)-0.39) <= 0.55):
                 if not evasion_target.is_finite():
                     road_mark = game.opening_obstacle_art.entry_mark_ahead(game,p,preview_velocity)
+                    if not road_mark.is_finite():
+                        bank_mark = game.jump_guides.woodworks_bank_mark_ahead(p,preview_velocity)
+                        if candidate.is_finite() and candidate.z >= bank_mark.z:
+                            bank_mark = Vector3.INF
                 var past_opening_turbo := true
                 if game.woodworks_opening_cleared(p.z) and preview_speed >= 5.0 and (
                         is_instance_valid(game.race_items) and not game.race_items.items.is_empty()):
@@ -458,6 +476,9 @@ func tick(delta: float) -> void:
                 merge_traffic = merge_lane
                 merge_rival = marble
         if same_route:
+            if bank_mark.is_finite() and gap < -0.20 and covers_hazard(eyes,bank_mark,opponent):
+                occluded_bank_mark = bank_mark
+                bank_mark = Vector3.INF
             if is_finite(arm_gap_eta) and evasion_target.is_finite():
                 var rival_speed: Vector3 = marble.linear_velocity if local_race and not marble.freeze else Vector3.ZERO
                 var rival_z := opponent.z+minf(0.0,rival_speed.z)*arm_gap_eta

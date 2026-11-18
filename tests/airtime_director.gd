@@ -183,9 +183,9 @@ func _verify_jump_guides(stage: Node3D) -> void:
     var shutter_count: int = guide.shutter_marks.size()
     var bank_count: int = guide.final_bank_marks.size()
     assert(shutter_count >= 2 if stage.selected_track == 1 else shutter_count == 0)
-    assert(bank_count == (4 if stage.selected_track == 1 else 0))
+    assert(bank_count == (4 if stage.selected_track <= 1 else 0))
     assert(guide.get_child_count() == 1 and guide.paint.multimesh.instance_count == (
-        20*expected+4*shutter_count+2*bank_count),"Glacier's chevrons and bank edges share the ramp paint batch")
+        20*expected+4*shutter_count+2*bank_count),"Chevrons and bank edges share the ramp paint batch")
     for mark: Vector3 in guide.final_bank_marks:
         var query := PhysicsRayQueryParameters3D.create(mark+Vector3.UP*0.12,mark-Vector3.UP*0.12,
             stage.course_sculptures.BANK_PROBE_LAYER)

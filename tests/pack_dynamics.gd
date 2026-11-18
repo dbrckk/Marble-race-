@@ -153,6 +153,9 @@ func _verify() -> void:
             if not _verify_obstacle_pointer(game):
                 quit(1)
                 return
+            if track == 0 and not await _verify_woodworks_recovery(game):
+                quit(1)
+                return
             if track == 1:
                 assert(await _verify_shutter_mark(game))
                 assert(await _verify_glacier_exit_gap(game))
@@ -181,7 +184,73 @@ func _verify() -> void:
     print("FORGE_MERGE_MARKERS_PASS: vent, live piston, bridge piston and clear sightlines on three layouts")
     print("EVASION_PREVIEW_PASS: real moving gate, projected lane, downstream physical obstruction and stale cue cleanup")
     print("EXIT_SPEED_PASS: grounded recovery, consecutive obstacles, stable speed, turbo and round reset")
+    print("WOODWORKS_RECOVERY_PASS: distant obstacle handoff and occlusion-only last bank on the three layouts")
     quit(0)
+
+func _verify_woodworks_recovery(game: Node3D) -> bool:
+    var director: Node3D = game.race_director
+    var arm: float = director.event_z(director.WOODWORKS_RETURN_ARM)
+    var moments: RefCounted = game.race_moments
+    var player: RigidBody3D = game.player
+    var rival: RigidBody3D = game.racers[0]
+    var hud: CanvasLayer = game.ui
+    var locator: Control = hud.player_locator
+    game.cam_mode = 0
+    game.set_graphics_quality(0)
+    var z := arm-2.7
+    player.global_position = Vector3(game.track_center_at(z),game.height_at(z)+0.43,z)
+    player.linear_velocity = Vector3(0,0,-10.25)
+    game.airtime.reset_round()
+    game.airtime.tick_physics(0.06)
+    assert(game.airtime.course_grounded)
+    moments.reset_round()
+    var downstream := arm-11.0
+    moments.sample_obstacle_exit(arm+5.0,14.0,arm,true,false,arm)
+    moments.sample_obstacle_exit(arm+1.0,9.1,arm,true,false,arm)
+    moments.sample_obstacle_exit(arm-1.4,9.7,downstream,true,false,arm)
+    moments.sample_obstacle_exit(z,10.25,downstream,true,false,arm)
+    hud.label_timer = 0.25
+    hud.update_hud()
+    assert(moments.exit_speed_weight() > 0.9 and hud.speed_label.text.ends_with("↑"),
+        "The recovered pace must be readable even in Economy")
+    moments.sample_obstacle_exit(arm-5.1,14.0,downstream,true,false,arm)
+    hud.label_timer = 0.25
+    hud.update_hud()
+    assert(moments.exit_speed_weight() == 0.0 and not hud.speed_label.text.ends_with("↑"),
+        "An imminent blocker takes priority over the recovery cue")
+
+    for contender in game.racers:
+        if contender != player:
+            contender.global_position = Vector3(90,0,20)
+    for frame in range(3):
+        await physics_frame
+    var guide: Node3D = game.jump_guides
+    assert(guide.baked)
+    var bank: Vector3 = game.course_sculptures.bank_roots.back()
+    z = bank.z+4.5
+    var at := Vector3(bank.x,game.height_at(z)+0.43,z)
+    var velocity := Vector3(0,0,-17.0)
+    var mark: Vector3 = guide.woodworks_bank_mark_ahead(at,velocity)
+    assert(mark.is_finite())
+    assert(not guide.woodworks_bank_mark_ahead(at+Vector3.RIGHT*3.0,velocity).is_finite())
+    player.global_position = at
+    player.linear_velocity = velocity
+    game.airtime.reset_round()
+    moments.reset_round()
+    game._update_camera(0.12,true)
+    var eye: Vector3 = game.camera.global_position
+    var block := eye.lerp(mark,(mark.z+0.25-eye.z)/(mark.z-eye.z))
+    block.y = game.height_at(block.z)+0.41
+    rival.global_position = block
+    moments.tick(0.12)
+    locator.refresh(0.12)
+    assert(moments.occluded_bank_mark.is_equal_approx(mark) and locator.bank_center.is_finite())
+    assert(not locator.evasion_center.is_finite(),"A slope marker is never a steering arrow")
+    rival.global_position.x += 2.8
+    moments.tick(0.12)
+    locator.refresh(0.12)
+    assert(not moments.occluded_bank_mark.is_finite() and not locator.bank_center.is_finite())
+    return true
 
 func _verify_obstacle_pointer(game: Node3D) -> bool:
     var body: StaticBody3D = game.hazard_beacons[3]["body"]
