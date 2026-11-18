@@ -255,6 +255,7 @@ func _run() -> void:
                 assert(_verify_forge_fork_traffic(game))
                 assert(_verify_forge_first_gate(game))
                 assert(_verify_forge_gate_traffic(game))
+                assert(_verify_forge_second_gate(game))
             if not _verify_merge_cues(game,side):
                 quit(1)
                 return
@@ -268,6 +269,7 @@ func _run() -> void:
     print("FORGE_FORK_TRAFFIC_PASS: three layouts, both branches, cut-ins, stale snapshots and HUD handoff")
     print("FORGE_FIRST_GATE_PASS: three layouts, confirmed bridge, curve, real gate alignment and immediate handoff")
     print("FORGE_GATE_TRAFFIC_PASS: three layouts, stalled and crossing rivals, separate decks, replica motion and stale data")
+    print("FORGE_SECOND_GATE_PASS: three layouts, immediate handoff, occupied line, missed first gate and downstream piston priority")
     print("WOODWORKS_RETURN_PASS: clear bridge lip, physical warnings, visible gaps and HUD handoff on three layouts")
     game.queue_free()
     await process_frame
@@ -412,8 +414,9 @@ func _verify_forge_first_gate(game: Node3D) -> bool:
     game.net.match_running = false
     game.net.role = "offline"
     _refresh_bridge_hud(hud,player,road.point_at(gate_z-0.35)+Vector3.UP*0.67,velocity)
-    assert(hud.bridge_approach_active and not hud.shortcut_label.visible,
-        "Retire the first-gate instruction as soon as the player crosses it")
+    assert(hud.bridge_approach_active and hud.shortcut_label.visible and
+        hud.shortcut_label.text.contains("GATE 2 / 3"),
+        "Hand off to the second gate as soon as the player crosses the first")
     return true
 
 func _verify_forge_gate_traffic(game: Node3D) -> bool:
@@ -487,9 +490,67 @@ func _verify_forge_gate_traffic(game: Node3D) -> bool:
     game.net._clear_snapshots()
     rival.freeze = true
     rival.global_position = stopped
-    _refresh_bridge_hud(hud,player,road.point_at(gate_z-0.35)+Vector3.UP*0.67,velocity)
-    assert(not hud.shortcut_label.visible,"A traffic warning cannot outlive the gate guide")
+    var past_first: Vector3 = road.point_at(gate_z-0.35)+Vector3.UP*0.67
+    _refresh_bridge_hud(hud,player,past_first,velocity)
+    assert(hud.shortcut_label.text.contains("GATE 2 / 3") and
+        hud.shortcut_label.text.contains("SAVE BOOST"),"Road traffic can still block the next gate's approach")
     rival.global_position = Vector3(80.0,0.0,20.0)
+    _refresh_bridge_hud(hud,player,past_first,velocity)
+    assert(hud.shortcut_label.text.contains("HOLD CENTER") and not hud.shortcut_label.text.contains("SAVE BOOST"))
+    return true
+
+func _verify_forge_second_gate(game: Node3D) -> bool:
+    var road: Node3D = game.shortcut_route
+    var hud: CanvasLayer = game.ui
+    var player: RigidBody3D = game.player
+    var rival: RigidBody3D = game.racers[0]
+    var second: float = BypassScript.BRIDGE_POST_Z[1]
+    var first: float = BypassScript.BRIDGE_POST_Z[0]
+    var after_first: Vector3 = road.point_at(first)+Vector3.UP*0.67
+    var velocity := Vector3(0,0,-12.0)
+    var racer_id: int = player.racer_id
+    road.precision_failed[racer_id] = true
+    _refresh_bridge_hud(hud,player,after_first,velocity)
+    assert(hud.shortcut_label.text == "GATE 2 / 3  •  HOLD CENTER  •  15m",
+        "The next physical gate stays readable even when the precision streak was missed")
+    assert(road.bridge_gate_count(racer_id) == 0 and road.precision_failed.has(racer_id))
+    road.precision_failed.erase(racer_id)
+
+    var approach: Vector3 = road.point_at(second+4.0)+Vector3.UP*0.67
+    _refresh_bridge_hud(hud,player,approach+Vector3.RIGHT*1.2,velocity)
+    assert(hud.shortcut_label.text.contains("AIM LEFT"))
+    _refresh_bridge_hud(hud,player,approach-Vector3.RIGHT*1.2,velocity)
+    assert(hud.shortcut_label.text.contains("AIM RIGHT"))
+    rival.global_position = road.point_at(second-0.5)+Vector3.UP*0.67
+    _refresh_bridge_hud(hud,player,approach,velocity)
+    assert(hud.shortcut_label.text.contains("GATE 2 / 3  •  TRAFFIC  •  SAVE BOOST"))
+    rival.global_position = Vector3(game.track_center_at(second),game.height_at(second)+0.43,second)
+    _refresh_bridge_hud(hud,player,approach,velocity)
+    assert(hud.shortcut_label.text.contains("GATE 2 / 3  •  HOLD CENTER"))
+    rival.global_position = Vector3(80.0,0.0,20.0)
+
+    var director: Node3D = game.race_director
+    var exit_gate: int = director.FORGE_EXIT_GATE
+    var fast := Vector3(0,0,-23.0)
+    var near_gate: Vector3 = road.point_at(second+0.25)+Vector3.UP*0.67
+    var after_gate: Vector3 = road.point_at(second-5.0)+Vector3.UP*0.67
+    var return_eta: float = (near_gate.z-director.event_z(exit_gate))/-fast.z
+    var found_phase := false
+    for sample in range(40):
+        director.animate(director.period()*float(sample)/40.0)
+        if director.forge_exit_blocks_during_crossing(return_eta,-fast.z):
+            found_phase = true
+            break
+    assert(found_phase,"The return piston has a closed phase during this preview")
+    _refresh_bridge_hud(hud,player,near_gate,fast)
+    assert(hud.shortcut_label.visible and hud.shortcut_label.text.contains("GATE 2 / 3"))
+    assert(not hud.timed_gate_label.visible and not hud.timed_gate_backdrop.visible,
+        "The piston downstream of the bridge cannot displace the active second gate")
+    _refresh_bridge_hud(hud,player,road.point_at(second-0.35)+Vector3.UP*0.67,fast)
+    assert(hud.bridge_approach_active and not hud.shortcut_label.text.contains("GATE 2 / 3"))
+    _refresh_bridge_hud(hud,player,after_gate,fast)
+    assert(hud.timed_gate_label.visible and hud.timed_gate_label.text.contains("AFTER BRIDGE"),
+        "Past the second portico, the ordinary return forecast resumes")
     return true
 
 func _refresh_bridge_hud(hud: CanvasLayer, player: RigidBody3D, at: Vector3, velocity: Vector3) -> void:
@@ -537,6 +598,8 @@ func _verify_fork_cues(game: Node3D, side: int) -> bool:
     if game.selected_track == 0:
         assert(hud.shortcut_label.visible and hud.shortcut_label.text.contains("GATE 2 / 3"))
         _verify_woodworks_gates(game)
+    elif game.selected_track == 2:
+        assert(hud.shortcut_label.visible and hud.shortcut_label.text.contains("GATE 2 / 3"))
     else:
         assert(not hud.shortcut_label.visible,
             "The detached deck is recognized before the merge direction is needed")

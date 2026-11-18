@@ -58,7 +58,8 @@ func _check() -> void:
                 "BypassPrecisionSkillStripes") as MultiMeshInstance3D
             var stripe_count := 9 if biome == 0 else 3
             if biome == 2:
-                stripe_count += BYPASS.FORGE_FIRST_GATE_APPROACH.size()*2
+                for approach: Array in BYPASS.FORGE_GATE_APPROACH:
+                    stripe_count += approach.size()*2
             assert(is_instance_valid(marks) and
                 marks.multimesh.instance_count == stripe_count and
                 marks.get_child_count() == 0)

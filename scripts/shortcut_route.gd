@@ -42,7 +42,10 @@ const REWARD_RADIUS := 2.15
 # Each elevated route is a deliberate precision corridor: the outer edge
 # catches sloppy lines, while the middle 2.8 metres stay unobstructed for AI.
 const BRIDGE_POST_Z := [-65.0,-80.0,-90.0]
-const FORGE_FIRST_GATE_APPROACH := [8.0,6.0,4.0,2.0,0.8]
+const FORGE_GATE_APPROACH := [
+    [8.0,6.0,4.0,2.0,0.8],
+    [13.2,10.6,8.0,5.4,2.8,0.8]
+]
 const BRIDGE_ENTRY_X := 6.68
 const FORGE_BRIDGE_EDGE_X := 6.35
 const FORGE_GATE_TRAFFIC_SECONDS := 0.95
@@ -331,7 +334,7 @@ func _bridge_precision_corridor(material: Material) -> void:
     var marks: Array[Transform3D] = []
     for station in range(BRIDGE_POST_Z.size()):
         var z: float = BRIDGE_POST_Z[station]
-        if course_id == 0 or (course_id == 2 and station == 0):
+        if course_id == 0 or (course_id == 2 and station < FORGE_GATE_APPROACH.size()):
             var pose := _deck_arrow(z,0.0)
             pose.origin.y -= 0.075
             marks.append(pose.scaled_local(Vector3(2.0*PRECISION_GATE_HALF_WIDTH,0.014,0.28)))
@@ -340,7 +343,7 @@ func _bridge_precision_corridor(material: Material) -> void:
                     var edge := pose.translated_local(Vector3(flank*PRECISION_GATE_HALF_WIDTH,0,0.74))
                     marks.append(edge.scaled_local(Vector3(0.11,0.014,1.38)))
             else:
-                for distance: float in FORGE_FIRST_GATE_APPROACH:
+                for distance: float in FORGE_GATE_APPROACH[station]:
                     # Set the height on the real banked deck at each stripe.
                     var approach := _deck_arrow(z+distance,0.0)
                     approach.origin.y -= 0.075
@@ -583,7 +586,7 @@ func merge_conflict_score(z: float, forward: float, rival_z: float, rival_forwar
 
 func precision_gate_ahead(at: Vector3, velocity: Vector3) -> Dictionary:
     if course_id == 2:
-        return _forge_first_gate_ahead(at,velocity)
+        return _forge_precision_gate_ahead(at,velocity)
     if course_id != 0 or not at.is_finite() or not velocity.is_finite() or (
             -velocity.z < PRECISION_GATE_MIN_SPEED or at.z <= BRIDGE_POST_Z.back() or (
                 at.z > BRIDGE_POST_Z[0]+13.5)):
@@ -608,17 +611,21 @@ func precision_gate_ahead(at: Vector3, velocity: Vector3) -> Dictionary:
         return {"number":i+1,"action":action,"distance":maxi(1,ceili(distance))}
     return {}
 
-func _forge_first_gate_ahead(at: Vector3, velocity: Vector3) -> Dictionary:
-    var gate_z: float = BRIDGE_POST_Z[0]
+func _forge_precision_gate_ahead(at: Vector3, velocity: Vector3) -> Dictionary:
     var speed := -velocity.z
     if not at.is_finite() or not velocity.is_finite() or speed < PRECISION_GATE_MIN_SPEED or (
-            at.z <= gate_z or at.z > ENTRY_PORTAL_Z+PORTAL_HALF_LENGTH):
+            at.z <= BRIDGE_POST_Z[FORGE_GATE_APPROACH.size()-1] or (
+                at.z > ENTRY_PORTAL_Z+PORTAL_HALF_LENGTH)):
         return {}
     var deck := point_at(at.z)
     var height := at.y-deck.y
     if height < 0.24 or height > 1.35 or absf(at.x-deck.x) > WIDTH*0.5 or (
             side*(at.x-stage.track_center_at(at.z)) < FORGE_BRIDGE_EDGE_X):
         return {}
+    var station := 0
+    while at.z <= BRIDGE_POST_Z[station]:
+        station += 1
+    var gate_z: float = BRIDGE_POST_Z[station]
     # Look along the bend first. Extrapolating directly to the gate from
     # the portal would ask the player to steer through the outer rail.
     var distance := at.z-gate_z
@@ -629,7 +636,7 @@ func _forge_first_gate_ahead(at: Vector3, velocity: Vector3) -> Dictionary:
     if absf(lateral) > PRECISION_GATE_HALF_WIDTH*0.72:
         action = "AIM LEFT" if lateral > 0.0 else "AIM RIGHT"
     var traffic := _forge_gate_traffic(at,velocity,at.x-deck.x,distance/speed)
-    return {"number":1,"action":action if traffic.is_empty() else traffic,
+    return {"number":station+1,"action":action if traffic.is_empty() else traffic,
         "distance":maxi(1,ceili(distance)),"traffic":not traffic.is_empty()}
 
 func _forge_gate_traffic(at: Vector3, velocity: Vector3, offset: float, gate_eta: float) -> String:

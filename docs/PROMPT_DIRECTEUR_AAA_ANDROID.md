@@ -624,6 +624,10 @@ Une fois la bifurcation franchie vers le pont, le HUD affiche le premier portiqu
 
 Le HUD évalue le mouvement des rivaux sur le tablier avant et juste après le premier portique. Si une bille risque d’occuper le passage pendant le recentrage, le conseil de pilotage cède la place à une alerte qui invite à garder le turbo. Les positions et vitesses latérales sont évaluées par rapport à la courbe du pont. En ligne, un mouvement rival incertain affiche une invitation à surveiller le trafic. L’essai sur téléphone Android reste à faire.
 
+### 2026-11-18 — Relais vers le deuxième portique de Gauntlet (1.162.0-rc)
+
+Le deuxième portique prend le relais dès que la bille franchit le premier. Les pointillés ambre prolongent le couloir sur le tablier. Le HUD conserve l’alerte de trafic pendant la transition et prévient de nouveau du piston de sortie une fois le deuxième portique franchi. La cible affichée suit la position de la bille sur le pont. L’essai sur téléphone Android reste à faire.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Améliorer la transition après le premier portique de Gauntlet pour rendre lisible la trajectoire vers le deuxième.
+Adapter le guidage vers le troisième portique à la rampe de saut du pont de Gauntlet.
