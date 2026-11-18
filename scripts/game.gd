@@ -1425,9 +1425,16 @@ func _update_camera(delta: float, force := false) -> void:
     var follow_rate: float = lerpf(4.5,6.0,float(pose["pace"]))
     var step: float = RaceFeedback.smooth_factor(delta,follow_rate)
     var base: Vector3 = camera.global_position-previous_jitter
-    camera.global_position = desired if force else base.lerp(desired,step)
+    # Android can suspend rendering while physics advances or the racer is
+    # teleported after recovery. Never interpolate from an invalid or
+    # kilometres-distant camera transform: that would hide the next turn.
+    var snap_camera: bool = force or not base.is_finite() or (
+        base.distance_squared_to(desired) > 36.0*36.0)
+    camera.global_position = desired if snap_camera else base.lerp(desired,step)
     var focus_step: float = RaceFeedback.smooth_factor(delta,7.0)
-    camera_lookahead = focus if force else camera_lookahead.lerp(
+    var snap_focus: bool = snap_camera or not camera_lookahead.is_finite() or (
+        camera_lookahead.distance_squared_to(focus) > 36.0*36.0)
+    camera_lookahead = focus if snap_focus else camera_lookahead.lerp(
         focus,focus_step)
     camera_shake *= exp(-clampf(delta,0.0,0.12)*9.5)
     var jitter := Vector3(sin(world_time*52.0),
