@@ -2469,8 +2469,11 @@ func update_hud() -> void:
         if route_hint["mode"] == "fork":
             var advice: Dictionary = game.shortcut_route.forge_fork_advice(game.player.global_position,velocity)
             if not advice.is_empty():
-                shortcut_label.text = advice["text"]
-                route_tint = advice["tint"]
+                # A blocker before the portal owns the next steering instruction.
+                var danger_before_fork := timed_gate_backdrop.visible and (
+                    pickup_limit*forward_speed < player_z-SHORTCUT_ROUTE.ENTRY_PORTAL_Z)
+                shortcut_label.text = advice["traffic"] if danger_before_fork else advice["text"]
+                route_tint = SHORTCUT_ROUTE.FORK_BRIDGE_COLOR if danger_before_fork else advice["tint"]
                 duel_label.hide()
         shortcut_label.add_theme_color_override("font_color",route_tint)
     elif merge_traffic > 0 and not final_danger_active and not timed_gate_backdrop.visible:

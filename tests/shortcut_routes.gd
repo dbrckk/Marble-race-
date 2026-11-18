@@ -306,6 +306,15 @@ func _verify_forge_fork_traffic(game: Node3D) -> bool:
     hud.update_hud()
     assert(hud.shortcut_label.text == "MAIN BUSY  /  BRIDGE RIGHT ↗",
         "A rival above the rolling surface must not mark the bridge as occupied")
+    if game.built_variation == 1:
+        game.race_moments.reset_round()
+        game.race_moments.tick(0.12)
+        hud.label_timer = 0.25
+        hud.update_hud()
+        assert(hud.timed_gate_backdrop.visible and hud.timed_gate_label.text.contains("HAMMER SWEEP"))
+        assert(hud.shortcut_label.text == "MAIN BUSY",
+            "Show fork traffic without a second steering instruction before the hammer")
+        game.race_moments.reset_round()
     player.linear_velocity = Vector3(2.0,0.0,-23.0)
     hud.label_timer = 0.25
     hud.update_hud()

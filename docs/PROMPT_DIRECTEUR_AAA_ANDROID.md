@@ -614,7 +614,7 @@ La prévision locale utilise la phase du bras tournant. En ligne, sa zone de bal
 
 ### 2026-11-18 — Trafic à la bifurcation de Gauntlet (1.159.0-rc)
 
-Le HUD tient compte du mouvement des billes sur la ligne principale et à l’entrée du pont. Il met en avant la piste lorsque l’entrée du pont est occupée et que la bille est alignée sur la piste. Il rappelle la direction du pont quand la ligne principale est occupée et que le pont reste à portée de braquage. Si le trafic ferme ces options, le conseil est de garder le turbo. En ligne, une prévision dépend de vitesses de répliques suffisamment récentes. Les alertes d’obstacle conservent leur emplacement. L’essai sur téléphone Android reste à faire.
+Le HUD tient compte du mouvement des billes sur la ligne principale et à l’entrée du pont. Il met en avant la piste lorsque l’entrée du pont est occupée et que la bille est alignée sur la piste. Il rappelle la direction du pont quand la ligne principale est occupée et que le pont reste à portée de braquage. Si le trafic ferme ces options, le conseil est de garder le turbo. En ligne, une prévision dépend de vitesses de répliques suffisamment récentes. Si un obstacle menace la trajectoire avant la bifurcation, le HUD indique le trafic et réserve la consigne de pilotage à l’obstacle. L’essai sur téléphone Android reste à faire.
 
 ## PROCHAIN LOT RECOMMANDÉ
 

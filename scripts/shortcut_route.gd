@@ -655,16 +655,18 @@ func forge_fork_advice(at: Vector3, velocity: Vector3) -> Dictionary:
     var bridge_in_reach := outside_reach >= edge
     var main_busy := _forge_fork_traffic(at,velocity,first_time,end_time,false,origins,motions)
     var bridge_busy := _forge_fork_traffic(at,velocity,first_time,end_time,true,origins,motions)
+    if not main_busy and not bridge_busy:
+        return {}
+    var traffic := "BOTH BUSY" if main_busy and bridge_busy else (
+        "MAIN BUSY" if main_busy else "BRIDGE BUSY")
+    var text := traffic+"  •  SAVE BOOST"
+    var tint := FORK_BRIDGE_COLOR
     if bridge_busy and not main_busy and main_aligned:
-        return {"text":"↑ MAIN TRACK  /  BRIDGE BUSY","tint":FORK_MAIN_COLOR}
-    if main_busy and not bridge_busy and bridge_in_reach:
-        return {"text":"MAIN BUSY  /  BRIDGE RIGHT ↗","tint":FORK_BRIDGE_COLOR}
-    if main_busy and bridge_busy:
-        return {"text":"BOTH BUSY  •  SAVE BOOST","tint":FORK_BRIDGE_COLOR}
-    if main_busy or bridge_busy:
-        return {"text":("MAIN BUSY" if main_busy else "BRIDGE BUSY")+"  •  SAVE BOOST",
-            "tint":FORK_BRIDGE_COLOR}
-    return {}
+        text = "↑ MAIN TRACK  /  "+traffic
+        tint = FORK_MAIN_COLOR
+    elif main_busy and not bridge_busy and bridge_in_reach:
+        text = traffic+"  /  BRIDGE RIGHT ↗"
+    return {"text":text,"traffic":traffic,"tint":tint}
 
 func _forge_fork_traffic(at: Vector3, velocity: Vector3, first: float, last: float,
         bridge: bool, origins: PackedVector2Array, motions: PackedVector2Array) -> bool:
