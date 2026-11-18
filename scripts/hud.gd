@@ -1915,10 +1915,14 @@ func show_overtake(count: int, rival_name: String) -> void:
     overtake_chain_seconds = 0.38
     rank_toast_seconds = 0.0
     position_feedback.hide()
-    var title := "CLEAN OVERTAKE!  •  "+rival_name
+    var title := "CLEAN OVERTAKE!"
+    if not rival_name.strip_edges().is_empty():
+        title += "  •  "+rival_name
     if overtake_count > 1:
         title = "DOUBLE PASS!" if overtake_count == 2 else "%d OVERTAKES!" % overtake_count
-    show_race_moment(title,1.18,2)
+    # Reward consecutive real passes with a longer readable celebration;
+    # never alter race physics or ranking from a UI notification.
+    show_race_moment(title,clampf(1.18+0.16*float(overtake_count-1),1.18,1.82),2)
 
 func clear_overtake_feedback() -> void:
     overtake_count = 0
