@@ -4,6 +4,9 @@ const ShortcutRoute = preload("res://scripts/shortcut_route.gd")
 const Feedback = preload("res://scripts/race_feedback.gd")
 const TrackSurface = preload("res://scripts/track_surface.gd")
 const LANDING_OFFSETS := [2.8,4.4,6.0,1.6]
+const SHUTTER_MARK_OFFSETS := [1.35,2.95,4.55,6.15,7.75,9.35]
+const SHUTTER_INK := Color("#ffdf99")
+const SHUTTER_MARK_MIN_DISTANCE := 3.2
 const TAKEOFF_INK := [Color("#ffd084"),Color("#ffe098"),Color("#ffd187")]
 const LANDING_INK := [Color("#c5ffba"),Color("#a9faff"),Color("#aaf5e4")]
 const BACKING := Color("#25282b")
@@ -11,6 +14,7 @@ const BACKING := Color("#25282b")
 var game: Node3D
 var ramps: Array[Dictionary] = []
 var windows: Array[Dictionary] = []
+var shutter_marks: Array[Vector3] = []
 var paint: MultiMeshInstance3D
 var physics_frames := 0
 var baked := false
@@ -74,8 +78,46 @@ func _bake() -> void:
                 _stroke(marks,inks,ground+plane*Vector3(inward*0.19,0.0,-0.26),
                     plane,Vector2(0.45,0.15),cool)
             break
+    if game.selected_track == 1:
+        _paint_shutter_center(marks,inks,ignored)
     _make_batch(marks,inks)
     baked = true
+
+func _paint_shutter_center(marks: Array[Transform3D], inks: Array[Color],
+        ignored: Array[RID]) -> void:
+    var director: Node3D = game.race_director
+    var gate_z: float = director.event_z(director.GLACIER_FIRST_SHUTTER)
+    # Repeat the mark in gaps between real obstacles. Bake onto dry planks
+    # using the same collision query and draw batch as the ramp markings.
+    for offset: float in SHUTTER_MARK_OFFSETS:
+        var z := gate_z+offset
+        var center := Vector3(game.track_center_at(z),game.height_at(z),z)
+        var tip := _floor(center+Vector3(0,0,-0.50),false,ignored)
+        var left := _floor(center+Vector3(-0.96,0,0.47),false,ignored)
+        var right := _floor(center+Vector3(0.96,0,0.47),false,ignored)
+        var middle := _floor(center,false,ignored)
+        if tip.is_empty() or left.is_empty() or right.is_empty() or middle.is_empty():
+            continue
+        var point: Vector3 = middle["position"]
+        var plane := Basis(Quaternion(Vector3.UP,middle["normal"]))
+        shutter_marks.append(point)
+        for side in [-1.0,1.0]:
+            var arm := plane*Basis(Vector3.UP,-side*0.72)
+            var position := point+plane*Vector3(side*0.40,0.026,0.0)
+            _stroke(marks,inks,position,arm,Vector2(1.05,0.37),SHUTTER_INK)
+        if shutter_marks.size() >= 3:
+            break
+
+func shutter_mark_ahead(z: float) -> Vector3:
+    if shutter_marks.is_empty() or z > shutter_marks.back().z+11.0:
+        return Vector3.INF
+    # Prefer the first genuinely upcoming mark. When the player is almost
+    # on top of it, use the next one farther down the track.
+    for index in range(shutter_marks.size()-1,-1,-1):
+        var point := shutter_marks[index]
+        if z-point.z > SHUTTER_MARK_MIN_DISTANCE:
+            return point
+    return Vector3.INF
 
 func _floor(at: Vector3, bridge: bool, ignored: Array[RID]) -> Dictionary:
     var query := PhysicsRayQueryParameters3D.create(at+Vector3.UP*1.75,at+Vector3.DOWN*0.55,1,ignored)

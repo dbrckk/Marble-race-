@@ -12,6 +12,8 @@ const HAZARD_ACCENT := Color("#ffc57e")
 const ICE_ACCENT := Color("#9ce7ff")
 const ICE_IMPACT_ACCENT := Color("#ffb2b9")
 const Air = preload("res://scripts/airtime_director.gd")
+const JumpGuides = preload("res://scripts/jump_guides.gd")
+const EVASION_ACCENT := Color("#9bf4e5")
 
 var game: Node3D
 var screen_center := Vector2.ZERO
@@ -23,6 +25,7 @@ var badge := StyleBoxFlat.new()
 var bracket_mesh: ArrayMesh
 var hazard_center := Vector2.INF
 var evasion_center := Vector2.INF
+var evasion_tint := EVASION_ACCENT
 var ice_arrow_center := Vector2.INF
 var ice_arrow_axis := Vector2.ZERO
 var ice_impact_center := Vector2.INF
@@ -53,6 +56,7 @@ func begin_round() -> void:
 func refresh(delta: float) -> void:
     hazard_center = Vector2.INF
     evasion_center = Vector2.INF
+    evasion_tint = EVASION_ACCENT
     ice_arrow_center = Vector2.INF
     ice_impact_center = Vector2.INF
     var marble: RigidBody3D = game.player
@@ -98,11 +102,18 @@ func refresh(delta: float) -> void:
             if safe.has_point(pointer) and pointer.distance_to(screen_center) > screen_radius+19.0:
                 hazard_center = pointer
         var lane: Vector3 = moments.evasion_target
-        if freshness and lane.is_finite() and center.z-lane.z > 3.7 and not camera.is_position_behind(lane):
-            var pointer := camera.unproject_position(lane)
+        var is_shutter_mark: bool = not lane.is_finite() and moments.occluded_shutter_mark.is_finite()
+        if is_shutter_mark:
+            lane = moments.occluded_shutter_mark
+        var separation := JumpGuides.SHUTTER_MARK_MIN_DISTANCE if is_shutter_mark else 3.7
+        if freshness and lane.is_finite() and center.z-lane.z > separation and not camera.is_position_behind(lane):
+            var pointer := camera.unproject_position(lane)-Vector2(0.0,12.0) if is_shutter_mark else (
+                camera.unproject_position(lane))
             if safe.has_point(pointer) and pointer.distance_to(screen_center) > screen_radius+26.0 and (
                     not hazard_center.is_finite() or pointer.distance_to(hazard_center) > 29.0):
                 evasion_center = pointer
+                if is_shutter_mark:
+                    evasion_tint = JumpGuides.SHUTTER_INK
     var raised: bool = game.race_state == "COUNTDOWN" or game.race_time < GRID_HANDOFF or (
         moments != null and (moments.nearby_pack_count >= 2 or moments.closest_rival_gap <= 1.6))
     bracket_strength = move_toward(bracket_strength,1.0 if raised else 0.0,maxf(0.0,delta)*7.0)
@@ -131,8 +142,8 @@ func _draw() -> void:
         var lower := PackedVector2Array([h+Vector2(-10,11),h+Vector2(0,3),h+Vector2(10,11)])
         draw_polyline(upper,INK,7.0,true)
         draw_polyline(lower,INK,6.0,true)
-        draw_polyline(upper,Color("#9bf4e5"),3.5,true)
-        draw_polyline(lower,Color("#9bf4e5"),2.7,true)
+        draw_polyline(upper,evasion_tint,3.5,true)
+        draw_polyline(lower,evasion_tint,2.7,true)
     if hazard_center.is_finite():
         var h := hazard_center
         draw_colored_polygon(PackedVector2Array([h+Vector2(0,-13),h+Vector2(13,0),

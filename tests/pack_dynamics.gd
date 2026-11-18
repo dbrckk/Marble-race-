@@ -152,6 +152,8 @@ func _verify() -> void:
             if not _verify_obstacle_pointer(game):
                 quit(1)
                 return
+            if track == 1:
+                assert(await _verify_shutter_mark(game))
             if track == 1 and layout == 0 and not await _verify_evasion(game):
                 quit(1)
                 return
@@ -168,6 +170,7 @@ func _verify() -> void:
         "user://qa_adaptive_pack_audio.cfg"))
     print("PACK_DYNAMICS_PASS: 9 real courses, 40 marbles, high-deck exclusion, adaptive original audio and duel framing")
     print("PACK_OBSTACLE_READABILITY_PASS: 9 layouts, real obstacle projection, sightline overlap and touch-safe clearance")
+    print("GLACIER_CENTER_MARK_PASS: batched real road paint and occlusion-only camera overlay on three layouts")
     print("EVASION_PREVIEW_PASS: real moving gate, projected lane, downstream physical obstruction and stale cue cleanup")
     print("EXIT_SPEED_PASS: grounded recovery, consecutive obstacles, stable speed, turbo and round reset")
     quit(0)
@@ -216,6 +219,50 @@ func _verify_obstacle_pointer(game: Node3D) -> bool:
             found_gate = true
             break
     assert(found_gate,"The timed obstacle is announced on a blocking approach")
+    return true
+
+func _verify_shutter_mark(game: Node3D) -> bool:
+    for frame in range(4):
+        await physics_frame
+    var guide: Node3D = game.jump_guides
+    assert(guide.baked and guide.shutter_marks.size() >= 2)
+    var mark: Vector3 = guide.shutter_marks.back()
+    var z := mark.z+7.0
+    var player: RigidBody3D = game.player
+    var rival: RigidBody3D = game.racers[0]
+    for marble in game.racers:
+        if marble == player:
+            continue
+        marble.freeze = true
+        marble.global_position = Vector3(80,0,30)
+    player.global_position = Vector3(mark.x,game.height_at(z)+0.39,z)
+    player.linear_velocity = Vector3(0,0,-12)
+    game.cam_mode = 0
+    game._update_camera(0.10,true)
+    var eye: Vector3 = game.camera.global_position
+    assert(guide.shutter_mark_ahead(z).is_equal_approx(mark))
+    game.race_moments.reset_round()
+    game.race_moments.tick(0.12)
+    var locator: Control = game.ui.player_locator
+    locator.refresh(0.12)
+    assert(not game.race_moments.occluded_shutter_mark.is_finite() and not locator.evasion_center.is_finite())
+    rival.global_position = eye.lerp(mark,0.95)
+    game.race_moments.tick(0.12)
+    locator.refresh(0.12)
+    assert(game.race_moments.occluded_shutter_mark.is_equal_approx(mark) and (
+        locator.evasion_center.is_finite() and locator.evasion_tint == guide.SHUTTER_INK),
+        "A rival in the sightline should raise the same road mark above the pack")
+    assert(locator.mouse_filter == Control.MOUSE_FILTER_IGNORE)
+    game.cam_mode = 1
+    locator.refresh(0.12)
+    assert(not locator.evasion_center.is_finite(),"Other cameras retain the world paint")
+    game.cam_mode = 0
+    rival.global_position.x += 2.0
+    game.race_moments.tick(0.12)
+    locator.refresh(0.12)
+    assert(not locator.evasion_center.is_finite())
+    game.race_moments.reset_round()
+    assert(not game.race_moments.occluded_shutter_mark.is_finite())
     return true
 
 func _verify_evasion(game: Node3D) -> bool:

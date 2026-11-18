@@ -526,6 +526,10 @@ Sur Glacier, un choc entre billes au sol affiche un éclair près de la bille et
 
 Le premier volet tient compte du balayage sur toute la fenêtre de passage de la bille. En cas de danger, le HUD indique vers quelle voie se diriger et combien de temps il reste avant le premier contact possible. Il peut afficher la trajectoire du volet dès la reprise d’adhérence ou à la sortie de la plaque. L’alerte sonore est jouée une fois si la trajectoire est menacée et peut avancer sur la glace quand le temps de réaction à la sortie est court. La voie dégagée reçoit un repère calme, la trajectoire incertaine sans vitesse n’affiche pas de compte à rebours.
 
+### 2026-11-18 — Repères de voie au premier volet de Glacier (1.141.0-rc)
+
+Des chevrons ambrés soulignent les portions sèches de la voie centrale. Leur silhouette est vérifiée sur les planches réelles et écartée des obstacles avant le rendu. Les repères réutilisent le lot de peinture des sauts. En caméra de poursuite, le même emplacement reçoit un chevron à l’écran si une autre bille masque le marquage. Le repère s’efface quand la vue se dégage et laisse la priorité aux indications d’évitement existantes. La peinture et le repère restent disponibles en mode Économie.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Mieux matérialiser la voie centrale au sol dans l’enchaînement glace–volet, notamment quand le peloton masque les peintures existantes. Mesurer le mix et la fluidité du peloton sur un téléphone Android dès qu’il est disponible.
+Améliorer la lisibilité du premier ralentissement après le volet, en mettant en évidence l’obstacle suivant uniquement s’il coupe la trajectoire du joueur. Mesurer le mix et la fluidité du peloton sur un téléphone Android dès qu’il est disponible.

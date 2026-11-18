@@ -60,6 +60,7 @@ var pack_pressure := 0.0
 var turn_weight := 0.0
 var merge_traffic := 0
 var occluded_hazard := Vector3.INF
+var occluded_shutter_mark := Vector3.INF
 var evasion_target := Vector3.INF
 var exit_gate_z := INF
 var exit_deadline := 0.0
@@ -163,6 +164,7 @@ func reset_round() -> void:
     turn_weight = 0.0
     merge_traffic = 0
     occluded_hazard = Vector3.INF
+    occluded_shutter_mark = Vector3.INF
     evasion_target = Vector3.INF
     _clear_exit_sample()
     exit_feedback_left = 0.0
@@ -256,6 +258,7 @@ func tick(delta: float) -> void:
         turn_weight = 0.0
         merge_traffic = 0
         occluded_hazard = Vector3.INF
+        occluded_shutter_mark = Vector3.INF
         evasion_target = Vector3.INF
         _clear_exit_sample()
         exit_feedback_left = 0.0
@@ -289,8 +292,10 @@ func tick(delta: float) -> void:
     var merge_distance := 0.0
     merge_traffic = 0
     occluded_hazard = Vector3.INF
+    occluded_shutter_mark = Vector3.INF
     evasion_target = Vector3.INF
     var candidate := Vector3.INF
+    var shutter_mark := Vector3.INF
     var eyes := Vector3.ZERO
     if game.net.role != "server":
         var preview_velocity: Vector3 = game.player.linear_velocity
@@ -311,6 +316,9 @@ func tick(delta: float) -> void:
             candidate = next_hazard
             evasion_target = game.evasion_lane(p,preview_velocity,candidate)
             eyes = game.camera.global_position
+            if game.selected_track == 1 and preview_speed >= 5.0 and not player_on_bridge and (
+                    absf(p.y-game.height_at(p.z)-0.39) <= 0.50 and not evasion_target.is_finite()):
+                shutter_mark = game.jump_guides.shutter_mark_ahead(p.z)
     for marble in game.racers:
         if not is_instance_valid(marble) or marble == game.player:
             continue
@@ -339,6 +347,10 @@ func tick(delta: float) -> void:
                     covers_hazard(eyes,candidate,opponent)):
                 occluded_hazard = candidate
                 candidate = Vector3.INF
+            if shutter_mark.is_finite() and gap < -0.20 and opponent.z >= shutter_mark.z-0.40 and (
+                    covers_hazard(eyes,shutter_mark,opponent)):
+                occluded_shutter_mark = shutter_mark
+                shutter_mark = Vector3.INF
             var rival_forward: float = -marble.linear_velocity.z
             if genuine_pack_rival(gap,offset.x,offset.y,own_forward,rival_forward):
                 pack_count += 1
