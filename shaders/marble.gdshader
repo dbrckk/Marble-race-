@@ -62,13 +62,19 @@ void fragment() {
     glass = mix(glass,paint_vein,milk*0.71);
     // Ten premium waveforms, retaining mobile GL compatibility: no
     // transparency sorting, secondary texture, geometry pass or extra mesh.
-    float signature = skin_signature*0.71;
-    float aurora = sin(theta*(3.0+mod(skin_signature,4.0))+
-        p.y*(10.0+mod(skin_signature,3.0)*4.0)+
-        TIME*(0.45+mod(skin_signature,5.0)*0.15)+signature);
-    float stardust = pow(max(0.0,aurora),5.0);
-    glass = mix(glass,paint_vein,
-        stardust*skin_radiance*0.52);
+    // Default and opponent marbles have no premium skin. Skip its animated
+    // trigonometry and power operation on their fragment shaders entirely.
+    // The uniform branch is coherent for every fragment of a given marble.
+    float stardust = 0.0;
+    if (skin_radiance > 0.001) {
+        float signature = skin_signature*0.71;
+        float aurora = sin(theta*(3.0+mod(skin_signature,4.0))+
+            p.y*(10.0+mod(skin_signature,3.0)*4.0)+
+            TIME*(0.45+mod(skin_signature,5.0)*0.15)+signature);
+        stardust = pow(max(0.0,aurora),5.0);
+        glass = mix(glass,paint_vein,
+            stardust*skin_radiance*0.52);
+    }
     float inner_glow = 0.84+0.13*sin(swirl*0.37 + theta*2.0);
     glass *= inner_glow;
     vec3 grain = p*(68.0+visual_quality*14.0)+seed*7.0;
