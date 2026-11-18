@@ -15,6 +15,7 @@ var game: Node3D
 var ramps: Array[Dictionary] = []
 var windows: Array[Dictionary] = []
 var shutter_marks: Array[Vector3] = []
+var final_bank_marks: Array[Vector3] = []
 var paint: MultiMeshInstance3D
 var physics_frames := 0
 var baked := false
@@ -80,8 +81,23 @@ func _bake() -> void:
             break
     if game.selected_track == 1:
         _paint_shutter_center(marks,inks,ignored)
+        _paint_final_bank(marks,inks)
     _make_batch(marks,inks)
     baked = true
+
+func _paint_final_bank(marks: Array[Transform3D], inks: Array[Color]) -> void:
+    # These four stripes lie on the actual two tilted halves of the bank.
+    # The brighter edge faces the main track where the lanes come together.
+    var banks: Array[StaticBody3D] = game.course_sculptures.banks
+    for body: StaticBody3D in banks.slice(-2):
+        var shape := body.get_node("SculptedApexCollision") as CollisionShape3D
+        var extent: Vector3 = (shape.shape as BoxShape3D).size*0.5
+        var inside := -signf(body.global_position.x-game.track_center_at(body.global_position.z))
+        for edge: float in [-1.0,1.0]:
+            var point := body.to_global(Vector3(edge*(extent.x-0.18),extent.y+0.027,0.0))
+            _stroke(marks,inks,point,body.global_basis,Vector2(0.19,extent.z*1.70),
+                LANDING_INK[1] if edge == inside else SHUTTER_INK)
+            final_bank_marks.append(point)
 
 func _paint_shutter_center(marks: Array[Transform3D], inks: Array[Color],
         ignored: Array[RID]) -> void:

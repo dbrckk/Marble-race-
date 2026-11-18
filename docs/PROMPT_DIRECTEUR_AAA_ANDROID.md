@@ -546,6 +546,10 @@ Les prévisions du piston et de l’évent utilisent le premier instant où le d
 
 Des chevrons turquoise indiquent des ouvertures locales entre les obstacles du dernier module. Les marques tiennent compte du volume d’une bille, de la rampe, du balayage des mécanismes et du dernier évent. Elles font partie du maillage existant et restent visibles en mode Économie. Un chevron à l’écran indique la marque lorsqu’une bille située devant la masque, sous réserve de laisser lisibles les alertes et le repère du joueur. La caméra de poursuite révèle la chicane à l’approche, puis recentre progressivement la vraie ligne d’arrivée après le dernier virage. Les panneaux d’arrivée de Forge sont rehaussés sur leurs deux poteaux latéraux.
 
+### 2026-11-18 — Duels dans le dernier virage de Glacier (1.146.0-rc)
+
+Les deux pans du dernier relevé portent des liserés turquoise côté piste et ambrés côté extérieur. Ils suivent le sol physique et réutilisent le lot des marques de saut, y compris en mode Économie. En caméra de poursuite, la vue se relève à l’approche et se centre sur le duo lorsqu’un duel est confirmé. La ligne d’arrivée entre dans le cadrage à la sortie du relevé. Le cadrage de réception garde la priorité en cas de saut.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Rendre la sortie du dernier virage de Glacier plus lisible quand plusieurs billes attaquent l’arrivée côte à côte. Mesurer le mix et la fluidité sur un téléphone Android dès qu’il est disponible.
+Affiner la première minute de Woodworks en peloton, du départ au premier obstacle et au premier turbo. Mesurer le mix et la fluidité sur un téléphone Android dès qu’il est disponible.

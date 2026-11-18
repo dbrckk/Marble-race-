@@ -1964,6 +1964,7 @@ func _update_camera(delta: float, force := false) -> void:
             not net.is_client() or velocity != Vector3.ZERO) else Vector3.INF)
     var desired: Vector3 = pose["position"]
     var focus: Vector3 = pose["focus"]
+    var target_fov: float = pose["fov"]
     if forge_view and jump_preview.is_empty():
         var clear_z := minf(final_straight_z,final_obstacle_art.clear_z)
         var finish_weight := RaceFeedback.finish_focus_weight(racer_z,clear_z,FINISH_Z,-velocity.z)*(
@@ -1971,6 +1972,31 @@ func _update_camera(delta: float, force := false) -> void:
         var target := Vector3(finish_origin.x,finish_origin.y+1.3,minf(focus.z,FINISH_Z))
         focus = focus.lerp(target,finish_weight*0.58)
         desired.y += finish_weight*0.56
+    elif selected_track == 1 and cam_mode == 0 and race_state == "RACING" and (
+            not player.finished and not player.eliminated):
+        var weight := RaceFeedback.glacier_finish_view_weight(racer_z,final_straight_z,FINISH_Z,-velocity.z)
+        var competing_cue := maxf(airborne_weight,float(jump_preview.get("weight",0.0)))
+        weight *= 1.0-0.65*competing_cue
+        if weight > 0.0:
+            var rival: RigidBody3D = race_moments.closest_rival if (
+                race_moments != null and race_moments.side_by_side_active) else null
+            var offset := Vector3.ZERO
+            if is_instance_valid(rival) and not rival.finished and not rival.eliminated:
+                var separation := rival.global_position-player.global_position
+                if absf(separation.x) >= 0.55 and absf(separation.x) <= 2.65 and (
+                        absf(separation.z) <= 1.70 and absf(separation.y) <= 1.25):
+                    offset = separation
+            var has_pair := offset != Vector3.ZERO
+            var pair_x := player.global_position.x+offset.x*0.5
+            var finish_weight := RaceFeedback.finish_focus_weight(racer_z,final_straight_z,FINISH_Z,-velocity.z)
+            var line_x := lerpf(ahead_x,finish_origin.x,finish_weight)
+            var reading_x := lerpf(line_x,pair_x,0.62 if has_pair else 0.18)
+            desired.x = lerpf(desired.x,pair_x,0.72*weight) if has_pair else desired.x
+            desired.y += weight*(1.0 if has_pair else 0.54)
+            desired.z += weight*(0.72 if has_pair else 0.23)
+            focus.x = lerpf(focus.x,reading_x,weight*0.65)
+            focus.z = lerpf(focus.z,minf(focus.z,FINISH_Z),finish_weight*weight*0.56)
+            target_fov = minf(RaceFeedback.FOV_MAX,target_fov+weight*(1.25 if has_pair else 0.45))
     # Match the camera to the real 3D grade without per-frame raycasts.
     focus = RaceFeedback.terrain_safe_focus(focus,height_at(focus.z))
     desired = RaceFeedback.terrain_safe_camera(desired,height_at(desired.z))
@@ -2001,7 +2027,7 @@ func _update_camera(delta: float, force := false) -> void:
     camera.rotate_object_local(Vector3.FORWARD,RaceFeedback.camera_roll(
         velocity.x,-velocity.z,
         curve_delta,cam_mode))
-    camera.fov = lerpf(camera.fov,float(pose["fov"]),
+    camera.fov = lerpf(camera.fov,target_fov,
         RaceFeedback.smooth_factor(delta,4.4))
     _update_roof_visibility()
 

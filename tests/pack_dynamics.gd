@@ -4,6 +4,7 @@ extends SceneTree
 const MOMENTS = preload("res://scripts/race_moments.gd")
 const FEEDBACK = preload("res://scripts/race_feedback.gd")
 const AUDIO = preload("res://scripts/audio.gd")
+const CourseSculptures = preload("res://scripts/course_sculptures.gd")
 
 func _initialize() -> void:
     call_deferred("_verify")
@@ -155,6 +156,7 @@ func _verify() -> void:
             if track == 1:
                 assert(await _verify_shutter_mark(game))
                 assert(await _verify_glacier_exit_gap(game))
+                assert(_verify_glacier_finish_pair(game))
             if track == 2:
                 assert(_verify_forge_merge_markers(game))
             if track == 1 and layout == 0 and not await _verify_evasion(game):
@@ -175,6 +177,7 @@ func _verify() -> void:
     print("PACK_OBSTACLE_READABILITY_PASS: 9 layouts, real obstacle projection, sightline overlap and touch-safe clearance")
     print("GLACIER_CENTER_MARK_PASS: batched real road paint and occlusion-only camera overlay on three layouts")
     print("GLACIER_EXIT_GAP_PASS: three layouts at 23 m/s, shutter priority, touch HUD and downstream collision")
+    print("GLACIER_FINISH_PAIR_PASS: both lanes, three layouts, real finish and manual camera isolation")
     print("FORGE_MERGE_MARKERS_PASS: vent, live piston, bridge piston and clear sightlines on three layouts")
     print("EVASION_PREVIEW_PASS: real moving gate, projected lane, downstream physical obstruction and stale cue cleanup")
     print("EXIT_SPEED_PASS: grounded recovery, consecutive obstacles, stable speed, turbo and round reset")
@@ -285,6 +288,56 @@ func _verify_forge_merge_markers(game: Node3D) -> bool:
         locator.refresh(0.12)
         assert(locator.hazard_kind.is_empty() and not locator.hazard_center.is_finite())
     game.ui.bridge_approach_active = false
+    game.race_moments.reset_round()
+    return true
+
+func _verify_glacier_finish_pair(game: Node3D) -> bool:
+    var player: RigidBody3D = game.player
+    var rival: RigidBody3D = game.racers[0]
+    var last_bank: int = CourseSculptures.BANK_SECTIONS.back()
+    var bank_side := CourseSculptures.bank_side(last_bank,1,game.built_variation)
+    var bank_exit: float = game.final_straight_z
+    var line_center := game.get_viewport().get_visible_rect().get_center()
+    var safe_area := game.get_viewport().get_visible_rect().grow(-20.0)
+    game.airtime.reset_round()
+    for other in game.racers:
+        if other != player:
+            other.global_position = Vector3(80,0,20)
+    for distances in [Vector2(2.8,1.15),Vector2(2.8,2.85),Vector2(-5.1,2.85)]:
+        var z: float = bank_exit+distances.x
+        var x: float = game.track_center_at(z)
+        var at := Vector3(x+bank_side*distances.y,game.height_at(z)+0.55,z)
+        player.global_position = at
+        player.linear_velocity = Vector3(0,0,-23.0)
+        rival.global_position = Vector3(x+bank_side*(4.0-distances.y),at.y,z-0.4)
+        rival.linear_velocity = Vector3(0,0,-22.8)
+        rival.finished = false
+        game.race_moments.reset_round()
+        for sample in range(5):
+            game.race_moments.tick(0.12)
+        assert(game.race_moments.side_by_side_active and game.race_moments.closest_rival == rival)
+        game.cam_mode = 0
+        var errors: Array[float] = []
+        for enabled in [false,true]:
+            # Disable only the new finish envelope while keeping the same physics checks.
+            game.final_straight_z = bank_exit if enabled else -1000.0
+            game.camera.fov = 69.0
+            for frame in range(18):
+                game._update_camera(0.12,true)
+            var a: Vector2 = game.camera.unproject_position(at)
+            var b: Vector2 = game.camera.unproject_position(rival.global_position)
+            var finish: Vector2 = game.camera.unproject_position(game.finish_origin)
+            assert(safe_area.has_point(a) and safe_area.has_point(b) and safe_area.has_point(finish))
+            errors.append(absf((a.x+b.x)*0.5-line_center.x))
+        assert(errors[1] < errors[0] and player.global_position == at and player.linear_velocity.z == -23.0)
+    game.cam_mode = 1
+    game._update_camera(0.12,true)
+    var overhead_focus: Vector3 = game.camera_lookahead
+    game.final_straight_z = -1000.0
+    game._update_camera(0.12,true)
+    assert(game.camera_lookahead.is_equal_approx(overhead_focus))
+    game.final_straight_z = bank_exit
+    game.cam_mode = 0
     game.race_moments.reset_round()
     return true
 

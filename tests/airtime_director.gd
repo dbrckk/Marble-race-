@@ -181,9 +181,17 @@ func _verify_jump_guides(stage: Node3D) -> void:
     var expected := 2 if stage.selected_track == 0 else 4
     assert(guide.baked and guide.windows.size() == expected and guide.ramps.size() == expected)
     var shutter_count: int = guide.shutter_marks.size()
+    var bank_count: int = guide.final_bank_marks.size()
     assert(shutter_count >= 2 if stage.selected_track == 1 else shutter_count == 0)
-    assert(guide.get_child_count() == 1 and guide.paint.multimesh.instance_count == 20*expected+4*shutter_count,
-        "Glacier's dry-road chevrons must share the ramp paint batch")
+    assert(bank_count == (4 if stage.selected_track == 1 else 0))
+    assert(guide.get_child_count() == 1 and guide.paint.multimesh.instance_count == (
+        20*expected+4*shutter_count+2*bank_count),"Glacier's chevrons and bank edges share the ramp paint batch")
+    for mark: Vector3 in guide.final_bank_marks:
+        var query := PhysicsRayQueryParameters3D.create(mark+Vector3.UP*0.12,mark-Vector3.UP*0.12,
+            stage.course_sculptures.BANK_PROBE_LAYER)
+        var hit: Dictionary = stage.get_world_3d().direct_space_state.intersect_ray(query)
+        assert(not hit.is_empty() and hit["collider"] in stage.course_sculptures.banks.slice(-2))
+        assert(absf(mark.y-(hit["position"] as Vector3).y) < 0.04)
     for point: Vector3 in guide.shutter_marks:
         var gate_z: float = stage.race_director.event_z(stage.race_director.GLACIER_FIRST_SHUTTER)
         assert(point.z > gate_z and absf(point.x-stage.track_center_at(point.z)) < 0.01)

@@ -57,6 +57,11 @@ static func finish_focus_weight(racer_z: float, clear_z: float, finish_z: float,
         return 0.0
     return smoothstep(0.0,4.5,clear_z-racer_z)*smoothstep(4.0,16.0,speed)
 
+static func glacier_finish_view_weight(racer_z: float, bank_exit_z: float, finish_z: float, speed: float) -> float:
+    if not is_finite(racer_z) or not is_finite(speed) or racer_z <= finish_z:
+        return 0.0
+    return (1.0-smoothstep(3.0,12.0,racer_z-bank_exit_z))*smoothstep(8.0,21.0,speed)
+
 static func camera_pose(position: Vector3, velocity: Vector3,
     center_ahead_x: float, camera_mode: int, boosting: bool,
     hazard_distance: float, close_duel: bool = false,
