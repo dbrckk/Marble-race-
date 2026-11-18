@@ -2473,7 +2473,8 @@ func update_hud() -> void:
             # Do not ask a bridge racer to accelerate into an occupied merge.
             # Keep the direction and distance visible, but make the safe
             # immediate action explicit on every course.
-            shortcut_label.text += "  •  MAIN TRAFFIC  •  SAVE BOOST"
+            var main_traffic := "MAIN PACK" if game.race_moments.merge_threat_count > 1 else "MAIN TRAFFIC"
+            shortcut_label.text += "  •  %s  •  SAVE BOOST" % main_traffic
         if route_hint["mode"] == "fork":
             var advice: Dictionary = game.shortcut_route.forge_fork_advice(game.player.global_position,velocity)
             if not advice.is_empty():
@@ -2486,9 +2487,10 @@ func update_hud() -> void:
         shortcut_label.add_theme_color_override("font_color",route_tint)
     elif merge_traffic > 0 and not final_danger_active and not timed_gate_backdrop.visible:
         var bridge_side := "LEFT" if game.shortcut_route.side < 0 else "RIGHT"
-        shortcut_label.text = "BRIDGE TRAFFIC %s" % bridge_side
+        var bridge_traffic := "BRIDGE PACK" if game.race_moments.merge_threat_count > 1 else "BRIDGE TRAFFIC"
+        shortcut_label.text = "%s %s" % [bridge_traffic,bridge_side]
         if seconds_until > 0.85:
-            shortcut_label.text += "  •  HOLD LINE"
+            shortcut_label.text += "  •  SAVE BOOST" if game.race_moments.merge_threat_count > 1 else "  •  HOLD LINE"
         shortcut_label.add_theme_color_override("font_color",SHORTCUT_ROUTE.MAIN_MERGE_INK)
         shortcut_label.show()
     if merge_traffic != 0 and (shortcut_label.visible or glacier_return_panel):
