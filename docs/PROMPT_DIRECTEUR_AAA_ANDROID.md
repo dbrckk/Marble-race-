@@ -514,6 +514,10 @@ Base `d3331c2ef5e3ba42dd9658c6eb51fdc49aa7c61c`. Le relevé existant du peloton 
 
 Base `c5b1f69522daaf6d8432f02994bde93abba84b72`. Un contact avec la piste suivi de deux relevés sur la glace déclenche une onde bleue au point de contact et l’indication de surface près du compteur. La traînée standard prend brièvement la teinte de la glace. Le mix fait ressortir le roulement en abaissant le vent et les percussions pendant l’attaque du son cristallin. Les sons d’alerte et les chocs gardent la priorité. Le jeu réutilise la sonde de sol, le lot des ondes et les voix audio existants.
 
+### 2026-11-18 — Sens de la dérive sur Glacier (1.138.0-rc)
+
+Base `72a8d357b8531de1d8fcba000f798e4ae65c328e`. Le relevé de sol existant mesure le déplacement latéral par rapport à l’axe de la piste ou du pont. Une dérive continue d’au moins 150 ms affiche une flèche bleue à côté de la bille et rappelle sa direction près du compteur. Un changement de sens retire la flèche avant de confirmer le nouveau sens. Le signal cesse également en saut, sur le sol plus adhérent ou quand les positions serveur ne sont plus assez récentes. Le support reste visible en Économie et laisse libres les commandes tactiles.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Mieux faire lire la dérive latérale prolongée sur les plaques de glace. Mesurer le mix et la fluidité du peloton sur un téléphone Android dès qu’il est disponible.
+Mieux distinguer les chocs entre billes sur la glace du retour sur une surface adhérente. Mesurer le mix et la fluidité du peloton sur un téléphone Android dès qu’il est disponible.

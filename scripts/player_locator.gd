@@ -9,6 +9,7 @@ const FONT_SIZE := 23
 const BADGE_HEIGHT := 27.0
 const GRID_HANDOFF := 0.5
 const HAZARD_ACCENT := Color("#ffc57e")
+const ICE_ACCENT := Color("#9ce7ff")
 
 var game: Node3D
 var screen_center := Vector2.ZERO
@@ -20,6 +21,8 @@ var badge := StyleBoxFlat.new()
 var bracket_mesh: ArrayMesh
 var hazard_center := Vector2.INF
 var evasion_center := Vector2.INF
+var ice_arrow_center := Vector2.INF
+var ice_arrow_axis := Vector2.ZERO
 
 func configure(stage: Node3D) -> void:
     game = stage
@@ -36,6 +39,7 @@ func begin_round() -> void:
     bracket_strength = 0.0
     hazard_center = Vector2.INF
     evasion_center = Vector2.INF
+    ice_arrow_center = Vector2.INF
     badge_text = "YOU"
     if not game.net.is_active() and game.career.league_tier() >= 1:
         badge_text += "  •  "+game.career.league_name()
@@ -45,6 +49,7 @@ func begin_round() -> void:
 func refresh(delta: float) -> void:
     hazard_center = Vector2.INF
     evasion_center = Vector2.INF
+    ice_arrow_center = Vector2.INF
     var marble: RigidBody3D = game.player
     var camera: Camera3D = game.camera
     if game.net.role == "server" or not is_instance_valid(marble) or not is_instance_valid(camera) or (
@@ -65,18 +70,26 @@ func refresh(delta: float) -> void:
     var edge := camera.unproject_position(center+camera.global_basis.x*Racer.RADIUS)
     screen_radius = clampf(projected.distance_to(edge),4.0,80.0)
     var moments: RefCounted = game.race_moments
+    var freshness: bool = not game.net.is_client() or game.net.local_replica_velocity().is_finite()
+    if game.race_state == "RACING" and freshness and game.airtime.ice_drift_side != 0:
+        var toward := camera.unproject_position(center+Vector3.RIGHT*game.airtime.ice_drift_side)
+        var screen_axis := (toward-projected).normalized()
+        var arrow := projected+screen_axis*(screen_radius+16.0)
+        var safe_gutter := Rect2(Vector2(17.0,17.0),size-Vector2(34.0,34.0))
+        if screen_axis.is_finite() and not screen_axis.is_zero_approx() and safe_gutter.has_point(arrow):
+            ice_arrow_center = arrow
+            ice_arrow_axis = screen_axis
     if game.race_state == "RACING" and game.cam_mode == 0 and moments != null:
         var obstacle: Vector3 = moments.occluded_hazard
         var safe := Rect2(Vector2(size.x*0.14,size.y*0.23),Vector2(size.x*0.72,size.y*0.52))
-        var fresh: bool = not game.net.is_client() or game.net.local_replica_velocity().is_finite()
         if obstacle.is_finite() and center.z-obstacle.z > 0.7 and not camera.is_position_behind(obstacle) and (
-                fresh):
+                freshness):
             var point := camera.unproject_position(obstacle)
             var pointer := point-Vector2(0.0,21.0)
             if safe.has_point(pointer) and pointer.distance_to(screen_center) > screen_radius+19.0:
                 hazard_center = pointer
         var lane: Vector3 = moments.evasion_target
-        if fresh and lane.is_finite() and center.z-lane.z > 3.7 and not camera.is_position_behind(lane):
+        if freshness and lane.is_finite() and center.z-lane.z > 3.7 and not camera.is_position_behind(lane):
             var pointer := camera.unproject_position(lane)
             if safe.has_point(pointer) and pointer.distance_to(screen_center) > screen_radius+26.0 and (
                     not hazard_center.is_finite() or pointer.distance_to(hazard_center) > 29.0):
@@ -88,6 +101,14 @@ func refresh(delta: float) -> void:
     queue_redraw()
 
 func _draw() -> void:
+    if ice_arrow_center.is_finite():
+        var axis := ice_arrow_axis
+        var cross := axis.orthogonal()
+        var tip := ice_arrow_center+axis*8.0
+        var heel := ice_arrow_center-axis*4.0
+        var chevron := PackedVector2Array([heel+cross*7.0,tip,heel-cross*7.0])
+        draw_polyline(chevron,INK,6.0,true)
+        draw_polyline(chevron,ICE_ACCENT,3.0,true)
     if evasion_center.is_finite():
         var h := evasion_center
         var upper := PackedVector2Array([h+Vector2(-13,2),h+Vector2(0,-8),h+Vector2(13,2)])

@@ -25,6 +25,7 @@ const GRIP_RETURN := 2
 const BANK_EXIT := 3
 const ICE_ENTRY := 4
 const ICE_ENTRY_SECONDS := 0.42
+const ICE_DRIFT_HOLD := 0.15
 const LANDING_CONTROL := 1
 const CONTROL_RETURN_SECONDS := 0.38
 const RETURN_WINDOW := 0.36
@@ -74,6 +75,9 @@ var ice_skid := 0.0
 var ice_slide_seen := false
 var ice_entry_armed := false
 var ice_entry_seconds := 0.0
+var ice_drift_side := 0
+var ice_drift_pending := 0
+var ice_drift_hold := 0.0
 var landing_pending := 0.0
 var landing_pending_grade := ""
 var pending_bank_exit := NAN
@@ -163,6 +167,7 @@ func _clear_ice_feedback() -> void:
     ice_slide_seen = false
     ice_entry_armed = false
     ice_entry_seconds = 0.0
+    _clear_ice_drift()
 
 func reset_round() -> void:
     clear_motion()
@@ -320,7 +325,7 @@ func sample_rolling_surface(hit: Dictionary, position: Vector3) -> int:
 func _near_bridge(z: float) -> bool:
     return z <= SHORTCUT.ENTRY_Z+5.0 and z >= SHORTCUT.EXIT_Z-7.0
 
-func sample_ice_contact(hit: Dictionary, position: Vector3, velocity: Vector3) -> int:
+func sample_ice_contact(hit: Dictionary, position: Vector3, velocity: Vector3, delta: float) -> int:
     var grip := Grip.UNKNOWN
     if hit.get("touching",false):
         if hit.get("ice",false):
@@ -350,10 +355,34 @@ func sample_ice_contact(hit: Dictionary, position: Vector3, velocity: Vector3) -
             slope = game.shortcut_route.point_at(position.z+0.5).x-game.shortcut_route.point_at(position.z-0.5).x
         else:
             slope = game.track_center_at(position.z+0.5)-game.track_center_at(position.z-0.5)
-        var sideways := absf(velocity.x-slope*velocity.z)
-        ice_skid = smoothstep(0.55,3.4,sideways)*smoothstep(3.0,9.0,-velocity.z)
+        var sideways := velocity.x-slope*velocity.z
+        ice_skid = smoothstep(0.55,3.4,absf(sideways))*smoothstep(3.0,9.0,-velocity.z)
         ice_slide_seen = ice_slide_seen or ice_skid >= 0.12
+        _sample_ice_drift(sideways,-velocity.z,delta)
+    else:
+        _clear_ice_drift()
     return change
+
+func _sample_ice_drift(sideways: float, forward: float, delta: float) -> void:
+    var side := int(signf(sideways))
+    # Once shown, allow a little speed loss before dropping a same-side arrow.
+    if side == ice_drift_side and side != 0 and absf(sideways) >= 0.80 and forward >= 5.0:
+        return
+    ice_drift_side = 0
+    if absf(sideways) < 1.25 or forward < 6.0:
+        _clear_ice_drift()
+        return
+    if side != ice_drift_pending:
+        ice_drift_pending = side
+        ice_drift_hold = 0.0
+    ice_drift_hold += delta
+    if ice_drift_hold >= ICE_DRIFT_HOLD:
+        ice_drift_side = side
+
+func _clear_ice_drift() -> void:
+    ice_drift_side = 0
+    ice_drift_pending = 0
+    ice_drift_hold = 0.0
 
 func ice_entry_weight() -> float:
     return ice_entry_seconds/ICE_ENTRY_SECONDS
@@ -432,7 +461,7 @@ func tick_physics(delta: float) -> void:
     else:
         jump_preview.clear()
     var transition := sample_rolling_surface(hit,position)
-    var ice_transition := sample_ice_contact(hit,position,velocity) if glacier else 0
+    var ice_transition := sample_ice_contact(hit,position,velocity,dt) if glacier else 0
     if not event.is_empty():
         _show_landing(event,not replica)
     var control := sample_control_contact(dt,hit,position,velocity)

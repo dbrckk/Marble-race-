@@ -170,6 +170,7 @@ func _run() -> void:
     print("BRIDGE_SURFACE_PASS: nine real bridge floors, contact confirmation, airborne rejection, pooled ripples and reversible audio fades")
     print("GLACIER_GRIP_PASS: three real ice layouts, lateral slip, jump rejection and one grounded recovery cue")
     print("ICE_ENTRY_PASS: confirmed dry-to-ice contact, pooled cues, unarmed spawn and warning priority")
+    print("ICE_DRIFT_DIRECTION_PASS: three layouts, course-relative drift, sustained sign, reversal and airborne reset")
     print("CONTROL_RETURN_PASS: nine real bank departures and two-sample touchdown recoveries with floor-aligned effects")
     print("JUMP_GUIDES_PASS: 30 ramps across nine layouts, one paint batch and lane-aware camera")
     quit(0)
@@ -281,6 +282,9 @@ func _verify_glacier_grip(stage: Node3D, flight: Node3D, player: RigidBody3D) ->
     flight.tick_physics(0.05)
     assert(flight.ice_touching and flight.ice_skid < 0.01,
         "Following the ice lane is not a lateral skid")
+    for frame in range(4):
+        flight.tick_physics(0.05)
+    assert(flight.ice_drift_side == 0)
     assert(flight.ice_entry_weight() == 0.0 and not flight.ripple_transition.has(AIR.ICE_ENTRY))
     var dry_z := ice_point.z
     var main: float = stage.track_center_at(dry_z)
@@ -315,6 +319,26 @@ func _verify_glacier_grip(stage: Node3D, flight: Node3D, player: RigidBody3D) ->
     player.linear_velocity.x += 3.6
     flight.tick_physics(0.05)
     assert(flight.ice_skid > 0.9 and flight.ice_slide_seen)
+    assert(flight.ice_drift_side == 0,"One fast lateral reading is not sustained drift")
+    flight.tick_physics(0.05)
+    flight.tick_physics(0.05)
+    assert(flight.ice_drift_side == 1)
+    stage._update_camera(0.016,true)
+    stage.ui.label_timer = 0.25
+    stage.ui.update_hud()
+    assert(stage.ui.speed_label.text.ends_with("SLIDE →"))
+    var locator: Control = stage.ui.player_locator
+    assert(locator.ice_arrow_center.is_finite() and locator.ice_arrow_axis.x > 0.0)
+    player.linear_velocity.x = -13.0*slope-3.6
+    flight.tick_physics(0.05)
+    assert(flight.ice_drift_side == 0)
+    flight.tick_physics(0.05)
+    flight.tick_physics(0.05)
+    assert(flight.ice_drift_side == -1)
+    stage.ui.label_timer = 0.25
+    stage.ui.update_hud()
+    assert(stage.ui.speed_label.text.ends_with("SLIDE ←"))
+    assert(locator.ice_arrow_center.is_finite() and locator.ice_arrow_axis.x < 0.0)
     sound.set_ice_feedback(true,true,flight.ice_skid,flight.ice_entry_weight())
     sound._process(0.12)
     assert(sound.bridge_rolling.stream == sound.BRIDGE_ROLLS[1] and sound.bridge_rolling.playing)
@@ -323,6 +347,8 @@ func _verify_glacier_grip(stage: Node3D, flight: Node3D, player: RigidBody3D) ->
     player.global_position = ice_point+Vector3.UP*0.75
     flight.tick_physics(0.05)
     assert(not flight.ice_touching and flight.glacier_grip == AIR.Grip.ICE)
+    locator.refresh(0.05)
+    assert(flight.ice_drift_side == 0 and not locator.ice_arrow_center.is_finite())
     assert(not flight.ripple_transition.has(AIR.GRIP_RETURN))
     assert(flight.ice_entry_weight() == 0.0)
     player.global_position = dry_point
