@@ -25,6 +25,7 @@ var glow_rings: MultiMeshInstance3D
 const PULSE_DECAY := 2.2
 const PULSE_REARM := 0.14
 var ring_origins: Array[Transform3D] = []
+var marker_rest: Array[float] = []
 var pulse_strength: Array[float] = []
 var pulse_cooldowns: Array[float] = []
 var pulse_events := 0
@@ -155,6 +156,7 @@ func setup(owner: Node3D, track: int, next_layout: int) -> void:
     for index in range(marker_transforms.size()):
         # Match the marker's resting brightness to its actual spring tier.
         var rest: float = 0.66+float(spring_levels[index])*0.11
+        marker_rest.append(rest)
         approach_markers.multimesh.set_instance_color(index,
             Color(rest,rest,rest,1.0))
     var torus := TorusMesh.new()
@@ -230,8 +232,9 @@ func reset_pulses() -> void:
         pulse_strength[index] = 0.0
         pulse_cooldowns[index] = 0.0
         if is_instance_valid(approach_markers):
+            var rest: float = marker_rest[index]
             approach_markers.multimesh.set_instance_color(index,
-                Color(0.78,0.78,0.78,1.0))
+                Color(rest,rest,rest,1.0))
         _write_ring_pair(index)
 
 func notify_contact(body: Node, intensity: float) -> bool:
@@ -267,7 +270,7 @@ func advance_visuals(delta: float) -> void:
         # ultra re-synchronizes visible rings with these bounded CPU values.
         _write_ring_pair(index)
         if quality_level > 0 and is_instance_valid(approach_markers):
-            var marker_brightness: float = lerpf(0.78,1.0,
+            var marker_brightness: float = lerpf(marker_rest[index],1.0,
                 clampf(pulse_strength[index],0.0,1.0))
             approach_markers.multimesh.set_instance_color(index,Color(
                 marker_brightness,marker_brightness,marker_brightness,1.0))
@@ -288,7 +291,7 @@ func set_quality(quality: int) -> void:
         if quality_level > 0:
             for index in range(pulse_strength.size()):
                 var strength: float = clampf(pulse_strength[index],0.0,1.0)
-                var brightness: float = lerpf(0.78,1.0,strength)
+                var brightness: float = lerpf(marker_rest[index],1.0,strength)
                 approach_markers.multimesh.set_instance_color(index,Color(
                     brightness,brightness,brightness,1.0))
     if is_instance_valid(glow_rings):
