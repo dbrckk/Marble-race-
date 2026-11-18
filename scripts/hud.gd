@@ -2470,7 +2470,10 @@ func update_hud() -> void:
         var route_tint := SHORTCUT_ROUTE.FORK_BRIDGE_COLOR if route_hint["mode"] == "fork" else (
             SHORTCUT_ROUTE.GLACIER_RETURN_COLOR)
         if bridge_approach_active and merge_traffic < 0:
-            shortcut_label.text += "  •  MAIN TRAFFIC" if game.selected_track == 0 else "  •  TRAFFIC"
+            # Do not ask a bridge racer to accelerate into an occupied merge.
+            # Keep the direction and distance visible, but make the safe
+            # immediate action explicit on every course.
+            shortcut_label.text += "  •  MAIN TRAFFIC  •  SAVE BOOST"
         if route_hint["mode"] == "fork":
             var advice: Dictionary = game.shortcut_route.forge_fork_advice(game.player.global_position,velocity)
             if not advice.is_empty():
