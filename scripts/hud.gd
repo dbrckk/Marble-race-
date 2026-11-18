@@ -1988,11 +1988,15 @@ func update_hud() -> void:
         game.player.global_position,bridge_approach_active) if is_instance_valid(game.shortcut_route) else {}
     bridge_approach_active = game.race_state == "RACING" and route_hint.get("mode","") == "merge"
     var downstream_limit: float = SHORTCUT_ROUTE.EXIT_Z if bridge_approach_active else INF
-    var hazard: Dictionary = game.upcoming_hazard(game.player.global_position.z,downstream_limit)
+    var player_z: float = game.player.global_position.z
+    var hazard: Dictionary = game.upcoming_hazard(player_z,downstream_limit)
     # Timed events have their own forecast, so do not show two duplicate
     # hazard banners while also preserving warnings for physical edge gates.
     hazard_label.visible = not hazard.is_empty() and not hazard.has("index") and (
         not hazard.get("final",false))
+    var glacier_exit: bool = game.glacier_shutter_exit_active(player_z)
+    if glacier_exit and hazard_label.visible and float(hazard["z"]) < game.glacier_first_shutter_z:
+        hazard_label.hide()
     var seconds_until := INF
     if hazard_label.visible:
         var metres: float = float(hazard["distance"])
@@ -2138,6 +2142,13 @@ func update_hud() -> void:
     var vent_eta := float(lane_hint.get("contact_eta",INF))
     var vent_index := int(lane_hint.get("index",-1))
     var pickup_limit := urgent_gate_eta
+    var exit_threat: Dictionary = duel.glacier_exit_threat
+    var exit_eta := INF
+    if still_racing and glacier_exit and forward_speed >= 5.0 and not exit_threat.is_empty() and (
+            player_z >= float(exit_threat["last_z"]) and not (first_shutter and not shutter_side.is_empty())):
+        exit_eta = maxf(0.0,player_z-float(exit_threat["entry_z"]))/forward_speed
+        if exit_eta > 0.38 and lane_hint.get("on_ice",false):
+            exit_eta = INF
     if game.selected_track == 2:
         var piston_priority := piston_contact_eta if (
             bridge_piston_warning or piston_contact_eta <= PISTON_WARNING_SECONDS) else INF
@@ -2149,6 +2160,18 @@ func update_hud() -> void:
         biome_lane_label.hide()
         timed_gate_backdrop.show()
         pickup_limit = 0.0
+    elif is_finite(exit_eta):
+        var obstacle: String = exit_threat["label"]
+        var title := "AFTER SHUTTER  •  "+obstacle if player_z > game.glacier_first_shutter_z else (
+            obstacle+" AHEAD")
+        var timing := "NOW" if exit_eta < 0.10 else "%.1fs" % exit_eta
+        hazard_label.hide()
+        biome_lane_label.hide()
+        timed_gate_label.text = "%s  •  %s" % [title,timing]
+        timed_gate_label.add_theme_color_override("font_color",Color("#ffae91"))
+        timed_gate_label.show()
+        timed_gate_backdrop.show()
+        pickup_limit = exit_eta
     elif first_shutter_exit:
         biome_lane_label.hide()
         timed_gate_backdrop.visible = not shutter_side.is_empty()

@@ -50,6 +50,8 @@ const MARBLE_DETAIL_INTERVAL := 0.125
 const MARBLE_DETAIL_NEAR_DISTANCE_SQUARED := 81.0
 const SLOPE := 0.085
 const SEGMENT_LENGTH := 12.0
+const GLACIER_EXIT_REACH := 6.0
+const GLACIER_EXIT_WARNING_SECONDS := 0.80
 const SEGMENTS := 18
 const FINAL_OBSTACLE_SECTION := SEGMENTS-4
 const FINAL_OBSTACLE_Z := 8.0-FINAL_OBSTACLE_SECTION*SEGMENT_LENGTH
@@ -165,6 +167,8 @@ var selected_track := 0
 var race_variation := 0
 var built_variation := -1
 var hazard_beacons: Array[Dictionary] = []
+var glacier_first_shutter_z := NAN
+var glacier_exit_obstacles: Array[Dictionary] = []
 var evasion_probe := SphereShape3D.new()
 var result_saved := false
 var last_result: Dictionary = {}
@@ -473,6 +477,79 @@ func pack_hazard_ahead(at: Vector3, velocity: Vector3) -> Vector3:
         target = center
     return target
 
+func glacier_shutter_exit_active(z: float) -> bool:
+    return selected_track == 1 and absf(z-glacier_first_shutter_z) <= GLACIER_EXIT_REACH
+
+func glacier_exit_threat(at: Vector3, velocity: Vector3) -> Dictionary:
+    var speed := -velocity.z
+    if not at.is_finite() or not velocity.is_finite() or speed < 5.0 or (
+            not glacier_shutter_exit_active(at.z) or (
+                absf(at.y-height_at(at.z)-Racer.RADIUS) > 0.55 or airtime.airborne)):
+        return {}
+    # Use the same bounded lateral extrapolation as the existing forecasts.
+    var origin := Vector2(at.x,at.z)
+    var pivot := Vector2(RaceFeedback.projected_lane_x(at.x,velocity.x,0.40),at.z-speed*0.40)
+    var end := Vector2(pivot.x,at.z-speed*GLACIER_EXIT_WARNING_SECONDS)
+    var soonest := INF
+    var target: Dictionary = {}
+    for obstacle in glacier_exit_obstacles:
+        var point: Vector3 = obstacle["position"]
+        var center := Vector2(point.x,point.z)
+        var half_size: Vector2 = obstacle["half_size"]
+        var reach_z := half_size.y+Racer.RADIUS
+        if center.y+reach_z < end.y or center.y-reach_z > origin.y:
+            continue
+        var hit := _glacier_exit_contact(origin-center,pivot-center,half_size,obstacle["peg"])
+        var eta := hit*0.40
+        if hit == INF:
+            hit = _glacier_exit_contact(pivot-center,end-center,half_size,obstacle["peg"])
+            eta = 0.40+hit*(GLACIER_EXIT_WARNING_SECONDS-0.40)
+        if eta < soonest:
+            soonest = eta
+            target = obstacle
+    if target.is_empty():
+        return {}
+    var point: Vector3 = target["position"]
+    var half_size: Vector2 = target["half_size"]
+    return {
+        "position":target["position"],"label":target["label"],
+        "entry_z":at.z-soonest*speed,"last_z":point.z-half_size.y-Racer.RADIUS
+    }
+
+static func _glacier_exit_contact(from: Vector2, to: Vector2, half_size: Vector2, peg: bool) -> float:
+    if peg:
+        return _glacier_circle_entry(from,to,half_size.x+Racer.RADIUS)
+    # A marble expands the blocker by its radius, with round corners.
+    var entry := minf(
+        _glacier_rect_entry(from,to,half_size+Vector2(Racer.RADIUS,0)),
+        _glacier_rect_entry(from,to,half_size+Vector2(0,Racer.RADIUS)))
+    for side_x in [-1.0,1.0]:
+        for side_z in [-1.0,1.0]:
+            var corner := Vector2(half_size.x*side_x,half_size.y*side_z)
+            entry = minf(entry,_glacier_circle_entry(from-corner,to-corner,Racer.RADIUS))
+    return entry
+
+static func _glacier_circle_entry(from: Vector2, to: Vector2, radius: float) -> float:
+    if from.length_squared() <= radius*radius:
+        return 0.0
+    var hit := Geometry2D.segment_intersects_circle(from,to,Vector2.ZERO,radius)
+    return hit if hit >= 0.0 else INF
+
+static func _glacier_rect_entry(from: Vector2, to: Vector2, reach: Vector2) -> float:
+    var entry := 0.0
+    var exit := 1.0
+    var motion := to-from
+    for axis in range(2):
+        if is_zero_approx(motion[axis]):
+            if absf(from[axis]) > reach[axis]:
+                return INF
+            continue
+        var a := (-reach[axis]-from[axis])/motion[axis]
+        var b := (reach[axis]-from[axis])/motion[axis]
+        entry = maxf(entry,minf(a,b))
+        exit = minf(exit,maxf(a,b))
+    return entry if entry <= exit else INF
+
 func evasion_lane(at: Vector3, velocity: Vector3, hazard: Vector3) -> Vector3:
     var distance := at.z-hazard.z
     var speed := -velocity.z
@@ -639,6 +716,7 @@ func _cylinder(parent: Node3D, location: Vector3, radius: float, tall: float, co
     cylinder.height = tall
     hitbox.shape = cylinder
     body.add_child(hitbox)
+    _register_glacier_exit_obstacle(body,Vector2.ONE*radius,"PEG",true)
     if batched_art:
         return body
     var art = MeshInstance3D.new()
@@ -669,6 +747,7 @@ func _make_course() -> void:
         remove_child(board)
         board.queue_free()
     hazard_beacons.clear()
+    glacier_exit_obstacles.clear()
     workshop_lamps.clear()
     secondary_showroom_art.clear()
     first_obstacle_entry_z = INF
@@ -676,6 +755,8 @@ func _make_course() -> void:
     board.name = "HandcraftedWoodenCourse"
     board.set_meta("track_index",selected_track)
     built_variation = race_variation
+    glacier_first_shutter_z = RaceDirector.event_z_for(1,built_variation,RaceDirector.GLACIER_FIRST_SHUTTER) if (
+        selected_track == 1) else NAN
     board.set_meta("solo_course_clearance",_uses_solo_course_clearance(built_variation))
     var last_bank: int = CourseSculptures.BANK_SECTIONS.back()
     final_straight_z = CourseSculptures.bank_z(last_bank,built_variation)-(
@@ -899,6 +980,7 @@ func _edge_baffles(parent: Node3D, center_z: float, section: int, glacier_return
         node.name = "AntiEdgeBaffle_%02d_%s" % [section, "L" if side < 0.0 else "R"]
         hazard_beacons.append({"z":z,"side":"LEFT" if side < 0.0 else "RIGHT",
             "final":section == FINAL_OBSTACLE_SECTION,"body":node,"half_width":size.x*0.5})
+        _register_glacier_exit_obstacle(node,Vector2(size.x,size.z)*0.5,"EDGE BLOCK")
         if not batched_art:
             obstacle_finish.register_block(node.global_transform,size,material_color)
     if not glacier_return and selected_track >= 1 and section % 3 == 0:
@@ -964,6 +1046,7 @@ func _gate_with_posts(parent: Node3D, center_z: float, n: int) -> void:
             var block := _box(parent, Vector3(x,height_at(z)+0.67,z),
                 size,_lacquer(gate_color),true,true,not batched_art)
             block.name = "GatePost_%02d_%02d_%02d" % [n,row,i]
+            _register_glacier_exit_obstacle(block,Vector2(size.x,size.z)*0.5,"GATE POST")
             if not batched_art:
                 obstacle_finish.register_block(block.global_transform,size,gate_color)
     _add_spinner(parent, center_z, n)
@@ -1009,11 +1092,20 @@ func _slalom(parent: Node3D, center_z: float, n: int) -> void:
         var block := _box(parent, Vector3(x,height_at(z)+0.36,z),
             size,_lacquer(slalom_color),true,true,not batched_art)
         block.name = "SlalomBlock_%02d_%02d" % [n,i]
+        _register_glacier_exit_obstacle(block,Vector2(size.x,size.z)*0.5,"SLALOM BLOCK")
         if not batched_art:
             obstacle_finish.register_block(block.global_transform,size,slalom_color)
     for i in range(3):
         var z = center_z + 2.3 - i * 3.5
         _cylinder(parent, Vector3(0, height_at(z)+0.65, z), 0.34, 1.3, BARRIER_COLORS[(n+2*i)%6],n)
+
+func _register_glacier_exit_obstacle(body: Node3D, half_size: Vector2, label: String, peg := false) -> void:
+    var center := body.global_position
+    if center.z >= glacier_first_shutter_z or not glacier_shutter_exit_active(center.z):
+        return
+    glacier_exit_obstacles.append({
+        "position":center,"half_size":half_size,"label":label,"peg":peg
+    })
 
 func _add_spinner(parent: Node3D, z: float, n: int) -> void:
     var pivot = AnimatableBody3D.new()

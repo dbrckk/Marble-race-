@@ -530,6 +530,10 @@ Le premier volet tient compte du balayage sur toute la fenêtre de passage de la
 
 Des chevrons ambrés soulignent les portions sèches de la voie centrale. Leur silhouette est vérifiée sur les planches réelles et écartée des obstacles avant le rendu. Les repères réutilisent le lot de peinture des sauts. En caméra de poursuite, le même emplacement reçoit un chevron à l’écran si une autre bille masque le marquage. Le repère s’efface quand la vue se dégage et laisse la priorité aux indications d’évitement existantes. La peinture et le repère restent disponibles en mode Économie.
 
+### 2026-11-18 — Obstacle immédiat après le premier volet de Glacier (1.142.0-rc)
+
+Les obstacles fixes proches de la sortie sont relevés à partir des dimensions de leurs colliders. Le jeu projette la trajectoire au sol jusqu’à 0,8 s pour afficher le premier plot, poteau ou bloc que cette trajectoire risque de rencontrer. Le compte à rebours vise l’entrée dans le volume de contact et peut apparaître avant le volet quand celui-ci laisse la voie libre. Le volet conserve la priorité lorsqu’il menace la trajectoire. Le repère réutilise le HUD et l’indication d’obstacle masqué existants.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Améliorer la lisibilité du premier ralentissement après le volet, en mettant en évidence l’obstacle suivant uniquement s’il coupe la trajectoire du joueur. Mesurer le mix et la fluidité du peloton sur un téléphone Android dès qu’il est disponible.
+Visualiser l’ouverture entre les plots après le premier volet lorsqu’une trajectoire d’évitement physiquement praticable est détectée. Mesurer le mix et la fluidité du peloton sur un téléphone Android dès qu’il est disponible.

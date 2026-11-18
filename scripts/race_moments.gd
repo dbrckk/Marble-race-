@@ -61,6 +61,7 @@ var turn_weight := 0.0
 var merge_traffic := 0
 var occluded_hazard := Vector3.INF
 var occluded_shutter_mark := Vector3.INF
+var glacier_exit_threat: Dictionary = {}
 var evasion_target := Vector3.INF
 var exit_gate_z := INF
 var exit_deadline := 0.0
@@ -165,6 +166,7 @@ func reset_round() -> void:
     merge_traffic = 0
     occluded_hazard = Vector3.INF
     occluded_shutter_mark = Vector3.INF
+    glacier_exit_threat.clear()
     evasion_target = Vector3.INF
     _clear_exit_sample()
     exit_feedback_left = 0.0
@@ -259,6 +261,7 @@ func tick(delta: float) -> void:
         merge_traffic = 0
         occluded_hazard = Vector3.INF
         occluded_shutter_mark = Vector3.INF
+        glacier_exit_threat.clear()
         evasion_target = Vector3.INF
         _clear_exit_sample()
         exit_feedback_left = 0.0
@@ -293,6 +296,7 @@ func tick(delta: float) -> void:
     merge_traffic = 0
     occluded_hazard = Vector3.INF
     occluded_shutter_mark = Vector3.INF
+    glacier_exit_threat.clear()
     evasion_target = Vector3.INF
     var candidate := Vector3.INF
     var shutter_mark := Vector3.INF
@@ -309,6 +313,11 @@ func tick(delta: float) -> void:
             merge_lane = road.merge_traffic_lane(p)
             merge_distance = clampf(preview_speed*0.30,3.2,6.0)
         var next_hazard: Vector3 = game.pack_hazard_ahead(p,preview_velocity)
+        glacier_exit_threat = game.glacier_exit_threat(p,preview_velocity)
+        if not glacier_exit_threat.is_empty() and (
+                not next_hazard.is_finite() or (
+                    next_hazard.z < game.glacier_first_shutter_z and next_hazard.z < glacier_exit_threat["entry_z"])):
+            next_hazard = glacier_exit_threat["position"]
         var driving: bool = game.net.is_client() or not game.player.freeze
         sample_obstacle_exit(p.z,preview_speed,next_hazard.z,driving and (
             game.airtime.course_grounded and not game.airtime.airborne),game.boosting)

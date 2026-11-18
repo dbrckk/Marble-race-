@@ -245,6 +245,7 @@ func _verify() -> void:
             if biome == 1:
                 assert(_verify_glacier_sequence(game))
                 assert(_verify_glacier_bridge_return(game))
+                assert(_verify_glacier_exit_obstacle(game))
             if biome == 2:
                 _verify_forge_exit(game)
                 _verify_forge_encounter_order(game)
@@ -258,6 +259,7 @@ func _verify() -> void:
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_timed_hud_career.cfg"))
     print("TIMED_HUD_PASS: 9 layouts, speed-aware approaches, original cues, Glacier ice and bridge handoffs, Forge signals, encounter order, piston crossing windows and final obstacle priority")
+    print("GLACIER_EXIT_OBSTACLE_PASS: physical peg and gate-post footprints, early notice, quiet lanes and pass cleanup")
     quit(0)
 
 func _verify_final_approach(game: Node3D) -> bool:
@@ -576,6 +578,63 @@ func _verify_glacier_sequence(game: Node3D) -> bool:
             "Play the early cue only when the ice trajectory will be blocked")
     _update_at(game,Vector3(x,game.height_at(gate_z-1.0)+0.60,gate_z-1.0),velocity)
     assert(not hud.biome_lane_label.visible or not hud.biome_lane_label.text.contains("THEN AIM CENTER"))
+    return true
+
+func _verify_glacier_exit_obstacle(game: Node3D) -> bool:
+    var director: Node3D = game.race_director
+    var gate_z: float = director.event_z(director.GLACIER_FIRST_SHUTTER)
+    var center: float = game.track_center_at(gate_z)
+    var expected := "GATE POST" if game.built_variation == 1 else "PEG"
+    var target := Vector3.INF
+    var nearest := -INF
+    for obstacle: Dictionary in game.glacier_exit_obstacles:
+        var point: Vector3 = obstacle["position"]
+        if obstacle["label"] == expected and absf(point.x-center) < 0.8 and point.z > nearest:
+            target = point
+            nearest = point.z
+    assert(target.is_finite())
+    var velocity := Vector3(0,0,-12.0)
+    var z := gate_z+2.7
+    var at := Vector3(target.x,game.height_at(z)+0.39,z)
+    game.airtime.reset_round()
+    game.race_moments.reset_round()
+    game.player.global_position = at
+    game.player.linear_velocity = velocity
+    game.race_moments.tick(0.12)
+    var forecast: Dictionary = game.race_moments.glacier_exit_threat
+    assert(forecast["position"].is_equal_approx(target))
+    assert(float(forecast["entry_z"]) > target.z,"Countdown uses the collider face")
+    _update_at(game,at,velocity)
+    var hud: CanvasLayer = game.ui
+    assert(hud.timed_gate_label.visible and hud.timed_gate_backdrop.visible and (
+        hud.timed_gate_label.text.begins_with("AFTER SHUTTER  •  "+expected)))
+    assert(not hud.hazard_label.visible and not hud.biome_lane_label.visible)
+    assert(game.glacier_exit_threat(at+Vector3.UP*1.0,velocity).is_empty())
+    assert(game.glacier_exit_threat(at,Vector3.ZERO).is_empty())
+
+    var safe_x := INF
+    for offset in [-1.05,1.05,-1.45,1.45,-2.0,2.0]:
+        var try_x: float = center+offset
+        if game.glacier_exit_threat(Vector3(try_x,at.y,z),velocity).is_empty():
+            safe_x = try_x
+            break
+    assert(is_finite(safe_x))
+    game.player.global_position.x = safe_x
+    game.race_moments.tick(0.12)
+    _update_at(game,Vector3(safe_x,at.y,z),velocity)
+    assert(not hud.timed_gate_label.text.contains("AFTER SHUTTER"))
+    assert(game.race_moments.glacier_exit_threat.is_empty(),
+        "Nearby blockers outside the projected line must remain quiet")
+
+    z = target.z-1.3
+    var beyond := Vector3(target.x,game.height_at(z)+0.39,z)
+    game.player.global_position = beyond
+    game.race_moments.tick(0.12)
+    var next: Dictionary = game.race_moments.glacier_exit_threat
+    assert(next.is_empty() or (next["position"] as Vector3).z < target.z,
+        "A passed plot must not keep its warning")
+    game.race_moments.reset_round()
+    assert(game.race_moments.glacier_exit_threat.is_empty())
     return true
 
 func _verify_glacier_bridge_return(game: Node3D) -> bool:
