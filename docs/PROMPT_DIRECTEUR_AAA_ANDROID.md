@@ -502,6 +502,10 @@ Base `8bf2207c919443b30bf146c502253aa3fbab7544`. Des flèches ambrées identifie
 
 Base `d2601437af0366e5ee3eafa9b0d2bef5d4641a04`. Le jeu sélectionne une barrière ou un obstacle mobile sur la trajectoire à partir des positions et du cycle existants. Si une bille devant le joueur coupe la ligne de vue de la caméra, un repère ambré pointe vers la position réelle de l’obstacle. Le repère se retire quand la vue se libère ou que le joueur choisit une caméra haute. Le relevé du peloton à 10 Hz suffit à cette vérification. La caméra de poursuite utilise aussi la vitesse issue des positions serveur récentes en ligne.
 
+### 2026-11-18 — Esquive à grande vitesse (1.135.0-rc)
+
+Base `23a6ccffac553b95510f06586d60f32578cd8dd6`. Les chevrons turquoise apparaissent à l’approche d’un obstacle si un passage à portée de braquage est libre au niveau de l’obstacle et sur les huit mètres suivants. Le sondage réutilise le relevé à 10 Hz et les dimensions de la bille. Les mécanismes mobiles sont évalués selon leur position prévue au moment du passage. La caméra de poursuite élargit sa vue vers l’avant à vitesse élevée et cadre légèrement la voie indiquée. Le compteur et les effets de vitesse tiennent compte des positions serveur récentes en ligne. Les effets de bord se fondent progressivement et s’atténuent près d’une alerte.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Mieux montrer la voie d’évitement lorsque deux obstacles se succèdent. Mesurer le mix et la fluidité du peloton sur un téléphone Android dès qu’il est disponible.
+Améliorer le retour de vitesse quand la bille ressort d’un enchaînement d’obstacles. Mesurer le mix et la fluidité du peloton sur un téléphone Android dès qu’il est disponible.

@@ -152,6 +152,9 @@ func _verify() -> void:
             if not _verify_obstacle_pointer(game):
                 quit(1)
                 return
+            if track == 1 and layout == 0 and not await _verify_evasion(game):
+                quit(1)
+                return
             game.return_to_menu()
             integrated += 1
     assert(integrated == 9)
@@ -162,6 +165,7 @@ func _verify() -> void:
         "user://qa_adaptive_pack_audio.cfg"))
     print("PACK_DYNAMICS_PASS: 9 real courses, 40 marbles, high-deck exclusion, adaptive original audio and duel framing")
     print("PACK_OBSTACLE_READABILITY_PASS: 9 layouts, real obstacle projection, sightline overlap and touch-safe clearance")
+    print("EVASION_PREVIEW_PASS: real moving gate, projected lane, downstream physical obstruction and stale cue cleanup")
     quit(0)
 
 func _verify_obstacle_pointer(game: Node3D) -> bool:
@@ -208,4 +212,52 @@ func _verify_obstacle_pointer(game: Node3D) -> bool:
             found_gate = true
             break
     assert(found_gate,"The timed obstacle is announced on a blocking approach")
+    return true
+
+func _verify_evasion(game: Node3D) -> bool:
+    for frame in range(4):
+        await physics_frame
+    var director: Node3D = game.race_director
+    var index := 1
+    var gate_z: float = director.event_z(index)
+    var velocity := Vector3(0,0,-21)
+    var at := Vector3.INF
+    var lane := Vector3.INF
+    for distance in [15.0,19.0,22.0]:
+        for sample in range(8):
+            var time: float = director.period()*float(sample)/8.0
+            director.animate(time)
+            var gate: Vector3 = director.position_at(index,time+distance/21.0)
+            at = Vector3(gate.x,game.height_at(gate_z+distance)+0.42,gate_z+distance)
+            var hazard: Vector3 = game.pack_hazard_ahead(at,velocity)
+            if not hazard.is_finite() or not is_equal_approx(hazard.z,gate_z):
+                continue
+            lane = game.evasion_lane(at,velocity,hazard)
+            if lane.is_finite():
+                break
+        if lane.is_finite():
+            break
+    assert(lane.is_finite(),"A verified path exists on the real Glacier shutter approach")
+    game.player.global_position = at
+    game.player.linear_velocity = velocity
+    game.race_moments.reset_round()
+    game.race_moments.tick(0.12)
+    assert(game.race_moments.evasion_target.is_equal_approx(lane))
+    game._update_camera(0.016,true)
+    game.ui.player_locator.refresh(0.12)
+    assert(game.ui.player_locator.evasion_center.is_finite())
+
+    var z := gate_z-4.0
+    var barrier: Node3D = game._box(game.board,Vector3(game.track_center_at(z),
+        game.height_at(z)+1.10,z),Vector3(12.0,2.2,0.5),null,true,false,false)
+    for frame in range(3):
+        await physics_frame
+    game.player.global_position = at
+    game.player.linear_velocity = velocity
+    game.race_moments.tick(0.12)
+    game.ui.player_locator.refresh(0.12)
+    assert(not game.race_moments.evasion_target.is_finite() and (
+        not game.ui.player_locator.evasion_center.is_finite()),
+        "The first gate's lane must be withheld when a second real obstacle blocks it")
+    barrier.queue_free()
     return true

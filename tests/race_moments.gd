@@ -234,11 +234,12 @@ func _run() -> void:
     # Both Android graphic tiers and rest screen stay usable without
     # any postprocess shaders or gameplay camera changes.
     p.finished = false
-    stage.race_moments.local_speed = 25.0
+    p.linear_velocity = Vector3(0.0,0.0,-25.0)
     for quality in range(3):
         stage.set_graphics_quality(quality)
         stage.ui.label_timer = 0.50
-        stage.ui.update_hud()
+        for frame in range(16):
+            stage.ui.update_hud()
         for streak in stage.ui.speed_stripes:
             assert(streak.visible == (quality > 0),
                 "Only BALANCED and ULTRA are allowed speed streaks")

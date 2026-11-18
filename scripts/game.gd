@@ -165,12 +165,14 @@ var selected_track := 0
 var race_variation := 0
 var built_variation := -1
 var hazard_beacons: Array[Dictionary] = []
+var evasion_probe := SphereShape3D.new()
 var result_saved := false
 var last_result: Dictionary = {}
 const QUALITY_NAMES := ["ECONOMY","BALANCED","ULTRA","AUTO"]
 
 func _ready() -> void:
     rng.seed = 424242
+    evasion_probe.radius = Racer.RADIUS
     career = Career.new()
     career.load_save()
     skins = TemporarySkins.new()
@@ -470,6 +472,73 @@ func pack_hazard_ahead(at: Vector3, velocity: Vector3) -> Vector3:
         nearest = distance
         target = center
     return target
+
+func evasion_lane(at: Vector3, velocity: Vector3, hazard: Vector3) -> Vector3:
+    var distance := at.z-hazard.z
+    var speed := -velocity.z
+    if not hazard.is_finite() or not at.is_finite() or not velocity.is_finite() or (
+            speed < 13.0 or distance < 5.0 or distance > speed*1.35 or
+            absf(at.x-track_center_at(at.z)) > 6.1 or
+            absf(at.y-height_at(at.z)-Racer.RADIUS) > 0.28 or
+            shortcut_route.on_separate_deck(at) or airtime.bridge_grounded):
+        return Vector3.INF
+    var entry_z := hazard.z+2.6
+    var end_z := hazard.z-8.0
+    var eta := distance/speed
+    var center := track_center_at(hazard.z)
+    var drift := RaceFeedback.projected_lane_x(at.x,velocity.x,eta)
+    var query := PhysicsShapeQueryParameters3D.new()
+    query.shape = evasion_probe
+    query.collision_mask = 1
+    var ignored: Array[RID] = airtime.ignored_rids.duplicate()
+    for gate in race_director.obstacles:
+        ignored.append(gate.get_rid())
+    query.exclude = ignored
+    var best := Vector3.INF
+    var cost := INF
+    for offset in [0.0,-1.55,1.55,-2.85,2.85]:
+        var x: float = center+offset
+        var change := absf(x-drift)
+        if change >= cost or change > 0.5+5.3*eta:
+            continue
+        var blocked := false
+        for index in range(race_director.obstacles.size()):
+            var z: float = race_director.event_z(index)
+            if z >= at.z or z < end_z:
+                continue
+            var arrival := (at.z-z)/speed
+            var lane_x := lerpf(at.x,x,minf(1.0,arrival/eta))+(
+                track_center_at(z)-center if z < hazard.z else 0.0)
+            # Check the front, center and rear of the marble crossing.
+            for phase_offset in [-0.06,0.0,0.06]:
+                if race_director.threatens_line(index,race_director.clock,
+                        maxf(0.0,arrival+phase_offset),lane_x,0.0):
+                    blocked = true
+                    break
+            if blocked:
+                break
+        if blocked:
+            continue
+        var middle := Vector3(x,height_at(hazard.z)+0.53,hazard.z)
+        var last := Vector3(track_center_at(end_z)+offset,height_at(end_z)+0.53,end_z)
+        # Test the lane at the obstacle and through the next encounter.
+        # The lateral-reach limit above controls how far ahead it is offered.
+        var start := Vector3(track_center_at(entry_z)+offset,height_at(entry_z)+0.53,entry_z)
+        if not _evasion_span_clear(query,start,middle) or not _evasion_span_clear(query,middle,last):
+            continue
+        cost = change
+        best = middle
+    return best
+
+func _evasion_span_clear(query: PhysicsShapeQueryParameters3D, start: Vector3, end: Vector3) -> bool:
+    var space := get_world_3d().direct_space_state
+    query.transform = Transform3D(Basis.IDENTITY,start)
+    query.motion = Vector3.ZERO
+    if not space.intersect_shape(query,1).is_empty():
+        return false
+    query.motion = end-start
+    var travel := space.cast_motion(query)
+    return travel.size() >= 2 and travel[0] >= 0.999
 
 func current_timeout() -> float:
     return RACE_TIMEOUT + selected_track * 24.0
@@ -1664,6 +1733,7 @@ func _update_camera(delta: float, force := false) -> void:
         if replica.is_finite():
             velocity = replica
         else:
+            velocity = Vector3.ZERO
             jump_preview = {}
     var pose: Dictionary = RaceFeedback.camera_pose(
         player.global_position,velocity,
@@ -1673,7 +1743,9 @@ func _update_camera(delta: float, force := false) -> void:
         airborne_weight,
         float(race_moments.closest_rival_side) if race_moments != null else 0.0,
         race_moments.pack_pressure if race_moments != null and race_state == "RACING" else 0.0,
-        jump_preview)
+        jump_preview,
+        race_moments.evasion_target if race_moments != null and race_state == "RACING" and (
+            not net.is_client() or velocity != Vector3.ZERO) else Vector3.INF)
     var desired: Vector3 = pose["position"]
     var focus: Vector3 = pose["focus"]
     # Match the camera to the real 3D grade without per-frame raycasts.

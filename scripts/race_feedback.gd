@@ -56,7 +56,8 @@ static func camera_pose(position: Vector3, velocity: Vector3,
     center_ahead_x: float, camera_mode: int, boosting: bool,
     hazard_distance: float, close_duel: bool = false,
     airborne_weight: float = 0.0, duel_side: float = 0.0,
-    pack_pressure: float = 0.0, jump_preview: Dictionary = {}) -> Dictionary:
+    pack_pressure: float = 0.0, jump_preview: Dictionary = {},
+    evasion_target := Vector3.INF) -> Dictionary:
     var planar_speed: float = Vector2(velocity.x,velocity.z).length()
     var pace: float = clampf((planar_speed-3.0)/19.0,0.0,1.0)
     # A compact preview pulls the camera up and back before a near-side
@@ -78,11 +79,12 @@ static func camera_pose(position: Vector3, velocity: Vector3,
             desired = position+Vector3(bend*0.20,19.0+pace*1.0,2.5)
             focus = position+Vector3(bend*0.38,0.0,-3.5-lead*0.36)
         _:
+            var early_view := risk*smoothstep(13.0,24.0,-velocity.z)
             desired = position+Vector3(
-                bend*0.30,6.6+pace*0.75+risk*1.0,11.6+pace*1.6+risk*1.0)
+                bend*0.30,6.6+pace*0.75+risk+early_view*0.40,11.6+pace*1.6+risk)
             focus = position+Vector3(
                 bend*0.72+clampf(velocity.x*0.10,-0.7,0.7),
-                0.25,-5.6-lead*0.70)
+                0.25,-5.6-lead*0.70-early_view*1.15)
     # Lift the chase framing gently while the REAL marble is airborne.
     # Overhead/user alternate cameras are immutable; no camera physics.
     var air: float = clampf(airborne_weight,0.0,1.0) if (
@@ -115,6 +117,11 @@ static func camera_pose(position: Vector3, velocity: Vector3,
         desired.y += 0.64*weight*(1.0-0.50*air)
         focus.x += clampf(landing.x-focus.x,-2.2,2.2)*0.30*weight
         focus.z -= clampf(focus.z-landing.z,0.0,3.0)*0.44*weight
+    if camera_mode == 0 and evasion_target.is_finite():
+        var approach := hazard_preview_weight(position.z-evasion_target.z,-velocity.z)*(1.0-air)
+        focus.x += clampf(evasion_target.x-focus.x,-2.4,2.4)*0.35*approach
+        focus.z -= clampf(focus.z-evasion_target.z,0.0,4.0)*0.44*approach
+        desired.y += 0.55*approach
     var fov: float = clampf(
         64.0+pace*9.0+(3.1 if boosting else 0.0)+risk*1.4+
         duel_lift*2.1+(1.5*air if camera_mode == 0 else 0.0),

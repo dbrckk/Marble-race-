@@ -59,6 +59,7 @@ var pack_pressure := 0.0
 var turn_weight := 0.0
 var merge_traffic := 0
 var occluded_hazard := Vector3.INF
+var evasion_target := Vector3.INF
 
 static func covers_hazard(eye: Vector3, hazard: Vector3, rival: Vector3) -> bool:
     var sight := hazard-eye
@@ -113,6 +114,7 @@ func reset_round() -> void:
     turn_weight = 0.0
     merge_traffic = 0
     occluded_hazard = Vector3.INF
+    evasion_target = Vector3.INF
 
 func approach_turn_weight(z: float, forward: float, on_bridge: bool) -> float:
     if not is_finite(forward) or forward < 6.0:
@@ -143,12 +145,12 @@ static func genuine_side_duel(gap_z: float, lateral: float,
         absf(own_forward-rival_forward) <= 7.0)
 
 static func edge_intensity(speed: float, turbo: bool, quality: int) -> float:
-    if quality <= 0:
+    if quality <= 0 or not is_finite(speed):
         return 0.0
-    var pace: float = clampf((speed-12.0)/14.0,0.0,1.0)
+    var pace := smoothstep(11.0,24.0,speed)
     if turbo:
         pace = maxf(0.40,pace)
-    return pace*0.19 if quality == 2 else pace*0.10
+    return pace*0.195 if quality == 2 else pace*0.13
 
 static func genuine_overtake(old_gap: float, new_gap: float, lateral: float,
     vertical: float, player_delta_z: float, relative_step: float,
@@ -202,6 +204,7 @@ func tick(delta: float) -> void:
         turn_weight = 0.0
         merge_traffic = 0
         occluded_hazard = Vector3.INF
+        evasion_target = Vector3.INF
         sampled_once = false
     if not final_stretch_seen and p.z < game.final_straight_z and p.z > game.FINISH_Z and (
             elapsed-message_at > NOTIFICATION_COOLDOWN and
@@ -232,6 +235,7 @@ func tick(delta: float) -> void:
     var merge_distance := 0.0
     merge_traffic = 0
     occluded_hazard = Vector3.INF
+    evasion_target = Vector3.INF
     var candidate := Vector3.INF
     var eyes := Vector3.ZERO
     if game.net.role != "server":
@@ -247,6 +251,7 @@ func tick(delta: float) -> void:
             merge_distance = clampf(preview_speed*0.30,3.2,6.0)
         if game.cam_mode == 0 and is_instance_valid(game.camera):
             candidate = game.pack_hazard_ahead(p,preview_velocity)
+            evasion_target = game.evasion_lane(p,preview_velocity,candidate)
             eyes = game.camera.global_position
     for marble in game.racers:
         if not is_instance_valid(marble) or marble == game.player:

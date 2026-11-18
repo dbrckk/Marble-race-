@@ -124,6 +124,7 @@ var position_feedback: Label
 var race_moment_label: Label
 var race_notification_backdrop: Panel
 var speed_stripes: Array[ColorRect] = []
+var speed_stripe_opacity := 0.0
 var moment_remaining := 0.0
 var moment_priority := 0
 var final_danger_active := false
@@ -1738,6 +1739,7 @@ func show_race_ui() -> void:
         race_moment_label.visible = false
     for streak in speed_stripes:
         streak.visible = false
+    speed_stripe_opacity = 0.0
     if is_instance_valid(position_feedback):
         position_feedback.visible = false
     bridge_approach_active = false
@@ -1854,6 +1856,25 @@ func _update_woodworks_guide(route_mode: String, turbo_ahead: bool, urgent: bool
 func update_hud() -> void:
     var elapsed: float = get_process_delta_time()
     player_locator.refresh(elapsed)
+    var velocity := Vector3.ZERO
+    if is_instance_valid(game.player):
+        velocity = game.net.local_replica_velocity() if game.net.is_client() else game.player.linear_velocity
+        if not velocity.is_finite():
+            velocity = Vector3.ZERO
+    var evasion: Vector3 = game.race_moments.evasion_target if game.race_moments != null and (
+        velocity.z < -12.0 and game.cam_mode == 0) else Vector3.INF
+    var playing: bool = game.race_state == "RACING" and is_instance_valid(game.player) and (
+        not game.player.finished and not game.player.eliminated)
+    var turbo: bool = playing and game.boosting and game.boost_energy > 0.0 and velocity.z < -3.0
+    var target := RACE_MOMENTS.edge_intensity(-velocity.z,turbo,game.graphics_quality) if playing else 0.0
+    if player_locator.hazard_center.is_finite() or player_locator.evasion_center.is_finite():
+        target *= 0.55
+    speed_stripe_opacity = move_toward(speed_stripe_opacity,target,clampf(elapsed,0.0,0.12)*0.85) if (
+        playing and game.graphics_quality > 0) else 0.0
+    var speed_tint := Color("#ffce8c") if turbo else Color("#9bdfff")
+    for line in speed_stripes:
+        line.visible = speed_stripe_opacity >= 0.01
+        line.color = Color(speed_tint,speed_stripe_opacity)
     overtake_chain_seconds = maxf(0.0,overtake_chain_seconds-elapsed)
     _update_rival_marker()
     if is_instance_valid(race_radar):
@@ -1869,12 +1890,6 @@ func update_hud() -> void:
     label_timer = 0.0
     if not is_instance_valid(game.player):
         return
-    var speed_intensity: float = RACE_MOMENTS.edge_intensity(
-        game.race_moments.local_speed,game.boosting,game.graphics_quality) if (
-        game.race_moments != null and game.race_state == "RACING") else 0.0
-    for line in speed_stripes:
-        line.visible = speed_intensity >= 0.01
-        line.color = Color(0.65,0.88,1.0,speed_intensity)
     var seconds = int(game.race_time)
     var centi = int((game.race_time - float(seconds)) * 100.0)
     clock_label.text = "%02d:%02d.%02d" % [seconds / 60, seconds % 60, centi]
@@ -1900,7 +1915,7 @@ func update_hud() -> void:
         var boost_x: float = touch_controls.boost_center_fraction()
         boost_label.anchor_left = boost_x-0.10
         boost_label.anchor_right = boost_x+0.10
-    speed_label.text = "%02d KM/H" % int(game.player.linear_velocity.length() * 3.6)
+    speed_label.text = "%02d KM/H" % int(Vector2(velocity.x,velocity.z).length()*3.6)
     if is_instance_valid(game.best_ghost):
         ghost_label.get_parent().visible = game.best_ghost.replay_available and (
             not game.net.is_active() and not countdown_label.is_visible_in_tree())
@@ -1957,7 +1972,7 @@ func update_hud() -> void:
     var seconds_until := INF
     if hazard_label.visible:
         var metres: float = float(hazard["distance"])
-        var approach: float = maxf(1.25,-game.player.linear_velocity.z)
+        var approach: float = maxf(1.25,-velocity.z)
         seconds_until = metres/approach
         # Distance is more useful during slow manoeuvres; time-to-impact
         # gets urgent at 20m/s and warns before the next blind baffle.
@@ -1971,7 +1986,7 @@ func update_hud() -> void:
             Color("#ff9a85") if seconds_until < 1.1 else Color("#f9d49d"))
     # Predicted *arrival* timing uses the same deterministic physical hazard
     # timeline as the server, never the piston's misleading current state.
-    var forward_speed := maxf(0.0,-game.player.linear_velocity.z)
+    var forward_speed := maxf(0.0,-velocity.z)
     var gate_reach := clampf(forward_speed*2.0,18.0,38.0)
     var moving_event: Dictionary = game.race_director.event_ahead(
         game.player.global_position.z,downstream_limit,gate_reach) if is_instance_valid(
@@ -1994,7 +2009,7 @@ func update_hud() -> void:
     if timed_gate_label.visible:
         var gate_distance: float = game.player.global_position.z-float(moving_event["z"])
         gate_eta = gate_distance/maxf(
-            2.0,-game.player.linear_velocity.z)
+            2.0,-velocity.z)
         gate_id = int(moving_event["index"])
         var projected_blocking: bool = game.selected_track != 2 or (
             game.race_director.piston_up(gate_id,
@@ -2006,12 +2021,17 @@ func update_hud() -> void:
         var player_threatened: bool
         if game.selected_track == 1 and gate_id == game.race_director.GLACIER_RETURN_GATE:
             player_threatened = game.race_director.glacier_return_threatens_crossing(
-                gate_eta,forward_speed,game.player.global_position.x,game.player.linear_velocity.x)
+                gate_eta,forward_speed,game.player.global_position.x,velocity.x)
         else:
             player_threatened = projected_blocking and game.race_director.threatens_line(
                 gate_id,game.race_director.clock,gate_eta,
-                game.player.global_position.x,game.player.linear_velocity.x)
+                game.player.global_position.x,velocity.x)
         var gate_side: String = str(moving_event["side"])
+        var dodge_action := "DODGE! GO "+("LEFT" if gate_side == "RIGHT" else "RIGHT")
+        if evasion.is_finite() and absf(evasion.z-float(moving_event["z"])) < 0.25:
+            var steering: float = evasion.x-game.player.global_position.x
+            dodge_action = "HOLD LINE" if absf(steering) < 0.65 else (
+                "DODGE! GO LEFT" if steering < 0.0 else "DODGE! GO RIGHT")
         if game.selected_track == 1 and player_threatened:
             shutter_side = gate_side
         var bridge_exit_preview: bool = game.selected_track == 2 and bridge_approach_active and (
@@ -2046,13 +2066,12 @@ func update_hud() -> void:
             elif merge_traffic < 0:
                 timed_gate_label.text += "  •  TRAFFIC"
         elif game.selected_track == 2:
-            var bypass := "LEFT" if gate_side == "RIGHT" else "RIGHT"
-            var action := "DODGE! GO "+bypass if player_threatened else lane_verdict
+            var action := dodge_action if player_threatened else lane_verdict
             timed_gate_label.text = "FORGE PISTON %s  •  EST. %s  •  %s  •  %.1fs" % [
                 gate_side,"BLOCKED" if projected_blocking else "OPEN",action,gate_eta]
         else:
             if player_threatened:
-                lane_verdict = "DODGE! GO "+("LEFT" if gate_side == "RIGHT" else "RIGHT")
+                lane_verdict = dodge_action
             timed_gate_label.text = "%s %s  •  %s  •  %.1fs" % [
                 str(moving_event["kind"]),gate_side,lane_verdict,gate_eta]
         var tint := Color("#a1edcc")
@@ -2070,7 +2089,7 @@ func update_hud() -> void:
                 audible_gate_eta = piston_contact_eta
         timed_gate_label.add_theme_color_override("font_color",tint)
     var lane_hint: Dictionary = game.course_mechanics.upcoming_lane(
-        game.player.global_position,game.player.linear_velocity,downstream_limit) if (
+        game.player.global_position,velocity,downstream_limit) if (
         still_racing and is_instance_valid(game.course_mechanics)) else {}
     var vent_eta := float(lane_hint.get("contact_eta",INF))
     var vent_index := int(lane_hint.get("index",-1))

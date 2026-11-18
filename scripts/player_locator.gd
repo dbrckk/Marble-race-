@@ -19,6 +19,7 @@ var badge_width := 58.0
 var badge := StyleBoxFlat.new()
 var bracket_mesh: ArrayMesh
 var hazard_center := Vector2.INF
+var evasion_center := Vector2.INF
 
 func configure(stage: Node3D) -> void:
     game = stage
@@ -34,6 +35,7 @@ func configure(stage: Node3D) -> void:
 func begin_round() -> void:
     bracket_strength = 0.0
     hazard_center = Vector2.INF
+    evasion_center = Vector2.INF
     badge_text = "YOU"
     if not game.net.is_active() and game.career.league_tier() >= 1:
         badge_text += "  •  "+game.career.league_name()
@@ -42,6 +44,7 @@ func begin_round() -> void:
 
 func refresh(delta: float) -> void:
     hazard_center = Vector2.INF
+    evasion_center = Vector2.INF
     var marble: RigidBody3D = game.player
     var camera: Camera3D = game.camera
     if game.net.role == "server" or not is_instance_valid(marble) or not is_instance_valid(camera) or (
@@ -64,13 +67,20 @@ func refresh(delta: float) -> void:
     var moments: RefCounted = game.race_moments
     if game.race_state == "RACING" and game.cam_mode == 0 and moments != null:
         var obstacle: Vector3 = moments.occluded_hazard
+        var safe := Rect2(Vector2(size.x*0.14,size.y*0.23),Vector2(size.x*0.72,size.y*0.52))
+        var fresh: bool = not game.net.is_client() or game.net.local_replica_velocity().is_finite()
         if obstacle.is_finite() and center.z-obstacle.z > 0.7 and not camera.is_position_behind(obstacle) and (
-                not game.net.is_client() or game.net.local_replica_velocity().is_finite()):
+                fresh):
             var point := camera.unproject_position(obstacle)
-            var safe := Rect2(Vector2(size.x*0.14,size.y*0.23),Vector2(size.x*0.72,size.y*0.52))
             var pointer := point-Vector2(0.0,21.0)
             if safe.has_point(pointer) and pointer.distance_to(screen_center) > screen_radius+19.0:
                 hazard_center = pointer
+        var lane: Vector3 = moments.evasion_target
+        if fresh and lane.is_finite() and center.z-lane.z > 3.7 and not camera.is_position_behind(lane):
+            var pointer := camera.unproject_position(lane)
+            if safe.has_point(pointer) and pointer.distance_to(screen_center) > screen_radius+26.0 and (
+                    not hazard_center.is_finite() or pointer.distance_to(hazard_center) > 29.0):
+                evasion_center = pointer
     var raised: bool = game.race_state == "COUNTDOWN" or game.race_time < GRID_HANDOFF or (
         moments != null and (moments.nearby_pack_count >= 2 or moments.closest_rival_gap <= 1.6))
     bracket_strength = move_toward(bracket_strength,1.0 if raised else 0.0,maxf(0.0,delta)*7.0)
@@ -78,6 +88,14 @@ func refresh(delta: float) -> void:
     queue_redraw()
 
 func _draw() -> void:
+    if evasion_center.is_finite():
+        var h := evasion_center
+        var upper := PackedVector2Array([h+Vector2(-13,2),h+Vector2(0,-8),h+Vector2(13,2)])
+        var lower := PackedVector2Array([h+Vector2(-10,11),h+Vector2(0,3),h+Vector2(10,11)])
+        draw_polyline(upper,INK,7.0,true)
+        draw_polyline(lower,INK,6.0,true)
+        draw_polyline(upper,Color("#9bf4e5"),3.5,true)
+        draw_polyline(lower,Color("#9bf4e5"),2.7,true)
     if hazard_center.is_finite():
         var h := hazard_center
         draw_colored_polygon(PackedVector2Array([h+Vector2(0,-13),h+Vector2(13,0),
