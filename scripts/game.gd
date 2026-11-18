@@ -769,6 +769,17 @@ func _swing_hammer(parent: Node3D, z: float, n: int) -> void:
     hinge.set_meta("speed",(1.3+float(n%3)*0.22)*(
         1.0+0.18*selected_track)*hammer_tempo)
     hinge.set_meta("phase",float(n)*1.8+float(built_variation)*0.45)
+    # Small fixed ground warning marks the hammer sweep before contact.
+    # No physics body, and the existing mechanism remains authoritative.
+    var warning := MeshInstance3D.new()
+    warning.name = "HammerSweepWarning"
+    var warning_mesh := BoxMesh.new()
+    warning_mesh.size = Vector3(2.55,0.025,0.16)
+    warning.mesh = warning_mesh
+    warning.position = Vector3(hinge.position.x,
+        height_at(z)+0.035,z)
+    warning.material_override = _mat(Color("#f5b74d"),0.55,0.06)
+    parent.add_child(warning)
     moving_obstacles.append(hinge)
 
 func _slalom(parent: Node3D, center_z: float, n: int) -> void:
