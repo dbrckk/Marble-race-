@@ -890,13 +890,36 @@ func _choose_perk(value: String) -> void:
     start_button.disabled = false
 
 func _small_panel_text(initial: String, size: int, anchor: Rect2, align: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT) -> Label:
-    var panel = _panel()
+    # The race telemetry uses its own compact instrument treatment rather
+    # than the large opaque menu cards. Flat panels are a single UI draw
+    # each; no blur, nested viewports or per-frame theme allocations.
+    var panel := PanelContainer.new()
+    panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
     panel.anchor_left = anchor.position.x
     panel.anchor_top = anchor.position.y
     panel.anchor_right = anchor.end.x
     panel.anchor_bottom = anchor.end.y
+    var is_primary := initial == "00:00.00" or initial == "40th"
+    var is_course := initial.begins_with("WOODWORKS")
+    var accent := Color("#f7c77f") if is_primary else (
+        Color("#8bdacb") if is_course else Color("#7d9aaa"))
+    var surface := StyleBoxFlat.new()
+    surface.bg_color = Color("#101b28",0.90 if is_primary else 0.82)
+    surface.border_color = Color(accent,0.78 if is_primary else 0.35)
+    surface.set_border_width_all(1)
+    surface.border_width_left = 3 if is_primary else 1
+    surface.set_corner_radius_all(8)
+    surface.content_margin_left = 11
+    surface.content_margin_right = 9
+    surface.content_margin_top = 3
+    surface.content_margin_bottom = 3
+    panel.add_theme_stylebox_override("panel",surface)
     hud_layer.add_child(panel)
-    var label = _text(initial, size)
+    var label := _text(initial,size)
+    label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    label.add_theme_color_override("font_color",Color("#fff4de") if is_primary else TEXT)
+    if is_primary:
+        label.add_theme_font_override("font",FONT_HEAVY)
     label.horizontal_alignment = align
     label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
     panel.add_child(label)
@@ -909,11 +932,13 @@ func _progress_bar(fill_color: Color) -> ProgressBar:
     bar.value = 0.0
     bar.show_percentage = false
     var bg := StyleBoxFlat.new()
-    bg.bg_color = Color("#19212b")
-    bg.set_corner_radius_all(6)
+    bg.bg_color = Color("#101b28")
+    bg.border_color = Color("#5b798b",0.72)
+    bg.set_border_width_all(1)
+    bg.set_corner_radius_all(5)
     var fill := StyleBoxFlat.new()
     fill.bg_color = fill_color
-    fill.set_corner_radius_all(6)
+    fill.set_corner_radius_all(5)
     bar.add_theme_stylebox_override("background",bg)
     bar.add_theme_stylebox_override("fill",fill)
     bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
