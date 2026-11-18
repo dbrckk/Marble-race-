@@ -1977,6 +1977,10 @@ func update_hud() -> void:
         game.player.global_position.z,downstream_limit,gate_reach) if is_instance_valid(
         game.race_director) else {}
     var still_racing: bool = game.race_state == "RACING" and not game.player.finished and not game.player.eliminated
+    var merge_traffic: int = duel.merge_traffic if still_racing else 0
+    if merge_traffic != 0 and (game.shortcut_route.merge_traffic_lane(game.player.global_position) != merge_traffic or (
+            game.net.is_client() and not game.net.local_replica_velocity().is_finite())):
+        merge_traffic = 0
     timed_gate_label.visible = still_racing and not moving_event.is_empty()
     var urgent_gate_eta := INF
     var gate_eta := INF
@@ -2039,6 +2043,8 @@ func update_hud() -> void:
             timed_gate_label.text = "%s  •  THEN AIM CENTER" % merge
             if gate_eta <= 1.3:
                 timed_gate_label.text += "  •  SHUTTER %s" % gate_side
+            elif merge_traffic < 0:
+                timed_gate_label.text += "  •  TRAFFIC"
         elif game.selected_track == 2:
             var bypass := "LEFT" if gate_side == "RIGHT" else "RIGHT"
             var action := "DODGE! GO "+bypass if player_threatened else lane_verdict
@@ -2125,12 +2131,20 @@ func update_hud() -> void:
         shortcut_label.text = game.shortcut_route.route_guidance_text(
             route_hint,game.player.global_position.z,forward_speed)
         shortcut_label.visible = not shortcut_label.text.is_empty()
-        var route_tint := SHORTCUT_ROUTE.FORK_MAIN_COLOR
-        if route_hint["mode"] == "fork":
-            route_tint = SHORTCUT_ROUTE.FORK_BRIDGE_COLOR
-        elif game.selected_track == 1:
-            route_tint = SHORTCUT_ROUTE.GLACIER_RETURN_COLOR
+        var route_tint := SHORTCUT_ROUTE.FORK_BRIDGE_COLOR if route_hint["mode"] == "fork" else (
+            SHORTCUT_ROUTE.GLACIER_RETURN_COLOR)
+        if bridge_approach_active and merge_traffic < 0:
+            shortcut_label.text += "  •  TRAFFIC"
         shortcut_label.add_theme_color_override("font_color",route_tint)
+    elif merge_traffic > 0 and not final_danger_active and not timed_gate_backdrop.visible:
+        var bridge_side := "LEFT" if game.shortcut_route.side < 0 else "RIGHT"
+        shortcut_label.text = "BRIDGE TRAFFIC %s" % bridge_side
+        if seconds_until > 0.85:
+            shortcut_label.text += "  •  HOLD LINE"
+        shortcut_label.add_theme_color_override("font_color",SHORTCUT_ROUTE.MAIN_MERGE_INK)
+        shortcut_label.show()
+    if merge_traffic != 0 and (shortcut_label.visible or glacier_return_panel):
+        duel_label.hide()
     # A later edge forecast can wait while the player reads the fork and
     # reacts to a closer live hazard. Keep the nearest edge cue available.
     if shortcut_label.visible and timed_gate_backdrop.visible and seconds_until > minf(

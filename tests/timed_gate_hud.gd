@@ -549,7 +549,7 @@ func _verify_glacier_bridge_return(game: Node3D) -> bool:
     var speed := 23.0
     var velocity := Vector3(0,0,-speed)
     var arrows := road.get_node("RouteDirectionArrows") as MultiMeshInstance3D
-    assert(road.glacier_return_arrows.size() == 8 and arrows.multimesh.instance_count == 18 and
+    assert(road.glacier_return_arrows.size() == 8 and arrows.multimesh.instance_count == 22 and
         arrows.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
     var previous := INF
     var ice: Node3D = game.course_mechanics.zones[2]

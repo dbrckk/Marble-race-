@@ -610,7 +610,7 @@ func _make_course() -> void:
             # the exact original independent tilted BoxShape3D collider.
             var floor_body := _box(section_node,plank_at,
                 TrackSurface.PLANK,_wood_mat(shade),true,true,false)
-            floor_body.set_meta(JumpGuides.ROAD_FLOOR,true)
+            floor_body.set_meta(TrackSurface.ROAD_FLOOR,true)
             track_surface.register_plank(plank_at+section_node.position,material_index,track_grade_at(center_z))
             for j in range(2):
                 var z: float = center_z+(float(j)-0.5)*4.4
@@ -724,7 +724,7 @@ func _connect_winding_sections() -> void:
         var seam := _box(board,Vector3(mid,height_at(seam_z)-0.34,seam_z),
             Vector3(13.2+absf(drift),0.66,2.8),_wood_mat(_themed_wood(WOOD_COLORS[section%WOOD_COLORS.size()])),true,true,false)
         seam.name = "ContinuousBendFloor_%02d" % section
-        seam.set_meta(JumpGuides.ROAD_FLOOR,true)
+        seam.set_meta(TrackSurface.ROAD_FLOOR,true)
         for side in [-1.0,1.0]:
             var rail := _box(board,Vector3(mid+side*6.84,height_at(seam_z)+0.58,seam_z),
                 Vector3(0.57,1.26,sqrt(3.6*3.6+drift*drift)+0.28),

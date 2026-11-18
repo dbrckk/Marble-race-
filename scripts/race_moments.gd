@@ -56,6 +56,7 @@ var duel_announced: Dictionary = {}
 var nearby_pack_count := 0
 var pack_pressure := 0.0
 var turn_weight := 0.0
+var merge_traffic := 0
 
 static func genuine_pack_rival(gap_z: float, side_gap: float,
         height_gap: float, own_speed: float, rival_speed: float) -> bool:
@@ -99,6 +100,7 @@ func reset_round() -> void:
     nearby_pack_count = 0
     pack_pressure = 0.0
     turn_weight = 0.0
+    merge_traffic = 0
 
 func approach_turn_weight(z: float, forward: float, on_bridge: bool) -> float:
     if not is_finite(forward) or forward < 6.0:
@@ -186,6 +188,7 @@ func tick(delta: float) -> void:
         nearby_pack_count = 0
         pack_pressure = 0.0
         turn_weight = 0.0
+        merge_traffic = 0
         sampled_once = false
     if not final_stretch_seen and p.z < game.final_straight_z and p.z > game.FINISH_Z and (
             elapsed-message_at > NOTIFICATION_COOLDOWN and
@@ -212,6 +215,9 @@ func tick(delta: float) -> void:
     var local_race: bool = not game.net.is_active()
     var road: Node3D = game.shortcut_route
     var player_on_bridge: bool = is_instance_valid(road) and road.on_separate_deck(p)
+    var merge_lane := 0
+    var merge_distance := 0.0
+    merge_traffic = 0
     if game.net.role != "server":
         var preview_speed := own_forward
         if game.net.is_client():
@@ -220,6 +226,9 @@ func tick(delta: float) -> void:
         var bridge_contact: bool = is_instance_valid(road) and is_instance_valid(game.airtime) and (
             game.airtime.rolling_surface == game.AirtimeDirector.Surface.BRIDGE)
         turn_weight = approach_turn_weight(p.z,preview_speed,bridge_contact)
+        if preview_speed >= 3.0 and is_instance_valid(road):
+            merge_lane = road.merge_traffic_lane(p)
+            merge_distance = clampf(preview_speed*0.30,3.2,6.0)
     for marble in game.racers:
         if not is_instance_valid(marble) or marble == game.player:
             continue
@@ -237,6 +246,10 @@ func tick(delta: float) -> void:
             crossed_nearby.erase(id)
             previous_offsets.erase(id)
             continue
+        if merge_lane != 0 and merge_traffic == 0 and absf(gap) <= merge_distance and (
+                absf(offset.y) <= 1.5 and (not local_race or not marble.freeze)):
+            if road.merge_traffic_lane(opponent) == -merge_lane:
+                merge_traffic = merge_lane
         var same_route: bool = not is_instance_valid(road) or (
             player_on_bridge == road.on_separate_deck(opponent))
         if same_route:

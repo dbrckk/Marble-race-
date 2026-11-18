@@ -47,7 +47,7 @@ func _run() -> void:
         assert(road.get_node_or_null("BypassNavigationChevrons") is MultiMeshInstance3D)
         assert(road.get_node_or_null("RouteSignPlates") is MultiMeshInstance3D)
         var arrows := road.get_node("RouteDirectionArrows") as MultiMeshInstance3D
-        assert(arrows.multimesh.instance_count == (18 if course == 1 else 16) and
+        assert(arrows.multimesh.instance_count == (22 if course == 1 else 20) and
             arrows.multimesh.use_colors)
         assert(arrows.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
         assert(road.get_node_or_null("ShortcutEntranceArrow") is Label3D)
@@ -247,10 +247,16 @@ func _run() -> void:
             game.race_variation = layout
             game.start_race("Grip Tape")
             assert(game.built_variation == layout and game.racers.size() == 40)
+            for frame in range(4):
+                await physics_frame
             assert(_verify_fork_cues(game,side))
+            if not _verify_merge_cues(game,side):
+                quit(1)
+                return
             game.return_to_menu()
             await process_frame
     print("SHORTCUT_ROUTES_PASS: three collidable, rewarded fork/merge alternatives")
+    print("MERGE_GUIDANCE_PASS: nine layouts, real inside-lane markings, opposing decks and alert clearance")
     game.queue_free()
     await process_frame
     quit()
@@ -306,6 +312,44 @@ func _verify_fork_cues(game: Node3D, side: int) -> bool:
     hud.label_timer = 0.25
     hud.update_hud()
     assert(not hud.bridge_approach_active and not hud.shortcut_label.visible)
-    return true
     hud.show_race_ui()
     assert(not hud.bridge_approach_active)
+    return true
+
+func _verify_merge_cues(game: Node3D, side: int) -> bool:
+    var road: Node3D = game.shortcut_route
+    assert(road.main_merge_arrows.size() >= 3)
+    var previous := INF
+    for arrow: Transform3D in road.main_merge_arrows:
+        var at := arrow.origin
+        var lateral: float = side*(at.x-game.track_center_at(at.z))
+        assert(at.z < previous and lateral <= -1.0 and lateral >= -2.5)
+        assert(absf(at.y-game.height_at(at.z)) < 0.25)
+        previous = at.z
+    var player: RigidBody3D = game.player
+    var other: RigidBody3D = game.racers[0]
+    var z := BypassScript.EXIT_Z+8.0
+    var bridge: Vector3 = road.point_at(z)+Vector3.UP*0.65
+    var main := Vector3(game.track_center_at(z)-side*1.3,game.height_at(z)+0.44,z)
+    player.global_position = main
+    player.freeze = false
+    player.linear_velocity = Vector3(0,0,-16)
+    other.global_position = bridge
+    other.freeze = false
+    var moments: RefCounted = game.race_moments
+    moments.reset_round()
+    moments.tick(0.1)
+    assert(moments.merge_traffic == 1)
+    var hud: CanvasLayer = game.ui
+    hud.label_timer = 0.25
+    hud.update_hud()
+    assert(hud.shortcut_label.visible and hud.shortcut_label.text.contains("BRIDGE TRAFFIC"))
+    player.global_position = bridge
+    other.global_position = main
+    moments.reset_round()
+    moments.tick(0.1)
+    assert(moments.merge_traffic == -1)
+    other.global_position.y += 3.0
+    moments.tick(0.1)
+    assert(moments.merge_traffic == 0,"A marble falling below or flying above the junction is not merge traffic")
+    return true

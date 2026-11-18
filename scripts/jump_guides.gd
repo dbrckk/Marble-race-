@@ -2,7 +2,7 @@ extends Node3D
 ## One batch of painted takeoff and landing marks on the racing surfaces.
 const ShortcutRoute = preload("res://scripts/shortcut_route.gd")
 const Feedback = preload("res://scripts/race_feedback.gd")
-const ROAD_FLOOR := &"jump_guide_floor"
+const TrackSurface = preload("res://scripts/track_surface.gd")
 const LANDING_OFFSETS := [2.8,4.4,6.0,1.6]
 const TAKEOFF_INK := [Color("#ffd084"),Color("#ffe098"),Color("#ffd187")]
 const LANDING_INK := [Color("#c5ffba"),Color("#a9faff"),Color("#aaf5e4")]
@@ -86,7 +86,7 @@ func _floor(at: Vector3, bridge: bool, ignored: Array[RID]) -> Dictionary:
     if bridge:
         if not floor_body.has_meta(ShortcutRoute.ROLLING_SURFACE) or floor_body in game.shortcut_route.launch_ramps:
             return {}
-    elif not floor_body.has_meta(ROAD_FLOOR):
+    elif not floor_body.has_meta(TrackSurface.ROAD_FLOOR):
         return {}
     return hit
 

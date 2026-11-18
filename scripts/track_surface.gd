@@ -5,6 +5,7 @@ const SLOPE := 0.085
 const PLANK := Vector3(1.315, 0.65, LEN + 0.08)
 const RAIL := Vector3(0.57, 1.26, 4.04)
 const GROOVE := Vector3(0.018, 0.012, 5.0)
+const ROAD_FLOOR := &"race_road_floor"
 const Visuals = preload("res://scripts/visuals.gd")
 # Half-width and height from foot to cap. The upright beside a marble spans
 # the full collision width. Only the plinth, shoulder and crown recede.

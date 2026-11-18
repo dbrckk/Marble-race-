@@ -3,6 +3,7 @@ extends Node3D
 ## Each course has a different exterior branch. Physics and rewards are
 ## evaluated by the offline game or authoritative dedicated server only.
 const ARCHITECTURE = preload("res://scripts/course_architecture.gd")
+const TrackSurface = preload("res://scripts/track_surface.gd")
 const ENTRY_SECTION := 5
 const EXIT_SECTION := 9
 const ENTRY_Z := -48.0
@@ -11,6 +12,10 @@ const EXIT_Z := -104.0
 const PORTAL_HALF_LENGTH := 2.0
 const FORK_GUIDANCE_REACH := 32.0
 const MERGE_GUIDANCE_REACH := 23.0
+const MERGE_TRAFFIC_NEAR := EXIT_Z+10.0
+const MERGE_TRAFFIC_FAR := EXIT_Z-2.0
+const MAIN_MERGE_Z := [EXIT_Z+11.0,EXIT_Z+8.1,EXIT_Z+5.2,EXIT_Z+2.3]
+const MAIN_MERGE_INK := Color("#a7f4ed")
 const FORK_ARROW_LEAD := 14.5
 const GLACIER_RETURN_COLOR := Color("#ffda8c")
 const FORGE_EDGE_COLOR := Color("#ffc86e")
@@ -80,6 +85,9 @@ var banked_segments := 0
 var physical_distance := 0.0
 var effect_candidates_last_tick := 0
 var glacier_return_arrows: Array[Transform3D] = []
+var main_merge_arrows: Array[Transform3D] = []
+var route_arrows: MultiMesh
+var paint_frames := 0
 
 static func inside_effect_window(z: float) -> bool:
     return z <= EFFECT_WINDOW_NEAR and z >= EFFECT_WINDOW_FAR
@@ -173,6 +181,50 @@ func setup(owner: Node3D, track: int) -> void:
     _batch("RouteSignPlates",signs,panel)
     _arrow_batch("RouteDirectionArrows",paint,colors)
     reset_round()
+
+func _physics_process(_delta: float) -> void:
+    paint_frames += 1
+    if paint_frames < 2:
+        return
+    set_physics_process(false)
+    if stage.net.role != "server":
+        _mark_main_merge_line()
+
+func _mark_main_merge_line() -> void:
+    var ignored: Array[RID] = []
+    for marble in stage.racers:
+        if is_instance_valid(marble):
+            ignored.append(marble.get_rid())
+    var slot := route_arrows.instance_count-MAIN_MERGE_Z.size()
+    for z in MAIN_MERGE_Z:
+        # Stay on the inside of the main deck. Move a mark around a real
+        # peg or gate in the layout without painting through the obstacle.
+        for lane in [1.72,1.10,2.38]:
+            var x: float = stage.track_center_at(z)-side*lane
+            var approximate := Vector3(x,stage.height_at(z),z)
+            var ground: Dictionary = {}
+            var clear := true
+            for offset in [Vector3.ZERO,Vector3(-0.42,0,-0.57),Vector3(0.42,0,0.52)]:
+                var ray := PhysicsRayQueryParameters3D.create(approximate+offset+Vector3.UP*1.65,
+                    approximate+offset+Vector3.DOWN*0.50,1,ignored)
+                var hit: Dictionary = stage.get_world_3d().direct_space_state.intersect_ray(ray)
+                var body: StaticBody3D = hit.get("collider") as StaticBody3D
+                if body == null or not body.has_meta(TrackSurface.ROAD_FLOOR):
+                    clear = false
+                    break
+                if offset == Vector3.ZERO:
+                    ground = hit
+            if not clear:
+                continue
+            var normal: Vector3 = ground["normal"]
+            var tangent := Basis(Quaternion(Vector3.UP,normal))
+            var pose := Transform3D(tangent.scaled_local(Vector3(0.60,1.0,0.77)),
+                Vector3(ground["position"])+normal*0.050)
+            route_arrows.set_instance_transform(slot,pose)
+            route_arrows.set_instance_color(slot,MAIN_MERGE_INK)
+            main_merge_arrows.append(pose)
+            slot += 1
+            break
 
 func bridge_lift_at(z: float) -> float:
     # Smoothly match the existing main deck at both portals. On Forge the
@@ -336,7 +388,7 @@ func _fork_signage(signs: Array[Transform3D], paint: Array[Transform3D], colors:
 
 func _return_markings(signs: Array[Transform3D], paint: Array[Transform3D],
         colors: Array[Color]) -> void:
-    var tint := GLACIER_RETURN_COLOR if course_id == 1 else FORK_MAIN_COLOR
+    var tint := GLACIER_RETURN_COLOR
     var sign_z := EXIT_Z+3.1
     _route_sign("ShortcutMergeArrow","MERGE  ↗" if side < 0 else "↖  MERGE",
         point_at(sign_z)+Vector3(side*1.58,1.52,0.0),tint,signs)
@@ -372,10 +424,13 @@ func _arrow_batch(batch_name: String, paint: Array[Transform3D], colors: Array[C
     batch.transform_format = MultiMesh.TRANSFORM_3D
     batch.use_colors = true
     batch.mesh = surface.commit()
-    batch.instance_count = paint.size()
+    batch.instance_count = paint.size()+MAIN_MERGE_Z.size()
     for i in range(paint.size()):
         batch.set_instance_transform(i,paint[i])
         batch.set_instance_color(i,colors[i])
+    for i in range(paint.size(),batch.instance_count):
+        batch.set_instance_transform(i,Transform3D(Basis().scaled(Vector3.ZERO),Vector3.ZERO))
+    route_arrows = batch
     var marks := MultiMeshInstance3D.new()
     marks.name = batch_name
     marks.multimesh = batch
@@ -452,6 +507,18 @@ func on_separate_deck(location: Vector3) -> bool:
         return false
     var deck := point_at(location.z)
     return absf(location.x-deck.x) < WIDTH*0.5+0.65 and location.y >= deck.y-0.25
+
+func merge_traffic_lane(at: Vector3) -> int:
+    if not at.is_finite() or at.z > MERGE_TRAFFIC_NEAR or at.z < MERGE_TRAFFIC_FAR:
+        return 0
+    var lateral: float = side*(at.x-stage.track_center_at(at.z))
+    if lateral >= 3.45 and at.z >= EXIT_Z-0.75:
+        var deck := point_at(maxf(at.z,EXIT_Z))
+        if absf(at.x-deck.x) <= WIDTH*0.5+0.30 and at.y-deck.y >= 0.22 and at.y-deck.y <= 1.55:
+            return -1
+    if lateral >= -3.6 and lateral <= 2.85 and absf(at.y-stage.height_at(at.z)-0.47) <= 0.85:
+        return 1
+    return 0
 
 func shortcut_hint(location: Vector3, continuing_merge := false) -> Dictionary:
     # Retain bridge context on the overlapping deck only for a racer

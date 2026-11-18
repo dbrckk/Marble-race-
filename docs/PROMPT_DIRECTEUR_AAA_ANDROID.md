@@ -494,6 +494,10 @@ Base `838aba31c66b333726dd8351c3fb74c28786ec03`. Deux appuis stables après la r
 
 Base `705f8009377ae45344f5203e952036f5d6ebe1b1`. Les rampes de la piste et du pont portent des chevrons d’appel ambrés. Des crochets contrastés marquent une zone de réception sur le tablier correspondant. Le jeu relève le sol en trois points à la construction pour éviter de peindre sur un obstacle ou sur la piste inférieure. Les marquages forment un seul lot de rendu sur tous les profils Android. Les pentes visibles des tabliers et des rampes suivent leurs collisions. Les arbres, cristaux et piliers sont écartés du pont au-delà des garde-corps. La caméra de poursuite relève sa visée selon la vitesse et l’alignement de la bille, avec priorité donnée aux alertes d’obstacle.
 
+### 2026-11-18 — Lecture du raccord entre pont et piste (1.133.0-rc)
+
+Base `8bf2207c919443b30bf146c502253aa3fbab7544`. Des flèches ambrées identifient le retour du pont et des flèches turquoise montrent la ligne intérieure de la piste principale. Chaque flèche turquoise est vérifiée sur le sol et autour des obstacles du tracé à sa construction, dans le lot de rendu existant. L’interface signale les billes qui arrivent sur l’autre voie à la même hauteur et à quelques mètres. Les avertissements urgents conservent leur priorité. Le contrôle utilise le relevé existant du peloton, avec des positions serveur récentes en ligne.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Affiner la lisibilité des lignes de dépassement à la jonction entre le pont et la piste. Mesurer le mix et la fluidité du peloton sur un téléphone Android dès qu’il est disponible.
+Améliorer la lisibilité des obstacles quand le peloton masque la piste. Mesurer le mix et la fluidité du peloton sur un téléphone Android dès qu’il est disponible.
