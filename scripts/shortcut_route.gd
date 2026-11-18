@@ -605,10 +605,20 @@ func precision_gate_ahead(at: Vector3, velocity: Vector3) -> Dictionary:
             continue
         if distance > clampf(speed*0.9,5.5,13.5):
             break
-        var lateral := RaceFeedback.projected_lane_x(at.x,velocity.x,distance/speed)-point_at(z).x
+        var eta := distance/speed
+        var lateral := RaceFeedback.projected_lane_x(at.x,velocity.x,eta)-point_at(z).x
         var action := "HOLD CENTER"
         if absf(lateral) > PRECISION_GATE_HALF_WIDTH*0.80:
             action = "AIM LEFT" if lateral > 0.0 else "AIM RIGHT"
+        # The final gate follows the takeoff ramp. Do not advise an
+        # impossible mid-air correction: aim before launch, then hold
+        # the landing line while the marble is airborne.
+        if i == BRIDGE_POST_Z.size()-1:
+            var ramp_z: float = JUMP_Z[course_id]
+            if at.z <= ramp_z and at.y > deck.y+Racer.RADIUS+0.35:
+                action = "LAND CENTER" if absf(lateral) <= PRECISION_GATE_HALF_WIDTH*0.80 else "HOLD LINE"
+            elif at.z > ramp_z and at.z-ramp_z <= 7.0 and action == "HOLD CENTER":
+                action = "LINE UP JUMP"
         return {"number":i+1,"action":action,"distance":maxi(1,ceili(distance))}
     return {}
 
