@@ -1334,6 +1334,7 @@ func _update_camera(delta: float, force := false) -> void:
         camera_shake = 0.0
         camera.set_meta("previous_jitter",Vector3.ZERO)
         camera.set_meta("smoothed_bank",0.0)
+        camera.set_meta("smoothed_fov",64.0)
         _position_intro_camera(force)
         return
     # Use the centerline ahead so the racer can see approaching turns.
@@ -1389,8 +1390,17 @@ func _update_camera(delta: float, force := false) -> void:
         bank = target_bank
     camera.set_meta("smoothed_bank",bank)
     camera.rotate_object_local(Vector3.FORWARD,bank)
-    camera.fov = lerpf(camera.fov,float(pose["fov"]),
-        RaceFeedback.smooth_factor(delta,4.4))
+    # A quick lens response sells a real turbo activation, while a slower
+    # recovery prevents FOV pumping when boost is tapped repeatedly.
+    var target_fov: float = float(pose["fov"])
+    var previous_fov: float = float(camera.get_meta("smoothed_fov",camera.fov))
+    if not is_finite(previous_fov):
+        previous_fov = 64.0
+    var fov_rate: float = 8.5 if target_fov > previous_fov else 3.8
+    var smoothed_fov: float = target_fov if force else lerpf(
+        previous_fov,target_fov,RaceFeedback.smooth_factor(delta,fov_rate))
+    camera.fov = clampf(smoothed_fov,63.0,78.0)
+    camera.set_meta("smoothed_fov",camera.fov)
 
 func _position_intro_camera(force: bool) -> void:
     var target = Vector3(6.5, 12.6, 22.0)
