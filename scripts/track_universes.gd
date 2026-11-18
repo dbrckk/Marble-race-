@@ -18,6 +18,7 @@ const GLOW_SHOULDER := 19.5
 var depth_ridges: MultiMeshInstance3D
 var near_forms: MultiMeshInstance3D
 var accent_lights: MultiMeshInstance3D
+var course_beacons: MultiMeshInstance3D
 var signature_landmarks: MultiMeshInstance3D
 var landmark_positions: Array[Vector3] = []
 var distant_positions: Array[Vector3] = []
@@ -101,6 +102,7 @@ func setup(track: int, stage: Node3D) -> void:
     _batch("WorldAccentForms",secondary,tops)
     _landscape_depth(theme,stage)
     _signature_landmarks(theme,stage)
+    _course_beacons(theme,stage)
     set_quality(stage.graphics_quality)
 
 func _landscape_depth(theme: int, stage: Node3D) -> void:
@@ -254,6 +256,29 @@ func _signature_landmarks(theme: int, stage: Node3D) -> void:
     signature_landmarks = _batch("OriginalBiomeLandmarks_12",mesh,instances)
     signature_landmarks.material_override = material
 
+# Low-profile, non-colliding edge references improve speed perception and
+# route readability without obscuring actual gates or marble trajectories.
+# One GPU batch covers both sides of the course; no dynamic lights.
+func _course_beacons(theme: int, stage: Node3D) -> void:
+    var mesh := BoxMesh.new()
+    mesh.size = Vector3(0.20,0.42,0.55)
+    var paint := StandardMaterial3D.new()
+    paint.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    paint.albedo_color = [Color("#e6cf92"),Color("#a4ecff"),
+        Color("#ffb274")][theme]
+    paint.emission_enabled = true
+    paint.emission = paint.albedo_color
+    paint.emission_energy_multiplier = 0.36
+    var transforms: Array[Transform3D] = []
+    for section in range(SEGMENTS):
+        var z: float = 8.0-float(section)*LEN-3.0
+        var y: float = stage.height_at(z)+0.32
+        for side in [-1.0,1.0]:
+            var x: float = stage.track_center_at(z)+side*9.4
+            transforms.append(Transform3D(Basis(),Vector3(x,y,z)))
+    course_beacons = _batch("TracksideSpeedReferences_36",mesh,transforms)
+    course_beacons.material_override = paint
+
 func set_quality(quality: int) -> void:
     visual_quality = clampi(quality,0,2)
     # Physical route and original primary silhouettes stay on all tiers.
@@ -264,6 +289,8 @@ func set_quality(quality: int) -> void:
         near_forms.visible = true
     if is_instance_valid(accent_lights):
         accent_lights.visible = visual_quality >= 2
+    if is_instance_valid(course_beacons):
+        course_beacons.visible = visual_quality >= 1
     if is_instance_valid(signature_landmarks):
         signature_landmarks.visible = visual_quality >= 1
 
