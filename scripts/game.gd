@@ -1436,6 +1436,10 @@ func _update_camera(delta: float, force := false) -> void:
         camera_lookahead.distance_squared_to(focus) > 36.0*36.0)
     camera_lookahead = focus if snap_focus else camera_lookahead.lerp(
         focus,focus_step)
+    # A recovery teleport is not a collision. Drop any residual shake so
+    # the newly snapped camera does not jump on the very next rendered frame.
+    if snap_camera:
+        camera_shake = 0.0
     camera_shake *= exp(-clampf(delta,0.0,0.12)*9.5)
     var jitter := Vector3(sin(world_time*52.0),
         cos(world_time*47.0),0.0)*camera_shake
