@@ -67,6 +67,7 @@ var on_ice := false
 var ice_grounded := false
 var ice_skid_target := 0.0
 var ice_skid_mix := 0.0
+var ice_entry_mix := 0.0
 var control_recovery := 0.0
 var exit_speed := 0.0
 var replica_roll_speed := -1.0
@@ -206,10 +207,15 @@ func set_bridge_surface(on_deck: bool, touching: bool, replica_speed := -1.0) ->
     bridge_grounded = touching
     replica_roll_speed = replica_speed
 
-func set_ice_feedback(on_surface: bool, touching: bool, skid: float) -> void:
+func set_ice_feedback(on_surface: bool, touching: bool, skid: float, entry := 0.0) -> void:
     on_ice = on_surface
     ice_grounded = touching
     ice_skid_target = clampf(skid,0.0,1.0) if touching and is_finite(skid) else 0.0
+    ice_entry_mix = clampf(entry,0.0,1.0) if touching and is_finite(entry) else 0.0
+
+func play_ice_entry() -> void:
+    if race_active and hazard_cooldown <= 0.0 and collision_duck < 1.9:
+        _voice(GLASS_HITS[2],-23.0,1.27)
 
 func play_grip_return() -> void:
     if race_active and hazard_cooldown <= 0.0 and collision_duck < 1.9:
@@ -318,6 +324,7 @@ func _process(delta: float) -> void:
         var wind_duck := maxf(hazard_duck*1.8,collision_duck*2.2)
         wind_duck = maxf(wind_duck,maxf(4.5*pass_mix_seconds/PASS_MIX_SECONDS,3.6*ice_skid_mix))
         wind_duck = maxf(wind_duck,5.0*control_recovery)
+        wind_duck = maxf(wind_duck,ice_entry_mix*3.2)
         var corner := turn_mix*(1.0-flight_intensity)
         var thrust := 0.0 if warning_active else turbo_mix
         var release := exit_speed*(1.0-flight_intensity)*(1.0-corner)*(
@@ -325,7 +332,7 @@ func _process(delta: float) -> void:
         air_target = -52.0+energy*25.0+flight_intensity*7.0+thrust*2.6*(1.0-corner)-maxf(
             maxf(pack_wind_trim(pack_pressure)*(1.0-flight_intensity),corner*3.8),wind_duck)
         air_target += 2.8*release
-        pace_target -= priority_duck
+        pace_target -= maxf(priority_duck,ice_entry_mix*2.3)
         air.pitch_scale = (lerpf(0.85,1.5,energy)+thrust*0.09+release*0.055)*(1.0-0.06*corner)*[
             1.0,0.94,1.08][track_theme]
     if not enabled:
@@ -386,7 +393,8 @@ func _update_rolling(delta: float) -> void:
         stream.loop = true
         bridge_rolling.stream = stream
     # Match the quiet board loop while keeping a little extra floor detail.
-    bridge_rolling.volume_db = roll_level_db-4.0+linear_to_db(maxf(0.001,sin(angle)))
+    var entry_lift := 2.4*ice_entry_mix*(1.0-clampf(foreground/1.9,0.0,1.0))
+    bridge_rolling.volume_db = roll_level_db-4.0+linear_to_db(maxf(0.001,sin(angle)))+entry_lift
     if not bridge_rolling.playing:
         bridge_rolling.play()
 

@@ -169,6 +169,7 @@ func _run() -> void:
     print("AIRTIME_PASS: nine real floor probes, safe jump and touchdown arcs, 40 marble exclusion, mobile pooled ripples and physics integrity")
     print("BRIDGE_SURFACE_PASS: nine real bridge floors, contact confirmation, airborne rejection, pooled ripples and reversible audio fades")
     print("GLACIER_GRIP_PASS: three real ice layouts, lateral slip, jump rejection and one grounded recovery cue")
+    print("ICE_ENTRY_PASS: confirmed dry-to-ice contact, pooled cues, unarmed spawn and warning priority")
     print("CONTROL_RETURN_PASS: nine real bank departures and two-sample touchdown recoveries with floor-aligned effects")
     print("JUMP_GUIDES_PASS: 30 ramps across nine layouts, one paint batch and lane-aware camera")
     quit(0)
@@ -280,25 +281,51 @@ func _verify_glacier_grip(stage: Node3D, flight: Node3D, player: RigidBody3D) ->
     flight.tick_physics(0.05)
     assert(flight.ice_touching and flight.ice_skid < 0.01,
         "Following the ice lane is not a lateral skid")
+    assert(flight.ice_entry_weight() == 0.0 and not flight.ripple_transition.has(AIR.ICE_ENTRY))
+    var dry_z := ice_point.z
+    var main: float = stage.track_center_at(dry_z)
+    var lane_side := signf(ice_point.x-main)
+    var dry_point := Vector3(main+lane_side*0.65,stage.height_at(dry_z)+0.41,dry_z)
+    player.global_position = dry_point
+    var dry_hit: Dictionary = flight.probe_floor(player)
+    assert(dry_hit.get("touching",false) and not dry_hit.get("ice",false))
+    flight.tick_physics(0.05)
+    flight.tick_physics(0.05)
+    assert(flight.ice_entry_armed and flight.glacier_grip == AIR.Grip.DRY)
+    var sound: Node3D = stage.audio
+    var voice: int = sound.current_channel
+    player.global_position = ice_point
+    var entering_speed := player.linear_velocity
+    flight.tick_physics(0.05)
+    assert(flight.ice_entry_weight() == 0.0 and sound.current_channel == voice)
+    flight.tick_physics(0.05)
+    assert(is_equal_approx(flight.ice_entry_weight(),1.0) and (
+        flight.ripple_transition.has(AIR.ICE_ENTRY) and sound.channels[voice].stream == sound.GLASS_HITS[2]))
+    assert(player.linear_velocity == entering_speed)
+    stage.ui.label_timer = 0.25
+    stage.ui.update_hud()
+    assert(stage.ui.speed_label.text.contains("/  ICE"))
+    voice = sound.current_channel
+    flight.tick_physics(0.05)
+    assert(sound.current_channel == voice)
+    sound.hazard_cooldown = 0.20
+    sound.play_ice_entry()
+    assert(sound.current_channel == voice)
+    sound.hazard_cooldown = 0.0
     player.linear_velocity.x += 3.6
     flight.tick_physics(0.05)
     assert(flight.ice_skid > 0.9 and flight.ice_slide_seen)
-    var sound: Node3D = stage.audio
-    sound.set_ice_feedback(true,true,flight.ice_skid)
+    sound.set_ice_feedback(true,true,flight.ice_skid,flight.ice_entry_weight())
     sound._process(0.12)
     assert(sound.bridge_rolling.stream == sound.BRIDGE_ROLLS[1] and sound.bridge_rolling.playing)
-    assert(sound.ice_skid_mix > 0.55)
+    assert(sound.ice_skid_mix > 0.55 and sound.ice_entry_mix == 1.0)
 
     player.global_position = ice_point+Vector3.UP*0.75
     flight.tick_physics(0.05)
     assert(not flight.ice_touching and flight.glacier_grip == AIR.Grip.ICE)
     assert(not flight.ripple_transition.has(AIR.GRIP_RETURN))
-    var dry_z := ice_point.z
-    var main: float = stage.track_center_at(dry_z)
-    var lane_side := signf(ice_point.x-main)
-    player.global_position = Vector3(main+lane_side*0.65,stage.height_at(dry_z)+0.41,dry_z)
-    var dry_hit: Dictionary = flight.probe_floor(player)
-    assert(dry_hit.get("touching",false) and not dry_hit.get("ice",false))
+    assert(flight.ice_entry_weight() == 0.0)
+    player.global_position = dry_point
     var next_voice: int = sound.current_channel
     var velocity: Vector3 = player.linear_velocity
     flight.tick_physics(0.05)

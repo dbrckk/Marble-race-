@@ -510,6 +510,10 @@ Base `23a6ccffac553b95510f06586d60f32578cd8dd6`. Les chevrons turquoise apparais
 
 Base `d3331c2ef5e3ba42dd9658c6eb51fdc49aa7c61c`. Le relevé existant du peloton associe chaque passage à une menace détectée sur la trajectoire et conserve le régime le plus bas jusqu’à la sortie de l’enchaînement. Deux augmentations consécutives de la vitesse au sol déclenchent un retour turquoise bref dans le compteur et les effets de bord. Le vent remonte légèrement dans le même mouvement. Les alertes et les impacts conservent la priorité dans le mix existant. Le turbo, un saut ou la perte des positions serveur interrompent ce retour.
 
+### 2026-11-18 — Entrée sur la glace au milieu du peloton (1.137.0-rc)
+
+Base `c5b1f69522daaf6d8432f02994bde93abba84b72`. Un contact avec la piste suivi de deux relevés sur la glace déclenche une onde bleue au point de contact et l’indication de surface près du compteur. La traînée standard prend brièvement la teinte de la glace. Le mix fait ressortir le roulement en abaissant le vent et les percussions pendant l’attaque du son cristallin. Les sons d’alerte et les chocs gardent la priorité. Le jeu réutilise la sonde de sol, le lot des ondes et les voix audio existants.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Rendre plus perceptible le passage d’une surface de grip à une zone de glisse en plein peloton. Mesurer le mix et la fluidité du peloton sur un téléphone Android dès qu’il est disponible.
+Mieux faire lire la dérive latérale prolongée sur les plaques de glace. Mesurer le mix et la fluidité du peloton sur un téléphone Android dès qu’il est disponible.

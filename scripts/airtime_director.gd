@@ -23,6 +23,8 @@ const RIPPLE_POOL := 3
 const BRIDGE_PULSE_LIFETIME := 0.36
 const GRIP_RETURN := 2
 const BANK_EXIT := 3
+const ICE_ENTRY := 4
+const ICE_ENTRY_SECONDS := 0.42
 const LANDING_CONTROL := 1
 const CONTROL_RETURN_SECONDS := 0.38
 const RETURN_WINDOW := 0.36
@@ -70,6 +72,8 @@ var pending_grip := Grip.UNKNOWN
 var ice_touching := false
 var ice_skid := 0.0
 var ice_slide_seen := false
+var ice_entry_armed := false
+var ice_entry_seconds := 0.0
 var landing_pending := 0.0
 var landing_pending_grade := ""
 var pending_bank_exit := NAN
@@ -157,6 +161,8 @@ func _clear_ice_feedback() -> void:
     ice_touching = false
     ice_skid = 0.0
     ice_slide_seen = false
+    ice_entry_armed = false
+    ice_entry_seconds = 0.0
 
 func reset_round() -> void:
     clear_motion()
@@ -314,19 +320,27 @@ func sample_rolling_surface(hit: Dictionary, position: Vector3) -> int:
 func _near_bridge(z: float) -> bool:
     return z <= SHORTCUT.ENTRY_Z+5.0 and z >= SHORTCUT.EXIT_Z-7.0
 
-func sample_ice_contact(hit: Dictionary, position: Vector3, velocity: Vector3) -> bool:
+func sample_ice_contact(hit: Dictionary, position: Vector3, velocity: Vector3) -> int:
     var grip := Grip.UNKNOWN
     if hit.get("touching",false):
         if hit.get("ice",false):
             grip = Grip.ICE
         elif hit.get("bridge",false) or _is_main_road(hit["ground"]):
             grip = Grip.DRY
-    var regained := false
+    var change := 0
     if grip != Grip.UNKNOWN and grip == pending_grip and grip != glacier_grip:
-        regained = glacier_grip == Grip.ICE and grip == Grip.DRY and ice_slide_seen
+        if grip == Grip.ICE and ice_entry_armed and -velocity.z >= 6.0:
+            change = ICE_ENTRY
+        elif grip == Grip.DRY and glacier_grip == Grip.ICE and ice_slide_seen and -velocity.z >= 3.0:
+            change = GRIP_RETURN
         glacier_grip = grip
         if grip == Grip.DRY:
             ice_slide_seen = false
+    if grip != Grip.ICE:
+        ice_entry_armed = grip == Grip.DRY and glacier_grip == Grip.DRY
+        ice_entry_seconds = 0.0
+    elif glacier_grip == Grip.ICE:
+        ice_entry_armed = false
     pending_grip = grip
     ice_touching = grip == Grip.ICE and glacier_grip == Grip.ICE
     ice_skid = 0.0
@@ -339,7 +353,10 @@ func sample_ice_contact(hit: Dictionary, position: Vector3, velocity: Vector3) -
         var sideways := absf(velocity.x-slope*velocity.z)
         ice_skid = smoothstep(0.55,3.4,sideways)*smoothstep(3.0,9.0,-velocity.z)
         ice_slide_seen = ice_slide_seen or ice_skid >= 0.12
-    return regained and -velocity.z >= 3.0
+    return change
+
+func ice_entry_weight() -> float:
+    return ice_entry_seconds/ICE_ENTRY_SECONDS
 
 func sample_control_contact(delta: float, hit: Dictionary, position: Vector3,
         velocity: Vector3) -> int:
@@ -415,7 +432,7 @@ func tick_physics(delta: float) -> void:
     else:
         jump_preview.clear()
     var transition := sample_rolling_surface(hit,position)
-    var regained := glacier and sample_ice_contact(hit,position,velocity)
+    var ice_transition := sample_ice_contact(hit,position,velocity) if glacier else 0
     if not event.is_empty():
         _show_landing(event,not replica)
     var control := sample_control_contact(dt,hit,position,velocity)
@@ -425,10 +442,14 @@ func tick_physics(delta: float) -> void:
         if quality > 0:
             var grade := landing_pending_grade if control == LANDING_CONTROL else ""
             _emit_ripple(hit["ground"],grade,BANK_EXIT if control == BANK_EXIT else 0,hit["normal"])
-    elif regained and event.is_empty():
-        game.audio.play_grip_return()
+    elif ice_transition != 0 and event.is_empty():
+        if ice_transition == ICE_ENTRY:
+            ice_entry_seconds = ICE_ENTRY_SECONDS
+            game.audio.play_ice_entry()
+        else:
+            game.audio.play_grip_return()
         if quality > 0:
-            _emit_ripple(hit["ground"],"",GRIP_RETURN,hit["normal"])
+            _emit_ripple(hit["ground"],"",ice_transition,hit["normal"])
     elif transition != 0 and quality > 0 and event.is_empty() and (
             Vector2(velocity.x,velocity.z).length_squared() >= 9.0):
         _emit_ripple(hit["ground"],"",transition,hit["normal"])
@@ -483,6 +504,8 @@ func _animate_ripple(index: int) -> void:
         tint = Color("#ffe3a8")
     elif transition == BANK_EXIT:
         tint = BRIDGE_TINTS[biome].lightened(0.28)
+    elif transition == ICE_ENTRY:
+        tint = Color("#36bcf1")
     tint.a = (0.89 if transition != 0 else 0.72)*ratio*ratio
     ripple.multimesh.set_instance_color(index,tint)
 
@@ -490,6 +513,7 @@ func advance_visuals(delta: float) -> void:
     if not is_finite(delta) or delta <= 0.0:
         return
     control_return_seconds = maxf(0.0,control_return_seconds-delta)
+    ice_entry_seconds = maxf(0.0,ice_entry_seconds-delta)
     for i in range(RIPPLE_POOL):
         if ripple_age[i] <= 0.0:
             continue

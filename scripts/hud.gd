@@ -1868,6 +1868,7 @@ func update_hud() -> void:
     var turbo: bool = playing and game.boosting and game.boost_energy > 0.0 and velocity.z < -3.0
     var released: float = game.race_moments.exit_speed_weight() if (
         playing and not turbo and velocity.z <= -10.0 and game.race_moments != null) else 0.0
+    var ice_entry: float = game.airtime.ice_entry_weight() if playing and velocity.z <= -6.0 else 0.0
     var target := RACE_MOMENTS.edge_intensity(-velocity.z,turbo,game.graphics_quality) if playing else 0.0
     if game.graphics_quality > 0:
         target = minf(0.195,target+0.065*released)
@@ -1876,7 +1877,7 @@ func update_hud() -> void:
     speed_stripe_opacity = move_toward(speed_stripe_opacity,target,clampf(elapsed,0.0,0.12)*0.85) if (
         playing and game.graphics_quality > 0) else 0.0
     var speed_tint := Color("#ffce8c") if turbo else Color("#9bdfff").lerp(Color("#a9ffe2"),released)
-    speed_label.self_modulate = Color.WHITE.lerp(Color("#a9ffe2"),released)
+    speed_label.self_modulate = Color.WHITE.lerp(Color("#a9ffe2"),released).lerp(Color("#80dcff"),ice_entry)
     for line in speed_stripes:
         line.visible = speed_stripe_opacity >= 0.01
         line.color = Color(speed_tint,speed_stripe_opacity)
@@ -1921,6 +1922,8 @@ func update_hud() -> void:
         boost_label.anchor_left = boost_x-0.10
         boost_label.anchor_right = boost_x+0.10
     speed_label.text = "%02d KM/H" % int(Vector2(velocity.x,velocity.z).length()*3.6)
+    if ice_entry > 0.12:
+        speed_label.text += "  /  ICE"
     if is_instance_valid(game.best_ghost):
         ghost_label.get_parent().visible = game.best_ghost.replay_available and (
             not game.net.is_active() and not countdown_label.is_visible_in_tree())
