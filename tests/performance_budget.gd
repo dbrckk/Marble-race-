@@ -88,7 +88,7 @@ func _run() -> void:
         game.ui.performance_label.get_parent().mouse_filter == Control.MOUSE_FILTER_IGNORE,
         "The P95 diagnostics must never steal Android touch input")
     game.start_race("Grip Tape")
-    assert(game.racers.size() == 40, "Maintain all 40 real rigid-body marbles")
+    assert(game.racers.size() == game.MARBLE_COUNT, "Maintain all configured real rigid-body marbles")
     assert(game.performance_budget.frame_ms.is_empty(),
         "New races reset frame pacing samples")
     var entry: MeshInstance3D = game.board.find_child("OpeningObstacleArt",true,false)
