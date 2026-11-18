@@ -105,7 +105,9 @@ func refresh(delta: float) -> void:
         var is_shutter_mark: bool = not lane.is_finite() and moments.occluded_shutter_mark.is_finite()
         if is_shutter_mark:
             lane = moments.occluded_shutter_mark
-        var separation := JumpGuides.SHUTTER_MARK_MIN_DISTANCE if is_shutter_mark else 3.7
+        var separation := 2.6 if moments.glacier_gap_marked else 3.7
+        if is_shutter_mark:
+            separation = JumpGuides.SHUTTER_MARK_MIN_DISTANCE
         if freshness and lane.is_finite() and center.z-lane.z > separation and not camera.is_position_behind(lane):
             var pointer := camera.unproject_position(lane)-Vector2(0.0,12.0) if is_shutter_mark else (
                 camera.unproject_position(lane))

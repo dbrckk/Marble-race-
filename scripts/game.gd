@@ -51,6 +51,7 @@ const MARBLE_DETAIL_NEAR_DISTANCE_SQUARED := 81.0
 const SLOPE := 0.085
 const SEGMENT_LENGTH := 12.0
 const GLACIER_EXIT_REACH := 6.0
+const GLACIER_EXIT_PREVIEW_REACH := 9.0
 const GLACIER_EXIT_WARNING_SECONDS := 0.80
 const SEGMENTS := 18
 const FINAL_OBSTACLE_SECTION := SEGMENTS-4
@@ -478,7 +479,8 @@ func pack_hazard_ahead(at: Vector3, velocity: Vector3) -> Vector3:
     return target
 
 func glacier_shutter_exit_active(z: float) -> bool:
-    return selected_track == 1 and absf(z-glacier_first_shutter_z) <= GLACIER_EXIT_REACH
+    return selected_track == 1 and z >= glacier_first_shutter_z-GLACIER_EXIT_REACH and (
+        z <= glacier_first_shutter_z+GLACIER_EXIT_PREVIEW_REACH)
 
 func glacier_exit_threat(at: Vector3, velocity: Vector3) -> Dictionary:
     var speed := -velocity.z
@@ -616,6 +618,84 @@ func _evasion_span_clear(query: PhysicsShapeQueryParameters3D, start: Vector3, e
     query.motion = end-start
     var travel := space.cast_motion(query)
     return travel.size() >= 2 and travel[0] >= 0.999
+
+func glacier_exit_lane(at: Vector3, velocity: Vector3, threat: Dictionary) -> Vector3:
+    var speed := -velocity.z
+    if threat.is_empty() or speed < 5.0 or not velocity.is_finite() or not at.is_finite() or (
+            not glacier_shutter_exit_active(at.z) or airtime.airborne or airtime.ice_touching or (
+            shortcut_route.on_separate_deck(at) or airtime.bridge_grounded or (
+                absf(at.y-height_at(at.z)-Racer.RADIUS) > 0.28))):
+        return Vector3.INF
+    var blocker: Vector3 = threat["position"]
+    var nose_z: float = 2.0*blocker.z-float(threat["last_z"])+0.04
+    var steering_time := (at.z-nose_z)/speed
+    if steering_time < 0.22 or at.z-blocker.z < 2.6:
+        return Vector3.INF
+    var shutter := RaceDirector.GLACIER_FIRST_SHUTTER
+    var shutter_eta := (at.z-glacier_first_shutter_z)/speed
+    var half_window := (RaceDirector.BODY_DEPTH*0.5+Racer.RADIUS)/speed
+    var shutter_ahead := shutter_eta+half_window >= 0.0
+    if shutter_ahead and race_director.glacier_shutter_threatens_crossing(
+            shutter,shutter_eta,speed,at.x,velocity.x):
+        return Vector3.INF
+
+    # Leave one forecast interval for the player to see the cue, then require
+    # room to settle the lateral movement before the blocker’s front face.
+    const REACTION_SECONDS := 0.10
+    var duration := steering_time-REACTION_SECONDS
+    var start_x := at.x+velocity.x*REACTION_SECONDS
+    var max_accel := Racer.human_steering_force(1.0,velocity.z,velocity.x,1)*0.72/player.mass
+    var center := track_center_at(blocker.z)
+    var query := PhysicsShapeQueryParameters3D.new()
+    query.shape = evasion_probe
+    query.collision_mask = 1
+    query.margin = 0.04
+    var ignored: Array[RID] = airtime.ignored_rids.duplicate()
+    ignored.append(race_director.obstacles[shutter].get_rid())
+    query.exclude = ignored
+    var best := Vector3.INF
+    var best_cost := INF
+    for offset in [0.0,-0.55,0.55,-1.10,1.10,-1.65,1.65,-2.20,2.20,-2.75,2.75]:
+        var lane_x: float = center+offset
+        var cost := absf(lane_x-start_x)
+        # Cubic steering path with the measured approach velocity and zero
+        # sideways speed through the gap. Acceleration peaks at an endpoint.
+        var displacement := lane_x-start_x
+        var start_accel := (6.0*displacement-4.0*velocity.x*duration)/(duration*duration)
+        var end_accel := (-6.0*displacement+2.0*velocity.x*duration)/(duration*duration)
+        if cost >= best_cost or maxf(absf(start_accel),absf(end_accel)) > max_accel:
+            continue
+        var path_x := func(t: float) -> float:
+            if t <= REACTION_SECONDS:
+                return at.x+velocity.x*t
+            var u := minf(1.0,(t-REACTION_SECONDS)/duration)
+            return start_x+displacement*u*u*(3.0-2.0*u)+velocity.x*duration*u*(1.0-u)*(1.0-u)
+        if shutter_ahead:
+            var first := maxf(0.0,shutter_eta-half_window)
+            var last := shutter_eta+half_window
+            var lanes := Vector2(INF,-INF)
+            for fraction in [0.0,0.25,0.5,0.75,1.0]:
+                var t := lerpf(first,last,fraction)
+                var gap: float = path_x.call(t)-race_director.position_at(shutter,race_director.clock+t).x
+                lanes = Vector2(minf(lanes.x,gap),maxf(lanes.y,gap))
+            if lanes.x < RaceDirector.LANE_THREAT_RADIUS and lanes.y > -RaceDirector.LANE_THREAT_RADIUS:
+                continue
+        var previous := Vector3(at.x,height_at(at.z)+0.53,at.z)
+        var clear := true
+        for part in range(1,5):
+            var t := REACTION_SECONDS+duration*float(part-1)/3.0
+            var z := at.z-speed*t
+            var sample := Vector3(path_x.call(t),height_at(z)+0.53,z)
+            if not _evasion_span_clear(query,previous,sample):
+                clear = false
+                break
+            previous = sample
+        # Clear the blocker’s entire depth and leave space for the next turn.
+        var exit_z := blocker.z-2.4
+        if clear and _evasion_span_clear(query,previous,Vector3(lane_x,height_at(exit_z)+0.53,exit_z)):
+            best = Vector3(lane_x,height_at(blocker.z)+0.53,blocker.z)
+            best_cost = cost
+    return best
 
 func current_timeout() -> float:
     return RACE_TIMEOUT + selected_track * 24.0

@@ -154,6 +154,7 @@ func _verify() -> void:
                 return
             if track == 1:
                 assert(await _verify_shutter_mark(game))
+                assert(await _verify_glacier_exit_gap(game))
             if track == 1 and layout == 0 and not await _verify_evasion(game):
                 quit(1)
                 return
@@ -171,6 +172,7 @@ func _verify() -> void:
     print("PACK_DYNAMICS_PASS: 9 real courses, 40 marbles, high-deck exclusion, adaptive original audio and duel framing")
     print("PACK_OBSTACLE_READABILITY_PASS: 9 layouts, real obstacle projection, sightline overlap and touch-safe clearance")
     print("GLACIER_CENTER_MARK_PASS: batched real road paint and occlusion-only camera overlay on three layouts")
+    print("GLACIER_EXIT_GAP_PASS: three layouts at 23 m/s, shutter priority, touch HUD and downstream collision")
     print("EVASION_PREVIEW_PASS: real moving gate, projected lane, downstream physical obstruction and stale cue cleanup")
     print("EXIT_SPEED_PASS: grounded recovery, consecutive obstacles, stable speed, turbo and round reset")
     quit(0)
@@ -263,6 +265,73 @@ func _verify_shutter_mark(game: Node3D) -> bool:
     assert(not locator.evasion_center.is_finite())
     game.race_moments.reset_round()
     assert(not game.race_moments.occluded_shutter_mark.is_finite())
+    return true
+
+func _verify_glacier_exit_gap(game: Node3D) -> bool:
+    for frame in range(4):
+        await physics_frame
+    var layout: int = game.built_variation
+    var director: Node3D = game.race_director
+    var player: RigidBody3D = game.player
+    var gate_z: float = game.glacier_first_shutter_z
+    var distance: float = [7.9,6.9,8.9][layout]
+    var z := gate_z+distance
+    var x: float = game.track_center_at(z)+[0.8,2.0,1.2][layout]
+    var at := Vector3(x,game.height_at(z)+0.39,z)
+    var velocity := Vector3(-2.6 if layout == 1 else 2.6,0.0,-23.0)
+    var phase: float = director.period()*(5.0/12.0 if layout == 2 else 0.0)
+    director.animate(phase)
+    game.cam_mode = 0
+    game.airtime.reset_round()
+    player.global_position = at
+    player.linear_velocity = velocity
+    game.race_moments.reset_round()
+    game.race_moments.tick(0.12)
+    var threat: Dictionary = game.race_moments.glacier_exit_threat
+    var lane: Vector3 = game.race_moments.evasion_target
+    assert(not threat.is_empty() and lane.is_finite() and game.race_moments.glacier_gap_marked)
+    assert(signf(lane.x-at.x) == (-1.0 if layout == 1 else 1.0))
+    game._update_camera(0.016,true)
+    game.ui.label_timer = 0.25
+    game.ui.update_hud()
+    assert(game.ui.timed_gate_label.visible and game.ui.timed_gate_label.text.contains(
+        "GAP LEFT" if layout == 1 else "GAP RIGHT"))
+    assert(game.ui.player_locator.evasion_center.is_finite())
+
+    var shutter: int = director.GLACIER_FIRST_SHUTTER
+    var straight := Vector3(0.0,0.0,-23.0)
+    var shutter_blocks := false
+    for phase_step in range(24):
+        var clock: float = director.period()*float(phase_step)/24.0
+        director.animate(clock)
+        var shutter_position: Vector3 = director.position_at(shutter,clock+distance/23.0)
+        var blocked_at := Vector3(shutter_position.x,at.y,z)
+        var blocked_threat: Dictionary = game.glacier_exit_threat(blocked_at,straight)
+        if blocked_threat.is_empty():
+            continue
+        assert(director.glacier_shutter_threatens_crossing(shutter,distance/23.0,23.0,blocked_at.x,0.0))
+        assert(not game.glacier_exit_lane(blocked_at,straight,blocked_threat).is_finite())
+        shutter_blocks = true
+        break
+    assert(shutter_blocks)
+    director.animate(phase)
+    game.airtime.ice_touching = true
+    assert(not game.glacier_exit_lane(at,velocity,threat).is_finite())
+    game.airtime.ice_touching = false
+
+    var blocked_z := lane.z-1.5
+    var barrier: Node3D = game._box(game.board,Vector3(game.track_center_at(blocked_z),
+        game.height_at(blocked_z)+1.10,blocked_z),Vector3(12.0,2.2,0.35),null,true,false,false)
+    for frame in range(3):
+        await physics_frame
+    player.global_position = at
+    player.linear_velocity = velocity
+    game.race_moments.tick(0.12)
+    assert(not game.race_moments.glacier_gap_marked and not game.race_moments.evasion_target.is_finite(),
+        "A collision behind the first blocker must withhold the opening")
+    barrier.queue_free()
+    game.race_moments.reset_round()
+    assert(not game.race_moments.glacier_gap_marked)
     return true
 
 func _verify_evasion(game: Node3D) -> bool:

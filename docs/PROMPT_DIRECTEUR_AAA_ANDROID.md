@@ -534,6 +534,10 @@ Des chevrons ambrés soulignent les portions sèches de la voie centrale. Leur s
 
 Les obstacles fixes proches de la sortie sont relevés à partir des dimensions de leurs colliders. Le jeu projette la trajectoire au sol jusqu’à 0,8 s pour afficher le premier plot, poteau ou bloc que cette trajectoire risque de rencontrer. Le compte à rebours vise l’entrée dans le volume de contact et peut apparaître avant le volet quand celui-ci laisse la voie libre. Le volet conserve la priorité lorsqu’il menace la trajectoire. Le repère réutilise le HUD et l’indication d’obstacle masqué existants.
 
+### 2026-11-18 — Passage entre les obstacles à la sortie du premier volet (1.143.0-rc)
+
+Sur les trois tracés de Glacier, la caméra de poursuite cadre une ouverture signalée par les chevrons turquoise existants. L’interface indique de quel côté elle se trouve. Le calcul tient compte de la dérive, du temps de réaction et de la capacité de braquage de la bille. Il vérifie le balayage du volet et sonde les colliders jusqu’à la sortie complète du passage. Si le volet menace la trajectoire ou si la bille est encore sur la glace, le repère d’ouverture reste masqué.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Visualiser l’ouverture entre les plots après le premier volet lorsqu’une trajectoire d’évitement physiquement praticable est détectée. Mesurer le mix et la fluidité du peloton sur un téléphone Android dès qu’il est disponible.
+Reprendre la lecture du piston et des évents sur Forge à la sortie du pont dans un peloton serré. Mesurer le mix et la fluidité sur un téléphone Android dès qu’il est disponible.

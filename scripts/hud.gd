@@ -2167,6 +2167,10 @@ func update_hud() -> void:
         var timing := "NOW" if exit_eta < 0.10 else "%.1fs" % exit_eta
         hazard_label.hide()
         biome_lane_label.hide()
+        if duel.glacier_gap_marked:
+            var gap_delta: float = duel.evasion_target.x-game.player.global_position.x
+            if absf(gap_delta) >= 0.35:
+                title += "  •  GAP "+("LEFT" if gap_delta < 0.0 else "RIGHT")
         timed_gate_label.text = "%s  •  %s" % [title,timing]
         timed_gate_label.add_theme_color_override("font_color",Color("#ffae91"))
         timed_gate_label.show()

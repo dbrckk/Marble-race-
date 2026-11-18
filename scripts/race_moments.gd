@@ -62,6 +62,7 @@ var merge_traffic := 0
 var occluded_hazard := Vector3.INF
 var occluded_shutter_mark := Vector3.INF
 var glacier_exit_threat: Dictionary = {}
+var glacier_gap_marked := false
 var evasion_target := Vector3.INF
 var exit_gate_z := INF
 var exit_deadline := 0.0
@@ -167,6 +168,7 @@ func reset_round() -> void:
     occluded_hazard = Vector3.INF
     occluded_shutter_mark = Vector3.INF
     glacier_exit_threat.clear()
+    glacier_gap_marked = false
     evasion_target = Vector3.INF
     _clear_exit_sample()
     exit_feedback_left = 0.0
@@ -262,6 +264,7 @@ func tick(delta: float) -> void:
         occluded_hazard = Vector3.INF
         occluded_shutter_mark = Vector3.INF
         glacier_exit_threat.clear()
+        glacier_gap_marked = false
         evasion_target = Vector3.INF
         _clear_exit_sample()
         exit_feedback_left = 0.0
@@ -297,6 +300,7 @@ func tick(delta: float) -> void:
     occluded_hazard = Vector3.INF
     occluded_shutter_mark = Vector3.INF
     glacier_exit_threat.clear()
+    glacier_gap_marked = false
     evasion_target = Vector3.INF
     var candidate := Vector3.INF
     var shutter_mark := Vector3.INF
@@ -323,7 +327,11 @@ func tick(delta: float) -> void:
             game.airtime.course_grounded and not game.airtime.airborne),game.boosting)
         if game.cam_mode == 0 and is_instance_valid(game.camera):
             candidate = next_hazard
-            evasion_target = game.evasion_lane(p,preview_velocity,candidate)
+            if not glacier_exit_threat.is_empty() and candidate == glacier_exit_threat["position"]:
+                evasion_target = game.glacier_exit_lane(p,preview_velocity,glacier_exit_threat)
+                glacier_gap_marked = evasion_target.is_finite()
+            else:
+                evasion_target = game.evasion_lane(p,preview_velocity,candidate)
             eyes = game.camera.global_position
             if game.selected_track == 1 and preview_speed >= 5.0 and not player_on_bridge and (
                     absf(p.y-game.height_at(p.z)-0.39) <= 0.50 and not evasion_target.is_finite()):
