@@ -32,7 +32,7 @@ func _run() -> void:
     radar.elapsed = 0.0
     radar.sample(0.02)
     assert(radar.updates == launch_updates, "Radar must not update on every rendered frame")
-    radar.sample(0.10)
+    radar.sample(Radar.UPDATE_PERIOD)
     assert(radar.updates == launch_updates+1 and radar.last_count == 40,
         "Radar must show all 40 physical competitors")
     assert(radar.player_id >= 0 and radar.player_id < 40,
@@ -40,7 +40,7 @@ func _run() -> void:
     assert(radar.positions[radar.player_id] >= 0.0)
     var player = game.player
     player.global_position.z = -92.5
-    radar.sample(0.12)
+    radar.sample(Radar.UPDATE_PERIOD)
     assert(is_equal_approx(radar.positions[radar.player_id],0.5),
         "Actual marble position, not rankings, drives the player marker")
     game.return_to_menu()
@@ -51,7 +51,7 @@ func _run() -> void:
     game.set_graphics_quality(0)
     game.countdown = 0.01
     game._process(1.0/60.0)
-    radar.sample(0.12)
+    radar.sample(Radar.UPDATE_PERIOD)
     assert(radar.last_count == 40,
         "Economy devices must retain useful race-position information")
     game.return_to_menu()
@@ -59,5 +59,5 @@ func _run() -> void:
     await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_race_radar.cfg"))
-    print("RACE_RADAR_PASS: 40 racers, genuine physical progress, touch-safe 10Hz UI")
+    print("RACE_RADAR_PASS: 40 racers, genuine physical progress, touch-safe throttled UI")
     quit()

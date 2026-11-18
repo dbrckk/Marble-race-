@@ -127,6 +127,10 @@ var rare_item_label: Label
 var biome_lane_label: Label
 var shortcut_label: Label
 var driving_cue_backgrounds: Dictionary[Label,Panel] = {}
+# Cache only typography measurements; the cue visibility still follows the
+# live hazard state. Avoid repeatedly shaping the same text on Android.
+var driving_cue_measure_cache: Dictionary[Label,String] = {}
+var locator_sample_time := 0.0
 var bridge_approach_active := false
 var woodworks_guide_label: Label
 var woodworks_guide_seen := false
@@ -235,9 +239,22 @@ func _action(value: String, fill: Color = Color("#343947"), font_color: Color = 
     button.add_theme_font_size_override("font_size", 23)
     button.add_theme_color_override("font_color", font_color)
     button.add_theme_color_override("font_hover_color", font_color)
-    button.add_theme_stylebox_override("normal", _surface(fill))
-    button.add_theme_stylebox_override("hover", _surface(fill.lightened(0.12)))
-    button.add_theme_stylebox_override("pressed", _surface(fill.darkened(0.18)))
+    button.add_theme_color_override("font_pressed_color", font_color)
+    # Distinct interactive states and a restrained inset highlight give the
+    # mobile menu physical depth without blur or postprocessing passes.
+    var normal_style := _surface(fill,fill.lightened(0.22),11)
+    normal_style.border_width_bottom = 3
+    normal_style.shadow_color = Color("#060c13",0.32)
+    normal_style.shadow_size = 2
+    var hover_style := _surface(fill.lightened(0.11),fill.lightened(0.36),11)
+    hover_style.border_width_bottom = 3
+    var pressed_style := _surface(fill.darkened(0.16),fill.lightened(0.12),11)
+    pressed_style.border_width_top = 3
+    pressed_style.border_width_bottom = 1
+    button.add_theme_stylebox_override("normal",normal_style)
+    button.add_theme_stylebox_override("hover",hover_style)
+    button.add_theme_stylebox_override("pressed",pressed_style)
+    button.add_theme_stylebox_override("disabled",_surface(fill.darkened(0.32)))
     button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
     button.pressed.connect(func(): game.audio.ui_click())
     return button
@@ -256,7 +273,11 @@ func _column(gap: int = 12) -> VBoxContainer:
 
 func _panel() -> PanelContainer:
     var panel = PanelContainer.new()
-    panel.add_theme_stylebox_override("panel", _surface(PANEL, Color(1,1,1,0.13), 18))
+    var card := _surface(Color("#101b28",0.96),Color("#66869b",0.42),16)
+    card.border_width_top = 2
+    card.shadow_color = Color("#050a10",0.42)
+    card.shadow_size = 5
+    panel.add_theme_stylebox_override("panel",card)
     return panel
 
 func _build_menu() -> void:
@@ -264,7 +285,7 @@ func _build_menu() -> void:
     menu_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
     root.add_child(menu_layer)
     var dark = ColorRect.new()
-    dark.color = Color(0.025,0.015,0.025,0.16)
+    dark.color = Color("#07101b",0.45)
     dark.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
     dark.mouse_filter = Control.MOUSE_FILTER_IGNORE
     menu_layer.add_child(dark)
@@ -276,7 +297,7 @@ func _build_menu() -> void:
     menu_layer.add_child(panel)
     var col = _column(13)
     panel.add_child(col)
-    col.add_child(_text("THE TABLETOP ROYALE", 15, ORANGE))
+    col.add_child(_text("THE TABLETOP ROYALE  /  SEASON 01", 15, ORANGE))
     var title = _text("MARBLE\nRACE", 63, Color.WHITE)
     title.add_theme_color_override("font_shadow_color", Color(0,0,0,0.65))
     col.add_child(title)
@@ -1038,8 +1059,10 @@ func _build_race_hud() -> void:
     timed_gate_backdrop.anchor_top = 0.296
     timed_gate_backdrop.anchor_bottom = 0.344
     timed_gate_backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
-    timed_gate_backdrop.add_theme_stylebox_override("panel",
-        _surface(Color("#281d24"),Color("#de836b"),8))
+    var danger_style := _surface(Color("#2b1b24",0.94),
+        Color("#ff9a75",0.86),8)
+    danger_style.border_width_left = 4
+    timed_gate_backdrop.add_theme_stylebox_override("panel",danger_style)
     timed_gate_backdrop.hide()
     hud_layer.add_child(timed_gate_backdrop)
     timed_gate_label = _text("",19,Color("#f6d49b"))
@@ -1101,8 +1124,10 @@ func _build_race_hud() -> void:
     race_notification_backdrop.anchor_top = 0.367
     race_notification_backdrop.anchor_bottom = 0.474
     race_notification_backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
-    race_notification_backdrop.add_theme_stylebox_override("panel",
-        _surface(PANEL,Color(1,1,1,0.20),10))
+    var notification_style := _surface(Color("#101b28",0.91),
+        Color("#f2c684",0.75),9)
+    notification_style.border_width_left = 3
+    race_notification_backdrop.add_theme_stylebox_override("panel",notification_style)
     race_notification_backdrop.hide()
     hud_layer.add_child(race_notification_backdrop)
     position_feedback = _text("",22,Color("#a7f0d8"))
@@ -2005,7 +2030,20 @@ func _update_woodworks_guide(route_mode: String, turbo_ahead: bool, urgent: bool
 
 func update_hud() -> void:
     var elapsed: float = get_process_delta_time()
-    player_locator.refresh(elapsed)
+    # The 3D-to-screen locator performs several camera projections and
+    # hazard checks. 30 Hz remains responsive on 60/120 Hz displays while
+    # reducing CPU work and CanvasItem invalidations during 40-marble races.
+    locator_sample_time += maxf(0.0,elapsed)
+    # Safety-critical opening guidance must appear and disappear on the
+    # same HUD tick as the physical hazard state. Only routine tracking is
+    # sampled at 30 Hz; urgent route cues bypass the rate limiter.
+    var urgent_locator: bool = game.race_moments != null and (
+        not game.race_moments.opening_guidance.is_empty() or
+        game.race_moments.evasion_target.is_finite() or
+        player_locator.evasion_center.is_finite())
+    if urgent_locator or locator_sample_time >= 1.0/30.0:
+        player_locator.refresh(locator_sample_time)
+        locator_sample_time = 0.0
     var velocity := Vector3.ZERO
     if is_instance_valid(game.player):
         velocity = game.net.local_replica_velocity() if game.net.is_client() else game.player.linear_velocity
@@ -2044,9 +2082,13 @@ func update_hud() -> void:
         speed_label.self_modulate = Color("#ffe3a8")
     elif ice_impact:
         speed_label.self_modulate = Color("#ffb2b9")
+    var stripe_visible := speed_stripe_opacity >= 0.01
+    var stripe_color := Color(speed_tint,speed_stripe_opacity)
     for line in speed_stripes:
-        line.visible = speed_stripe_opacity >= 0.01
-        line.color = Color(speed_tint,speed_stripe_opacity)
+        if line.visible != stripe_visible:
+            line.visible = stripe_visible
+        if stripe_visible and line.color != stripe_color:
+            line.color = stripe_color
     overtake_chain_seconds = maxf(0.0,overtake_chain_seconds-elapsed)
     _update_rival_marker()
     if is_instance_valid(race_radar):
@@ -2605,8 +2647,13 @@ func _refresh_driving_cue_background(cue: Label) -> void:
     background.visible = cue.visible and not cue.text.is_empty() and not on_urgent_panel
     if not background.visible:
         return
-    var font := cue.get_theme_font("font")
     var font_size := cue.get_theme_font_size("font_size")
+    var measure_key := "%s|%d|%.1f|%.1f" % [
+        cue.text,font_size,cue.size.x,cue.size.y]
+    if driving_cue_measure_cache.get(cue,"") == measure_key:
+        return
+    driving_cue_measure_cache[cue] = measure_key
+    var font := cue.get_theme_font("font")
     var text_width := font.get_string_size(cue.text,HORIZONTAL_ALIGNMENT_LEFT,-1,font_size).x
     var text_height := float(cue.get_line_height())*maxi(1,cue.get_line_count())
     background.size = Vector2(minf(cue.size.x,text_width+22.0),minf(cue.size.y,text_height+6.0))
