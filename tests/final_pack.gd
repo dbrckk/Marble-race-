@@ -26,7 +26,11 @@ func _run() -> void:
     assert(game.set_track(1))
     assert(_check_clearance_modes(game,1,0,"Course_14/RideableCrest_14",-158.5))
     assert(game.set_track(2))
-    assert(_check_clearance_modes(game,2,2,"Course_14/RideableCrest_14",-158.5))
+    # All solo Forge variants now move the final crest beyond the bank;
+    # network matches retain the deployed collider position.
+    for layout in range(3):
+        assert(_check_clearance_modes(game,2,layout,
+            "Course_14/RideableCrest_14",-158.5))
     assert(_check_clearance_modes(game,2,0,"Course_12/SwingHammer_12",-137.6,1.0))
     DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_final_pack_career.cfg"))
     game.queue_free()
