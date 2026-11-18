@@ -78,6 +78,14 @@ static func camera_pose(position: Vector3, velocity: Vector3,
             focus = position+Vector3(
                 bend*0.72+clampf(velocity.x*0.10,-0.7,0.7),
                 0.25,-5.6-lead*0.70)
+    # Reveal more of the actual track before a high-speed hazard. This is
+    # a camera-only focus adjustment: no new raycasts or physics impulses.
+    # The additional lookahead is deliberately capped to keep the player
+    # marble visible on small landscape Android screens.
+    if camera_mode == 0 and risk > 0.0:
+        var anticipation: float = risk*clampf((-velocity.z-7.0)/17.0,0.0,1.0)
+        focus += Vector3(bend*0.12*anticipation,0.18*anticipation,
+            -2.0*anticipation)
     # Lift the chase framing gently while the REAL marble is airborne.
     # Overhead/user alternate cameras are immutable; no camera physics.
     var air: float = clampf(airborne_weight,0.0,1.0) if (
