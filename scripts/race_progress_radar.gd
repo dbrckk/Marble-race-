@@ -1,5 +1,5 @@
 extends Control
-## Race progress sampled at 10 Hz. The opponent dots share one 2D draw.
+## Race progress sampled at ~6.7 Hz for mobile. The 39 opponent dots share one 2D draw.
 const FINISH_Z := -185.0
 const DOT_SIDES := 12
 # Opponent positions are deliberately sampled below render frequency: the 2D
