@@ -245,9 +245,12 @@ func _run() -> void:
                 "Only BALANCED and ULTRA are allowed speed streaks")
             assert(streak.color.a <= 0.20,
                 "Speed streaks must not obscure track visibility")
-    stage.ui.show_race_moment("TEST",0.1)
+    # The photo-finish fixture owns the banner until its timer expires.
+    stage.ui.moment_remaining = 0.0
+    stage.ui.toast_remaining = 0.0
+    stage.ui.show_race_moment("TEST",0.9)
     stage.ui.update_hud()
-    assert(stage.ui.race_moment_label.visible)
+    assert(stage.ui.race_moment_label.visible and stage.ui.race_moment_label.text == "TEST")
     # Solo results show presentation stats, but no online rewards are
     # credited from this locally computed number.
     stage.last_result = {"finished":true,"stars":1,
