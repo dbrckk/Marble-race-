@@ -270,22 +270,23 @@ func drive(delta: float, elapsed: float, steering: float, boosting: bool) -> voi
             # attempt an overtake from the central open part of the road.
             # No lateral passing decision is made at a genuine hazard gate.
             var traffic_center: float = course_owner.track_center_at(position.z)
-            var next_hazard: Dictionary = course_owner.upcoming_hazard(position.z)
-            # Do not start a lateral passing manoeuvre that cannot finish
-            # before a moving gate. Preview distance scales with forward
-            # velocity, with a short fixed minimum for slow-moving packs.
-            var hazard_clearance: float = clampf(
-                maxf(0.0,-linear_velocity.z)*0.65+2.5,4.0,15.0)
-            var hazard_near: bool = not next_hazard.is_empty() and (
-                float(next_hazard.get("distance",999.0)) >= 0.0 and
-                float(next_hazard.get("distance",999.0)) < hazard_clearance)
-            # Keep start-grid collisions, both route portals, jumps and
-            # their AI approach entirely unchanged. Tactical side choices
-            # belong in the run home where a passing duel matters most.
+            # Most racers are outside the overtaking corridor. Reject those
+            # first, before scanning the course's hazard index every tick.
             var traffic_safe: bool = position.z < -108.0 and (
                 not wants_shortcut()) and (
                 absf(position.x-traffic_center) < 2.15) and (
-                absf(ai_lane_goal) < 1.9) and not hazard_near
+                absf(ai_lane_goal) < 1.9)
+            if traffic_safe:
+                # At racing speed, a manoeuvre needs more clearance than at
+                # low speed. Only eligible overtakers query the hazard index.
+                var hazard_clearance: float = clampf(
+                    maxf(0.0,-linear_velocity.z)*0.65+2.5,4.0,15.0)
+                var next_hazard: Dictionary = course_owner.upcoming_hazard(position.z)
+                if not next_hazard.is_empty():
+                    var hazard_distance: float = float(next_hazard.get(
+                        "distance",999.0))
+                    traffic_safe = hazard_distance < 0.0 or (
+                        hazard_distance >= hazard_clearance)
             if traffic_safe:
                 # Staggered 2.5-3 Hz scans; no physics simulation or network
                 # traffic added. Blend rather than snapping between lines.
