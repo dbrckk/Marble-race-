@@ -17,6 +17,7 @@ var layout := 0
 var bodies: Array[StaticBody3D] = []
 var cylinders: MultiMeshInstance3D
 var waistbands: MultiMeshInstance3D
+var approach_markers: MultiMeshInstance3D
 var glow_rings: MultiMeshInstance3D
 # Reuse the 12 instanced rings already drawn on mobile. A physical
 # body_entered event refreshes only its own pair of rings; no new meshes,
@@ -117,6 +118,22 @@ func setup(owner: Node3D, track: int, next_layout: int) -> void:
                 post_transform.origin+Vector3(0.0,collar_height,0.0)))
     waistbands = _batch("SpringMachinedWaistbands",trim_mesh,trim_material,
         trim_transforms)
+    # Forward warning geometry: visible before contact, no physics cost.
+    var marker_mesh := PrismMesh.new()
+    marker_mesh.size = Vector3(0.64,0.09,0.46)
+    var marker_paint := StandardMaterial3D.new()
+    marker_paint.albedo_color = COLORS[biome].lightened(0.22)
+    marker_paint.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    marker_paint.emission_enabled = true
+    marker_paint.emission = COLORS[biome]
+    marker_paint.emission_energy_multiplier = 0.30
+    var marker_transforms: Array[Transform3D] = []
+    for post_transform in posts:
+        var position: Vector3 = post_transform.origin
+        marker_transforms.append(Transform3D(Basis(),Vector3(
+            position.x,position.y-HEIGHT*0.5+0.065,position.z+1.12)))
+    approach_markers = _batch("SpringApproachChevrons",marker_mesh,
+        marker_paint,marker_transforms)
     var torus := TorusMesh.new()
     # A thin halo remains legible without obscuring the track edge.
     torus.inner_radius = 0.73
@@ -226,6 +243,8 @@ func set_quality(quality: int) -> void:
     # trim and animated glow to reduce geometry and fragment workload.
     if is_instance_valid(waistbands):
         waistbands.visible = quality_level > 0
+    if is_instance_valid(approach_markers):
+        approach_markers.visible = quality_level > 0
     if is_instance_valid(glow_rings):
         glow_rings.visible = quality_level > 0
         if quality_level > 0:
