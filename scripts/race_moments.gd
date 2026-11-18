@@ -66,6 +66,7 @@ var nearby_pack_count := 0
 var pack_pressure := 0.0
 var turn_weight := 0.0
 var merge_traffic := 0
+var merge_threat_count := 0
 var merge_rival: RigidBody3D
 var occluded_hazard := Vector3.INF
 var occluded_hazard_kind := ""
@@ -227,6 +228,7 @@ func reset_round() -> void:
     pack_pressure = 0.0
     turn_weight = 0.0
     merge_traffic = 0
+    merge_threat_count = 0
     merge_rival = null
     occluded_hazard = Vector3.INF
     occluded_hazard_kind = ""
@@ -333,6 +335,7 @@ func tick(delta: float) -> void:
         pack_pressure = 0.0
         turn_weight = 0.0
         merge_traffic = 0
+        merge_threat_count = 0
         merge_rival = null
         occluded_hazard = Vector3.INF
         occluded_hazard_kind = ""
@@ -380,6 +383,7 @@ func tick(delta: float) -> void:
     var merge_distance := 0.0
     var merge_score := INF
     merge_traffic = 0
+    merge_threat_count = 0
     merge_rival = null
     occluded_hazard = Vector3.INF
     occluded_hazard_kind = ""
@@ -532,24 +536,28 @@ func tick(delta: float) -> void:
             if fork_bridge.is_finite() and covers_hazard(eyes,fork_bridge,opponent):
                 occluded_fork_bridge = fork_bridge
                 fork_bridge = Vector3.INF
+        # The physical merge window is independent of the 12 m duel HUD.
+        # Count all conflicts; highlight the rival with the closest crossing.
+        if merge_lane != 0 and absf(offset.y) <= 1.5 and (
+                not local_race or not marble.freeze) and (
+                road.merge_traffic_lane(opponent) == -merge_lane):
+            var score := INF
+            if (game.selected_track == 0 or game.selected_track == 2) and local_race:
+                score = road.merge_conflict_score(
+                    p.z,own_forward,opponent.z,-marble.linear_velocity.z)
+            elif absf(gap) <= merge_distance:
+                score = absf(gap)
+            if is_finite(score):
+                merge_threat_count += 1
+                if score < merge_score:
+                    merge_score = score
+                    merge_traffic = merge_lane
+                    merge_rival = marble
         if not nearby:
             ahead.erase(id)
             crossed_nearby.erase(id)
             previous_offsets.erase(id)
             continue
-        if merge_lane != 0 and absf(offset.y) <= 1.5 and (not local_race or not marble.freeze):
-            var score := INF
-            if (game.selected_track == 0 or game.selected_track == 2) and local_race:
-                # Predict the crossing time at Forge as well as Woodworks.
-                # A fast marble approaching from behind can reach the join
-                # before a nearby but slower rival on the other deck.
-                score = road.merge_conflict_score(p.z,own_forward,opponent.z,-marble.linear_velocity.z)
-            elif merge_traffic == 0 and absf(gap) <= merge_distance:
-                score = absf(gap)
-            if score < merge_score and road.merge_traffic_lane(opponent) == -merge_lane:
-                merge_score = score
-                merge_traffic = merge_lane
-                merge_rival = marble
         if same_route:
             if is_finite(opening_eta) and gap <= 5.0 and absf(offset.y) <= 0.90:
                 opening_rivals.append(marble)
