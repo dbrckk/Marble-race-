@@ -2001,9 +2001,16 @@ func update_hud() -> void:
     var target := RACE_MOMENTS.edge_intensity(-velocity.z,turbo,game.graphics_quality) if playing else 0.0
     if game.graphics_quality > 0:
         target = minf(0.195,target+0.065*released)
+        # Short visual surge after a confirmed pass, without changing
+        # speed, collision response or authoritative race state.
+        if playing and overtake_chain_seconds > 0.0:
+            target = minf(0.195,target+0.035*clampf(overtake_chain_seconds/0.38,0.0,1.0))
     if player_locator.hazard_center.is_finite() or player_locator.evasion_center.is_finite():
         target *= 0.55
-    speed_stripe_opacity = move_toward(speed_stripe_opacity,target,clampf(elapsed,0.0,0.12)*0.85) if (
+    # Time-based interpolation makes the effect consistent at 30/60/120 FPS.
+    # Fade faster when the race ends so no stripes linger in the results UI.
+    var stripe_step := clampf(elapsed,0.0,0.12)*(1.5 if target < speed_stripe_opacity else 0.85)
+    speed_stripe_opacity = move_toward(speed_stripe_opacity,target,stripe_step) if (
         playing and game.graphics_quality > 0) else 0.0
     var speed_tint := Color("#ffce8c") if turbo else Color("#9bdfff").lerp(Color("#a9ffe2"),released)
     speed_label.self_modulate = Color.WHITE.lerp(Color("#a9ffe2"),released).lerp(
