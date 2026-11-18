@@ -470,6 +470,10 @@ Base `e19f7c76817b0714284c784d851f8cef6d3a6400`. Les ponts ont des portiques en 
 
 Base `f06548a1b02acfd30bdc43b66d4956390e5a9fdd`. En solo, la sonde d’envol confirme le matériau sur deux relevés du sol. Le son passe en fondu de la piste au bois, à la glace ou à l’acier et revient à la piste au raccord. Le roulement s’atténue en saut. Les passages activent un anneau bref à la surface et la traînée standard reprend la couleur du pont au contact. L’anneau réutilise le lot d’atterrissage existant. Le budget supplémentaire est une voix de roulement pour le joueur local.
 
+### 2026-11-18 — Retour de surface des ponts en ligne (1.127.0-rc)
+
+Base `6be2b1671518d64430fd05a2b56d7c5a925e4146`. Le client estime la vitesse de sa bille à partir des positions horodatées du serveur. La sonde de sol locale reconnaît le matériau du pont et pilote le son, la traînée et les anneaux de passage. Le client suspend le retour de roulement lors d’un retard de plus de 350 ms ou d’une correction importante. Deux clients indépendants vérifient le fondu et les anneaux à l’entrée et à la sortie du pont.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Adapter le retour de surface aux courses en ligne à partir des positions reçues. Mesurer la fluidité du peloton et le mix sonore sur un appareil Android dès qu’il est disponible.
+Vérifier la fluidité du peloton et le mix sonore sur Android. Affiner le niveau du roulement pendant un dépassement, quand le vent et les impacts se superposent.

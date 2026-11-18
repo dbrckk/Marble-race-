@@ -5,11 +5,11 @@ ROOT="${GAME_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
 LOG_DIR="${NETWORK_LOG_DIR:-/tmp/marble-online-qa}"
 mkdir -p "$LOG_DIR"
 PORT="${PORT:-28999}"
-client_args=()
+client_args=(--bridge-feedback)
 server_marker=ONLINE_SERVER_PASS
 client_marker=ONLINE_CLIENT_PASS
 if [[ -n "${GLACIER_ONLINE_LAYOUT:-}" ]]; then
-  client_args+=(--glacier-cut-in)
+  client_args=(--glacier-cut-in)
   server_marker=GLACIER_ONLINE_SERVER_PASS
   client_marker=GLACIER_ONLINE_CLIENT_PASS
 fi
@@ -47,5 +47,7 @@ grep -Fq "$client_marker" "$LOG_DIR/client2.log"
 if [[ -n "${GLACIER_ONLINE_LAYOUT:-}" ]]; then
   echo "GLACIER_ONLINE_E2E_PASS: layout $GLACIER_ONLINE_LAYOUT, 1 dedicated server, 2 independent clients"
 else
+  grep -Fq ONLINE_BRIDGE_FEEDBACK_PASS "$LOG_DIR/client1.log"
+  grep -Fq ONLINE_BRIDGE_FEEDBACK_PASS "$LOG_DIR/client2.log"
   echo "WORLDWIDE_PROTOCOL_E2E_PASS: 1 dedicated server, 2 independent clients"
 fi

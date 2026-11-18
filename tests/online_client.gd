@@ -12,11 +12,16 @@ var steering_sent := false
 var invite_printed := false
 var glacier_mode := false
 var glacier_cut_in_sent := false
+var bridge_mode := false
+var bridge_entry_seen := false
+var bridge_exit_seen := false
 
 func _initialize() -> void:
     for argument in OS.get_cmdline_user_args():
         if argument == "--glacier-cut-in":
             glacier_mode = true
+        if argument == "--bridge-feedback":
+            bridge_mode = true
         if argument.begins_with("--url="):
             url = argument.trim_prefix("--url=")
         if argument.begins_with("--mode="):
@@ -69,21 +74,37 @@ func _verify() -> void:
             game.change_steer(0.76)
             game.change_boost(true)
             steering_sent = true
+            if bridge_mode:
+                _observe_bridge_feedback()
         if began and game.net.targets_received and game.net.last_frame_time > 0.0:
             snapped = true
-        if snapped and steering_sent and game.net.ping_ms >= 0.0 and game.race_time > 1.0:
+        if snapped and steering_sent and game.net.ping_ms >= 0.0 and game.race_time > 1.0 and (
+                not bridge_mode or bridge_exit_seen):
+            if bridge_mode:
+                print("ONLINE_BRIDGE_FEEDBACK_PASS slot=",assigned_slot)
             print("ONLINE_CLIENT_PASS slot=%d 40_racers=true snapshots=true controls=true ping_ms=%d server_time=%.2f" % [
                 game.net.local_slot,int(game.net.ping_ms),game.race_time])
             game.net.leave_room()
             game.queue_free()
             quit(0)
             return
-    push_error("ONLINE_CLIENT_TIMEOUT connected=%s begun=%s snapped=%s role=%s" % [
-        str(game.net.connected),str(began),str(snapped),game.net.role])
+    push_error("ONLINE_CLIENT_TIMEOUT connected=%s begun=%s snapped=%s bridge_entry=%s bridge_exit=%s role=%s" % [
+        str(game.net.connected),str(began),str(snapped),str(bridge_entry_seen),
+        str(bridge_exit_seen),game.net.role])
     game.net.leave_room()
     game.queue_free()
     quit(4)
 
+func _observe_bridge_feedback() -> void:
+    var flight: Node3D = game.airtime
+    var sound: Node3D = game.audio
+    if flight.ripple_bridge.has(1) and flight.bridge_grounded and sound.bridge_rolling.playing:
+        assert(game.player.freeze and game.player.linear_velocity == Vector3.ZERO,
+            "Server-driven bridge presentation must not move the frozen replica")
+        assert(flight.landing_count == 0)
+        bridge_entry_seen = true
+    if bridge_entry_seen and flight.ripple_bridge.has(-1) and not sound.bridge_rolling.playing:
+        bridge_exit_seen = true
 
 func _steer_glacier_rider() -> void:
     if game.net.local_slot != 39:

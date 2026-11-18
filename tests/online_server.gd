@@ -31,7 +31,8 @@ func _run() -> void:
                 if absf(float(value)) >= 0.2:
                     controls_seen = true
         if connected_two and controls_seen and snapshots_seen:
-            print("ONLINE_SERVER_PASS: 2 clients, authoritative 40-body simulation, validated steering, snapshots")
+            await _drive_bridge_fixture(game)
+            print("ONLINE_SERVER_PASS: 2 clients, authoritative 40-body simulation, validated steering, bridge snapshots")
             # Keep the server alive while each client checks at least one full
             # second of authoritative state, so test teardown is not a disconnect race.
             for n in range(210):
@@ -46,6 +47,31 @@ func _run() -> void:
     game.queue_free()
     quit(7)
 
+func _drive_bridge_fixture(game: Node3D) -> void:
+    # Drive two distinct replica traces through the normal broadcast path
+    # after the authority has already accepted live player inputs.
+    var riders: Array[RigidBody3D] = []
+    for slot in game.net.joined_slots.values():
+        var rider: RigidBody3D = game.racers[int(slot)]
+        rider.freeze = true
+        rider.collision_layer = 0
+        rider.collision_mask = 0
+        riders.append(rider)
+    for frame in range(388):
+        if not game.net.match_running:
+            return
+        for i in range(riders.size()):
+            var z := -43.0-maxf(0.0,float(frame-18))*0.18+float(i)*0.75
+            var main_x: float = game.track_center_at(z)
+            var deck: Vector3 = game.shortcut_route.point_at(z)
+            var blend := smoothstep(0.0,1.0,(-46.0-z)/9.0)
+            blend *= smoothstep(0.0,1.0,(z+106.0)/10.0)
+            var x := lerpf(main_x,deck.x,blend)
+            var height: float = game.height_at(z)
+            if absf(x-deck.x) < 1.9:
+                height = maxf(height,deck.y+0.28)
+            riders[i].global_position = Vector3(x,height+0.40,z)
+        await physics_frame
 
 func _glacier_cut_in(game: Node3D, layout: int) -> void:
     game.net.completed_rounds = 1

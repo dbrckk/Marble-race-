@@ -4,7 +4,7 @@ Original **3D Android marble-racing game** inspired by the look and mechanics sh
 
 Independent implementation in **Godot 4.5.1**, focused on real mobile playability, physics, and stylized toy-table graphics. No proprietary material from the reference game is redistributed.
 
-## Current state: Android QA build (v1.126.0-rc, versionCode 140)
+## Current state: Android QA build (v1.127.0-rc, versionCode 141)
 
 **Playable scope (October 2026):** three visually differentiated 3D worlds with physical elevation changes, nine repeatable obstacle layouts, forty individually simulated glass marbles, real banked and elevated side-route shortcuts, six player perks, progression, ghost comparisons and optional online races. Autonomous opponents use deterministic physical steering, real route choices, anticipatory passing and forecasts of moving hazards; human steering stays entirely manual. The phone HUD previews real course geometry and estimates when Forge pistons will be open or blocked on arrival, with a nonrepeating audio danger cue. The three pistons share an illuminated shoulder beacon and matched deck markings for their current phase.
 
@@ -23,6 +23,8 @@ The three timed hazards have their own silhouettes: a banded timber arm, a chamf
 The precision bridges have bent timber frames, faceted ice fins or vented foundry frames. Their open tops keep the chase-camera sightline clear. The bridge piers and main-road vault pillars reuse one mesh per biome. Bridge braces and precision frames keep their existing render batches and the real posts still define the same racing corridor. Nine matched desktop GL Compatibility views report the same draw-call counts as the previous build.
 
 In solo play the existing airtime probe confirms contact with a real bridge floor twice before crossfading to a timber, ice or steel rolling loop. It lowers the rolling sound during a jump and fades back to the main-road loop at the merge. Short local entry and exit ripples reuse the landing pool on Balanced and Ultra. The standard trail picks up the bridge tint on contact. Build the original bridge Foley with `python3 tools/generate_bridge_foley.py` (NumPy and FFmpeg).
+
+Online clients use two fresh server positions to estimate the speed of their own marble. The same nearby floor probe drives the bridge crossfade, trail and transition ripples. Stalled snapshots and large corrections suspend these effects until the visible marble catches up. The local WebSocket integration checks both clients through a bridge approach and merge.
 
 The opening and final modules have darker obstacle shells and outlined amber hazard paint. Paired mint chevrons mark the physical entry gaps and a dashed ring marks the paddle sweep. Each module keeps its single batched mesh and remains visible in Economy.
 

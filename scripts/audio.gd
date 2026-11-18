@@ -60,6 +60,7 @@ var roll_level_db := -60.0
 var bridge_mix := 0.0
 var on_bridge := false
 var bridge_grounded := false
+var replica_roll_speed := -1.0
 var air: AudioStreamPlayer
 var percussion: AudioStreamPlayer
 var race_active := false
@@ -179,6 +180,7 @@ func bind_mechanisms(props: Array[Node3D]) -> void:
 
 func bind_marble(marble: RigidBody3D) -> void:
     target_marble = marble
+    replica_roll_speed = -1.0
     _clear_bridge_roll()
     if rolling.playing:
         rolling.stop()
@@ -186,9 +188,10 @@ func bind_marble(marble: RigidBody3D) -> void:
     if not marble.body_entered.is_connected(_on_marble_collision):
         marble.body_entered.connect(_on_marble_collision)
 
-func set_bridge_surface(on_deck: bool, touching: bool) -> void:
+func set_bridge_surface(on_deck: bool, touching: bool, replica_speed := -1.0) -> void:
     on_bridge = on_deck
     bridge_grounded = touching
+    replica_roll_speed = replica_speed
 
 func _clear_bridge_roll() -> void:
     set_bridge_surface(false,false)
@@ -281,14 +284,15 @@ func _update_rolling(delta: float) -> void:
     if not enabled:
         rolling.volume_db = -80.0
         return
-    if not race_active or not is_instance_valid(target_marble) or target_marble.freeze:
+    if not race_active or not is_instance_valid(target_marble) or (
+            target_marble.freeze and replica_roll_speed < 0.0):
         roll_level_db = move_toward(roll_level_db,-60.0,delta*45.0)
         rolling.volume_db = roll_level_db
         if bridge_mix > 0.0:
             _clear_bridge_roll()
         return
     rolling.global_position = target_marble.global_position
-    var speed = target_marble.linear_velocity.length()
+    var speed := replica_roll_speed if target_marble.freeze else target_marble.linear_velocity.length()
     var rolling_target: float = clampf(-37.0+speed*1.45,-46.0,-13.0)-(
         flight_intensity*14.0)
     if on_bridge and not bridge_grounded:

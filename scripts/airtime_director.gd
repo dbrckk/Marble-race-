@@ -137,6 +137,7 @@ func reset_round() -> void:
                 ignored_rids.append(marble.get_rid())
     for i in range(RIPPLE_POOL):
         ripple_age[i] = 0.0
+        ripple_bridge[i] = 0
         _hide_ripple(i)
 
 static func landing_grade(seconds: float, lift: float,
@@ -240,7 +241,7 @@ func probe_floor(marble: RigidBody3D) -> Dictionary:
     }
 
 func sample_rolling_surface(hit: Dictionary, position: Vector3) -> int:
-    if position.z > SHORTCUT.ENTRY_Z+5.0 or position.z < SHORTCUT.EXIT_Z-7.0:
+    if not _near_bridge(position.z):
         _clear_rolling_surface()
         return 0
     var surface := Surface.OTHER
@@ -264,11 +265,25 @@ func sample_rolling_surface(hit: Dictionary, position: Vector3) -> int:
         return 0
     return 1 if bridge_grounded else -1
 
+func _near_bridge(z: float) -> bool:
+    return z <= SHORTCUT.ENTRY_Z+5.0 and z >= SHORTCUT.EXIT_Z-7.0
+
 func tick_physics(delta: float) -> void:
     if not is_instance_valid(game) or game.race_state != "RACING" or (
             not is_instance_valid(game.player) or
-            game.player.freeze or game.player.finished or
+            game.player.finished or
             game.player.eliminated or game.net.role == "server"):
+        return
+    var position: Vector3 = game.player.global_position
+    var replica: bool = game.net.is_client()
+    var velocity: Vector3 = game.player.linear_velocity
+    if replica:
+        velocity = game.net.local_replica_velocity()
+        if not velocity.is_finite() or not _near_bridge(position.z):
+            _clear_rolling_surface()
+            probe_clock = 0.0
+            return
+    elif game.player.freeze:
         return
     probe_clock += delta
     if probe_clock < SAMPLE_PERIOD:
@@ -278,16 +293,16 @@ func tick_physics(delta: float) -> void:
     var hit: Dictionary = probe_floor(game.player)
     if hit.is_empty():
         return
-    var event: Dictionary = sample_motion(
-        dt,bool(hit["touching"]),float(hit["clearance"]),
-        game.player.global_position,game.player.linear_velocity)
-    var transition := sample_rolling_surface(hit,game.player.global_position)
+    var event: Dictionary = {}
+    if not replica:
+        event = sample_motion(dt,bool(hit["touching"]),float(hit["clearance"]),position,velocity)
+    var transition := sample_rolling_surface(hit,position)
     if not event.is_empty():
         var ground_point: Vector3 = hit.get(
             "ground",game.player.global_position-Vector3.UP*RADIUS)
         _show_landing(event,ground_point)
     elif transition != 0 and quality > 0 and (
-            Vector2(game.player.linear_velocity.x,game.player.linear_velocity.z).length_squared() >= 9.0):
+            Vector2(velocity.x,velocity.z).length_squared() >= 9.0):
         _emit_ripple(hit["ground"],"",transition)
 
 func camera_weight() -> float:

@@ -8,6 +8,8 @@ signal session_closed(message: String)
 const MAX_PLAYERS := 4
 const SLOT_FIRST := 39
 const FRAME_PERIOD := 0.10
+const PRESENTATION_MAX_AGE := FRAME_PERIOD*3.5
+const PRESENTATION_MAX_SPEED := 38.0
 const INPUT_PERIOD := 0.07
 const FLOATS_PER_RACER := 9
 const ROOM_CODE_LENGTH := 6
@@ -48,6 +50,8 @@ var _endpoint := ""
 var _connect_elapsed := 0.0
 var targets: Array[Transform3D] = []
 var targets_received := false
+var local_snapshot_position := Vector3.INF
+var local_snapshot_velocity := Vector3.INF
 var ping_ms := -1.0
 var snapshot_age_seconds := 0.0
 var _join_elapsed := 0.0
@@ -70,6 +74,25 @@ func is_client() -> bool:
 
 func is_host() -> bool:
     return role == "server" and match_running
+
+func local_replica_velocity() -> Vector3:
+    if not is_client() or not targets_received or snapshot_age_seconds > PRESENTATION_MAX_AGE or (
+            not local_snapshot_velocity.is_finite() or not is_instance_valid(game.player)):
+        return Vector3.INF
+    # Wait for large corrections to settle. Interpolating across the track
+    # after a correction is not evidence of rolling over either surface.
+    var allowed_lag := local_snapshot_velocity.length()*FRAME_PERIOD*1.6+1.1
+    if game.player.global_position.distance_squared_to(local_snapshot_position) > allowed_lag*allowed_lag:
+        return Vector3.INF
+    return local_snapshot_velocity
+
+func _clear_snapshots() -> void:
+    targets.clear()
+    targets_received = false
+    last_frame_time = -1.0
+    snapshot_age_seconds = 0.0
+    local_snapshot_position = Vector3.INF
+    local_snapshot_velocity = Vector3.INF
 
 func can_host_start() -> bool:
     # Dedicated server automatically starts a room after minimum attendance.
@@ -119,12 +142,10 @@ func connect_server(raw_url: String, mode: String = "public", invite_code: Strin
     _ping_elapsed = 0.0
     _pending_ping = -1
     ping_ms = -1.0
-    snapshot_age_seconds = 0.0
     role = "client"
     connected = false
     local_slot = -1
-    targets.clear()
-    targets_received = false
+    _clear_snapshots()
     _register_signals()
     multiplayer.multiplayer_peer = socket
     lobby_changed.emit("CONNECTING TO SERVER... FREE HOSTS MAY TAKE UP TO 90s TO WAKE")
@@ -424,10 +445,7 @@ func _begin_round(track: int, variant: int, slots: PackedInt32Array) -> void:
     match_running = true
     game.selected_track = clampi(track,0,2)
     game.race_variation = clampi(variant,0,2)
-    last_frame_time = -1.0
-    snapshot_age_seconds = 0.0
-    targets.clear()
-    targets_received = false
+    _clear_snapshots()
     game.start_race("Grip Tape")
     if role == "server":
         for slot in slots:
@@ -519,9 +537,6 @@ func _receive_snapshot(floats: PackedFloat32Array, timestamp: float, energies: P
         return
     if floats.size() != 40*FLOATS_PER_RACER or not is_finite(timestamp) or timestamp <= last_frame_time:
         return
-    last_frame_time = timestamp
-    snapshot_age_seconds = 0.0
-    game.race_time = timestamp
     if targets.size() != 40:
         targets.resize(40)
     for i in range(40):
@@ -540,6 +555,18 @@ func _receive_snapshot(floats: PackedFloat32Array, timestamp: float, energies: P
         marble.finished = floats[j+7] > 0.5
         marble.eliminated = floats[j+7] < -0.5
         marble.finish_time = maxf(0.0,floats[j+8])
+    if local_slot >= 0 and local_slot < targets.size():
+        var position: Vector3 = targets[local_slot].origin
+        var elapsed := timestamp-last_frame_time
+        local_snapshot_velocity = Vector3.INF
+        if local_snapshot_position.is_finite() and elapsed >= FRAME_PERIOD*0.35 and elapsed <= PRESENTATION_MAX_AGE:
+            var velocity := (position-local_snapshot_position)/elapsed
+            if velocity.length_squared() <= PRESENTATION_MAX_SPEED*PRESENTATION_MAX_SPEED:
+                local_snapshot_velocity = velocity
+        local_snapshot_position = position
+    last_frame_time = timestamp
+    snapshot_age_seconds = 0.0
+    game.race_time = timestamp
     targets_received = true
     if local_slot >= 36 and local_slot <= 39 and energies.size() == 4:
         game.boost_energy = clampf(energies[local_slot-36],0.0,1.0)
@@ -650,10 +677,8 @@ func leave_room(message: String = "") -> void:
     _pending_ping = -1
     _sent_ping_ms = 0
     ping_ms = -1.0
-    snapshot_age_seconds = 0.0
     _last_ping_by_peer.clear()
-    targets.clear()
-    targets_received = false
+    _clear_snapshots()
     if multiplayer.multiplayer_peer != null:
         multiplayer.multiplayer_peer.close()
         multiplayer.multiplayer_peer = null

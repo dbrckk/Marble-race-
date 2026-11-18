@@ -1355,6 +1355,7 @@ func _process(delta: float) -> void:
             var near_opening := PerformanceBudget.near_first_obstacle(z,first_obstacle_entry_z)
             performance_budget.record_frame(Time.get_ticks_usec(),phase,focus,near_opening)
     world_time += delta
+    var replica_speed := -1.0
     feedback_cooldown = maxf(0.0,feedback_cooldown-delta)
     obstacle_notice = maxf(0.0,obstacle_notice-delta)
     lamp_refresh -= delta
@@ -1384,6 +1385,10 @@ func _process(delta: float) -> void:
             start_gate.set_signal(0)
             audio.tone("start")
     elif race_state == "RACING":
+        if net.is_client() and is_instance_valid(player) and not player.finished and not player.eliminated:
+            var replica_velocity: Vector3 = net.local_replica_velocity()
+            if replica_velocity.is_finite():
+                replica_speed = Vector2(replica_velocity.x,replica_velocity.z).length()
         race_time += delta
         if not net.is_active() and is_instance_valid(player) and not player.finished and not player.eliminated:
             practice_timing.sample(self,player.position,race_time)
@@ -1394,7 +1399,8 @@ func _process(delta: float) -> void:
             start_gate.set_signal(-1)
         if is_instance_valid(trail) and is_instance_valid(player):
             audio.update_progress(clampf(-player.position.z/absf(FINISH_Z),0.0,1.0))
-            trail.emitting = graphics_quality > 0 and player.linear_velocity.length() > 4.0
+            var speed: float = replica_speed if net.is_client() else player.linear_velocity.length()
+            trail.emitting = graphics_quality > 0 and speed > 4.0
             trail.initial_velocity_max = 2.6 if boosting else 0.75
             trail.color = PremiumSkinVisuals.trail_tint(self,boosting)
             if is_instance_valid(airtime) and airtime.bridge_grounded and not boosting and (
@@ -1477,7 +1483,7 @@ func _process(delta: float) -> void:
         var local_surface: bool = race_state == "RACING" and is_instance_valid(airtime) and (
             is_instance_valid(player) and not player.finished and not player.eliminated)
         audio.set_bridge_surface(local_surface and airtime.rolling_surface == AirtimeDirector.Surface.BRIDGE,
-            local_surface and airtime.bridge_grounded)
+            local_surface and airtime.bridge_grounded,replica_speed)
 
 func _physics_process(delta: float) -> void:
     steer = move_toward(steer,steer_target,delta*8.5)
