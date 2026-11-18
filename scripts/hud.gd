@@ -12,6 +12,7 @@ const RARE_ITEMS = preload("res://scripts/race_items.gd")
 const SHORTCUT_ROUTE = preload("res://scripts/shortcut_route.gd")
 const COURSE_MECHANICS = preload("res://scripts/course_mechanics.gd")
 const RACE_DIRECTOR = preload("res://scripts/race_director.gd")
+const RaceFeedback = preload("res://scripts/race_feedback.gd")
 const VENT_WARNING_SECONDS := COURSE_MECHANICS.VENT_WARNING_SECONDS
 const FINAL_OBSTACLE_WARNING_SECONDS := 1.40
 const SURFACE_CUE_TOP := 0.350
@@ -2234,6 +2235,13 @@ func update_hud() -> void:
     var opening_turbo: bool = game.selected_track == 0 and int(next_item.get("index",-1)) == 0
     rare_item_label.visible = not final_danger_active and not next_item.is_empty() and pickup_eta < pickup_limit and (
         not opening_turbo or game.woodworks_opening_cleared(player_z))
+    var finish_turbo_approach := false
+    if rare_item_label.visible and opening_turbo and route_hint.get("mode","") == "fork" and (
+            forward_speed >= 9.0 and pickup_eta <= 0.48):
+        var pickup: Node3D = game.race_items.items[0]
+        var aim := RaceFeedback.projected_lane_x(game.player.global_position.x,velocity.x,pickup_eta)
+        finish_turbo_approach = absf(aim-pickup.global_position.x) <= 1.55+pickup_eta*2.8
+        rare_item_label.visible = finish_turbo_approach
     if rare_item_label.visible:
         rare_item_label.text = "RARE %s  •  %s  •  %dm" % [
             str(next_item["label"]),str(next_item["side"]),
@@ -2245,7 +2253,8 @@ func update_hud() -> void:
             RARE_ITEMS.COLORS.size())
         rare_item_label.add_theme_color_override("font_color",
             RARE_ITEMS.COLORS[color_index].lightened(0.20))
-    shortcut_label.visible = still_racing and not route_hint.is_empty() and not glacier_return_panel
+    shortcut_label.visible = still_racing and not route_hint.is_empty() and not glacier_return_panel and (
+        not finish_turbo_approach)
     if shortcut_label.visible:
         shortcut_label.text = game.shortcut_route.route_guidance_text(
             route_hint,game.player.global_position.z,forward_speed)

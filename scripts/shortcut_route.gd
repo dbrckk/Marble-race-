@@ -17,6 +17,7 @@ const MERGE_TRAFFIC_FAR := EXIT_Z-2.0
 const MAIN_MERGE_Z := [EXIT_Z+11.0,EXIT_Z+8.1,EXIT_Z+5.2,EXIT_Z+2.3]
 const MAIN_MERGE_INK := Color("#a7f4ed")
 const FORK_ARROW_LEAD := 14.5
+const FORK_MARK_MIN_DISTANCE := 4.0
 const GLACIER_RETURN_COLOR := Color("#ffda8c")
 const FORGE_EDGE_COLOR := Color("#ffc86e")
 const FORGE_MAIN_COLOR := Color("#b6f6ed")
@@ -86,6 +87,8 @@ var physical_distance := 0.0
 var effect_candidates_last_tick := 0
 var glacier_return_arrows: Array[Transform3D] = []
 var main_merge_arrows: Array[Transform3D] = []
+var fork_main_marks: Array[Vector3] = []
+var fork_bridge_marks: Array[Vector3] = []
 var route_arrows: MultiMesh
 var paint_frames := 0
 
@@ -378,13 +381,27 @@ func _fork_signage(signs: Array[Transform3D], paint: Array[Transform3D], colors:
     for z in [-36.0,-41.8,-47.3,-51.0]:
         paint.append(_road_arrow(z,-float(side)*1.55,0.0))
         colors.append(FORK_MAIN_COLOR)
+        fork_main_marks.append(paint.back().origin)
     for i in range(4):
         var z := ENTRY_PORTAL_Z+FORK_ARROW_LEAD-float(i)*3.1
         paint.append(_road_arrow(z,float(side)*(1.7+float(i)*0.92),-float(side)*0.34))
         colors.append(FORK_BRIDGE_COLOR)
+        fork_bridge_marks.append(paint.back().origin)
     for z in [-51.0,-56.7]:
         paint.append(_deck_arrow(z,0.0))
         colors.append(FORK_BRIDGE_COLOR)
+        if z > ENTRY_PORTAL_Z:
+            fork_bridge_marks.append(paint.back().origin)
+
+func fork_mark_ahead(z: float, speed: float, bridge: bool) -> Vector3:
+    var reach := clampf(speed*0.70,7.0,13.0)
+    var marks := fork_bridge_marks if bridge else fork_main_marks
+    for i in range(marks.size()-1,-1,-1):
+        var point := marks[i]
+        var distance := z-point.z
+        if distance > FORK_MARK_MIN_DISTANCE and distance <= reach:
+            return point
+    return Vector3.INF
 
 func _return_markings(signs: Array[Transform3D], paint: Array[Transform3D],
         colors: Array[Color]) -> void:

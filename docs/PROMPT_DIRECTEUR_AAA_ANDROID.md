@@ -554,6 +554,10 @@ Les deux pans du dernier relevé portent des liserés turquoise côté piste et 
 
 La caméra de poursuite tient compte de l’entrée réelle du premier module pour dégager la vue au milieu du peloton. Après les commandes, le guide désigne les chevrons du passage. Un chevron à l’écran peut relayer le marquage s’il est masqué. Le HUD annonce le premier diamant après le module. Un éclair cyan indique sa ligne d’accès quand le peloton la masque et qu’aucun danger proche ne prend la priorité.
 
+### 2026-11-18 — Du premier turbo à la bifurcation de Woodworks (1.148.0-rc)
+
+Dans les derniers dixièmes de seconde, un diamant à portée garde la priorité sur l’annonce de la bifurcation. Quand la bille quitte cette ligne ou ramasse le turbo, le HUD revient au choix du parcours. Des flèches de poursuite reprennent les marquages turquoise de la piste et ambrés du pont quand des billes les masquent. La caméra suit l’axe du pont sur sa partie séparée, puis recommence progressivement à cadrer la piste au retour.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Vérifier l’enchaînement du premier turbo et de la bifurcation de Woodworks dans les pelotons qui se séparent. Mesurer le mix et la fluidité sur un téléphone Android dès qu’il est disponible.
+Affiner la lecture des trois portes du pont de Woodworks et de la circulation à sa jonction. Mesurer le mix et la fluidité sur un téléphone Android dès qu’il est disponible.

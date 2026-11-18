@@ -17,6 +17,7 @@ const ICE_ACCENT := Color("#9ce7ff")
 const ICE_IMPACT_ACCENT := Color("#ffb2b9")
 const Air = preload("res://scripts/airtime_director.gd")
 const JumpGuides = preload("res://scripts/jump_guides.gd")
+const ShortcutRoute = preload("res://scripts/shortcut_route.gd")
 const EVASION_ACCENT := Color("#9bf4e5")
 const TURBO_ACCENT := Color("#63efff")
 
@@ -36,6 +37,8 @@ var ice_arrow_center := Vector2.INF
 var ice_arrow_axis := Vector2.ZERO
 var ice_impact_center := Vector2.INF
 var turbo_center := Vector2.INF
+var fork_main_center := Vector2.INF
+var fork_bridge_center := Vector2.INF
 
 func configure(stage: Node3D) -> void:
     game = stage
@@ -56,6 +59,8 @@ func begin_round() -> void:
     ice_arrow_center = Vector2.INF
     ice_impact_center = Vector2.INF
     turbo_center = Vector2.INF
+    fork_main_center = Vector2.INF
+    fork_bridge_center = Vector2.INF
     badge_text = "YOU"
     if not game.net.is_active() and game.career.league_tier() >= 1:
         badge_text += "  •  "+game.career.league_name()
@@ -70,6 +75,8 @@ func refresh(delta: float) -> void:
     ice_arrow_center = Vector2.INF
     ice_impact_center = Vector2.INF
     turbo_center = Vector2.INF
+    fork_main_center = Vector2.INF
+    fork_bridge_center = Vector2.INF
     var marble: RigidBody3D = game.player
     var camera: Camera3D = game.camera
     if game.net.role == "server" or not is_instance_valid(marble) or not is_instance_valid(camera) or (
@@ -155,11 +162,31 @@ func refresh(delta: float) -> void:
                 pointer.y = badge_clearance.position.y-18.0
             if safe.has_point(pointer) and pointer.distance_to(screen_center) > screen_radius+23.0:
                 turbo_center = pointer
+        if freshness and not turbo_center.is_finite():
+            fork_bridge_center = _project_fork_mark(camera,center.z,moments.occluded_fork_bridge,safe)
+            fork_main_center = _project_fork_mark(camera,center.z,moments.occluded_fork_main,safe)
+            if fork_bridge_center.is_finite() and fork_main_center.is_finite() and (
+                    fork_main_center.distance_to(fork_bridge_center) < 32.0):
+                fork_main_center = Vector2.INF
     var raised: bool = game.race_state == "COUNTDOWN" or game.race_time < GRID_HANDOFF or (
         moments != null and (moments.nearby_pack_count >= 2 or moments.closest_rival_gap <= 1.6))
     bracket_strength = move_toward(bracket_strength,1.0 if raised else 0.0,maxf(0.0,delta)*7.0)
     show()
     queue_redraw()
+
+func _project_fork_mark(camera: Camera3D, z: float, target: Vector3, safe: Rect2) -> Vector2:
+    if not target.is_finite() or z-target.z <= ShortcutRoute.FORK_MARK_MIN_DISTANCE or (
+            camera.is_position_behind(target)):
+        return Vector2.INF
+    var pointer := camera.unproject_position(target)-Vector2(0.0,15.0)
+    var badge_clearance := _badge_rect().grow(5.0)
+    if Rect2(pointer-Vector2(16,15),Vector2(32,30)).intersects(badge_clearance):
+        pointer.y = badge_clearance.position.y-16.0
+    if not safe.has_point(pointer) or pointer.distance_to(screen_center) <= screen_radius+24.0 or (
+            pointer.distance_squared_to(hazard_center) < 38.0*38.0 or (
+                pointer.distance_squared_to(evasion_center) < 35.0*35.0)):
+        return Vector2.INF
+    return pointer
 
 func _draw() -> void:
     if ice_impact_center.is_finite():
@@ -194,6 +221,10 @@ func _draw() -> void:
         draw_colored_polygon(PackedVector2Array([Vector2(2,-8),Vector2(-5,1),Vector2(-1,1),
             Vector2(-3,8),Vector2(5,-2),Vector2(1,-2)]),INK)
         draw_set_transform(Vector2.ZERO)
+    if fork_main_center.is_finite():
+        _draw_fork_arrow(fork_main_center,Vector2.UP,ShortcutRoute.FORK_MAIN_COLOR)
+    if fork_bridge_center.is_finite():
+        _draw_fork_arrow(fork_bridge_center,Vector2(0.59,-0.81),ShortcutRoute.FORK_BRIDGE_COLOR)
     var label_rect := _badge_rect()
     var pointer := Vector2(clampf(screen_center.x,label_rect.position.x+7.0,label_rect.end.x-7.0),label_rect.end.y)
     if pointer.y < screen_center.y-screen_radius:
@@ -210,6 +241,17 @@ func _draw() -> void:
         var scale := Vector2.ONE*(screen_radius+5.0)
         draw_mesh(bracket_mesh,null,Transform2D(0.0,scale,0.0,screen_center),
             Color(1.0,1.0,1.0,bracket_strength))
+
+func _draw_fork_arrow(at: Vector2, axis: Vector2, tint: Color) -> void:
+    var cross := axis.orthogonal()*8.0
+    var tip := at+axis*9.0
+    var neck := at+axis
+    var tail := at-axis*9.0
+    var head := PackedVector2Array([neck-cross,tip,neck+cross])
+    draw_polyline(head,INK,8.0,true)
+    draw_line(tail,tip,INK,8.0,true)
+    draw_polyline(head,tint,3.5,true)
+    draw_line(tail,tip,tint,3.5,true)
 
 func _badge_rect() -> Rect2:
     var y := maxf(4.0,screen_center.y-screen_radius-BADGE_HEIGHT-12.0)

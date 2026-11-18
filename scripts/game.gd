@@ -1936,8 +1936,10 @@ func _update_camera(delta: float, force := false) -> void:
         return
     # Use the centerline ahead so the racer can see approaching turns.
     # Pure math; multiplayer does not need camera replication.
-    var ahead_x: float = track_center_at(player.global_position.z-12.0)
-    var next_gate: Dictionary = upcoming_hazard(player.global_position.z)
+    var racer_z := player.global_position.z
+    var ahead_x: float = track_center_at(racer_z-12.0)
+    var behind_x: float = track_center_at(racer_z+5.0)
+    var next_gate: Dictionary = upcoming_hazard(racer_z)
     var distance: float = float(next_gate.get("distance",-1.0))
     var airborne_weight: float = airtime.camera_weight() if is_instance_valid(airtime) else 0.0
     var jump_preview: Dictionary = airtime.jump_preview if cam_mode == 0 and race_state == "RACING" and (
@@ -1950,11 +1952,18 @@ func _update_camera(delta: float, force := false) -> void:
         else:
             velocity = Vector3.ZERO
             jump_preview = {}
-    var racer_z := player.global_position.z
     var forge_view: bool = selected_track == 2 and cam_mode == 0 and race_state == "RACING" and (
         not player.finished and not player.eliminated and is_instance_valid(final_obstacle_art))
     var woodworks_view: bool = selected_track == 0 and cam_mode == 0 and race_state == "RACING" and (
         not player.finished and not player.eliminated and is_instance_valid(opening_obstacle_art))
+    if woodworks_view and is_instance_valid(shortcut_route) and (
+            shortcut_route.on_separate_deck(player.global_position)):
+        var deck_weight := smoothstep(0.0,4.0,ShortcutRoute.OUTER_START-racer_z)*(
+            smoothstep(0.0,5.0,racer_z-ShortcutRoute.OUTER_END))
+        var deck_ahead: Vector3 = shortcut_route.point_at(maxf(racer_z-12.0,ShortcutRoute.OUTER_END))
+        var deck_behind: Vector3 = shortcut_route.point_at(racer_z+5.0)
+        ahead_x = lerpf(ahead_x,deck_ahead.x,deck_weight)
+        behind_x = lerpf(behind_x,deck_behind.x,deck_weight)
     var reading_art: MeshInstance3D = final_obstacle_art if forge_view else (
         opening_obstacle_art if woodworks_view else null)
     if reading_art != null and racer_z >= reading_art.clear_z:
@@ -2032,8 +2041,7 @@ func _update_camera(delta: float, force := false) -> void:
     # Light, reversible banking follows only real lateral velocity and the
     # course centreline. Never rotate a physics node or override overhead
     # camera choices. Stays below 2.6 degrees even at the 24m/s speed cap.
-    var curve_delta: float = ahead_x-track_center_at(
-        player.global_position.z+5.0)
+    var curve_delta := ahead_x-behind_x
     camera.rotate_object_local(Vector3.FORWARD,RaceFeedback.camera_roll(
         velocity.x,-velocity.z,
         curve_delta,cam_mode))
