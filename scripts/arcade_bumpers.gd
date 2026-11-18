@@ -54,6 +54,7 @@ func setup(owner: Node3D, track: int, next_layout: int) -> void:
     # still uses real Godot rigid-body collision response; no scripted
     # velocity changes or hidden impulses are introduced.
     var posts: Array[Transform3D] = []
+    var spring_tints: Array[Color] = []
     var rings: Array[Transform3D] = []
     for station in range(STATION_Z.size()):
         for side in SIDES:
@@ -71,6 +72,9 @@ func setup(owner: Node3D, track: int, next_layout: int) -> void:
             surface.bounce = spring_bounce
             post.physics_material_override = surface
             post.set_meta("spring_bounce",spring_bounce)
+            # Strength is communicated visually before the marble hits.
+            spring_tints.append(Color(0.72,0.72,0.72,1.0).lerp(
+                Color(1.0,1.0,1.0,1.0),float(phase)/2.0))
             post.set_meta("station",station)
             post.set_meta("side",side)
             var hit := CollisionShape3D.new()
@@ -99,7 +103,10 @@ func setup(owner: Node3D, track: int, next_layout: int) -> void:
     metal.emission_enabled = true
     metal.emission = COLORS[biome]
     metal.emission_energy_multiplier = 0.27
+    metal.vertex_color_use_as_albedo = true
     cylinders = _batch("BouncyLacquerColumns",barrel,metal,posts)
+    for index in range(spring_tints.size()):
+        cylinders.multimesh.set_instance_color(index,spring_tints[index])
     # Distinctive recessed metallic waistbands, shared across all six posts.
     # GPU-instanced, non-colliding and shadowless: no additional physics cost.
     var trim_mesh := TorusMesh.new()
@@ -175,7 +182,8 @@ func _batch(label_text: String, mesh: Mesh, paint: Material,
     instances.transform_format = MultiMesh.TRANSFORM_3D
     # Must be configured before instance_count in Godot 4.
     instances.use_colors = label_text == "SpringContactHalos" or (
-        label_text == "SpringApproachChevrons")
+        label_text == "SpringApproachChevrons") or (
+        label_text == "BouncyLacquerColumns")
     instances.mesh = mesh
     instances.instance_count = transforms.size()
     for i in range(transforms.size()):
