@@ -576,7 +576,9 @@ func merge_traffic_lane(at: Vector3) -> int:
     return 0
 
 func merge_conflict_score(z: float, forward: float, rival_z: float, rival_forward: float) -> float:
-    if not is_finite(forward) or forward < 3.0 or not is_finite(rival_forward) or rival_forward < 3.0 or (
+    if not is_finite(z) or not is_finite(rival_z) or (
+            not is_finite(forward) or forward < 3.0 or
+            not is_finite(rival_forward) or rival_forward < 3.0 or
             z < EXIT_Z-1.0 or rival_z < EXIT_Z-1.0):
         return INF
     var own_eta := maxf(0.0,z-EXIT_Z)/forward
@@ -621,7 +623,12 @@ func precision_gate_ahead(at: Vector3, velocity: Vector3) -> Dictionary:
         if i == 1:
             var ramp_z: float = JUMP_Z[course_id]
             if at.z <= ramp_z and at.y > deck.y+Racer.RADIUS+0.35:
-                action = "LAND CENTER" if absf(lateral) <= PRECISION_GATE_HALF_WIDTH*0.80 else "HOLD LINE"
+                # Crossing too high cannot earn the precision gate; avoid
+                # falsely presenting an unreachable perfect landing.
+                if height > PRECISION_GATE_MAX_HEIGHT:
+                    action = "TOO HIGH"
+                else:
+                    action = "LAND CENTER" if absf(lateral) <= PRECISION_GATE_HALF_WIDTH*0.80 else "HOLD LINE"
             elif at.z > ramp_z and at.z-ramp_z <= 7.0 and action == "HOLD CENTER":
                 action = "LINE UP JUMP"
         return {"number":i+1,"action":action,"distance":maxi(1,ceili(distance))}
