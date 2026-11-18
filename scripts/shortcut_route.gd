@@ -616,6 +616,8 @@ func precision_gate_ahead(at: Vector3, velocity: Vector3) -> Dictionary:
         if i == BRIDGE_POST_Z.size()-1:
             var ramp_z: float = JUMP_Z[course_id]
             if at.z <= ramp_z and at.y > deck.y+Racer.RADIUS+0.35:
+                # Airborne steering is limited. Report the projected crossing
+                # rather than promising a correction the player cannot make.
                 action = "LAND CENTER" if absf(lateral) <= PRECISION_GATE_HALF_WIDTH*0.80 else "HOLD LINE"
             elif at.z > ramp_z and at.z-ramp_z <= 7.0 and action == "HOLD CENTER":
                 action = "LINE UP JUMP"
