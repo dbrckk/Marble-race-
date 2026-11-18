@@ -137,7 +137,7 @@ func setup(owner: Node3D, track: int) -> void:
             0.12 if course_id == 1 else 0.74)
         deck.set_meta(ROLLING_SURFACE,true)
         decks.append(deck)
-        deck_art.append(Transform3D(basis.scaled(deck_size),middle))
+        deck_art.append(deck.transform.scaled_local(deck_size))
         # An outer rail also protects transitional branch sections; the
         # inner rail only closes once fully detached from the main deck.
         # Leave 5 metres on both ends unguarded for a wide steering portal.
@@ -154,7 +154,7 @@ func setup(owner: Node3D, track: int) -> void:
             var guard := _solid("BypassGuard_%02d_%s" % [
                 i,"L" if rail_side < 0 else "R"],guard_pos,basis,size,0.9)
             guards.append(guard)
-            guard_art.append(Transform3D(basis.scaled(size),guard_pos))
+            guard_art.append(guard.transform.scaled_local(size))
     _batch("BatchedBypassDeck",deck_art,deck_material)
     _batch("BatchedBypassGuards",guard_art,edge_material)
     _bridge_structure()
@@ -230,7 +230,7 @@ func _launch_ramps(material: Material) -> void:
     var ramp := _solid("BypassLaunchRamp",at+Vector3.UP*0.38,basis,size,0.66)
     ramp.set_meta(ROLLING_SURFACE,true)
     launch_ramps.append(ramp)
-    _batch("BatchedJumpTakeoff",[Transform3D(basis.scaled(size),ramp.position)],material)
+    _batch("BatchedJumpTakeoff",[ramp.transform.scaled_local(size)],material)
 
 func _bridge_precision_corridor(material: Material) -> void:
     # The six physical posts and three open decorative frames use one

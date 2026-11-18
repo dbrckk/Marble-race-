@@ -492,7 +492,7 @@ Base `838aba31c66b333726dd8351c3fb74c28786ec03`. Deux appuis stables après la r
 
 ### 2026-11-18 — Lecture des rampes et des réceptions (1.132.0-rc)
 
-Base `705f8009377ae45344f5203e952036f5d6ebe1b1`. Les rampes de la piste et du pont portent des chevrons d’appel ambrés. Des crochets contrastés marquent une zone de réception sur le tablier correspondant. Le jeu relève le sol en trois points à la construction pour éviter de peindre sur un obstacle ou sur la piste inférieure. Les marquages forment un seul lot de rendu sur tous les profils Android. Les arbres, cristaux et piliers sont écartés du pont au-delà des garde-corps. La caméra de poursuite relève sa visée selon la vitesse et l’alignement de la bille, avec priorité donnée aux alertes d’obstacle.
+Base `705f8009377ae45344f5203e952036f5d6ebe1b1`. Les rampes de la piste et du pont portent des chevrons d’appel ambrés. Des crochets contrastés marquent une zone de réception sur le tablier correspondant. Le jeu relève le sol en trois points à la construction pour éviter de peindre sur un obstacle ou sur la piste inférieure. Les marquages forment un seul lot de rendu sur tous les profils Android. Les pentes visibles des tabliers et des rampes suivent leurs collisions. Les arbres, cristaux et piliers sont écartés du pont au-delà des garde-corps. La caméra de poursuite relève sa visée selon la vitesse et l’alignement de la bille, avec priorité donnée aux alertes d’obstacle.
 
 ## PROCHAIN LOT RECOMMANDÉ
 
