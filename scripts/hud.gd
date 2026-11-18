@@ -2142,7 +2142,8 @@ func update_hud() -> void:
     var forward_speed := maxf(0.0,-velocity.z)
     var still_racing: bool = game.race_state == "RACING" and not game.player.finished and not game.player.eliminated
     var bridge_gate: Dictionary = game.shortcut_route.precision_gate_ahead(game.player.global_position,velocity) if (
-        still_racing and bridge_approach_active) else {}
+        still_racing and is_instance_valid(game.shortcut_route) and (
+            bridge_approach_active or game.shortcut_route.on_separate_deck(game.player.global_position))) else {}
     var gate_reach := clampf(forward_speed*2.0,18.0,38.0)
     var moving_event: Dictionary = game.race_director.event_ahead(
         game.player.global_position.z,downstream_limit,gate_reach) if is_instance_valid(
