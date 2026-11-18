@@ -1400,6 +1400,14 @@ func _update_camera(delta: float, force := false) -> void:
         camera.set_meta("smoothed_fov",64.0)
         _position_intro_camera(force)
         return
+    # A corrupt physics sample during Android resume must not reach the
+    # course-height functions or camera.look_at(). Keep the last valid view
+    # until the rigidbody reports a finite transform again.
+    if not player.global_position.is_finite() or (
+        not player.linear_velocity.is_finite()):
+        camera_shake = 0.0
+        camera.set_meta("previous_jitter",Vector3.ZERO)
+        return
     # Use the centerline ahead so the racer can see approaching turns.
     # Pure math; multiplayer does not need camera replication.
     var ahead_x: float = track_center_at(player.global_position.z-12.0)
@@ -1445,7 +1453,12 @@ func _update_camera(delta: float, force := false) -> void:
         cos(world_time*47.0),0.0)*camera_shake
     camera.global_position += jitter
     camera.set_meta("previous_jitter",jitter)
-    camera.look_at(camera_lookahead,Vector3.UP)
+    # look_at() requires a distinct target. Guard pathological camera
+    # transforms without disturbing the normal smooth-follow path.
+    if camera.global_position.is_finite() and (
+        camera_lookahead.is_finite()) and (
+        camera.global_position.distance_squared_to(camera_lookahead) > 0.0001):
+        camera.look_at(camera_lookahead,Vector3.UP)
     # Light, reversible banking follows only real lateral velocity and the
     # course centreline. Never rotate a physics node or override overhead
     # camera choices. Stays below 2.6 degrees even at the 24m/s speed cap.
