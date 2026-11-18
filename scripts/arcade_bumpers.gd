@@ -16,6 +16,7 @@ var biome := 0
 var layout := 0
 var bodies: Array[StaticBody3D] = []
 var cylinders: MultiMeshInstance3D
+var waistbands: MultiMeshInstance3D
 var glow_rings: MultiMeshInstance3D
 # Reuse the 12 instanced rings already drawn on mobile. A physical
 # body_entered event refreshes only its own pair of rings; no new meshes,
@@ -106,7 +107,7 @@ func setup(owner: Node3D, track: int, next_layout: int) -> void:
     for post_transform in posts:
         trim_transforms.append(Transform3D(Basis(),
             post_transform.origin+Vector3(0.0,0.0,0.0)))
-    _batch("SpringMachinedWaistbands",trim_mesh,trim_material,
+    waistbands = _batch("SpringMachinedWaistbands",trim_mesh,trim_material,
         trim_transforms)
     var torus := TorusMesh.new()
     torus.inner_radius = 0.71
@@ -212,6 +213,10 @@ func advance_visuals(delta: float) -> void:
 func set_quality(quality: int) -> void:
     # All six real collision posts persist on every mobile tier.
     quality_level = clampi(quality,0,2)
+    # Economy mode keeps the physical silhouette, dropping decorative
+    # trim and animated glow to reduce geometry and fragment workload.
+    if is_instance_valid(waistbands):
+        waistbands.visible = quality_level > 0
     if is_instance_valid(glow_rings):
         glow_rings.visible = quality_level > 0
         if quality_level > 0:
