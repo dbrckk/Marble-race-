@@ -1397,6 +1397,9 @@ func _process(delta: float) -> void:
             trail.emitting = graphics_quality > 0 and player.linear_velocity.length() > 4.0
             trail.initial_velocity_max = 2.6 if boosting else 0.75
             trail.color = PremiumSkinVisuals.trail_tint(self,boosting)
+            if is_instance_valid(airtime) and airtime.bridge_grounded and not boosting and (
+                    not is_instance_valid(skins) or skins.active_id() < 0):
+                trail.color = trail.color.lerp(AirtimeDirector.BRIDGE_TINTS[selected_track],0.32)
             var cp := -1
             for sector in range(CHECKPOINT_Z.size()-1,-1,-1):
                 if player.position.z < float(CHECKPOINT_Z[sector]):
@@ -1471,6 +1474,10 @@ func _process(delta: float) -> void:
             net.role != "server") else 0.0)
         audio.set_flight_intensity(airtime.camera_weight() if (
             race_state == "RACING" and is_instance_valid(airtime)) else 0.0)
+        var local_surface: bool = race_state == "RACING" and is_instance_valid(airtime) and (
+            is_instance_valid(player) and not player.finished and not player.eliminated)
+        audio.set_bridge_surface(local_surface and airtime.rolling_surface == AirtimeDirector.Surface.BRIDGE,
+            local_surface and airtime.bridge_grounded)
 
 func _physics_process(delta: float) -> void:
     steer = move_toward(steer,steer_target,delta*8.5)

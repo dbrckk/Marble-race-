@@ -134,7 +134,11 @@ func _run() -> void:
             assert(flight.landing_count == 0 and
                 flight.longest_airtime == 0.0 and
                 flight.ignored_rids.size() == 40)
+            if not _verify_bridge_surface(stage,flight,player,biome):
+                quit(1)
+                return
             stage.return_to_menu()
+            assert(not stage.audio.bridge_rolling.playing and stage.audio.bridge_mix == 0.0)
             checked += 1
     assert(checked == 9)
     stage.queue_free()
@@ -143,4 +147,67 @@ func _run() -> void:
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_flight_career.cfg"))
     print("AIRTIME_PASS: nine real floor probes, safe jump and touchdown arcs, 40 marble exclusion, mobile pooled ripples and physics integrity")
+    print("BRIDGE_SURFACE_PASS: nine real bridge floors, contact confirmation, airborne rejection, pooled ripples and reversible audio fades")
     quit(0)
+
+func _verify_bridge_surface(stage: Node3D, flight: Node3D, player: RigidBody3D,
+        biome: int) -> bool:
+    var road_z := -46.0
+    var road := Vector3(stage.track_center_at(road_z),stage.height_at(road_z)+0.41,road_z)
+    player.global_position = road
+    var road_hit: Dictionary = flight.probe_floor(player)
+    assert(road_hit.get("touching",false) and not road_hit["bridge"])
+    var bridge: Vector3 = stage.shortcut_route.point_at(-64.0)+Vector3.UP*0.67
+    player.global_position = bridge
+    var bridge_hit: Dictionary = flight.probe_floor(player)
+    assert(bridge_hit.get("touching",false) and bridge_hit["bridge"])
+    var over_bridge := bridge+Vector3.UP*0.75
+    player.global_position = over_bridge
+    var airborne_hit: Dictionary = flight.probe_floor(player)
+    assert(airborne_hit.get("bridge",false) and not airborne_hit["touching"])
+    assert(flight.sample_rolling_surface(road_hit,road) == 0)
+    assert(flight.sample_rolling_surface(road_hit,road) == 0)
+    assert(flight.sample_rolling_surface(bridge_hit,bridge) == 0)
+    assert(flight.sample_rolling_surface(airborne_hit,over_bridge) == 0)
+    assert(flight.sample_rolling_surface(bridge_hit,bridge) == 0)
+    assert(flight.sample_rolling_surface(bridge_hit,bridge) == 1)
+    assert(flight.bridge_grounded)
+
+    var sound: Node3D = stage.audio
+    player.global_position = bridge
+    player.linear_velocity = Vector3(0,0,-13)
+    sound.set_bridge_surface(true,true)
+    sound._update_rolling(0.11)
+    assert(is_equal_approx(sound.bridge_mix,0.5))
+    sound._update_rolling(0.11)
+    assert(is_equal_approx(sound.bridge_mix,1.0) and sound.bridge_rolling.playing)
+    assert(sound.bridge_rolling.stream == sound.BRIDGE_ROLLS[biome])
+    assert(sound.bridge_rolling.stream.loop)
+    assert(sound.bridge_rolling.volume_db > sound.rolling.volume_db)
+    sound._update_rolling(0.8)
+    assert(flight.sample_rolling_surface(airborne_hit,over_bridge) == 0)
+    assert(not flight.bridge_grounded and flight.rolling_surface == AIR.Surface.BRIDGE)
+    var grounded_volume: float = sound.bridge_rolling.volume_db
+    sound.set_bridge_surface(true,false)
+    sound._update_rolling(0.2)
+    assert(sound.bridge_rolling.volume_db < grounded_volume-6.0)
+    assert(flight.sample_rolling_surface(bridge_hit,bridge) == 0)
+    assert(flight.sample_rolling_surface(road_hit,road) == 0)
+    assert(flight.sample_rolling_surface(road_hit,road) == -1)
+    sound.set_bridge_surface(false,false)
+    sound._update_rolling(0.11)
+    assert(is_equal_approx(sound.bridge_mix,0.5))
+    sound._update_rolling(0.11)
+    assert(is_zero_approx(sound.bridge_mix) and not sound.bridge_rolling.playing)
+    assert(player.linear_velocity.is_equal_approx(Vector3(0,0,-13)))
+
+    flight._emit_ripple(bridge_hit["ground"],"",1)
+    assert(flight.ripple_bridge[0] == 1)
+    assert(is_equal_approx(flight.ripple_age[0],AIR.BRIDGE_PULSE_LIFETIME))
+    flight.advance_visuals(AIR.BRIDGE_PULSE_LIFETIME+0.01)
+    assert(is_zero_approx(flight.ripple_age[0]))
+    flight.clear_motion()
+    assert(flight.sample_rolling_surface(bridge_hit,bridge) == 0)
+    assert(flight.sample_rolling_surface(bridge_hit,bridge) == 0,
+        "A racer placed directly on a bridge needs no entry pulse")
+    return true

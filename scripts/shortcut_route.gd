@@ -33,6 +33,7 @@ const BRIDGE_POST_OFFSET := 1.76
 const BRIDGE_POST_RADIUS := 0.22
 const BRIDGE_POST_HEIGHT := 0.88
 const BRIDGE_ARCH_HALF_SPAN := WIDTH*0.5+0.62
+const ROLLING_SURFACE := &"bridge_rolling_surface"
 # Three real crossing planes embedded in the existing physical bridge.
 # Crossing in order, at speed and near the center of each pair of posts,
 # earns a single bounded skill reward. No decorative trigger volumes.
@@ -134,6 +135,7 @@ func setup(owner: Node3D, track: int) -> void:
         var deck_size := Vector3(WIDTH,0.56,length)
         var deck := _solid("BypassDeck_%02d" % i,middle,basis,deck_size,
             0.12 if course_id == 1 else 0.74)
+        deck.set_meta(ROLLING_SURFACE,true)
         decks.append(deck)
         deck_art.append(Transform3D(basis.scaled(deck_size),middle))
         # An outer rail also protects transitional branch sections; the
@@ -226,6 +228,7 @@ func _launch_ramps(material: Material) -> void:
     # Local -Z points downhill. A small pitch climbs toward the lip.
     var basis := Basis(Vector3.RIGHT,-atan(bridge_grade_at(at_z))+0.18)
     var ramp := _solid("BypassLaunchRamp",at+Vector3.UP*0.38,basis,size,0.66)
+    ramp.set_meta(ROLLING_SURFACE,true)
     launch_ramps.append(ramp)
     _batch("BatchedJumpTakeoff",[Transform3D(basis.scaled(size),ramp.position)],material)
     var lip_mesh := BoxMesh.new()

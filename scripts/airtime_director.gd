@@ -5,6 +5,7 @@ extends Node3D
 ## human, using an exclusion list built once per race (39 other marbles).
 ## No lights, postprocess, skeletal animations or per-marble VFX.
 const RaceFeedback = preload("res://scripts/race_feedback.gd")
+const SHORTCUT = preload("res://scripts/shortcut_route.gd")
 
 const SAMPLE_PERIOD := 0.050
 const RADIUS := 0.39
@@ -18,14 +19,20 @@ const MIN_LANDING_FORWARD := 4.0
 const MAX_SAMPLE_STEP := 0.24
 const PULSE_LIFETIME := 0.74
 const RIPPLE_POOL := 3
+const BRIDGE_PULSE_LIFETIME := 0.36
+const BRIDGE_TINTS := [
+    Color("#ffc872"),Color("#a1f3ff"),Color("#ffa46e")
+]
 const TRACK_TINTS := [
     Color("#f5c48e"),Color("#98eaff"),Color("#ffa988")
 ]
+enum Surface { OTHER, ROAD, BRIDGE }
 
 var game: Node3D
 var ripple: MultiMeshInstance3D
 var ripple_age: Array[float] = []
 var ripple_position: Array[Vector3] = []
+var ripple_bridge: Array[int] = []
 var ripple_head := 0
 var quality := 1
 var ignored_rids: Array[RID] = []
@@ -45,6 +52,9 @@ var landing_count := 0
 var longest_airtime := 0.0
 var total_airtime := 0.0
 var perfect_landings := 0
+var rolling_surface := Surface.OTHER
+var pending_surface := Surface.OTHER
+var bridge_grounded := false
 
 func _ready() -> void:
     var loop := TorusMesh.new()
@@ -74,6 +84,7 @@ func _ready() -> void:
     for i in range(RIPPLE_POOL):
         ripple_age.append(0.0)
         ripple_position.append(Vector3.ZERO)
+        ripple_bridge.append(0)
         _hide_ripple(i)
 
 func configure(owner: Node3D) -> void:
@@ -101,6 +112,12 @@ func clear_motion() -> void:
     descent_speed = 0.0
     has_position = false
     probe_clock = 0.0
+    _clear_rolling_surface()
+
+func _clear_rolling_surface() -> void:
+    rolling_surface = Surface.OTHER
+    pending_surface = Surface.OTHER
+    bridge_grounded = false
 
 func reset_round() -> void:
     clear_motion()
@@ -218,8 +235,34 @@ func probe_floor(marble: RigidBody3D) -> Dictionary:
     return {
         "touching":separation >= CONTACT_MIN and separation <= CONTACT_MAX,
         "clearance":maxf(0.0,separation-RADIUS),
-        "ground":ground
+        "ground":ground,
+        "bridge":hit["collider"].has_meta(SHORTCUT.ROLLING_SURFACE)
     }
+
+func sample_rolling_surface(hit: Dictionary, position: Vector3) -> int:
+    if position.z > SHORTCUT.ENTRY_Z+5.0 or position.z < SHORTCUT.EXIT_Z-7.0:
+        _clear_rolling_surface()
+        return 0
+    var surface := Surface.OTHER
+    if hit.get("touching",false):
+        if hit.get("bridge",false):
+            surface = Surface.BRIDGE
+        else:
+            var ground: Vector3 = hit["ground"]
+            if absf(ground.x-game.track_center_at(ground.z)) < 6.6 and (
+                    absf(ground.y-game.height_at(ground.z)) < 0.38):
+                surface = Surface.ROAD
+    bridge_grounded = surface == Surface.BRIDGE and rolling_surface == Surface.BRIDGE
+    # A seam, hop or single ray on the other deck must not switch materials.
+    if surface == Surface.OTHER or surface != pending_surface:
+        pending_surface = surface
+        return 0
+    var previous := rolling_surface
+    rolling_surface = surface
+    bridge_grounded = surface == Surface.BRIDGE
+    if previous == Surface.OTHER or previous == surface:
+        return 0
+    return 1 if bridge_grounded else -1
 
 func tick_physics(delta: float) -> void:
     if not is_instance_valid(game) or game.race_state != "RACING" or (
@@ -238,10 +281,14 @@ func tick_physics(delta: float) -> void:
     var event: Dictionary = sample_motion(
         dt,bool(hit["touching"]),float(hit["clearance"]),
         game.player.global_position,game.player.linear_velocity)
+    var transition := sample_rolling_surface(hit,game.player.global_position)
     if not event.is_empty():
         var ground_point: Vector3 = hit.get(
             "ground",game.player.global_position-Vector3.UP*RADIUS)
         _show_landing(event,ground_point)
+    elif transition != 0 and quality > 0 and (
+            Vector2(game.player.linear_velocity.x,game.player.linear_velocity.z).length_squared() >= 9.0):
+        _emit_ripple(hit["ground"],"",transition)
 
 func camera_weight() -> float:
     if not airborne:
@@ -263,26 +310,31 @@ func _show_landing(event: Dictionary, ground_point: Vector3) -> void:
     if quality > 0:
         _emit_ripple(ground_point,grade)
 
-func _emit_ripple(ground_point: Vector3, grade: String) -> void:
+func _emit_ripple(ground_point: Vector3, grade: String, bridge_transition := 0) -> void:
     var index: int = ripple_head
     ripple_head = (ripple_head+1)%RIPPLE_POOL
-    ripple_age[index] = PULSE_LIFETIME
+    ripple_bridge[index] = bridge_transition
+    ripple_age[index] = BRIDGE_PULSE_LIFETIME if bridge_transition != 0 else PULSE_LIFETIME
     ripple_position[index] = ground_point+Vector3.UP*0.065
     if grade == "BIG AIR":
         ripple_age[index] = PULSE_LIFETIME*1.15
     _animate_ripple(index)
 
 func _animate_ripple(index: int) -> void:
+    var transition: int = ripple_bridge[index]
+    var lifetime := BRIDGE_PULSE_LIFETIME if transition != 0 else PULSE_LIFETIME*1.15
     var ratio: float = clampf(
-        ripple_age[index]/(PULSE_LIFETIME*1.15),0.0,1.0)
+        ripple_age[index]/lifetime,0.0,1.0)
     var progress: float = 1.0-ratio
     var radius: float = 0.75+progress*(2.4 if quality == 2 else 1.7)
+    if transition != 0:
+        radius = 0.77+progress*0.94
     var pose := Transform3D(
         Basis().scaled(Vector3(radius,1.0,radius)),ripple_position[index])
     ripple.multimesh.set_instance_transform(index,pose)
-    var tint: Color = TRACK_TINTS[
-        clampi(game.selected_track,0,TRACK_TINTS.size()-1)]
-    tint.a = 0.72*ratio*ratio
+    var biome := clampi(game.selected_track,0,TRACK_TINTS.size()-1)
+    var tint: Color = BRIDGE_TINTS[biome] if transition == 1 else TRACK_TINTS[biome]
+    tint.a = (0.89 if transition != 0 else 0.72)*ratio*ratio
     ripple.multimesh.set_instance_color(index,tint)
 
 func advance_visuals(delta: float) -> void:

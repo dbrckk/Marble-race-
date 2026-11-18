@@ -466,6 +466,10 @@ Base `09d244a0eae3310b7c52aee819484c92f90a1636`. Les bras de Woodworks sont en b
 
 Base `e19f7c76817b0714284c784d851f8cef6d3a6400`. Les ponts ont des portiques en bois courbé, en lames de glace ou en acier ajouré. Les nouvelles piles des ponts partagent leur maillage avec les piliers des voûtes de la piste principale. Les portiques dégagent l'axe de la caméra, avec des ailes à plus de 1,5 m du centre. Les potelets de précision conservent leurs collisions. Les neuf vues comparées en GL Compatibility gardent le même nombre d'appels de dessin.
 
+### 2026-11-18 — Contact et roulement sur les ponts (1.126.0-rc)
+
+Base `f06548a1b02acfd30bdc43b66d4956390e5a9fdd`. En solo, la sonde d’envol confirme le matériau sur deux relevés du sol. Le son passe en fondu de la piste au bois, à la glace ou à l’acier et revient à la piste au raccord. Le roulement s’atténue en saut. Les passages activent un anneau bref à la surface et la traînée standard reprend la couleur du pont au contact. L’anneau réutilise le lot d’atterrissage existant. Le budget supplémentaire est une voix de roulement pour le joueur local.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Marquer par le son et le rendu de la bille le passage entre la piste principale et chaque pont. Mesurer la fluidité du peloton sur un appareil Android dès qu'il est disponible.
+Adapter le retour de surface aux courses en ligne à partir des positions reçues. Mesurer la fluidité du peloton et le mix sonore sur un appareil Android dès qu’il est disponible.

@@ -15,6 +15,12 @@ const THEME_SCORES = [
 const THEME_TITLES := ["WOODLAND OVERTURE","GLACIER PRISM","FORGE VELOCITY"]
 const MUSIC_FADE_SECONDS := 0.92
 const ROLL = preload("res://assets/audio/sfx/wood_roll.ogg")
+const BRIDGE_ROLLS := [
+    preload("res://assets/audio/sfx/bridge_timber_roll.ogg"),
+    preload("res://assets/audio/sfx/bridge_ice_roll.ogg"),
+    preload("res://assets/audio/sfx/bridge_steel_roll.ogg")
+]
+const SURFACE_FADE_SECONDS := 0.22
 const AIR = preload("res://assets/audio/sfx/airrush.ogg")
 const PERCUSSION = preload("res://assets/audio/music/pace_percussion.ogg")
 const FANFARE = preload("res://assets/audio/sfx/fanfare.ogg")
@@ -49,6 +55,11 @@ var music: AudioStreamPlayer
 var music_previous: AudioStreamPlayer
 var music_fade := 1.0
 var rolling: AudioStreamPlayer3D
+var bridge_rolling: AudioStreamPlayer3D
+var roll_level_db := -60.0
+var bridge_mix := 0.0
+var on_bridge := false
+var bridge_grounded := false
 var air: AudioStreamPlayer
 var percussion: AudioStreamPlayer
 var race_active := false
@@ -132,6 +143,12 @@ func _ready() -> void:
     rolling.max_distance = 24.0
     rolling.unit_size = 3.0
     add_child(rolling)
+    bridge_rolling = AudioStreamPlayer3D.new()
+    bridge_rolling.name = "BridgeMarbleRolling"
+    bridge_rolling.volume_db = -80.0
+    bridge_rolling.max_distance = rolling.max_distance
+    bridge_rolling.unit_size = rolling.unit_size
+    add_child(bridge_rolling)
     mechanism = AudioStreamPlayer3D.new()
     mechanism.name = "KineticToyMotor"
     mechanism.stream = preload("res://assets/audio/sfx/mechanism_loop.ogg")
@@ -162,11 +179,22 @@ func bind_mechanisms(props: Array[Node3D]) -> void:
 
 func bind_marble(marble: RigidBody3D) -> void:
     target_marble = marble
+    _clear_bridge_roll()
     if rolling.playing:
         rolling.stop()
     rolling.play()
     if not marble.body_entered.is_connected(_on_marble_collision):
         marble.body_entered.connect(_on_marble_collision)
+
+func set_bridge_surface(on_deck: bool, touching: bool) -> void:
+    on_bridge = on_deck
+    bridge_grounded = touching
+
+func _clear_bridge_roll() -> void:
+    set_bridge_surface(false,false)
+    bridge_mix = 0.0
+    bridge_rolling.volume_db = -80.0
+    bridge_rolling.stop()
 
 static func pack_percussion_lift(pressure: float) -> float:
     return 5.5*clampf(pressure,0.0,1.0) if is_finite(pressure) else 0.0
@@ -247,18 +275,46 @@ func _process(delta: float) -> void:
         air_target = -80.0
     percussion.volume_db = move_toward(percussion.volume_db,pace_target,delta*11.0)
     air.volume_db = move_toward(air.volume_db,air_target,delta*13.0)
-    if not is_instance_valid(target_marble) or target_marble.freeze:
-        rolling.volume_db = move_toward(rolling.volume_db,-60.0,delta*45.0)
-        return
+    _update_rolling(delta)
+
+func _update_rolling(delta: float) -> void:
     if not enabled:
         rolling.volume_db = -80.0
+        return
+    if not race_active or not is_instance_valid(target_marble) or target_marble.freeze:
+        roll_level_db = move_toward(roll_level_db,-60.0,delta*45.0)
+        rolling.volume_db = roll_level_db
+        if bridge_mix > 0.0:
+            _clear_bridge_roll()
         return
     rolling.global_position = target_marble.global_position
     var speed = target_marble.linear_velocity.length()
     var rolling_target: float = clampf(-37.0+speed*1.45,-46.0,-13.0)-(
         flight_intensity*14.0)
-    rolling.volume_db = move_toward(rolling.volume_db,rolling_target,delta*26)
+    if on_bridge and not bridge_grounded:
+        rolling_target = minf(rolling_target,-51.0)
+    var response := 26.0
+    if on_bridge:
+        response = 42.0 if bridge_grounded else 105.0
+    roll_level_db = move_toward(roll_level_db,rolling_target,delta*response)
     rolling.pitch_scale = clampf(0.63+speed*0.06,0.73,1.65)
+    bridge_mix = move_toward(bridge_mix,float(on_bridge),delta/SURFACE_FADE_SECONDS)
+    var angle := bridge_mix*PI*0.5
+    rolling.volume_db = roll_level_db+linear_to_db(maxf(0.001,cos(angle)))
+    if bridge_mix == 0.0:
+        if bridge_rolling.playing:
+            bridge_rolling.stop()
+        return
+    bridge_rolling.global_position = rolling.global_position
+    bridge_rolling.pitch_scale = rolling.pitch_scale
+    var stream: AudioStreamOggVorbis = BRIDGE_ROLLS[track_theme]
+    if bridge_rolling.stream != stream:
+        stream.loop = true
+        bridge_rolling.stream = stream
+    # Match the quiet board loop while keeping a little extra floor detail.
+    bridge_rolling.volume_db = roll_level_db-2.5+linear_to_db(maxf(0.001,sin(angle)))
+    if not bridge_rolling.playing:
+        bridge_rolling.play()
 
 func _update_mechanism_sound() -> void:
     if not enabled or not race_active or not is_instance_valid(target_marble):
@@ -371,6 +427,7 @@ func menu_music() -> void:
     race_active = false
     finish_progress = 0.0
     target_marble = null
+    _clear_bridge_roll()
 
 func update_progress(ratio: float) -> void:
     finish_progress = clampf(ratio,0.0,1.0)
@@ -520,6 +577,7 @@ func toggle_sound() -> bool:
     rolling.volume_db = -80 if not enabled else -36
     mechanism.volume_db = -80 if not enabled else -30
     if not enabled:
+        _clear_bridge_roll()
         for speaker in channels:
             speaker.stop()
         for speaker in spatial_channels:
