@@ -115,6 +115,9 @@ func _run() -> void:
     quit()
 
 func _refresh(game: Node3D) -> void:
+    # Teleporting scripted probes must sample the 30 Hz locator before
+    # asserting screen cues; no real frame delta passes between probes.
+    game.ui.locator_sample_time = 1.0 / 30.0
     game.ui.label_timer = 1.0
     game.ui.update_hud()
 
