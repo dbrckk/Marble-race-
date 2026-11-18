@@ -3,6 +3,7 @@ extends SceneTree
 const ITEMS = preload("res://scripts/race_items.gd")
 const ROUTE = preload("res://scripts/shortcut_route.gd")
 const MARBLE = preload("res://scripts/marble.gd")
+const SURFACE = preload("res://scripts/track_surface.gd")
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -165,8 +166,19 @@ func _verify_pickup_approaches(game: Node3D) -> void:
                 query.transform = Transform3D(Basis.IDENTITY,probe)
                 assert(space.intersect_shape(query,1).is_empty(),
                     "Woodworks layout %d: a collider blocks the line through %s" % [layout,item.name])
+        _verify_fork_paint(game.shortcut_route,space,query,layout)
         _verify_opening_in_pack(game)
         _verify_fork_handoff(game)
+
+func _verify_fork_paint(road: Node3D, space: PhysicsDirectSpaceState3D,
+        query: PhysicsShapeQueryParameters3D, layout: int) -> void:
+    for mark: Vector3 in road.fork_main_marks+road.fork_bridge_marks:
+        for offset: Vector2 in [Vector2.ZERO,Vector2(0,0.56),Vector2(0,-0.56),Vector2(-0.32,0),Vector2(0.32,0)]:
+            query.transform = Transform3D(Basis.IDENTITY,mark+Vector3(offset.x,0.42,offset.y))
+            for hit in space.intersect_shape(query):
+                var body: Object = hit["collider"]
+                assert(body.has_meta(SURFACE.ROAD_FLOOR) or body.has_meta(ROUTE.ROLLING_SURFACE),
+                    "Woodworks %d: fork paint at %s leads into %s" % [layout,mark,body.name])
 
 func _verify_opening_in_pack(game: Node3D) -> void:
     var art: MeshInstance3D = game.opening_obstacle_art
@@ -247,7 +259,7 @@ func _verify_fork_handoff(game: Node3D) -> void:
     assert(not pickup.visible and not hud.rare_item_label.visible and hud.shortcut_label.visible)
     assert(hud.woodworks_guide_label.text.contains("AMBER"))
 
-    var z := ROUTE.ENTRY_PORTAL_Z+21.0
+    var z := ROUTE.ENTRY_PORTAL_Z+26.0
     player.global_position = Vector3(game.track_center_at(z),game.height_at(z)+0.43,z)
     player.linear_velocity = Vector3(0,0,-23.0)
     game.race_moments.reset_round()

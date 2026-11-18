@@ -558,6 +558,8 @@ La caméra de poursuite tient compte de l’entrée réelle du premier module po
 
 Dans les derniers dixièmes de seconde, un diamant à portée garde la priorité sur l’annonce de la bifurcation. Quand la bille quitte cette ligne ou ramasse le turbo, le HUD revient au choix du parcours. Des flèches de poursuite reprennent les marquages turquoise de la piste et ambrés du pont quand des billes les masquent. La caméra suit l’axe du pont sur sa partie séparée, puis recommence progressivement à cadrer la piste au retour.
 
+Les flèches ont été déplacées entre les rangées d’obstacles des trois tracés. La flèche ambrée pointe franchement vers le pont après la barrière de droite. Le test d’ouverture vérifie la place d’une bille sur les repères avec les colliders actifs.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
 Affiner la lecture des trois portes du pont de Woodworks et de la circulation à sa jonction. Mesurer le mix et la fluidité sur un téléphone Android dès qu’il est disponible.

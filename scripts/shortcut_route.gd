@@ -376,22 +376,28 @@ func _fork_signage(signs: Array[Transform3D], paint: Array[Transform3D], colors:
     _route_sign("ShortcutEntranceArrow",title,Vector3(
         entry_x,stage.height_at(entry_z)+2.08,entry_z),FORK_BRIDGE_COLOR,signs)
 
-    # The first arrows split visibly on the main deck. The last two sit
-    # on the actual banked bridge surface, after the side rail opens.
-    for z in [-36.0,-41.8,-47.3,-51.0]:
-        paint.append(_road_arrow(z,-float(side)*1.55,0.0))
-        colors.append(FORK_MAIN_COLOR)
-        fork_main_marks.append(paint.back().origin)
-    for i in range(4):
-        var z := ENTRY_PORTAL_Z+FORK_ARROW_LEAD-float(i)*3.1
-        paint.append(_road_arrow(z,float(side)*(1.7+float(i)*0.92),-float(side)*0.34))
-        colors.append(FORK_BRIDGE_COLOR)
-        fork_bridge_marks.append(paint.back().origin)
-    for z in [-51.0,-56.7]:
-        paint.append(_deck_arrow(z,0.0))
-        colors.append(FORK_BRIDGE_COLOR)
-        if z > ENTRY_PORTAL_Z:
-            fork_bridge_marks.append(paint.back().origin)
+    # On Woodworks, paint the shared approaches between the obstacle rows.
+    # Turn the amber arrow outward after clearing the right baffle at -43.75.
+    var main_z := [-34.0,-43.5,-46.0] if course_id == 0 else [-36.0,-41.8,-47.3,-51.0]
+    for z in main_z:
+        _append_fork_arrow(paint,colors,_road_arrow(z,-float(side)*1.55,0.0),false)
+    if course_id == 0:
+        _append_fork_arrow(paint,colors,_road_arrow(-34.0,1.85,-0.18),true)
+        _append_fork_arrow(paint,colors,_road_arrow(-46.0,4.0,-0.34),true)
+    else:
+        for i in range(4):
+            var z := ENTRY_PORTAL_Z+FORK_ARROW_LEAD-float(i)*3.1
+            var arrow := _road_arrow(z,float(side)*(1.7+float(i)*0.92),-float(side)*0.34)
+            _append_fork_arrow(paint,colors,arrow,true)
+    _append_fork_arrow(paint,colors,_deck_arrow(-51.0,0.0),true)
+    paint.append(_deck_arrow(-56.7,0.0))
+    colors.append(FORK_BRIDGE_COLOR)
+
+func _append_fork_arrow(paint: Array[Transform3D], colors: Array[Color], arrow: Transform3D, bridge: bool) -> void:
+    paint.append(arrow)
+    colors.append(FORK_BRIDGE_COLOR if bridge else FORK_MAIN_COLOR)
+    var marks := fork_bridge_marks if bridge else fork_main_marks
+    marks.append(arrow.origin)
 
 func fork_mark_ahead(z: float, speed: float, bridge: bool) -> Vector3:
     var reach := clampf(speed*0.70,7.0,13.0)
