@@ -276,10 +276,11 @@ func set_quality(quality: int) -> void:
     if is_instance_valid(waistbands):
         waistbands.visible = quality_level > 0
     if is_instance_valid(approach_markers):
-        approach_markers.visible = quality_level > 0
-        # Rebuild GPU tint from current pulse state when Android auto-quality
-        # restores the markers. Otherwise an old bright contact flash can
-        # remain frozen after the economy tier skipped its GPU writes.
+        # Gameplay warnings must remain visible even in economy mode:
+        # removing them made low-end Android players approach spring posts
+        # without the same advance cues as higher-quality devices.
+        approach_markers.visible = true
+        # Rebuild GPU tint from current pulse state after quality changes.
         if quality_level > 0:
             for index in range(pulse_strength.size()):
                 var strength: float = clampf(pulse_strength[index],0.0,1.0)
