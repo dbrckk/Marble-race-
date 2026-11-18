@@ -1252,11 +1252,11 @@ func _process(delta: float) -> void:
 
 func _physics_process(delta: float) -> void:
     steer = move_toward(steer,steer_target,delta*8.5)
-    # Drive all mechanisms from a bounded absolute phase instead of
-    # accumulating spinner rotations. This avoids long-session drift and
-    # keeps their pose deterministic after a mobile resume/frame hitch.
+    # Drive mechanisms from a shared timebase instead of accumulating
+    # spinner rotations. Clamp mobile resume hitches without changing the
+    # physics-step motion cadence or abruptly resetting hammer phases.
     if is_finite(delta) and delta > 0.0:
-        kinetic_time = fposmod(kinetic_time+minf(delta,0.10),TAU*100.0)
+        kinetic_time += minf(delta,0.10)
     for obj in moving_obstacles:
         if not is_instance_valid(obj):
             continue
