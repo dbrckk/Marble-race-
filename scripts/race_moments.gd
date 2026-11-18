@@ -539,7 +539,10 @@ func tick(delta: float) -> void:
             continue
         if merge_lane != 0 and absf(offset.y) <= 1.5 and (not local_race or not marble.freeze):
             var score := INF
-            if game.selected_track == 0 and local_race:
+            if (game.selected_track == 0 or game.selected_track == 2) and local_race:
+                # Predict the crossing time at Forge as well as Woodworks.
+                # A fast marble approaching from behind can reach the join
+                # before a nearby but slower rival on the other deck.
                 score = road.merge_conflict_score(p.z,own_forward,opponent.z,-marble.linear_velocity.z)
             elif merge_traffic == 0 and absf(gap) <= merge_distance:
                 score = absf(gap)
