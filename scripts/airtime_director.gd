@@ -536,12 +536,17 @@ func _show_landing(event: Dictionary, announce := true) -> void:
     if announce:
         game.ui.show_race_moment("%s  •  %.2fs" % [grade,seconds],
             1.35 if grade == "BIG AIR" else 1.1)
-    game.audio.touchdown(grade,float(event["impact"]))
+    var impact := clampf(float(event["impact"]),0.0,1.0)
+    game.audio.touchdown(grade,impact)
     landing_pending = RETURN_WINDOW
     landing_pending_grade = grade
     secure_contacts = 0
-    game.camera_shake = minf(0.105,maxf(game.camera_shake,
-        0.075 if grade == "BIG AIR" else 0.042))
+    # Scale camera feedback with the actual landing impulse: a soft
+    # touchdown must not shake as much as a heavy bridge landing.
+    var shake := lerpf(0.022,0.082,impact)
+    if grade == "BIG AIR":
+        shake = minf(0.105,shake+0.016)
+    game.camera_shake = maxf(game.camera_shake,shake)
 
 func _emit_ripple(ground_point: Vector3, grade: String, transition := 0,
         normal := Vector3.UP) -> void:
