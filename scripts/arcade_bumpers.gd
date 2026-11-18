@@ -50,9 +50,9 @@ func setup(owner: Node3D, track: int, next_layout: int) -> void:
     biome = clampi(track,0,2)
     layout = posmod(next_layout,3)
     name = "PhysicalPinballKickers"
-    var surface := PhysicsMaterial.new()
-    surface.friction = 0.08
-    surface.bounce = BOUNCE[biome]
+    # Three predictable spring strengths per rematch layout. Every post
+    # still uses real Godot rigid-body collision response; no scripted
+    # velocity changes or hidden impulses are introduced.
     var posts: Array[Transform3D] = []
     var rings: Array[Transform3D] = []
     for station in range(STATION_Z.size()):
@@ -62,7 +62,15 @@ func setup(owner: Node3D, track: int, next_layout: int) -> void:
             post.name = "PinballKicker_%d_%s" % [
                 station,"L" if side < 0 else "R"]
             post.position = where
+            var phase: int = posmod(station+layout+(1 if side > 0 else 0),3)
+            var spring_factor: float = [0.86,0.94,1.0][phase]
+            var spring_bounce: float = clampf(BOUNCE[biome]*spring_factor,
+                0.0,0.98)
+            var surface := PhysicsMaterial.new()
+            surface.friction = 0.08
+            surface.bounce = spring_bounce
             post.physics_material_override = surface
+            post.set_meta("spring_bounce",spring_bounce)
             post.set_meta("station",station)
             post.set_meta("side",side)
             var hit := CollisionShape3D.new()
