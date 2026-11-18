@@ -46,6 +46,12 @@ static func camera_pose(position: Vector3, velocity: Vector3,
     center_ahead_x: float, camera_mode: int, boosting: bool,
     hazard_distance: float, close_duel: bool = false,
     airborne_weight: float = 0.0) -> Dictionary:
+    # Invalid physics samples must not propagate NaNs into camera transforms.
+    # This is presentation-only and leaves actual marble physics untouched.
+    if not position.is_finite() or not velocity.is_finite() or (
+            not is_finite(center_ahead_x) or not is_finite(hazard_distance)):
+        return {"position":Vector3(0.0,8.0,12.0),
+            "focus":Vector3.ZERO,"fov":64.0,"pace":0.0,"risk":0.0}
     var planar_speed: float = Vector2(velocity.x,velocity.z).length()
     var pace: float = clampf((planar_speed-3.0)/19.0,0.0,1.0)
     # A compact preview pulls the camera up and back before a near-side
@@ -125,6 +131,8 @@ static func collision_kind(other: Node) -> String:
     return "surface"
 
 static func impact_intensity(velocity: Vector3, other: Node) -> float:
+    if not velocity.is_finite() or not is_instance_valid(other):
+        return 0.0
     var kind: String = collision_kind(other)
     if kind == "surface":
         # Play a landing thump only after actual downward velocity, never
@@ -132,13 +140,20 @@ static func impact_intensity(velocity: Vector3, other: Node) -> float:
         return clampf((-velocity.y-3.0)/10.0,0.0,1.0)
     var speed: float = velocity.length()
     if kind == "glass" and other is RigidBody3D:
-        speed = (velocity-(other as RigidBody3D).linear_velocity).length()
+        var other_velocity: Vector3 = (other as RigidBody3D).linear_velocity
+        if not other_velocity.is_finite():
+            return 0.0
+        speed = (velocity-other_velocity).length()
     elif kind == "mechanism":
         speed += 1.3
     return clampf((speed-2.7)/14.0,0.0,1.0)
 
 static func shake_strength(intensity: float) -> float:
+    if not is_finite(intensity):
+        return 0.0
     return clampf(intensity*0.105,0.0,0.105)
 
 static func feedback_interval(intensity: float) -> float:
+    if not is_finite(intensity):
+        return 0.19
     return lerpf(0.19,0.09,clampf(intensity,0.0,1.0))
