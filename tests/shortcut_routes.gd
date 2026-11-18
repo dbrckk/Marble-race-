@@ -695,6 +695,68 @@ func _verify_merge_cues(game: Node3D, side: int) -> bool:
         assert(moments.merge_traffic == 0 and not is_instance_valid(moments.merge_rival) and (
             not hud.player_locator.merge_rival_center.is_finite()),
             "The same rival no longer reaches the merge within the player's window")
+    # A dense two-road convergence must choose the rival whose arrival is
+    # closest to the player's, not whichever happens to be last in the array.
+    # A third slow rival outside the local conflict window must not inflate
+    # the pack cue (including when it is visible in the duel radar).
+    var second: RigidBody3D = game.racers[1]
+    var slow: RigidBody3D = game.racers[2]
+    for racer in game.racers:
+        if racer == player:
+            continue
+        racer.freeze = true
+        racer.global_position = Vector3(80.0,0.0,20.0)
+    for racer in [other,second,slow]:
+        racer.freeze = false
+    var crossing_z: float = BypassScript.EXIT_Z+4.0
+    player.global_position = Vector3(game.track_center_at(crossing_z)-side*1.3,
+        game.height_at(crossing_z)+0.44,crossing_z)
+    player.linear_velocity = Vector3(0,0,-12.0)
+    other.global_position = road.point_at(BypassScript.EXIT_Z+6.0)+Vector3.UP*0.65
+    other.linear_velocity = Vector3(0,0,-18.0)
+    second.global_position = road.point_at(BypassScript.EXIT_Z+7.0)+Vector3.UP*0.65
+    second.linear_velocity = Vector3(0,0,-20.0)
+    slow.global_position = road.point_at(BypassScript.EXIT_Z+9.0)+Vector3.UP*0.65
+    slow.linear_velocity = Vector3(0,0,-4.0)
+    moments.reset_round()
+    moments.tick(0.12)
+    assert(moments.merge_traffic == 1 and moments.merge_threat_count == 2 and
+        moments.merge_rival == other,
+        "Two bridge arrivals are counted, with the closest crossing highlighted")
+    hud.label_timer = 0.25
+    hud.update_hud()
+    if not hud.timed_gate_backdrop.visible and not hud.final_danger_active:
+        assert(hud.shortcut_label.visible and hud.shortcut_label.text.contains("BRIDGE PACK"),
+            "A multiple-rival merge needs a compact pack warning")
+    other.global_position.y += 3.5
+    moments.tick(0.12)
+    assert(moments.merge_threat_count == 1 and moments.merge_rival == second,
+        "A rival above the bridge cannot remain the highlighted threat")
+    second.global_position.y += 3.5
+    moments.tick(0.12)
+    assert(moments.merge_traffic == 0 and moments.merge_threat_count == 0 and (
+            moments.merge_rival == null),
+        "Clear the pack cue as soon as both crossing lanes are free")
+
+    # Reverse the junction: the human arrives on the bridge and two main-road
+    # rivals occupy the return. The instruction must remain on the correct side.
+    player.global_position = road.point_at(crossing_z)+Vector3.UP*0.65
+    other.global_position = Vector3(game.track_center_at(BypassScript.EXIT_Z+6.0)-side*1.3,
+        game.height_at(BypassScript.EXIT_Z+6.0)+0.44,BypassScript.EXIT_Z+6.0)
+    second.global_position = Vector3(game.track_center_at(BypassScript.EXIT_Z+7.0)-side*1.3,
+        game.height_at(BypassScript.EXIT_Z+7.0)+0.44,BypassScript.EXIT_Z+7.0)
+    slow.global_position.y += 4.0
+    moments.reset_round()
+    moments.tick(0.12)
+    assert(moments.merge_traffic == -1 and moments.merge_threat_count == 2 and
+        moments.merge_rival == other,
+        "The same two arrivals must be detected from the bridge side")
+    hud.label_timer = 0.25
+    hud.update_hud()
+    if not hud.timed_gate_backdrop.visible and not hud.final_danger_active:
+        assert(hud.shortcut_label.visible and hud.shortcut_label.text.contains(
+            "MAIN PACK  •  SAVE BOOST"),
+            "A packed main lane must override the ordinary accelerate-through-merge cue")
     return true
 
 func _verify_woodworks_gates(game: Node3D) -> void:
