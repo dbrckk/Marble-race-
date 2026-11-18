@@ -2034,7 +2034,14 @@ func update_hud() -> void:
     # hazard checks. 30 Hz remains responsive on 60/120 Hz displays while
     # reducing CPU work and CanvasItem invalidations during 40-marble races.
     locator_sample_time += maxf(0.0,elapsed)
-    if locator_sample_time >= 1.0/30.0:
+    # Safety-critical opening guidance must appear and disappear on the
+    # same HUD tick as the physical hazard state. Only routine tracking is
+    # sampled at 30 Hz; urgent route cues bypass the rate limiter.
+    var urgent_locator := game.race_moments != null and (
+        not game.race_moments.opening_guidance.is_empty() or
+        game.race_moments.evasion_target.is_finite() or
+        player_locator.evasion_center.is_finite())
+    if urgent_locator or locator_sample_time >= 1.0/30.0:
         player_locator.refresh(locator_sample_time)
         locator_sample_time = 0.0
     var velocity := Vector3.ZERO
