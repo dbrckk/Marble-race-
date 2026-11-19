@@ -103,9 +103,9 @@ jobs:
       - name: Install A, update to B and reopen the game
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: 30
           arch: x86_64
-          target: google_apis
+          target: default
           profile: pixel_4
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           # The hosted runner may need software emulation without /dev/kvm.
