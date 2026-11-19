@@ -1,7 +1,7 @@
 extends SceneTree
 ## Full-physics navigation measurement. Unlike course.gd this intentionally
 ## continues after the human crosses the line, for a fair 120-second window.
-## All 40 rigid bodies, obstacles, jumps and collisions remain active.
+## All 30 rigid bodies, obstacles, jumps and collisions remain active.
 func _initialize() -> void:
     call_deferred("_run")
 

@@ -30,7 +30,7 @@ func _run() -> void:
                 if not m.finished and not m.eliminated:
                     active+=1
             print("RACE_DIAGNOSTIC",i+1, "time",stage.race_time,"finished",stage.racer_finish_order.size(),
-                "active",active,"avg_speed",speed/40.0,"avg_z",forward/40.0,
+                "active",active,"avg_speed",speed/float(stage.MARBLE_COUNT),"avg_z",forward/float(stage.MARBLE_COUNT),
                 "player",stage.player.global_position,"player_speed",stage.player.linear_velocity.length())
     assert(stage.racer_finish_order.size() >= 8, "Course should have finishers after 110 seconds")
     assert(stage.player.finished,

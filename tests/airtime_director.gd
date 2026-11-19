@@ -70,7 +70,7 @@ func _run() -> void:
             assert(hit.has("ground") and hit["touching"],
                 "The real board must give a correct marble floor probe")
             # The physics probe is independent of video quality and uses
-            # one static ray for the local human, never 40 raycasts per tick.
+            # one static ray for the local human, never 30 raycasts per tick.
             for quality in range(3):
                 stage.set_graphics_quality(quality)
                 assert(flight.ripple.visible == (quality != 0))

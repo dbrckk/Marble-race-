@@ -17,7 +17,7 @@ func _verify() -> void:
     game.set_process(false)
     game.set_physics_process(false)
     assert(STRATEGY.ZONE_LOOKAHEAD <= 14.0,
-        "40 AI cannot scan distant unrelated surface hazards")
+        "29 AI cannot scan distant unrelated surface hazards")
     var approaches := 0
     var cooled_vents := 0
     for biome in range(3):
