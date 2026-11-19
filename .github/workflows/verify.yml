@@ -384,7 +384,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker build --file server/Dockerfile --tag marble-race-server:ci .
+          docker build --file server/Dockerfile --tag marble-race-server:ci \
+            --build-arg UBUNTU_ARCHIVE=https://azure.archive.ubuntu.com/ubuntu/ \
+            --secret id=ubuntu_archive_ca,src=/etc/ssl/certs/ca-certificates.crt \
+            . 2>&1 | tee docker-build.log
           docker run --rm --entrypoint python3 marble-race-server:ci -c "import asyncio, socket, signal, json; print('EDGE_RUNTIME_STD_LIB_OK')" | tee docker-runtime.log
           grep -Fq "EDGE_RUNTIME_STD_LIB_OK" docker-runtime.log
       - name: HTTP health and WebSocket gateway integration
