@@ -43,8 +43,12 @@ func _run() -> void:
             assert(visual.visible and game.race_items.activation_kind == local_kind and (
                 visual.mesh.get_surface_count() == 1 and visual.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF))
             var origin := visual.global_position
+            human.global_position += Vector3(0.45,0.0,-4.0)
             game.race_items._process(0.10)
-            assert(visual.global_position.distance_to(origin) > 0.2)
+            if local_kind == "turbo":
+                assert(visual.global_position.distance_to(human.global_position) < 0.2)
+            else:
+                assert(visual.global_position.y > origin.y+0.2 and is_equal_approx(visual.global_position.z,origin.z))
             game.set_graphics_quality(0)
             assert(not visual.visible)
             game.set_graphics_quality(1)
@@ -87,6 +91,13 @@ func _run() -> void:
             "Online recipient must see instant item feedback")
         assert(game.race_items.pulse_remaining > 0.0 if effect == "pulse" else (
             game.race_items.activation_kind == effect and game.race_items.activation_mesh.visible))
+        if effect == "stabilizer":
+            human.global_position += Vector3(0.8,0.0,-4.0)
+            game.set_graphics_quality(0)
+            game.race_items._process(0.10)
+            assert(game.race_items.active_speed_item() == 3 and not game.race_items.activation_mesh.visible)
+            game.set_graphics_quality(1)
+            assert(game.race_items.activation_mesh.global_position.distance_to(human.global_position) < 0.2)
         var sound_channel: int = game.audio.current_channel
         var effect_progress: float = game.race_items.pulse_remaining if effect == "pulse" else game.race_items.activation_remaining
         game.net._rare_item_notice(1,effect)
@@ -97,6 +108,7 @@ func _run() -> void:
         game.net.joined_slots.clear()
         game.return_to_menu()
         assert(not game.race_items.activation_mesh.visible and not game.race_items.pulse_ring.visible)
+        assert(game.race_items.active_speed_item() == -1)
     print("ARCADE_ITEMS_AND_WORLDS_PASS:")
     game.queue_free()
     await process_frame

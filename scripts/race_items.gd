@@ -234,24 +234,36 @@ func _present_pickup(kind: String, at: Vector3) -> void:
     game.audio.item_pickup(kind)
     game.ui.show_item_pickup(kind)
 
+func active_speed_item() -> int:
+    if activation_remaining <= 0.0:
+        return -1
+    if activation_kind == "turbo" or activation_kind == "stabilizer":
+        return ITEM_KINDS.find(activation_kind)
+    return -1
+
 func _update_activation() -> void:
     var progress := 1.0-activation_remaining/ACTIVATION_DURATION
+    var anchor := activation_origin
     var drift := Vector3.ZERO
     var extent := Vector3.ONE
+    var follows_player := active_speed_item() >= 0
+    if follows_player and is_instance_valid(game.player) and game.player.global_position.is_finite():
+        anchor = game.player.global_position
     match activation_kind:
         "turbo":
-            drift = Vector3(0,-0.20,-2.4*progress)
-            extent.z = lerpf(0.75,1.25,progress)
+            drift.y = 0.03
+            extent.z = lerpf(0.78,1.35,progress)
         "spring":
             drift.y = 0.05+1.25*progress
             extent.y = lerpf(0.70,1.20,progress)
         "stabilizer":
-            drift.y = -0.22
-            extent.x = lerpf(1.55,0.72,progress)
-    activation_mesh.global_position = activation_origin+drift
+            drift.y = 0.17
+            extent.x = lerpf(1.55,0.81,progress)
+    activation_mesh.global_position = anchor+drift
     activation_mesh.scale = extent
     var tint: Color = COLORS[ITEM_KINDS.find(activation_kind)].lightened(0.22)
-    tint.a = 0.94*pow(1.0-progress,1.6)
+    tint.a = 0.94*(1.0-smoothstep(0.36,1.0,progress)) if follows_player else (
+        0.94*pow(1.0-progress,1.6))
     activation_material.albedo_color = tint
 
 func _process(delta: float) -> void:

@@ -296,16 +296,27 @@ func _draw() -> void:
         draw_polyline(left,MERGE_ACCENT,3.5,true)
         draw_polyline(right,MERGE_ACCENT,3.5,true)
     var label_rect := _badge_rect()
+    # Keep the confirmation on the existing player badge, inside its usual bounds.
+    var effect: int = game.race_items.active_speed_item() if game.race_state == "RACING" and (
+        is_instance_valid(game.race_items)) else -1
+    var accent: Color = ITEMS.COLORS[effect] if effect >= 0 else ACCENT
     var pointer := Vector2(clampf(screen_center.x,label_rect.position.x+7.0,label_rect.end.x-7.0),label_rect.end.y)
     if pointer.y < screen_center.y-screen_radius:
         draw_colored_polygon(PackedVector2Array([pointer+Vector2(-6.0,-1.0),
             pointer+Vector2(6.0,-1.0),pointer+Vector2(0.0,7.0)]),INK)
         draw_colored_polygon(PackedVector2Array([pointer+Vector2(-3.2,0.0),
-            pointer+Vector2(3.2,0.0),pointer+Vector2(0.0,4.8)]),ACCENT)
+            pointer+Vector2(3.2,0.0),pointer+Vector2(0.0,4.8)]),accent)
     draw_style_box(badge,label_rect)
+    var glyph_width := 0.0
+    if effect >= 0:
+        var glyph_center := label_rect.position+Vector2(11.0,BADGE_HEIGHT*0.5)
+        draw_set_transform(glyph_center,0.0,Vector2.ONE*9.0)
+        draw_colored_polygon(rare_badge_glyphs[effect],accent)
+        draw_set_transform(Vector2.ZERO)
+        glyph_width = 18.0
     var baseline := (BADGE_HEIGHT+FONT.get_ascent(FONT_SIZE)-FONT.get_descent(FONT_SIZE))*0.5
-    draw_string(FONT,label_rect.position+Vector2(0.0,baseline),badge_text,
-        HORIZONTAL_ALIGNMENT_CENTER,badge_width,FONT_SIZE,ACCENT)
+    draw_string(FONT,label_rect.position+Vector2(glyph_width,baseline),badge_text,
+        HORIZONTAL_ALIGNMENT_CENTER,badge_width-glyph_width,FONT_SIZE,ACCENT)
 
     if bracket_strength > 0.0:
         var scale := Vector2.ONE*(screen_radius+5.0)
