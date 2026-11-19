@@ -24,6 +24,7 @@ const SURFACE_FADE_SECONDS := 0.22
 const ICE_FADE_SECONDS := 0.12
 const PASS_MIX_SECONDS := 0.42
 const WARNED_BOOST_DB := -29.0
+static var pickup_cues: Dictionary = {}
 const AIR = preload("res://assets/audio/sfx/airrush.ogg")
 const PERCUSSION = preload("res://assets/audio/music/pace_percussion.ogg")
 const FANFARE = preload("res://assets/audio/sfx/fanfare.ogg")
@@ -110,6 +111,17 @@ var rng := RandomNumberGenerator.new()
 
 func _ready() -> void:
     rng.seed = 5721
+    if pickup_cues.is_empty():
+        pickup_cues = {
+            "turbo": HazardAudio.render([[0.0,0.23,420.0,1250.0,0.31],
+                [0.10,0.18,650.0,1550.0,0.15]],0.30,"Pickup turbo",false,true),
+            "spring": HazardAudio.render([[0.0,0.14,470.0,910.0,0.22],
+                [0.105,0.16,1180.0,1440.0,0.30]],0.28,"Pickup jump",true),
+            "pulse": HazardAudio.render([[0.0,0.25,560.0,260.0,0.42],
+                [0.032,0.15,880.0,370.0,0.24]],0.28,"Pickup shockwave",false,true),
+            "stabilizer": HazardAudio.render([[0.0,0.125,980.0,760.0,0.14],
+                [0.10,0.17,740.0,740.0,0.18]],0.30,"Pickup steady dash",true)
+        }
     var cfg=ConfigFile.new()
     if cfg.load("user://marble_settings.cfg") == OK:
         enabled = bool(cfg.get_value("audio","enabled",true))
@@ -450,7 +462,7 @@ func _voice(stream: AudioStream, loudness := -10.0, pitch := 1.0) -> void:
     p.stream = stream
     p.pitch_scale = pitch
     p.volume_db = minf(loudness,WARNED_BOOST_DB) if (
-        stream == TONES["boost"] and hazard_cooldown > 0.0) else loudness
+        hazard_cooldown > 0.0 and _ducks_for_hazard(stream)) else loudness
     p.play()
 
 func ui_click() -> void:
@@ -581,7 +593,7 @@ func _warn_hazard(played: Dictionary, index: int, cue: int) -> void:
     hazard_cooldown = 0.36
     hazard_duck = 4.5
     for voice in channels:
-        if voice.playing and voice.stream == TONES["boost"]:
+        if voice.playing and _ducks_for_hazard(voice.stream):
             voice.volume_db = minf(voice.volume_db,WARNED_BOOST_DB)
     _voice(hazard_cues[cue],-15.0)
 
@@ -618,17 +630,13 @@ func course_event(kind: String) -> void:
             _voice(TONES["checkpoint"],-16.0,1.60)
             _voice(TONES["boost"],-19.0,1.30)
 
+func _ducks_for_hazard(stream: AudioStream) -> bool:
+    return stream == TONES["boost"] or pickup_cues.find_key(stream) != null
+
 func item_pickup(kind: String) -> void:
-    # Distinct pitch and voice combination of existing bundled audio.
-    match kind:
-        "turbo":
-            _voice(TONES["boost"],-7.0,1.28)
-        "spring":
-            _voice(TONES["checkpoint"],-10.0,1.48)
-        "pulse":
-            _voice(BUMPER_HITS[1],-8.0,0.85)
-        _:
-            _voice(UI_SELECT,-9.0,1.12)
+    var cue: AudioStreamWAV = pickup_cues.get(kind)
+    if cue != null:
+        _voice(cue,-12.0)
 
 func boost() -> void:
     if enabled and race_active and boost_delay <= 0.0 and hazard_cooldown <= 0.0:

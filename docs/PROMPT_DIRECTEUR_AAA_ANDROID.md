@@ -668,6 +668,12 @@ Turbo, saut, onde de choc et dash stabilisé ont chacun une silhouette, un symbo
 
 Les suites Godot vérifient les neuf tracés, les positions solo et réseau, la collecte réservée aux humains, les avertissements avant un obstacle et le repère du tutoriel au milieu du peloton.
 
+### 2026-11-19 — Activation des quatre objets rares
+
+Le turbo déploie deux traînées cyan, le saut lève des chevrons dorés, l'onde de choc s'étend au sol et le dash stabilisé resserre deux guides verts. Le jeu réutilise deux maillages d'effet et coupe leur rendu en Économie. Une collecte validée déclenche le même retour visuel et sonore en solo et chez le client en ligne. Les doublons réseau n'enclenchent pas une deuxième animation.
+
+Quatre sons courts sont synthétisés à l'initialisation et jouent dans les canaux existants. Les alertes de danger baissent le volume des sons d'activation. Les tests Godot couvrent la collecte, le rayon physique de l'onde, le rejeu réseau, les changements de qualité, la pause et la priorité sonore des dangers.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
 Sur Android, activer **FPS DISPLAY**, prendre le pont sur Gauntlet et copier le rapport après la course. Rejouer le même tracé avec **TEST ECONOMY** ou **TEST BALANCED**, reprendre le pont et copier le deuxième rapport. Comparer les lignes **GAUNTLET BRIDGE JUMP** et **BRIDGE RETURN ±8 m** et vérifier la lecture du portique, de la réception et du piston à pleine vitesse.

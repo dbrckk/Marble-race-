@@ -37,6 +37,7 @@ const PULSE_VERTICAL_LIMIT := 1.20
 const PULSE_HORIZONTAL_IMPULSE := 4.15
 const PULSE_LIFT_IMPULSE := 1.10
 const PULSE_VISUAL_DURATION := 0.52
+const ACTIVATION_DURATION := 0.38
 const ITEM_KINDS := ["turbo", "spring", "pulse", "stabilizer"]
 const ITEM_NAMES := ["TURBO", "JUMP", "SHOCKWAVE", "STEADY DASH"]
 const TRACK_PATH = preload("res://scripts/track_path.gd")
@@ -57,6 +58,11 @@ var pulse_material: StandardMaterial3D
 var pulse_remaining := 0.0
 var visual_quality := 1
 var confirmed_pulses := 0
+var activation_mesh: MeshInstance3D
+var activation_material: StandardMaterial3D
+var activation_remaining := 0.0
+var activation_kind := ""
+var activation_origin := Vector3.ZERO
 
 static func kind_at(index: int, track: int) -> String:
     return ITEM_KINDS[posmod(index+clampi(track,0,2),ITEM_KINDS.size())]
@@ -160,6 +166,15 @@ func setup(owner: Node3D, track: int, variation: int) -> void:
         add_child(pickup)
         items.append(pickup)
     _build_pulse_fx()
+    activation_mesh = MeshInstance3D.new()
+    activation_mesh.name = "ConfirmedPickupEffect"
+    activation_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    activation_material = pulse_material.duplicate() as StandardMaterial3D
+    activation_material.emission_enabled = false
+    activation_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+    activation_mesh.material_override = activation_material
+    activation_mesh.hide()
+    add_child(activation_mesh)
 
 func _build_pulse_fx() -> void:
     # A single reusable unlit torus is enough for one local human's instant
@@ -190,6 +205,10 @@ func set_quality(quality: int) -> void:
     visual_quality = clampi(quality,0,2)
     if is_instance_valid(pulse_ring):
         pulse_ring.visible = visual_quality > 0 and pulse_remaining > 0.0
+    if is_instance_valid(activation_mesh):
+        activation_mesh.visible = visual_quality > 0 and activation_remaining > 0.0
+        if activation_mesh.visible:
+            _update_activation()
 
 func _show_pulse(at: Vector3) -> void:
     # Triggered only after offline/server-authoritative human collection.
@@ -200,10 +219,51 @@ func _show_pulse(at: Vector3) -> void:
         return
     pulse_ring.global_position = at+Vector3(0.0,-0.46,0.0)
     pulse_ring.scale = Vector3.ONE*0.36
+    pulse_material.albedo_color = COLORS[2]
     set_quality(visual_quality)
 
+func _present_pickup(kind: String, at: Vector3) -> void:
+    if kind == "pulse":
+        _show_pulse(at)
+    else:
+        activation_kind = kind
+        activation_origin = at
+        activation_remaining = ACTIVATION_DURATION
+        activation_mesh.mesh = RARE_ART.activation(kind)
+        set_quality(visual_quality)
+    game.audio.item_pickup(kind)
+    game.ui.show_item_pickup(kind)
+
+func _update_activation() -> void:
+    var progress := 1.0-activation_remaining/ACTIVATION_DURATION
+    var drift := Vector3.ZERO
+    var extent := Vector3.ONE
+    match activation_kind:
+        "turbo":
+            drift = Vector3(0,-0.20,-2.4*progress)
+            extent.z = lerpf(0.75,1.25,progress)
+        "spring":
+            drift.y = 0.05+1.25*progress
+            extent.y = lerpf(0.70,1.20,progress)
+        "stabilizer":
+            drift.y = -0.22
+            extent.x = lerpf(1.55,0.72,progress)
+    activation_mesh.global_position = activation_origin+drift
+    activation_mesh.scale = extent
+    var tint: Color = COLORS[ITEM_KINDS.find(activation_kind)].lightened(0.22)
+    tint.a = 0.94*pow(1.0-progress,1.6)
+    activation_material.albedo_color = tint
+
 func _process(delta: float) -> void:
-    if pulse_remaining <= 0.0 or not is_finite(delta) or delta <= 0.0:
+    if not is_finite(delta) or delta <= 0.0:
+        return
+    if activation_remaining > 0.0:
+        activation_remaining = maxf(0.0,activation_remaining-delta)
+        if activation_remaining > 0.0 and visual_quality > 0:
+            _update_activation()
+        else:
+            activation_mesh.hide()
+    if pulse_remaining <= 0.0:
         return
     pulse_remaining = maxf(0.0,pulse_remaining-delta)
     if not is_instance_valid(pulse_ring):
@@ -217,6 +277,13 @@ func _process(delta: float) -> void:
     var fade: Color = COLORS[2]
     fade.a = 0.88*pow(1.0-progress,1.4)
     pulse_material.albedo_color = fade
+
+func clear_activation() -> void:
+    pulse_remaining = 0.0
+    activation_remaining = 0.0
+    activation_kind = ""
+    pulse_ring.hide()
+    activation_mesh.hide()
 
 static func pulse_impulse(offset: Vector3) -> Vector3:
     # Zero means no hit; also makes distance falloff deterministic enough
@@ -239,10 +306,8 @@ static func pulse_impulse(offset: Vector3) -> Vector3:
 func reset_round() -> void:
     clock = 0.0
     used.clear()
-    pulse_remaining = 0.0
     confirmed_pulses = 0
-    if is_instance_valid(pulse_ring):
-        pulse_ring.visible = false
+    clear_activation()
     for i in range(items.size()):
         var item := items[i]
         item.position = placement_at(i,game.selected_track,game.built_variation,
@@ -281,20 +346,23 @@ func tick(delta: float, racers: Array[RigidBody3D], net: Node) -> void:
                 net.notify_item_collected(marble.racer_id,i,kind)
             if net.role == "offline":
                 pickup.visible = false
-                if kind == "pulse":
-                    _show_pulse(marble.global_position)
-                game.audio.item_pickup(kind)
-                game.ui.show_item_pickup(kind)
+                _present_pickup(kind,marble.global_position)
             # Shared pickups remain visible in multiplayer: each human can
             # independently claim each one exactly once on the authority.
             break
 
 func mark_local_pickup(index: int) -> void:
     # Client display only: the dedicated server already applied the effect.
-    if index >= 0 and index < items.size() and is_instance_valid(items[index]):
-        if items[index].visible and kind_at(index,game.selected_track) == "pulse":
-            _show_pulse(items[index].global_position)
-        items[index].visible = false
+    if index < 0 or index >= items.size() or not is_instance_valid(items[index]) or not items[index].visible:
+        return
+    var pickup := items[index]
+    pickup.hide()
+    var at := pickup.global_position
+    if is_instance_valid(game.player) and game.player.global_position.distance_squared_to(at) < 9.0:
+        at = game.player.global_position
+    else:
+        at.y = game.height_at(at.z)+0.39
+    _present_pickup(kind_at(index,game.selected_track),at)
 
 func _activate(kind: String, racer: RigidBody3D, racers: Array[RigidBody3D]) -> void:
     if kind == "turbo":
