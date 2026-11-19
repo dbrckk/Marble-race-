@@ -85,8 +85,11 @@ static func is_banked_section(section: int) -> bool:
 func _material(tint: Color, glow: float = 0.0) -> StandardMaterial3D:
     var result := StandardMaterial3D.new()
     result.albedo_color = tint
-    result.roughness = 0.48 if biome != 1 else 0.28
-    result.metallic = 0.20 if biome == 0 else 0.43
+    # Biome-specific surface response: matte timber, polished glacial ice,
+    # and brushed foundry metal. Reuses the existing instanced draw batches.
+    result.roughness = [0.68,0.22,0.39][biome]
+    result.metallic = [0.05,0.12,0.68][biome]
+    result.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
     result.emission_enabled = glow > 0.0
     if glow > 0.0:
         result.emission = tint
