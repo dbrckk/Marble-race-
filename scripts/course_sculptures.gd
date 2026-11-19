@@ -289,22 +289,22 @@ func _world_passage_vaults() -> void:
                     Vector3(center_x,crest_y+0.08,z)))
     vault_posts = _instanced("NineGatewayPillarPairs",ARCHITECTURE.pier(biome),
         ARCHITECTURE.material(biome),pillars)
-    var roof_mesh := BoxMesh.new()
-    roof_mesh.size = Vector3(FORGE_RIB_LENGTH if forge else VAULT_HALF_WIDTH+0.29,0.34,0.62)
-    vault_roofs = _instanced("NineSculptedGatewayRidges",roof_mesh,
-        _material(COLOR_BODIES[biome].lightened(0.27)),vault_rib_roots)
+    var rib_width := FORGE_RIB_LENGTH if forge else VAULT_HALF_WIDTH+0.29
+    var rib_paint := _material(COLOR_BODIES[biome].lightened(0.27))
+    rib_paint.vertex_color_use_as_albedo = true
+    rib_paint.vertex_color_is_srgb = true
+    vault_roofs = _instanced("NineSculptedGatewayRidges",ARCHITECTURE.vault_rib(biome,rib_width),
+        rib_paint,vault_rib_roots)
     var neon := BoxMesh.new()
     neon.size = Vector3(FORGE_LIGHT_WIDTH if forge else 1.4,0.08,0.74)
     vault_highlights = _instanced("NineGatewayCrestLights",neon,
         _material(COLOR_GLOWS[biome],1.15),highlights)
-    # 12 reused meshes in ONE GPU batch instead of separate tunnel roofs.
-    # Timber slats, ice overhangs and metallic foundry awnings share the
-    # identical safe geometry, but differ in material roughness/metallic.
-    var canopy_mesh := BoxMesh.new()
-    canopy_mesh.size = Vector3(FORGE_CANOPY_WIDTH if forge else 2.90,0.10,3.00)
-    canopy_panels = _instanced("TwelveOpenSkyCanopyBays",canopy_mesh,
-        _material(COLOR_BODIES[biome].lightened(
-            0.28 if biome == 1 else 0.12)),canopy_roots)
+    var bay_width := FORGE_CANOPY_WIDTH if forge else 2.90
+    var canopy_paint := _material(COLOR_BODIES[biome].lightened(0.28 if biome == 1 else 0.12))
+    canopy_paint.vertex_color_use_as_albedo = true
+    canopy_paint.vertex_color_is_srgb = true
+    canopy_panels = _instanced("TwelveOpenSkyCanopyBays",ARCHITECTURE.canopy_bay(biome,bay_width),
+        canopy_paint,canopy_roots)
     var line_mesh := BoxMesh.new()
     line_mesh.size = Vector3(0.09,0.035,3.08)
     canopy_trims = _instanced("TwelveCanopyLuminousGuides",line_mesh,
