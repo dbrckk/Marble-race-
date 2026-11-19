@@ -92,7 +92,9 @@ func _material(tint: Color, glow: float = 0.0) -> StandardMaterial3D:
     result.emission_enabled = glow > 0.0
     if glow > 0.0:
         result.emission = tint
-        result.emission_energy_multiplier = glow
+        # Reduce bloom on bright Glacier ice so the road and approach cues
+        # remain readable, while retaining the same instanced light geometry.
+        result.emission_energy_multiplier = glow*(0.72 if biome == 1 else 1.0)
     return result
 
 func _instanced(label: String, mesh: Mesh, material: Material,
