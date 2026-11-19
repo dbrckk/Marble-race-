@@ -589,13 +589,39 @@ func on_separate_deck(location: Vector3, end_z := OUTER_END) -> bool:
 func forge_camera_weight(location: Vector3) -> float:
     if course_id != 2 or location.z > OUTER_START or location.z < EXIT_Z:
         return 0.0
-    var deck := point_at(location.z)
-    var lateral := absf(location.x-deck.x)
-    var on_deck := (1.0-smoothstep(WIDTH*0.5,WIDTH*0.5+0.65,lateral))*(
-        smoothstep(-0.25,0.25,location.y-deck.y))
+    var on_deck := _camera_deck_weight(location,point_at(location.z))
     # Start on the detached span and hand the view back as the return joins.
     return on_deck*smoothstep(0.0,4.0,OUTER_START-location.z)*(
         smoothstep(0.0,6.0,location.z-EXIT_Z))
+
+func _camera_deck_weight(location: Vector3, deck: Vector3) -> float:
+    var lateral := absf(location.x-deck.x)
+    return (1.0-smoothstep(WIDTH*0.5,WIDTH*0.5+0.65,lateral))*(
+        smoothstep(-0.25,0.25,location.y-deck.y))
+
+func glacier_return_camera_weight(location: Vector3, continuing_merge: bool) -> float:
+    var z := location.z
+    if course_id != 1 or z >= OUTER_END+7.0 or z <= EXIT_Z:
+        return 0.0
+    var on_deck := _camera_deck_weight(location,point_at(z))
+    if not continuing_merge:
+        var outside := float(side)*(location.x-float(stage.track_center_at(z)))
+        on_deck *= smoothstep(6.7,8.0,outside)
+    # Blend out while the painted route joins the main race line.
+    return on_deck*smoothstep(0.0,7.0,OUTER_END+7.0-z)*smoothstep(0.0,4.0,z-EXIT_Z)
+
+func glacier_return_line_x(z: float) -> float:
+    if z >= EXIT_Z:
+        return point_at(z).x
+    var previous := point_at(EXIT_Z)
+    for arrow in glacier_return_arrows:
+        var next := arrow.origin
+        if next.z >= EXIT_Z:
+            continue
+        if z >= next.z:
+            return lerpf(previous.x,next.x,inverse_lerp(previous.z,next.z,z))
+        previous = next
+    return lerpf(previous.x,stage.track_center_at(z),smoothstep(0.0,4.0,previous.z-z))
 
 func in_forge_jump_timing_window(location: Vector3) -> bool:
     return course_id == 2 and location.z <= JUMP_Z[2]+FORGE_JUMP_TIMING_APPROACH and (

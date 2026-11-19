@@ -656,6 +656,12 @@ Le rapport FPS affiche **GAUNTLET BRIDGE JUMP** sur Gauntlet. La fenêtre début
 
 Avec Godot 4.5.1, la suite de télémétrie vérifie l'approche, le vol, la réception et l'exclusion de la piste basse sur les trois variantes. Les suites de raccourcis, de contact aérien, de chronométrage et de pause passent également.
 
+### 2026-11-19 — Jonction du pont de Glacier
+
+La caméra de poursuite suit le tablier, puis rejoint les flèches peintes sur la piste. L'ajustement se réduit à l'approche de la jonction. Sur les quinze vues comparées par version à 1 280 × 720 dans Godot 4.5.1 GL Compatibility, l'écart horizontal médian de la prochaine flèche au centre de l'écran passe de 18,6 à 6,5 pixels. Ces vues ont été rendues sur ordinateur.
+
+À l'approche de la jonction, le HUD affiche **MAIN TRAFFIC** ou **MAIN PACK** et **SAVE BOOST** si des rivaux convergent vers la sortie. Dès que la jonction se libère, le conseil de centrage et l'annonce du volet reprennent leur place. Les essais couvrent les trois variantes, les deux côtés de la jonction, les caméras manuelles et le passage de deux rivaux à un seul puis à une voie libre.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
 Sur Android, activer **FPS DISPLAY**, prendre le pont sur Gauntlet et copier le rapport après la course. Rejouer le même tracé avec **TEST ECONOMY** ou **TEST BALANCED**, reprendre le pont et copier le deuxième rapport. Comparer les lignes **GAUNTLET BRIDGE JUMP** et **BRIDGE RETURN ±8 m** et vérifier la lecture du portique, de la réception et du piston à pleine vitesse.

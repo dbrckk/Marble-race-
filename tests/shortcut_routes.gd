@@ -259,6 +259,8 @@ func _run() -> void:
             if not _verify_merge_cues(game,side):
                 quit(1)
                 return
+            if course == 1:
+                assert(_verify_glacier_return_camera(game))
             if course == 0 and not _verify_woodworks_return(game,layout):
                 quit(1)
                 return
@@ -266,6 +268,7 @@ func _run() -> void:
             await process_frame
     print("SHORTCUT_ROUTES_PASS: three collidable, rewarded fork/merge alternatives")
     print("MERGE_GUIDANCE_PASS: nine layouts, real inside-lane markings, opposing decks and alert clearance")
+    print("GLACIER_RETURN_CAMERA_PASS: three layouts, painted approach, main route and manual cameras")
     print("FORGE_FORK_TRAFFIC_PASS: three layouts, both branches, cut-ins, stale snapshots and HUD handoff")
     print("FORGE_FIRST_GATE_PASS: three layouts, confirmed bridge, curve, real gate alignment and immediate handoff")
     print("FORGE_GATE_TRAFFIC_PASS: three layouts, stalled and crossing rivals, separate decks, replica motion and stale data")
@@ -780,6 +783,11 @@ func _verify_merge_cues(game: Node3D, side: int) -> bool:
     second.global_position = Vector3(game.track_center_at(BypassScript.EXIT_Z+7.0)-side*1.3,
         game.height_at(BypassScript.EXIT_Z+7.0)+0.44,BypassScript.EXIT_Z+7.0)
     slow.global_position.y += 4.0
+    if game.selected_track == 1:
+        # At this speed even Glacier's furthest shutter is in preview range.
+        player.linear_velocity.z = -14.0
+        other.linear_velocity.z = -21.0
+        second.linear_velocity.z = -24.0
     moments.reset_round()
     moments.tick(0.12)
     assert(moments.merge_traffic == -1 and moments.merge_threat_count == 2 and
@@ -787,10 +795,63 @@ func _verify_merge_cues(game: Node3D, side: int) -> bool:
         "The same two arrivals must be detected from the bridge side")
     hud.label_timer = 0.25
     hud.update_hud()
-    if not hud.timed_gate_backdrop.visible and not hud.final_danger_active:
+    if game.selected_track == 1:
+        assert(hud.timed_gate_label.visible and hud.timed_gate_label.text.contains(
+            "MAIN PACK  •  SAVE BOOST"),
+            "Glacier layout %d shows its packed merge, got '%s' (visible %s, bridge %s)" % [
+                game.built_variation+1,hud.timed_gate_label.text,hud.timed_gate_label.visible,hud.bridge_approach_active])
+        other.global_position.y += 3.5
+        moments.tick(0.12)
+        hud.label_timer = 0.25
+        hud.update_hud()
+        assert(hud.timed_gate_label.text.contains("MAIN TRAFFIC  •  SAVE BOOST"))
+        second.global_position.y += 3.5
+        moments.tick(0.12)
+        hud.label_timer = 0.25
+        hud.update_hud()
+        assert(hud.timed_gate_label.text.contains("THEN AIM CENTER") and
+            not hud.timed_gate_label.text.contains("SAVE BOOST"),
+            "Centering advice returns as soon as the merge is clear")
+    elif not hud.timed_gate_backdrop.visible and not hud.final_danger_active:
         assert(hud.shortcut_label.visible and hud.shortcut_label.text.contains(
             "MAIN PACK  •  SAVE BOOST"),
             "A packed main lane must override the ordinary accelerate-through-merge cue")
+    return true
+
+func _verify_glacier_return_camera(game: Node3D) -> bool:
+    var road: Node3D = game.shortcut_route
+    var player: RigidBody3D = game.player
+    var z: float = BypassScript.OUTER_END-2.0
+    var deck: Vector3 = road.point_at(z)
+    var low := Vector3(game.track_center_at(z),game.height_at(z)+0.44,z)
+    assert(road.glacier_return_camera_weight(low,true) == 0.0)
+    assert(road.glacier_return_camera_weight(deck+Vector3.UP*0.67,false) > 0.99)
+    assert(road.glacier_return_camera_weight(road.point_at(BypassScript.EXIT_Z)+Vector3.UP,true) == 0.0)
+    for arrow: Transform3D in road.glacier_return_arrows:
+        if arrow.origin.z < BypassScript.EXIT_Z:
+            assert(is_equal_approx(road.glacier_return_line_x(arrow.origin.z),arrow.origin.x),
+                "The camera follows the actual return paint through the shared deck")
+    game.airtime.reset_round()
+    game.race_moments.reset_round()
+    player.global_position = deck+Vector3.UP*0.67
+    player.linear_velocity = (road.point_at(z-0.5)-road.point_at(z+0.5))*21.0
+    game.cam_mode = 0
+    game._update_camera(0.016,true)
+    var arrow_point: Vector3 = road.glacier_return_arrows[3].origin
+    var width := game.get_viewport().get_visible_rect().size.x
+    var target: Vector2 = game.camera.unproject_position(arrow_point)
+    var marble: Vector2 = game.camera.unproject_position(player.global_position)
+    assert(absf(target.x-width*0.5) < width*0.023 and absf(marble.x-width*0.5) < width*0.12,
+        "Keep the next turn arrow near the center and the marble easy to locate")
+    for mode in [1,2]:
+        game.cam_mode = mode
+        game.ui.bridge_approach_active = false
+        game._update_camera(0.016,true)
+        var before: Vector3 = game.camera_lookahead
+        game.ui.bridge_approach_active = true
+        game._update_camera(0.016,true)
+        assert(game.camera_lookahead.is_equal_approx(before))
+    game.cam_mode = 0
     return true
 
 func _verify_woodworks_gates(game: Node3D) -> void:
