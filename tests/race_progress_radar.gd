@@ -59,5 +59,5 @@ func _run() -> void:
     await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_race_radar.cfg"))
-    print("RACE_RADAR_PASS: 40 racers, genuine physical progress, touch-safe throttled UI")
+    print("RACE_RADAR_PASS: 30 racers, genuine physical progress, touch-safe throttled UI")
     quit()

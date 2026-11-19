@@ -271,7 +271,7 @@ func _ice_grip_guides() -> void:
     add_child(guides)
 
 func _ice_collision(zone: Node3D) -> void:
-    # A very shallow, low-friction physical slab; no tall edge blocking 40 racers.
+    # A very shallow, low-friction physical slab; no tall edge blocking 30 racers.
     var surface := StaticBody3D.new()
     surface.name = "LowFrictionIce"
     surface.rotation.x = -atan(game.track_grade_at(zone.position.z))

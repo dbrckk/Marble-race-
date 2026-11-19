@@ -45,7 +45,7 @@ var game: Node3D
 var items: Array[Node3D] = []
 var used: Dictionary = {}
 var clock := 0.0
-# Reused scratch list: scan the 40 marbles ONCE per physics frame, then
+# Reused scratch list: scan the 30 marbles ONCE per physics frame, then
 # test pickup collisions for only the 1-4 authoritative human racers.
 var eligible_collectors: Array[RigidBody3D] = []
 var pulse_ring: MeshInstance3D

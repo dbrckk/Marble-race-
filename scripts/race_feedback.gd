@@ -1,7 +1,7 @@
 extends RefCounted
 ## Deterministic arcade camera and collision-feedback math.
 ## Lightweight, allocation-free calculations in gameplay: no raycasts,
-## post-processing or extra physics, suitable for 40 marbles on Android.
+## post-processing or extra physics, suitable for 30 marbles on Android.
 const FOLLOW_MIN := 3.4
 const FOLLOW_MAX := 8.0
 const FOV_MIN := 63.0

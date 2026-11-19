@@ -35,7 +35,7 @@ func _verify() -> void:
             game.race_variation = layout
             game.start_race("Grip Tape")
             game.race_state = "RACING"
-            assert(game.racers.size() == 40)
+            assert(game.racers.size() == game.MARBLE_COUNT)
             var director: Node3D = game.race_director
             assert(director.variation == layout and director.biome == biome)
             var gate_index := 1
