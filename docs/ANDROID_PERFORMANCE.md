@@ -54,14 +54,18 @@ geometry or fidelity.
 
 The report covers the start to checkpoint 1, mid-race to checkpoint 3 and
 the final sector. Recording ends when the player finishes or is eliminated.
-Two additional rows isolate the first five seconds after GO and the 16 m
-around the bridge merge. The merge window applies to either route so the
-same stretch can be compared after following the same line. A short window
-takes a monitor sample on its first measured frame. An unreached phase or
-window shows **NO SAMPLES**. Frame intervals are measured with a
+Additional rows cover the last 1.15 seconds of the countdown, the first five
+seconds after GO, four metres on either side of the first obstacle's entrance
+and eight metres on either side of the bridge merge. The merge window
+applies to either route. On Gauntlet, **GAUNTLET BRIDGE JUMP** measures the
+upper route from four metres before the ramp centre to five metres past the
+last precision gate, including flight and landing. For a profile comparison,
+take the bridge on both runs. A short window takes a monitor sample on its
+first measured frame. An unreached phase or window shows **NO SAMPLES**.
+Frame intervals are measured with a
 monotonic clock, and the first frame after resuming re-establishes the clock
 without including the pause. The report counts long foreground stalls.
-The live HUD uses a 120-frame window. Race summaries use five fixed-size
+The live HUD uses a 120-frame window. Race summaries use fixed-size
 histograms. Godot monitor values are sampled about once per second, with a
 first sample for each short window.
 The feature is opt-in and copies to the clipboard on request.

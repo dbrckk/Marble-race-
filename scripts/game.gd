@@ -2019,8 +2019,13 @@ func _process(delta: float) -> void:
             var z := player.position.z
             var phase := 2 if z <= CHECKPOINT_Z[-1] else int(z <= CHECKPOINT_Z[0])
             var focus := PerformanceBudget.focus_at(race_time,z,ShortcutRoute.EXIT_Z)
-            var near_opening := PerformanceBudget.near_first_obstacle(z,first_obstacle_entry_z)
-            performance_budget.record_frame(Time.get_ticks_usec(),phase,focus,near_opening)
+            var course_focus := PerformanceBudget.Focus.NONE
+            if PerformanceBudget.near_first_obstacle(z,first_obstacle_entry_z):
+                course_focus = PerformanceBudget.Focus.FIRST_OBSTACLE
+            elif is_instance_valid(shortcut_route) and shortcut_route.in_forge_jump_timing_window(
+                    player.global_position):
+                course_focus = PerformanceBudget.Focus.FORGE_BRIDGE_JUMP
+            performance_budget.record_frame(Time.get_ticks_usec(),phase,focus,course_focus)
     world_time += delta
     var replica_speed := -1.0
     feedback_cooldown = maxf(0.0,feedback_cooldown-delta)

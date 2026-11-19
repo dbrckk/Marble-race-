@@ -63,7 +63,7 @@ func _run() -> void:
     model.reset()
     model.record_frame(0,-1,Budget.Focus.GRID)
     model.record_frame(32000,-1,Budget.Focus.GRID)
-    model.record_frame(48000,0,Budget.Focus.LAUNCH,true)
+    model.record_frame(48000,0,Budget.Focus.LAUNCH,Budget.Focus.FIRST_OBSTACLE)
     model.record_frame(95000,0,Budget.Focus.LAUNCH)
     model.record_frame(110000,0)
     measurements = model.race_summary()
@@ -72,6 +72,12 @@ func _run() -> void:
     assert(measurements.contains("FIRST 5s | 2 frames | P95 47 ms") and
         measurements.contains("START | 2 frames | P95 47 ms"),
         "Grid stays separate and the obstacle window overlaps the launch")
+    assert(not measurements.contains("GAUNTLET BRIDGE JUMP"))
+    assert(model.race_summary(true).contains("GAUNTLET BRIDGE JUMP | NO SAMPLES"))
+    model.record_frame(125000,1,Budget.Focus.NONE,Budget.Focus.FORGE_BRIDGE_JUMP)
+    model.record_frame(165000,1)
+    assert(model.race_summary(true).contains("GAUNTLET BRIDGE JUMP | 1 frames | P95 40 ms"))
+    assert(model.focus_windows[Budget.Focus.FORGE_BRIDGE_JUMP].monitor_samples == 1)
 
     var game = load("res://scenes/main.tscn").instantiate()
     root.add_child(game)
@@ -116,6 +122,10 @@ func _run() -> void:
         game.ui.performance_label.text.contains("DRAW"),
         "Android overlay must expose actionable frame, physics and draw cost")
     var route: Node3D = game.shortcut_route
+    var approach_z: float = route.JUMP_Z[2]+route.FORGE_JUMP_TIMING_APPROACH
+    var landing_z: float = route.BRIDGE_POST_Z.back()-route.FORGE_JUMP_TIMING_LANDING
+    assert(not route.in_forge_jump_timing_window(route.point_at(approach_z)+Vector3.UP),
+        "A bridge in a different biome does not count as Gauntlet's jump")
     assert(route.inside_effect_window(-48.0) and
         route.inside_effect_window(-79.0))
     for launch_z in route.JUMP_Z:
@@ -180,7 +190,9 @@ func _run() -> void:
     game._end_race()
     assert(not game.ui.performance_actions.is_visible_in_tree(),
         "Performance actions must stay hidden when metrics are disabled")
-    if originally_visible:
+    game.toggle_fps_overlay()
+    await _check_forge_jump_report(game,approach_z,landing_z)
+    if not originally_visible:
         game.toggle_fps_overlay()
     game.return_to_menu()
     game.queue_free()
@@ -189,3 +201,32 @@ func _run() -> void:
     print("PERFORMANCE_BUDGET_PASS: bounded P95, phone metrics, zero-touch HUD, " +
         "30-marble spatial culling and authorized human-only collisions")
     quit(0)
+
+func _check_forge_jump_report(game: Node3D, approach_z: float, landing_z: float) -> void:
+    game.selected_track = 2
+    for layout in range(3):
+        game.race_variation = layout
+        game.start_race("Grip Tape")
+        assert(game.built_variation == layout)
+        game.race_state = "RACING"
+        game.race_time = 12.0
+        var route: Node3D = game.shortcut_route
+        var gate_z: float = route.BRIDGE_POST_Z.back()
+        var main := Vector3(game.track_center_at(gate_z),game.height_at(gate_z)+0.65,gate_z)
+        assert(not route.in_forge_jump_timing_window(main))
+        assert(not route.in_forge_jump_timing_window(route.point_at(approach_z+0.01)+Vector3.UP))
+        assert(not route.in_forge_jump_timing_window(route.point_at(landing_z-0.01)+Vector3.UP))
+        assert(route.in_forge_jump_timing_window(route.point_at(approach_z)+Vector3.UP*0.55))
+        assert(route.in_forge_jump_timing_window(route.point_at(landing_z)+Vector3.UP*0.55))
+        game.player.global_position = main
+        for frame in range(2):
+            game._process(1.0/60.0)
+            await process_frame
+        assert(game.performance_budget.focus_windows[Budget.Focus.FORGE_BRIDGE_JUMP].frames == 0)
+        game.player.global_position = route.point_at(gate_z)+Vector3.UP*1.85
+        for frame in range(2):
+            game._process(1.0/60.0)
+            await process_frame
+        game._end_race()
+        assert(game.ui.performance_text.contains("GAUNTLET BRIDGE JUMP | 1 frames | P95"),
+            "Gauntlet results capture the flight separately from the road below")

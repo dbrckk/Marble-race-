@@ -3039,7 +3039,8 @@ func show_results(place: int, time: float, ranking: Array) -> void:
     var course := "LAYOUT %d / 3" % (game.built_variation + 1)
     result_overview.text = "%s  •  %.2fs  •  %s" % [
         "P%d / %d" % [place, game.MARBLE_COUNT] if finished else outcome, time, course]
-    var measurements: String = game.performance_budget.race_summary() if game.show_fps else ""
+    var measurements: String = game.performance_budget.race_summary(game.selected_track == 2) if (
+        game.show_fps) else ""
     performance_text = measurements
     performance_actions.visible = not measurements.is_empty()
     if performance_actions.visible:

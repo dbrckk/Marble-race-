@@ -76,6 +76,8 @@ const EFFECT_WINDOW_FAR := -92.0
 const JUMP_Z := [-71.0,-74.0,-86.0]
 const LAUNCH_TRIGGER_HALF_LENGTH := 1.5
 const LAUNCH_RAMP_SIZE := Vector3(2.30,0.18,2.65)
+const FORGE_JUMP_TIMING_APPROACH := 4.0
+const FORGE_JUMP_TIMING_LANDING := 5.0
 const FORGE_JUMP_LOOKAHEAD := 7.0
 const FORGE_JUMP_AIR_HEIGHT := 1.05
 const FORGE_JUMP_MAX_HEIGHT := 3.4
@@ -576,10 +578,10 @@ func recovery_center_at(location: Vector3, main_center := NAN) -> float:
         return alternate
     return main
 
-func on_separate_deck(location: Vector3) -> bool:
+func on_separate_deck(location: Vector3, end_z := OUTER_END) -> bool:
     # At either merge the roads are connected. Along the detached span,
     # nearby marbles on the two paths are distinct competitors.
-    if location.z < OUTER_END or location.z > OUTER_START:
+    if location.z < end_z or location.z > OUTER_START:
         return false
     var deck := point_at(location.z)
     return absf(location.x-deck.x) < WIDTH*0.5+0.65 and location.y >= deck.y-0.25
@@ -594,6 +596,10 @@ func forge_camera_weight(location: Vector3) -> float:
     # Start on the detached span and hand the view back as the return joins.
     return on_deck*smoothstep(0.0,4.0,OUTER_START-location.z)*(
         smoothstep(0.0,6.0,location.z-EXIT_Z))
+
+func in_forge_jump_timing_window(location: Vector3) -> bool:
+    return course_id == 2 and location.z <= JUMP_Z[2]+FORGE_JUMP_TIMING_APPROACH and (
+        on_separate_deck(location,float(BRIDGE_POST_Z.back())-FORGE_JUMP_TIMING_LANDING))
 
 func merge_traffic_lane(at: Vector3) -> int:
     if not at.is_finite() or at.z > MERGE_TRAFFIC_NEAR or at.z < MERGE_TRAFFIC_FAR:
