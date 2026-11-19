@@ -1,6 +1,6 @@
 FROM ubuntu:24.04
 ARG GODOT_VERSION=4.5.1
-ARG UBUNTU_ARCHIVE
+ARG UBUNTU_ARCHIVE=""
 ENV DEBIAN_FRONTEND=noninteractive PORT=8080
 # CI supplies the runner's CA bundle so APT can use HTTPS before ca-certificates is installed.
 RUN --mount=type=secret,id=ubuntu_archive_ca,mode=0444 \
