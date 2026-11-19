@@ -23,8 +23,8 @@ concurrency:
 
 jobs:
   upgrade:
-    runs-on: ubuntu-latest
-    timeout-minutes: 35
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -100,6 +100,12 @@ jobs:
           PY
           ./Godot_v4.5.1-stable_linux.x86_64 --headless --path . --export-debug Android build/upgrade-b.apk
           bash ci/android_upgrade_emulator.sh preflight
+      - name: Allow hardware acceleration when the runner exposes KVM
+        shell: bash
+        run: |
+          if [[ -c /dev/kvm && ( ! -r /dev/kvm || ! -w /dev/kvm ) ]]; then
+            sudo chmod a+rw /dev/kvm
+          fi
       - name: Install A, update to B and reopen the game
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -107,7 +113,8 @@ jobs:
           arch: x86_64
           target: default
           profile: pixel_4
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          # ANGLE avoids the legacy SwiftShader GLES shader linker.
+          emulator-options: -no-window -gpu swangle -no-snapshot -noaudio -no-boot-anim
           # The hosted runner may need software emulation without /dev/kvm.
           emulator-boot-timeout: 1200
           disable-animations: true

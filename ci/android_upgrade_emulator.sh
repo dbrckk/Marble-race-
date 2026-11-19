@@ -44,19 +44,20 @@ capture_failure() {
 trap capture_failure EXIT
 
 wait_for_game() {
-  local phase="$1" apk="$2" proof activity attempts=120 attempt
+  local phase="$1" apk="$2" proof activity timeout_seconds=480
   activity="$("$tools/aapt" dump badging "$apk" | sed -n "s/^launchable-activity: name='\([^']*\)'.*/\1/p")"
   [[ -n "$activity" ]] || { echo "No launcher activity in $apk" >&2; return 1; }
   adb shell am start -n "$pkg/$activity"
-  for ((attempt=0; attempt<attempts; attempt++)); do
+  local deadline=$((SECONDS + timeout_seconds))
+  while (( SECONDS < deadline )); do
     proof="$(adb shell "run-as $pkg cat files/android-upgrade-$phase.txt" 2>/dev/null | tr -d '\r' || true)"
     case "$proof" in
       pass) echo "Game confirmed the $phase phase"; return 0 ;;
       fail) echo "Game reported a failure during $phase" >&2; return 1 ;;
     esac
-    sleep 1
+    sleep 2
   done
-  echo "No game result for $phase after $attempts attempts" >&2
+  echo "No game result for $phase after ${timeout_seconds}s" >&2
   return 1
 }
 
