@@ -920,7 +920,7 @@ func _small_panel_text(initial: String, size: int, anchor: Rect2, align: Horizon
     panel.anchor_top = anchor.position.y
     panel.anchor_right = anchor.end.x
     panel.anchor_bottom = anchor.end.y
-    var is_primary := initial == "00:00.00" or initial == "40th"
+    var is_primary := initial == "00:00.00" or initial == "#—"
     var is_course := initial.begins_with("WOODWORKS")
     var accent := Color("#f7c77f") if is_primary else (
         Color("#8bdacb") if is_course else Color("#7d9aaa"))
@@ -975,9 +975,9 @@ func _build_race_hud() -> void:
     player_locator.configure(game)
 
     clock_label = _small_panel_text("00:00.00", 23, Rect2(0.016,0.025,0.155,0.081))
-    place_label = _small_panel_text("40th", 22, Rect2(0.016,0.115,0.155,0.082))
+    place_label = _small_panel_text("#—", 22, Rect2(0.016,0.115,0.155,0.082))
     speed_label = _small_panel_text("00  SPEED", 17, Rect2(0.016,0.21,0.155,0.066))
-    remaining_label = _small_panel_text("WOODWORKS • 0 / 40", 19, Rect2(0.335,0.02,0.330,0.080), HORIZONTAL_ALIGNMENT_CENTER)
+    remaining_label = _small_panel_text("WOODWORKS", 19, Rect2(0.335,0.02,0.330,0.080), HORIZONTAL_ALIGNMENT_CENTER)
     leaderboard = _small_panel_text("LEADERBOARD", 16, Rect2(0.79,0.025,0.195,0.18))
     network_quality_label = _small_panel_text("NET: CONNECTING",14,Rect2(0.79,0.32,0.195,0.060))
     network_quality_label.get_parent().visible = false
@@ -1384,10 +1384,10 @@ func pause_race() -> void:
     game.change_steer(0.0)
     var seconds := int(game.race_time)
     var percentage := int(clampf(-game.player.global_position.z/absf(game.FINISH_Z)*100.0,0.0,100.0)) if is_instance_valid(game.player) else 0
-    pause_details.text = "%s   ·   POSITION #%d / 40
+    pause_details.text = "%s   ·   POSITION #%d / %d
 TIME %02d:%02d   ·   TRACK %d%%
 PERK: %s   ·   BOOST %d%%" % [
-        game.track_title(),game.player_rank(),seconds/60,seconds%60,percentage,
+        game.track_title(),game.player_rank(),game.MARBLE_COUNT,seconds/60,seconds%60,percentage,
         game.selected_perk.to_upper(),int(game.boost_energy*100.0)]
     pause_progress.value = percentage
     var upcoming: Dictionary = {}
@@ -2108,8 +2108,7 @@ func update_hud() -> void:
     var centiseconds := roundi(game.player.finish_time*100.0) if finished else int(game.race_time*100.0)
     var seconds := centiseconds/100
     clock_label.text = "%02d:%02d.%02d" % [seconds / 60, seconds % 60, centiseconds % 100]
-    # Reuse a single real standings sort for rank and top-three HUD,
-    # instead of sorting forty bodies twice every UI update.
+    # Share one standings sort between the rank and top-three HUD.
     var ranking: Array = game.get_rankings()
     var place: int = ranking.find(game.player)+1
     if playing and last_seen_rank > 0 and abs(place-last_seen_rank) >= 2 and (
@@ -2121,7 +2120,7 @@ func update_hud() -> void:
         rank_toast_seconds = 0.95
         _refresh_race_notification()
     last_seen_rank = place
-    place_label.text = "#%d / 40" % place
+    place_label.text = "#%d / %d" % [place,game.MARBLE_COUNT]
     if game.race_state != "COUNTDOWN":
         remaining_label.text = "%s  •  %d FINISHED" % [game.track_title(),game.racer_finish_order.size()]
         if finished:

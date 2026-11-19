@@ -638,6 +638,10 @@ Le HUD évalue le mouvement des rivaux sur le tablier avant et juste après le p
 
 Le deuxième portique prend le relais dès que la bille franchit le premier. Les pointillés ambre prolongent le couloir sur le tablier. Le HUD conserve l’alerte de trafic pendant la transition et prévient de nouveau du piston de sortie une fois le deuxième portique franchi. La cible affichée suit la position de la bille sur le pont. L’essai sur téléphone Android reste à faire.
 
+### 2026-11-19 — Saut du dernier portique de Gauntlet
+
+Le HUD annonce la rampe, puis utilise la vitesse de la bille pour estimer son alignement et sa hauteur au dernier portique. Le trafic garde la priorité. Le piston de sortie reprend le relais après le franchissement. Le HUD et la pause affichent la capacité réelle de 30 billes.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Adapter le guidage vers le troisième portique à la rampe de saut du pont de Gauntlet.
+Mesurer sur Android la lisibilité du saut et du retour vers le piston à pleine vitesse, puis examiner les textures et l’éclairage du pont avec les mêmes angles de caméra sur les trois variantes.

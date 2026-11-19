@@ -269,7 +269,7 @@ func _run() -> void:
     print("FORGE_FORK_TRAFFIC_PASS: three layouts, both branches, cut-ins, stale snapshots and HUD handoff")
     print("FORGE_FIRST_GATE_PASS: three layouts, confirmed bridge, curve, real gate alignment and immediate handoff")
     print("FORGE_GATE_TRAFFIC_PASS: three layouts, stalled and crossing rivals, separate decks, replica motion and stale data")
-    print("FORGE_SECOND_GATE_PASS: three layouts, immediate handoff, occupied line, missed first gate and downstream piston priority")
+    print("FORGE_SECOND_GATE_PASS: three layouts, occupied line, ramp takeoff, crossing forecasts and downstream piston handoff")
     print("WOODWORKS_RETURN_PASS: clear bridge lip, physical warnings, visible gaps and HUD handoff on three layouts")
     game.queue_free()
     await process_frame
@@ -549,8 +549,8 @@ func _verify_forge_second_gate(game: Node3D) -> bool:
     _refresh_bridge_hud(hud,player,road.point_at(second-0.35)+Vector3.UP*0.67,fast)
     assert(hud.bridge_approach_active and not hud.shortcut_label.text.contains("GATE 2 / 3"))
     _refresh_bridge_hud(hud,player,after_gate,fast)
-    assert(hud.shortcut_label.visible and hud.shortcut_label.text.contains("GATE 3 / 3"),
-        "After the second portico, the third precision gate takes over")
+    assert(hud.shortcut_label.visible and hud.shortcut_label.text.contains("GATE 3 / 3  •  LINE UP JUMP"),
+        "After the second portico, the third gate previews the physical ramp")
     var third: float = BypassScript.BRIDGE_POST_Z[2]
     _refresh_bridge_hud(hud,player,road.point_at(third+3.0)+Vector3.UP*0.67,velocity)
     assert(hud.shortcut_label.visible and hud.shortcut_label.text.contains("GATE 3 / 3"))
@@ -559,9 +559,25 @@ func _verify_forge_second_gate(game: Node3D) -> bool:
     assert(hud.shortcut_label.text.contains("TRAFFIC  •  SAVE BOOST"),
         "Third-gate steering must yield to a rival in the crossing corridor")
     rival.global_position = Vector3(80.0,0.0,20.0)
+    var air_z := third+0.9
+    var gate_center: Vector3 = road.point_at(third)
+    var aligned := Vector3(gate_center.x,gate_center.y+1.7,air_z)
+    _refresh_bridge_hud(hud,player,aligned,velocity)
+    assert(hud.shortcut_label.visible and hud.shortcut_label.text.contains("GATE 3 / 3  •  LAND CENTER"))
+    _refresh_bridge_hud(hud,player,aligned+Vector3.RIGHT*1.2,velocity)
+    assert(hud.shortcut_label.visible and hud.shortcut_label.text.contains("GATE 3 / 3  •  WATCH LANDING"))
+    var high := aligned+Vector3.UP*1.05
+    _refresh_bridge_hud(hud,player,high,velocity)
+    assert(hud.shortcut_label.visible and hud.shortcut_label.text.contains("GATE 3 / 3  •  TOO HIGH"))
+    _refresh_bridge_hud(hud,player,high,velocity+Vector3.DOWN*6.0)
+    assert(hud.shortcut_label.visible and hud.shortcut_label.text.contains("GATE 3 / 3  •  LAND CENTER"),
+        "Evaluate height at the gate instead of warning on current jump height alone")
+    var under_bridge := Vector3(game.track_center_at(air_z),game.height_at(air_z)+0.67,air_z)
+    _refresh_bridge_hud(hud,player,under_bridge,velocity)
+    assert(not hud.shortcut_label.visible)
     _refresh_bridge_hud(hud,player,road.point_at(third-0.5)+Vector3.UP*0.67,fast)
-    assert(not hud.shortcut_label.text.contains("GATE 3 / 3"),
-        "After the final portico, stop giving gate-specific instructions")
+    assert(not hud.shortcut_label.text.contains("GATE 3 / 3") and hud.timed_gate_label.visible,
+        "The exit piston forecast resumes immediately after the final portico")
     return true
 
 func _refresh_bridge_hud(hud: CanvasLayer, player: RigidBody3D, at: Vector3, velocity: Vector3) -> void:

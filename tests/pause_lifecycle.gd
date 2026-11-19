@@ -18,8 +18,12 @@ func _verify() -> void:
     scene.ui.touch_controls._set_steer(0.8)
     scene.ui.touch_controls._set_boost(true)
     assert(scene.boosting and scene.steer_target > 0.0, "Controls failed before pause")
+    scene.ui.label_timer = 0.25
+    scene.ui.update_hud()
+    assert(scene.ui.place_label.text.ends_with(" / %d" % scene.MARBLE_COUNT))
     scene.ui.pause_race()
     assert(paused, "SceneTree must pause on user pause")
+    assert(scene.ui.pause_details.text.contains(" / %d\n" % scene.MARBLE_COUNT))
     assert(scene.ui.pause_layer.visible, "Pause menu must show")
     assert(not scene.boosting and absf(scene.steer_target) < 0.001,
         "Pause must release both controls")
