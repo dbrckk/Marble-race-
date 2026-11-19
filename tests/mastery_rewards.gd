@@ -100,8 +100,8 @@ func _run() -> void:
     game.player.finished = true
     game.player.finish_time = 52.0
     game.race_time = 52.0
-    game.race_director.awarded["0:39"] = true
-    game.shortcut_route.triggered[39] = true
+    game.race_director.awarded["0:%d" % game.player.racer_id] = true
+    game.shortcut_route.triggered[game.player.racer_id] = true
     game._end_race()
     assert(game.career.mastery_flags[0] == 7,
         "Completed solo race must read true course skill detectors")
@@ -126,7 +126,7 @@ func _run() -> void:
     game.race_state = "RACING"
     game.player.finished = true
     game.player.finish_time = 35.0
-    game.race_director.awarded["1:39"] = true
+    game.race_director.awarded["1:%d" % game.player.racer_id] = true
     game._end_race()
     assert(game.career.mastery_count() == before_online,
         "Network session may not mint permanent solo stamps")

@@ -126,11 +126,11 @@ func _run() -> void:
         game.net.role = "offline"
         game.net.match_running = false
         director.tick(game.racers,game.net)
-        assert(director.awarded.has("0:39") and director.awarded.has("0:0"),
+        assert(director.awarded.has("0:%d" % player.racer_id) and director.awarded.has("0:0"),
             "Human and AI earn a genuine close pass with identical physics")
         assert(game.ui.toast_remaining > 0,
             "Human clean passing requires immediate feedback")
-        assert(director.clean_pass_count(39) == 1 and
+        assert(director.clean_pass_count(player.racer_id) == 1 and
             director.clean_pass_count(0) == 1,
             "Each racer must have an independent true skill event count")
         var count: int = director.awarded.size()
@@ -143,12 +143,12 @@ func _run() -> void:
         player.global_position = director.obstacles[0].global_position+Vector3(0,0.75,-1.0)
         player.linear_velocity = Vector3(0,0,-9)
         director.tick(game.racers,game.net)
-        assert(not director.awarded.has("0:39"),
+        assert(not director.awarded.has("0:%d" % player.racer_id),
             "Direct hit at the middle of an obstacle is not a clean pass")
         player.global_position = director.obstacles[0].global_position+Vector3(1.75,0.75,-1.0)
         player.linear_velocity = Vector3(0,0,1.5)
         director.tick(game.racers,game.net)
-        assert(not director.awarded.has("0:39"),
+        assert(not director.awarded.has("0:%d" % player.racer_id),
             "Backward movement cannot farm the proximity reward")
         # Same notification path for authenticated remote human users.
         game.net.role = "client"

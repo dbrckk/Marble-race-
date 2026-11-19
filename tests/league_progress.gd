@@ -82,7 +82,7 @@ func _verify() -> void:
     game.player.finish_time = 48.0
     game.race_time = 48.0
     game.race_director.awarded["0:39"] = true
-    game.shortcut_route.triggered[39] = true
+    game.shortcut_route.triggered[game.player.racer_id] = true
     game._end_race()
     var now_points: int = game.career.league_points
     assert(now_points > 15 and int(game.last_result["league_earned"]) > 15)
