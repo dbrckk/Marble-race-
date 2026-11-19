@@ -20,8 +20,9 @@ const JumpGuides = preload("res://scripts/jump_guides.gd")
 const ShortcutRoute = preload("res://scripts/shortcut_route.gd")
 const Opening = preload("res://scripts/opening_obstacles.gd")
 const EVASION_ACCENT := Color("#9bf4e5")
-const TURBO_ACCENT := Color("#63efff")
 const MERGE_ACCENT := Color("#ffd383")
+const ITEMS = preload("res://scripts/race_items.gd")
+const RARE_ART = preload("res://scripts/rare_item_art.gd")
 
 var game: Node3D
 var screen_center := Vector2.ZERO
@@ -38,7 +39,11 @@ var evasion_tint := EVASION_ACCENT
 var ice_arrow_center := Vector2.INF
 var ice_arrow_axis := Vector2.ZERO
 var ice_impact_center := Vector2.INF
-var turbo_center := Vector2.INF
+var rare_item_center := Vector2.INF
+var rare_item_preview := -1
+var rare_item_effect := 0
+var rare_badge_profiles: Array[PackedVector2Array] = []
+var rare_badge_glyphs: Array[PackedVector2Array] = []
 var fork_main_center := Vector2.INF
 var fork_bridge_center := Vector2.INF
 var merge_rival_center := Vector2.INF
@@ -53,6 +58,9 @@ func configure(stage: Node3D) -> void:
     badge.set_border_width_all(1)
     badge.set_corner_radius_all(7)
     bracket_mesh = _make_brackets()
+    for i in ITEMS.COLORS.size():
+        rare_badge_profiles.append(PackedVector2Array(RARE_ART.PROFILES[i]))
+        rare_badge_glyphs.append(RARE_ART.glyph(i))
     hide()
 
 func begin_round() -> void:
@@ -62,7 +70,8 @@ func begin_round() -> void:
     evasion_center = Vector2.INF
     ice_arrow_center = Vector2.INF
     ice_impact_center = Vector2.INF
-    turbo_center = Vector2.INF
+    rare_item_center = Vector2.INF
+    rare_item_preview = -1
     fork_main_center = Vector2.INF
     fork_bridge_center = Vector2.INF
     merge_rival_center = Vector2.INF
@@ -80,7 +89,7 @@ func refresh(delta: float) -> void:
     evasion_tint = EVASION_ACCENT
     ice_arrow_center = Vector2.INF
     ice_impact_center = Vector2.INF
-    turbo_center = Vector2.INF
+    rare_item_center = Vector2.INF
     fork_main_center = Vector2.INF
     fork_bridge_center = Vector2.INF
     merge_rival_center = Vector2.INF
@@ -172,18 +181,8 @@ func refresh(delta: float) -> void:
             evasion_center = _project_road_mark(camera,center.z,opening,safe,Opening.ENTRY_MARK_MIN_DISTANCE)
         if freshness and not hazard_center.is_finite() and not evasion_center.is_finite():
             bank_center = _project_road_mark(camera,center.z,moments.occluded_bank_mark,safe,JumpGuides.BANK_MARK_MIN_DISTANCE)
-        var turbo: Vector3 = moments.occluded_opening_turbo
-        if freshness and turbo.is_finite() and center.z-turbo.z > 2.3 and (
-                is_instance_valid(game.race_items) and game.race_items.items[0].visible and (
-                    not camera.is_position_behind(turbo) and not hazard_center.is_finite() and (
-                        not evasion_center.is_finite()))):
-            var pointer := camera.unproject_position(turbo)-Vector2(0.0,28.0)
-            var badge_clearance := _badge_rect().grow(5.0)
-            if Rect2(pointer-Vector2(15,15),Vector2(30,33)).intersects(badge_clearance):
-                pointer.y = badge_clearance.position.y-18.0
-            if safe.has_point(pointer) and pointer.distance_to(screen_center) > screen_radius+23.0:
-                turbo_center = pointer
-        if freshness and not turbo_center.is_finite():
+        _refresh_pickup_marker(camera,center.z,safe)
+        if freshness and not rare_item_center.is_finite():
             fork_bridge_center = _project_road_mark(camera,center.z,moments.occluded_fork_bridge,safe)
             fork_main_center = _project_road_mark(camera,center.z,moments.occluded_fork_main,safe)
             if fork_bridge_center.is_finite() and fork_main_center.is_finite() and (
@@ -208,12 +207,38 @@ func refresh(delta: float) -> void:
     show()
     queue_redraw()
 
+func set_pickup_preview(index: int) -> void:
+    if rare_item_preview == index:
+        return
+    rare_item_preview = index
+    rare_item_center = Vector2.INF
+    if index >= 0 and is_visible_in_tree() and is_instance_valid(game.player):
+        var safe := Rect2(Vector2(size.x*0.14,size.y*0.23),Vector2(size.x*0.72,size.y*0.52))
+        _refresh_pickup_marker(game.camera,game.player.global_position.z,safe)
+    queue_redraw()
+
+func _refresh_pickup_marker(camera: Camera3D, z: float, safe: Rect2) -> void:
+    if rare_item_preview < 0 or game.cam_mode != 0 or game.race_state != "RACING" or (
+            not is_instance_valid(camera) or not is_instance_valid(game.race_items) or (
+                game.race_moments == null or game.race_moments.occluded_pickup_index != rare_item_preview or (
+                    hazard_center.is_finite() or evasion_center.is_finite() or (
+                        game.net.is_client() and not game.net.local_replica_velocity().is_finite())))):
+        return
+    var target: Vector3 = game.race_items.pickup_marker_position(rare_item_preview)
+    if z-target.z > ITEMS.PACK_MARK_REACH:
+        return
+    rare_item_center = _project_road_mark(camera,z,target,safe,ITEMS.PACK_MARK_MIN_DISTANCE,27.0)
+    if rare_item_center.is_finite():
+        rare_item_effect = posmod(rare_item_preview+game.selected_track,ITEMS.COLORS.size())
+        fork_main_center = Vector2.INF
+        fork_bridge_center = Vector2.INF
+
 func _project_road_mark(camera: Camera3D, z: float, target: Vector3, safe: Rect2,
-        min_distance := ShortcutRoute.FORK_MARK_MIN_DISTANCE) -> Vector2:
+        min_distance := ShortcutRoute.FORK_MARK_MIN_DISTANCE, lift := 15.0) -> Vector2:
     if not target.is_finite() or z-target.z <= min_distance or (
             camera.is_position_behind(target)):
         return Vector2.INF
-    var pointer := camera.unproject_position(target)-Vector2(0.0,15.0)
+    var pointer := camera.unproject_position(target)-Vector2(0.0,lift)
     var badge_clearance := _badge_rect().grow(5.0)
     if Rect2(pointer-Vector2(16,15),Vector2(32,30)).intersects(badge_clearance):
         pointer.y = badge_clearance.position.y-16.0
@@ -249,13 +274,8 @@ func _draw() -> void:
         draw_polyline(lower,evasion_tint,2.7,true)
     if hazard_center.is_finite():
         _draw_hazard_marker()
-    if turbo_center.is_finite():
-        draw_set_transform(turbo_center)
-        draw_colored_polygon(PackedVector2Array([Vector2(0,-15),Vector2(14,0),Vector2(0,17),Vector2(-14,0)]),INK)
-        draw_colored_polygon(PackedVector2Array([Vector2(0,-12),Vector2(11,0),Vector2(0,13),Vector2(-11,0)]),TURBO_ACCENT)
-        draw_colored_polygon(PackedVector2Array([Vector2(2,-8),Vector2(-5,1),Vector2(-1,1),
-            Vector2(-3,8),Vector2(5,-2),Vector2(1,-2)]),INK)
-        draw_set_transform(Vector2.ZERO)
+    if rare_item_center.is_finite():
+        _draw_pickup_marker()
     if fork_main_center.is_finite():
         _draw_fork_arrow(fork_main_center,Vector2.UP,ShortcutRoute.FORK_MAIN_COLOR)
     if fork_bridge_center.is_finite():
@@ -291,6 +311,19 @@ func _draw() -> void:
         var scale := Vector2.ONE*(screen_radius+5.0)
         draw_mesh(bracket_mesh,null,Transform2D(0.0,scale,0.0,screen_center),
             Color(1.0,1.0,1.0,bracket_strength))
+
+func _draw_pickup_marker() -> void:
+    var tint: Color = ITEMS.COLORS[rare_item_effect]
+    var outline := rare_badge_profiles[rare_item_effect]
+    draw_line(rare_item_center,rare_item_center+Vector2(0,20),INK,6.0,true)
+    draw_line(rare_item_center,rare_item_center+Vector2(0,18),tint,2.8,true)
+    draw_set_transform(rare_item_center,0.0,Vector2.ONE*22.0)
+    draw_colored_polygon(outline,INK)
+    draw_set_transform(rare_item_center,0.0,Vector2.ONE*18.0)
+    draw_colored_polygon(outline,tint)
+    draw_set_transform(rare_item_center,0.0,Vector2.ONE*8.6)
+    draw_colored_polygon(rare_badge_glyphs[rare_item_effect],INK)
+    draw_set_transform(Vector2.ZERO)
 
 func _draw_fork_arrow(at: Vector2, axis: Vector2, tint: Color) -> void:
     var cross := axis.orthogonal()*8.0

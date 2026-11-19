@@ -3,6 +3,7 @@ extends SceneTree
 ## Only authoritative human pickup collection may hide an item.
 const ITEMS = preload("res://scripts/race_items.gd")
 const RACER = preload("res://scripts/marble.gd")
+const ART = preload("res://scripts/rare_item_art.gd")
 
 func _initialize() -> void:
     call_deferred("_verify")
@@ -53,8 +54,14 @@ func _verify() -> void:
                 assert(is_instance_valid(title) and
                     title.text == ITEMS.label_at(i,track))
                 assert(ITEMS.kind_at(i,track) in ITEMS.ITEM_KINDS)
-                var crystal := marker.get_node("EffectCrystal").mesh as SphereMesh
-                var proportions := Vector3(crystal.radius,crystal.height,crystal.radial_segments)
+                var model := marker.get_node("EffectCrystal") as MeshInstance3D
+                var crystal := model.mesh as ArrayMesh
+                assert(crystal != null and crystal.get_surface_count() == 1 and (
+                    model.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF))
+                assert(crystal.surface_get_array_len(0) <= 420)
+                var effect := posmod(i+track,ITEMS.COLORS.size())
+                assert(not Geometry2D.triangulate_polygon(ART.glyph(effect)).is_empty())
+                var proportions := crystal.get_aabb().size
                 assert(not crystal_shapes.has(proportions),"Every effect has a distinct silhouette")
                 crystal_shapes.append(proportions)
                 assert(marker.position.z < next_z,"Pickup previews must follow course order")
@@ -68,6 +75,7 @@ func _verify() -> void:
             assert(game.race_items.nearest_available(
                 bypass_position,game.player.racer_id,28.0).is_empty(),
                 "Do not advertise a main-road collectible across the bridge gap")
+            assert(game.race_items.pickup_marker_ahead(bypass_position,Vector3.FORWARD*16.0,true) == -1)
             var main_position := Vector3(game.track_center_at(approach_z),
                 game.height_at(approach_z)+0.80,approach_z)
             var reachable: Dictionary = game.race_items.nearest_available(
@@ -135,6 +143,8 @@ func _verify() -> void:
             hud.update_hud()
             assert(not label.visible,
                 "Immediately hide the prompt after authentic collection")
+            assert(hud.player_locator.rare_item_preview == -1 and (
+                not hud.player_locator.rare_item_center.is_finite()))
             if track > 0:
                 await _verify_grounded_collection(game)
             _verify_online_layout(game,track,variation)
