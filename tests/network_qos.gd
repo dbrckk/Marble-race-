@@ -13,7 +13,7 @@ func _verify() -> void:
     assert(net.quality_text() == "", "Solo must not show network telemetry")
     net.role = "client"
     net.connected = true
-    net.local_slot = 39
+    net.local_slot = 29
     net.ping_ms = -1.0
     assert(net.quality_text() == "CHECKING PING")
     net._pending_ping = 17
@@ -61,14 +61,14 @@ func _verify() -> void:
 
 func _verify_local_replica_velocity(game: Node3D, net: Node) -> bool:
     net.role = "client"
-    net.local_slot = 39
-    net._begin_round(0,0,PackedInt32Array([39]))
+    net.local_slot = 29
+    net._begin_round(0,0,PackedInt32Array([29]))
     var packet := PackedFloat32Array()
     for racer: RigidBody3D in game.racers:
         var at := racer.global_position
         packet.append_array(PackedFloat32Array([at.x,at.y,at.z,0,0,0,1,0,0]))
     var local_z: int = net.local_slot*net.FLOATS_PER_RACER+2
-    var rival: RigidBody3D = game.racers[38]
+    var rival: RigidBody3D = game.racers[28]
     var rival_x: int = rival.racer_id*net.FLOATS_PER_RACER
     net._receive_snapshot(packet,1.0,PackedFloat32Array())
     assert(not net.local_replica_velocity().is_finite(),"One snapshot cannot establish speed")
@@ -97,8 +97,8 @@ func _verify_local_replica_velocity(game: Node3D, net: Node) -> bool:
 
 func _verify_opening_replica_guidance(game: Node3D, net: Node) -> bool:
     net.role = "client"
-    net.local_slot = 39
-    net._begin_round(2,2,PackedInt32Array([39,38]))
+    net.local_slot = 29
+    net._begin_round(2,2,PackedInt32Array([29,28]))
     game.race_state = "RACING"
     game.ui.hide_countdown()
     var art: MeshInstance3D = game.opening_obstacle_art
@@ -109,10 +109,10 @@ func _verify_opening_replica_guidance(game: Node3D, net: Node) -> bool:
     var at := Vector3(x,game.height_at(z)+0.45,z)
     var rival_at := Vector3(x+1.8,game.height_at(z-1.65)+0.45,z-1.65)
     var packet := PackedFloat32Array()
-    for i in range(40):
+    for i in range(game.MARBLE_COUNT):
         packet.append_array([80.0,0.0,20.0,0.0,0.0,0.0,1.0,0.0,0.0])
     var player_slot: int = net.local_slot*net.FLOATS_PER_RACER
-    var rival_slot: int = 38*net.FLOATS_PER_RACER
+    var rival_slot: int = 28*net.FLOATS_PER_RACER
     _write_position(packet,player_slot,at-velocity*0.1)
     _write_position(packet,rival_slot,rival_at-velocity*0.1)
     net._receive_snapshot(packet,1.0,PackedFloat32Array())
@@ -120,7 +120,7 @@ func _verify_opening_replica_guidance(game: Node3D, net: Node) -> bool:
     _write_position(packet,rival_slot,rival_at)
     net._receive_snapshot(packet,1.1,PackedFloat32Array())
     game.player.position = at
-    game.racers[38].position = rival_at
+    game.racers[28].position = rival_at
     game.race_moments.tick(0.12)
     assert(game.race_moments.live_opening_guidance(at,net.local_replica_velocity()).get("target",Vector3.INF).is_finite())
     net.snapshot_age_seconds = net.PRESENTATION_MAX_AGE+0.01

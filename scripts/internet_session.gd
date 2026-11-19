@@ -1,12 +1,13 @@
 extends Node
 ## Internet multiplayer transport: clients only connect to an HTTPS/WebSocket public server.
-## The Godot headless process owns 40 RigidBody3D racers and is the sole RPC authority.
+## The Godot headless process owns 30 RigidBody3D racers and is the sole RPC authority.
 ## Single active room per server process; deploy multiple instances for scale.
 signal lobby_changed(message: String)
 signal session_closed(message: String)
 
 const MAX_PLAYERS := 4
-const SLOT_FIRST := 39
+const RACE_CAPACITY := 30
+const SLOT_FIRST := RACE_CAPACITY - 1
 const FRAME_PERIOD := 0.10
 const PRESENTATION_MAX_AGE := FRAME_PERIOD*3.5
 const PRESENTATION_MAX_SPEED := 38.0
@@ -229,7 +230,7 @@ func _peer_disconnected(id: int) -> void:
     _last_ping_by_peer.erase(id)
     if match_running and slot < game.racers.size():
         game.racers[slot].network_controlled = false
-        game.racers[slot].is_player = false # AI resumes even for server's camera slot 39.
+        game.racers[slot].is_player = false # AI resumes even for server's camera slot 29.
     if joined_slots.is_empty():
         _reset_room()
     elif not match_running:
@@ -534,7 +535,7 @@ func _physics_process(delta: float) -> void:
             boost_by_slot[slot] = false
 
 func _broadcast_snapshot() -> void:
-    if not match_running or game.racers.size() != 40:
+    if not match_running or game.racers.size() != RACE_CAPACITY:
         return
     var floats := PackedFloat32Array()
     for marble in game.racers:
@@ -546,7 +547,7 @@ func _broadcast_snapshot() -> void:
             marble.finish_time
         ]))
     var energies := PackedFloat32Array()
-    for slot in range(36,40):
+    for slot in range(SLOT_FIRST-MAX_PLAYERS+1,SLOT_FIRST+1):
         energies.append(float(energy_by_slot.get(slot,1.0)))
     for peer_id in joined_slots.keys():
         if _can_send(int(peer_id)):
@@ -554,21 +555,21 @@ func _broadcast_snapshot() -> void:
 
 @rpc("authority","call_remote","unreliable_ordered",1)
 func _receive_snapshot(floats: PackedFloat32Array, timestamp: float, energies: PackedFloat32Array) -> void:
-    if role != "client" or not match_running or game.racers.size() != 40:
+    if role != "client" or not match_running or game.racers.size() != RACE_CAPACITY:
         return
-    if floats.size() != 40*FLOATS_PER_RACER or not is_finite(timestamp) or timestamp <= last_frame_time:
+    if floats.size() != RACE_CAPACITY*FLOATS_PER_RACER or not is_finite(timestamp) or timestamp <= last_frame_time:
         return
-    for i in range(40):
+    for i in range(RACE_CAPACITY):
         var j := i*FLOATS_PER_RACER
         if not Vector3(floats[j],floats[j+1],floats[j+2]).is_finite():
             return
-    if targets.size() != 40:
-        targets.resize(40)
-        snapshot_velocities.resize(40)
+    if targets.size() != RACE_CAPACITY:
+        targets.resize(RACE_CAPACITY)
+        snapshot_velocities.resize(RACE_CAPACITY)
     var elapsed := timestamp-last_frame_time
     var can_measure := targets_received and elapsed >= FRAME_PERIOD*0.35 and elapsed <= PRESENTATION_MAX_AGE
     var new_finisher := false
-    for i in range(40):
+    for i in range(RACE_CAPACITY):
         var j := i*FLOATS_PER_RACER
         var xyz := Vector3(floats[j],floats[j+1],floats[j+2])
         var velocity := (xyz-targets[i].origin)/elapsed if can_measure else Vector3.INF
@@ -591,8 +592,8 @@ func _receive_snapshot(floats: PackedFloat32Array, timestamp: float, energies: P
     snapshot_age_seconds = 0.0
     game.race_time = timestamp
     targets_received = true
-    if local_slot >= 36 and local_slot <= 39 and energies.size() == 4:
-        game.boost_energy = clampf(energies[local_slot-36],0.0,1.0)
+    if local_slot >= SLOT_FIRST-MAX_PLAYERS+1 and local_slot <= SLOT_FIRST and energies.size() == 4:
+        game.boost_energy = clampf(energies[local_slot-(SLOT_FIRST-MAX_PLAYERS+1)],0.0,1.0)
     if new_finisher and game.race_state == "RACING":
         game.race_moments.on_finish()
 
@@ -671,9 +672,9 @@ func on_host_finish() -> void:
 
 @rpc("authority","call_remote","reliable")
 func _show_results(finish_times: PackedFloat32Array, elapsed: float) -> void:
-    if role != "client" or not match_running or finish_times.size() != 40 or game.racers.size() != 40:
+    if role != "client" or not match_running or finish_times.size() != RACE_CAPACITY or game.racers.size() != RACE_CAPACITY:
         return
-    for i in range(40):
+    for i in range(RACE_CAPACITY):
         var marble: RigidBody3D = game.racers[i]
         marble.finished = finish_times[i] >= 0.0
         marble.finish_time = maxf(0.0,finish_times[i])

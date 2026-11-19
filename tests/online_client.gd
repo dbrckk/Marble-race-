@@ -50,7 +50,7 @@ func _verify() -> void:
         if game.net.match_running and not began:
             began = true
             assigned_slot = game.net.local_slot
-            assert(game.net.local_slot >= 36 and game.net.local_slot <= 39,
+            assert(game.net.local_slot >= 26 and game.net.local_slot <= 29,
                 "Server must assign a playable marble")
             assert(game.player != null and game.player.racer_id == game.net.local_slot,
                 "Camera must follow assigned online marble")
@@ -65,7 +65,7 @@ func _verify() -> void:
             print("ONLINE_CLIENT_MATCH_STARTED slot=%d" % game.net.local_slot)
         if glacier_mode:
             if began and not game.net.connected:
-                var passed := snapped and (assigned_slot != 39 or glacier_cut_in_sent)
+                var passed := snapped and (assigned_slot != 29 or glacier_cut_in_sent)
                 if passed:
                     print("GLACIER_ONLINE_CLIENT_PASS slot=",assigned_slot)
                 game.queue_free()
@@ -112,7 +112,7 @@ func _observe_bridge_feedback() -> void:
         bridge_exit_seen = true
 
 func _steer_glacier_rider() -> void:
-    if game.net.local_slot != 39:
+    if game.net.local_slot != 29:
         return
     var director: Node3D = game.race_director
     var gate: int = director.GLACIER_RETURN_GATE
