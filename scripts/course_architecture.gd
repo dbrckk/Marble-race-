@@ -16,8 +16,15 @@ static func material(biome: int) -> StandardMaterial3D:
         var paint := StandardMaterial3D.new()
         paint.vertex_color_use_as_albedo = true
         paint.vertex_color_is_srgb = true
-        paint.roughness = [0.69,0.37,0.49][biome]
-        paint.metallic = [0.10,0.20,0.32][biome]
+        # Keep the sculpted piers consistent with the adjacent passage roofs:
+        # timber stays matte, ice has a restrained clearcoat, and foundry
+        # metal reflects as brushed alloy. No additional geometry or passes.
+        paint.roughness = [0.69,0.28,0.43][biome]
+        paint.metallic = [0.10,0.12,0.52][biome]
+        if biome == 1:
+            paint.clearcoat_enabled = true
+            paint.clearcoat = 0.42
+            paint.clearcoat_roughness = 0.16
         _materials[biome] = paint
     return _materials[biome]
 
