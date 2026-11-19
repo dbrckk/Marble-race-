@@ -41,7 +41,7 @@ func _check() -> void:
     assert("CAREER STARS: 3 / 3" in summary.text, "Persistent stars must be visible")
     assert("TOP 5" in summary.text, "Leaderboard header should match five displayed rows")
     assert(summary.text.contains("38.25s") and not summary.text.contains("Unfinished Rival"))
-    assert(game.ui.result_overview.text.contains("P2 / 40") and game.ui.result_overview.text.contains("43.00s"))
+    assert(game.ui.result_overview.text.contains("P2 / %d" % game.MARBLE_COUNT) and game.ui.result_overview.text.contains("43.00s"))
     var layout: int = game.built_variation
     game.ui.replay_button_ref.pressed.emit()
     assert(game.built_variation == layout and game.race_state == "COUNTDOWN")
@@ -49,7 +49,7 @@ func _check() -> void:
     game.player.eliminated = true
     game._end_race()
     assert("DNF" in game.ui.result_header.text,"DNF must not show medals")
-    assert(game.ui.result_overview.text.contains("OFF TRACK") and not game.ui.result_overview.text.contains("P40"))
+    assert(game.ui.result_overview.text.contains("OFF TRACK") and not game.ui.result_overview.text.contains("P%d" % game.MARBLE_COUNT))
     game.ui.next_layout_button.pressed.emit()
     assert(game.built_variation == (layout+1)%3 and game.race_state == "COUNTDOWN")
     game.race_time = game.current_timeout()
@@ -57,7 +57,7 @@ func _check() -> void:
     assert(game.ui.result_overview.text.contains("TIME OUT"))
     game.ui.show_race_ui()
     game.race_state = "RACING"
-    game.ui.last_seen_rank = 40
+    game.ui.last_seen_rank = game.MARBLE_COUNT
     game.ui.update_hud()
     assert(game.ui.position_feedback != null)
     print("POLISH_PASS: result grades, 5-racer summary, FX profiles, rank feedback")
