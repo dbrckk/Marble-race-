@@ -2233,6 +2233,7 @@ func update_hud() -> void:
     if merge_traffic != 0 and (game.shortcut_route.merge_traffic_lane(game.player.global_position) != merge_traffic or (
             game.net.is_client() and not game.net.local_replica_velocity().is_finite())):
         merge_traffic = 0
+    var main_merge_traffic := "MAIN PACK" if duel.merge_threat_count > 1 else "MAIN TRAFFIC"
     var gate_id := int(moving_event.get("index",-1))
     if game.selected_track == 2 and not bridge_gate.is_empty() and gate_id == RACE_DIRECTOR.FORGE_EXIT_GATE:
         # The exit piston is physically beyond the active bridge portico.
@@ -2336,11 +2337,12 @@ func update_hud() -> void:
                 merge_distance <= SHORTCUT_ROUTE.PORTAL_HALF_LENGTH) else (
                 game.shortcut_route.route_guidance_text(
                     route_hint,game.player.global_position.z,forward_speed))
-            timed_gate_label.text = "%s  •  THEN AIM CENTER" % merge
-            if gate_eta <= 1.3:
-                timed_gate_label.text += "  •  SHUTTER %s" % gate_side
-            elif merge_traffic < 0:
-                timed_gate_label.text += "  •  TRAFFIC"
+            if merge_traffic < 0:
+                timed_gate_label.text = "%s  •  %s  •  SAVE BOOST" % [merge,main_merge_traffic]
+            else:
+                timed_gate_label.text = "%s  •  THEN AIM CENTER" % merge
+                if gate_eta <= 1.3:
+                    timed_gate_label.text += "  •  SHUTTER %s" % gate_side
         elif game.selected_track == 2:
             var action := dodge_action if player_threatened else lane_verdict
             timed_gate_label.text = "FORGE PISTON %s  •  EST. %s  •  %s  •  %.1fs" % [
@@ -2551,8 +2553,7 @@ func update_hud() -> void:
             # Do not ask a bridge racer to accelerate into an occupied merge.
             # Keep the direction and distance visible, but make the safe
             # immediate action explicit on every course.
-            var main_traffic := "MAIN PACK" if game.race_moments.merge_threat_count > 1 else "MAIN TRAFFIC"
-            shortcut_label.text += "  •  %s  •  SAVE BOOST" % main_traffic
+            shortcut_label.text += "  •  %s  •  SAVE BOOST" % main_merge_traffic
         if route_hint["mode"] == "fork":
             var advice: Dictionary = game.shortcut_route.forge_fork_advice(game.player.global_position,velocity)
             if not advice.is_empty():

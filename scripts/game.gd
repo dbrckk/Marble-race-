@@ -2335,6 +2335,8 @@ func _update_camera(delta: float, force := false) -> void:
         not player.finished and not player.eliminated and is_instance_valid(final_obstacle_art))
     var woodworks_view: bool = selected_track == 0 and cam_mode == 0 and race_state == "RACING" and (
         not player.finished and not player.eliminated and is_instance_valid(opening_obstacle_art))
+    var glacier_view: bool = selected_track == 1 and cam_mode == 0 and race_state == "RACING" and (
+        not player.finished and not player.eliminated)
     if is_instance_valid(shortcut_route):
         var deck_weight := 0.0
         var deck_end := ShortcutRoute.OUTER_END
@@ -2376,6 +2378,12 @@ func _update_camera(delta: float, force := false) -> void:
     var desired: Vector3 = pose["position"]
     var focus: Vector3 = pose["focus"]
     var target_fov: float = pose["fov"]
+    if glacier_view and is_instance_valid(shortcut_route) and jump_preview.is_empty():
+        var return_weight: float = shortcut_route.glacier_return_camera_weight(
+            player.global_position,ui.bridge_approach_active)
+        if return_weight > 0.0:
+            var line_x: float = shortcut_route.glacier_return_line_x(focus.z)
+            focus.x += clampf(line_x-focus.x,-4.0,4.0)*return_weight*0.60
     if forge_view and jump_preview.is_empty():
         var clear_z := minf(final_straight_z,final_obstacle_art.clear_z)
         var finish_weight := RaceFeedback.finish_focus_weight(racer_z,clear_z,FINISH_Z,-velocity.z)*(
@@ -2383,8 +2391,7 @@ func _update_camera(delta: float, force := false) -> void:
         var target := Vector3(finish_origin.x,finish_origin.y+1.3,minf(focus.z,FINISH_Z))
         focus = focus.lerp(target,finish_weight*0.58)
         desired.y += finish_weight*0.56
-    elif woodworks_view or (selected_track == 1 and cam_mode == 0 and race_state == "RACING" and (
-            not player.finished and not player.eliminated)):
+    elif woodworks_view or glacier_view:
         var clear_z := final_straight_z
         if woodworks_view and is_instance_valid(final_obstacle_art):
             clear_z = minf(clear_z,final_obstacle_art.clear_z)
