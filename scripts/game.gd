@@ -138,6 +138,7 @@ var practice_previous_passages := PackedFloat64Array()
 var practice_timing := PracticeTiming.new()
 var course_flash := 0.0
 var trail: CPUParticles3D
+var impact_sparks: CPUParticles3D
 var skins: Node
 var monetization: Node
 var starting_camera_target := Vector3(0, 0, 0)
@@ -1766,6 +1767,7 @@ func _spawn_racers() -> void:
             m.contact_monitor = true
             m.max_contacts_reported = 6
             _add_player_trail(m)
+            _add_player_impact_sparks(m)
             PremiumSkinVisuals.apply(self)
 
     if selected_perk == "Head Start" and is_instance_valid(player):
@@ -1806,6 +1808,32 @@ func _add_player_trail(m: RigidBody3D) -> void:
     trail.emitting = false
     m.add_child(trail)
 
+func _add_player_impact_sparks(m: RigidBody3D) -> void:
+    # One reusable, local-only burst; no per-collision node allocations.
+    impact_sparks = CPUParticles3D.new()
+    impact_sparks.name = "PlayerImpactSparks"
+    impact_sparks.amount = 9
+    impact_sparks.lifetime = 0.23
+    impact_sparks.one_shot = true
+    impact_sparks.explosiveness = 1.0
+    impact_sparks.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+    impact_sparks.emission_sphere_radius = 0.16
+    impact_sparks.direction = Vector3.UP
+    impact_sparks.spread = 155.0
+    impact_sparks.gravity = Vector3(0.0,-3.0,0.0)
+    impact_sparks.initial_velocity_min = 1.2
+    impact_sparks.initial_velocity_max = 3.1
+    impact_sparks.color = Color(1.0,0.82,0.48,0.85)
+    var spark_mesh := SphereMesh.new()
+    spark_mesh.radius = 0.027
+    spark_mesh.height = 0.054
+    spark_mesh.radial_segments = 4
+    spark_mesh.rings = 2
+    impact_sparks.mesh = spark_mesh
+    impact_sparks.emitting = false
+    m.add_child(impact_sparks)
+
+
 func _refresh_premium_skin() -> void:
     if is_instance_valid(player):
         PremiumSkinVisuals.apply(self)
@@ -1830,6 +1858,10 @@ func _camera_bump(body: Node) -> void:
         arcade_bumpers.notify_contact(body,intensity)
     if intensity < 0.17 or feedback_cooldown > 0.0:
         return
+    # Medium/high Android quality only. Reuse the same nine particles for
+    # every qualifying contact; the existing cooldown bounds burst frequency.
+    if graphics_quality > 0 and is_instance_valid(impact_sparks):
+        impact_sparks.restart()
     camera_shake = minf(0.14,camera_shake+RaceFeedback.shake_strength(intensity))
     if not ice_impact:
         obstacle_notice = 0.46 if intensity > 0.45 else 0.22
