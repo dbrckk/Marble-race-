@@ -674,6 +674,12 @@ Le turbo déploie deux traînées cyan, le saut lève des chevrons dorés, l'ond
 
 Quatre sons courts sont synthétisés à l'initialisation et jouent dans les canaux existants. Les alertes de danger baissent le volume des sons d'activation. Les tests Godot couvrent la collecte, le rayon physique de l'onde, le rejeu réseau, les changements de qualité, la pause et la priorité sonore des dangers.
 
+### 2026-11-19 — Turbo et dash au milieu du peloton
+
+Les traînées cyan du turbo et les guides verts du dash stabilisé suivent la bille pendant l'activation. Le symbole apparaît dans le badge du joueur, y compris en mode Économie, et disparaît à la fin de l'animation. Il tient dans la place habituelle du badge.
+
+Dans un scénario à 30 billes reproduit sur les trois circuits à 1 280 × 720 sur ordinateur, le centre des effets est passé de 50 à 74 pixels d'écart à moins de 5 pixels de la bille, 160 ms après activation. Les tests couvrent le suivi après collecte solo ou confirmation en ligne et le passage par le mode Économie.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
 Sur Android, activer **FPS DISPLAY**, prendre le pont sur Gauntlet et copier le rapport après la course. Rejouer le même tracé avec **TEST ECONOMY** ou **TEST BALANCED**, reprendre le pont et copier le deuxième rapport. Comparer les lignes **GAUNTLET BRIDGE JUMP** et **BRIDGE RETURN ±8 m** et vérifier la lecture du portique, de la réception et du piston à pleine vitesse.

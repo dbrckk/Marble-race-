@@ -92,29 +92,27 @@ static func activation(effect: String) -> ArrayMesh:
     match effect:
         "turbo":
             for side in [-1.0,1.0]:
-                _activation_strip(mesh,Vector3(side*0.67,0,-0.70),Vector3(side*0.92,0,1.10),0.32)
-                _activation_strip(mesh,Vector3(side*0.55,0,-0.29),Vector3(side*0.73,0,0.82),0.16)
+                _activation_strip(mesh,Vector3(side*0.63,0.11,-0.38),Vector3(side*1.02,-0.10,2.02),0.36)
+                _activation_strip(mesh,Vector3(side*0.49,0.07,0.05),Vector3(side*0.75,-0.12,1.48),0.17)
         "spring":
             for angle in [0.0,PI*0.5]:
                 var basis := Basis(Vector3.UP,angle)
-                _activation_strip(mesh,basis*Vector3(-0.64,-0.08,0),Vector3(0,0.68,0),0.22)
-                _activation_strip(mesh,basis*Vector3(0.64,-0.08,0),Vector3(0,0.68,0),0.22)
+                var normal := basis*Vector3.FORWARD
+                _activation_strip(mesh,basis*Vector3(-0.64,-0.08,0),Vector3(0,0.68,0),0.22,normal)
+                _activation_strip(mesh,basis*Vector3(0.64,-0.08,0),Vector3(0,0.68,0),0.22,normal)
         "stabilizer":
             for side in [-1.0,1.0]:
                 var front := Vector3(side*0.45,0,-0.58)
                 var elbow := Vector3(side*0.91,0,0.17)
-                _activation_strip(mesh,front,elbow,0.22)
-                _activation_strip(mesh,elbow,Vector3(side*0.74,0,0.95),0.22)
+                _activation_strip(mesh,front,elbow,0.27)
+                _activation_strip(mesh,elbow,Vector3(side*0.69,0,0.85),0.27)
     var result := mesh.commit()
     activation_meshes[effect] = result
     return result
 
-static func _activation_strip(mesh: SurfaceTool, from: Vector3, to: Vector3, width: float) -> void:
-    var axis := to-from
-    var normal := Vector3.UP if is_zero_approx(axis.y) else Vector3.FORWARD
-    if not is_zero_approx(axis.y) and absf(axis.z) > absf(axis.x):
-        normal = Vector3.RIGHT
-    var across := axis.cross(normal).normalized()*width
+static func _activation_strip(mesh: SurfaceTool, from: Vector3, to: Vector3,
+        width: float, normal := Vector3.UP) -> void:
+    var across := (to-from).cross(normal).normalized()*width
     var shoulder := from.lerp(to,0.23)
     _triangle(mesh,from,shoulder+across,to+across*0.36,Color.WHITE)
     _triangle(mesh,from,to+across*0.36,to-across*0.36,Color.WHITE)
