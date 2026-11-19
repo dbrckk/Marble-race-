@@ -35,18 +35,18 @@ adb shell getprop sys.boot_completed | grep -q 1
 adb install "$a"
 adb shell am start -n "$pkg/org.godotengine.godot.GodotApp" || adb shell monkey -p "$pkg" 1
 sleep 5
-adb shell run-as "$pkg" sh -c 'mkdir -p files; printf "career-byte-proof-v1\n" > files/marble_upgrade_career_probe; printf "ghost-byte-proof-v1\n" > files/marble_upgrade_ghost_probe; printf "prefs-byte-proof-v1\n" > files/marble_upgrade_prefs_probe'
-before="$(adb shell run-as "$pkg" sh -c 'sha256sum files/marble_upgrade_*_probe' | tr -d '\r')"
+adb shell "run-as $pkg sh -c 'mkdir -p files; printf career-byte-proof-v1 > files/marble_upgrade_career_probe; printf ghost-byte-proof-v1 > files/marble_upgrade_ghost_probe; printf prefs-byte-proof-v1 > files/marble_upgrade_prefs_probe'"
+before="$(adb shell "run-as $pkg sh -c 'sha256sum files/marble_upgrade_*_probe'" | tr -d '\r')"
 [[ "$(wc -l <<< "$before")" == 3 ]] || exit 1
 adb install -r "$b"
-after="$(adb shell run-as "$pkg" sh -c 'sha256sum files/marble_upgrade_*_probe' | tr -d '\r')"
+after="$(adb shell "run-as $pkg sh -c 'sha256sum files/marble_upgrade_*_probe'" | tr -d '\r')"
 [[ "$before" == "$after" ]] || { echo "Android private app files changed after update" >&2; exit 1; }
 actual="$(adb shell dumpsys package "$pkg" | sed -n 's/.*versionCode=\([0-9][0-9]*\).*/\1/p' | head -n1)"
 [[ "$actual" == "$code_b" ]] || { echo "Updated version missing: $actual" >&2; exit 1; }
 adb shell am force-stop "$pkg"
 adb shell monkey -p "$pkg" 1
 sleep 5
-again="$(adb shell run-as "$pkg" sh -c 'sha256sum files/marble_upgrade_*_probe' | tr -d '\r')"
+again="$(adb shell "run-as $pkg sh -c 'sha256sum files/marble_upgrade_*_probe'" | tr -d '\r')"
 [[ "$again" == "$before" ]] || { echo "Private data lost after relaunch" >&2; exit 1; }
 echo "ANDROID_UPGRADE_EMULATOR_PASS: PackageManager installed higher version; three private data probes survived upgrade and relaunch"
 echo "NOTE: This verifies OS-level preservation, not game-level career/ghost deserialization."
