@@ -1,9 +1,7 @@
 # MARBLE RACE — PROMPT DIRECTEUR AAA PREMIUM ANDROID
-Version du plan : 2026-11-19
-Dépôt : dbrckk/Marble-race-
-Base de référence : branche `main` après fusion de la PR #31 (`31b2cdf`).
-Base vérifiée : Godot 4.5.1 GL Compatibility, **30 billes physiques au total (joueur compris)**, 3 univers × 3 variantes ; CI #44429918085 réussie, APK debug produit.
-Statut : plan d'exécution, pas attestation de qualité AAA.
+Plan du 19 novembre 2026 pour `dbrckk/Marble-race-`
+
+La base de jeu est `c6419fb` sur `main`, après la fusion de la PR #51. Le jeu tourne avec Godot 4.5.1 en GL Compatibility, trois univers et neuf tracés. Chaque course réunit 30 billes, avec jusqu'à quatre humains en ligne. La CI a validé les parcours solo et réseau ainsi que la signature du dernier APK debug. Les mesures de fluidité et la lisibilité du nouveau repère de saut restent à confirmer sur téléphone. [CI de la PR #51 fusionnée](https://github.com/dbrckk/Marble-race-/actions/runs/44570386975)
 
 ## PROMPT À EXÉCUTER À CHAQUE « CONTINUE » / « GO »
 
@@ -11,47 +9,59 @@ Tu es responsable technique, game designer, technical artist, expert optimisatio
 
 ### Préparation obligatoire
 1. Vérifie le dépôt réel, sa branche, sa PR, ses derniers commits, les changements locaux, les workflows et les problèmes ouverts. Ne travaille jamais sur une branche supposée. Respecte les changements non committés et le workflow de la PR réellement ouverte ; ne réutilise pas une ancienne branche ou une ancienne PR.
-2. Relis README.md, docs/ROADMAP_PREMIUM_PLAY_STORE_2026-10-27.md, docs/ANDROID_PERFORMANCE.md, docs/15_GAMEPLAY_PILLARS.md, docs/STAR_LIST_GAME_REVIEW.md et les tests concernés.
+2. Lis les sections de référence de ce plan et du README, puis les scripts et tests du lot. Les documents d'octobre conservent l'historique du format à 40 billes. Utilise 30 billes pour les mesures actuelles.
 3. Établis une baseline reproductible : screenshots par biome, parcours tactile, taux d'achèvement des courses, collisions, frametime et budget draw calls. Sépare mesures réelles Android et mesures headless.
 4. Priorité absolue aux régressions bloquant le lancement, les courses, les contrôles, la progression, le réseau ou l'export. Corrige-les avant toute nouvelle décoration.
 5. Préfère Godot natif et ressources libres vérifiées. Le catalogue star-list est une source d'idées, jamais une licence d'utilisation implicite.
 
 ## TOP 5 — ordre d'exécution
 
-### P1 — Direction artistique 3D cohérente et exceptionnelle
-- Auditer tous les éléments visibles : pistes, rails, ponts, obstacles, silhouettes, ciel, fonds, billes, matériaux, lumières, VFX, UI et caméra. Classer les primitives non justifiées et les éléments trop répétitifs.
-- Construire une bible visuelle par univers : Woodworks (atelier mécanique chaleureux et bois travaillé), Glacier (glace translucide, givre et contraste lisible), Forge (acier, braises, machines, chaleur). Préserver une identité colorimétrique propre à chaque monde.
-- Remplacer progressivement les formes génériques visibles par géométrie soignée, silhouettes originales, détails de matériaux et décors crédibles. Employer MultiMesh, LOD, atlases, pooling et shaders compatibles GL Compatibility; préserver les colliders exacts et la visibilité des dangers.
-- Ajouter éclairage directionnel maîtrisé, ambiance, contacts, particules contextuelles, caméra et transitions, sans masquer les trajectoires.
-- Acceptation : captures comparables avant/après sur les 9 variantes, à vitesse de course et en 30 billes; aucun obstacle masqué, aucune régression physique, vérification des droits d'assets, budget GPU respecté sur appareil réel.
+### P1 — Mettre à jour sur Android en conservant la progression
 
-### P2 — Gameplay arcade de course mémorable
-- Améliorer le plaisir des 30 premières secondes : départ immédiatement compréhensible, accélération, pilotage tactile, turbo, premier objet rare et premier obstacle clairement annoncés.
-- Chaque biome doit proposer au moins une décision physique distinctive : trajectoire sûre/rapide, saut ou raccourci à risque, obstacle temporisé avec contre-jeu, interaction lisible à pleine vitesse.
-- Revoir les enchaînements glace/volet, pont/retour, piston/évent et les collisions de peloton; pas de passages arbitrairement bloqués.
-- Raffiner les objets rares immédiats réservés aux vrais joueurs : effets différenciés, utiles mais non décisifs, lisibles et validés par le serveur. Les skins restent cosmétiques.
-- Acceptation : parcours réel sur 9 variantes, 30 billes, collisions et trajectoires reproductibles, aucun blocage permanent, commandes tactiles testées, championnats complets et aucune récompense injuste.
+Les deux APK debug de référence, issus de `520601b` et `c6419fb`, ont des certificats différents. Le workflow de `c6419fb` a livré uniquement l’artefact debug. La voie stable et le transfert de carrière existent déjà. [Guide des mises à jour Android](ANDROID_UPDATES.md) · [Dernier artefact debug](https://github.com/dbrckk/Marble-race-/actions/runs/44570386975/artifacts/14552879781)
 
-### P3 — IA crédible et multijoueur robuste
-- Étendre les comportements existants : freinage en file, anticipation d'un joueur qui se rabat, annulation et reprise de dépassement, prise de risque contextuelle et réaction aux portes temporisées.
-- Tester en priorité Glacier avec joueur distant se rabattant à la sortie du pont, sous 0/80/150/250 ms de latence simulée, jitter et pertes raisonnables. Consigner collisions, délais de réaction, positions serveur/client et cas limites.
-- Garder physique et objets rares sous autorité serveur; valider fraîcheur des commandes, anti-rejeu, limites de vitesse et absence d'avantage client.
-- Améliorer la gestion des déconnexions et reconnexions sans promettre des salons multiples tant qu'ils ne sont pas implémentés et testés.
-- Acceptation : scénarios multi-clients réels, serveur dédié, courses terminées sans blocage ni triche, métriques de collisions et latence documentées. Les bots restent identifiés honnêtement comme bots.
+- Exécuter sur émulateur Android un scénario complet de mise à jour avec deux vrais APK signés par une clé de test conservée pour ce scénario et deux codes de version croissants. Commencer une carrière, enregistrer un résultat, modifier un réglage, installer la mise à jour, puis rouvrir le jeu.
+- Vérifier aussi le passage d’un APK debug à un autre certificat via le transfert existant. Indiquer dans l’interface les données couvertes par le code portable. Au besoin, améliorer cette indication avant toute migration.
+- Rattacher ensuite les APK de diffusion directe à la clé durable du propriétaire et valider séparément la voie Google Play. Reprendre une clé déjà utilisée si une version a été distribuée sous cette identité.
 
-### P4 — Performance Android mesurée et adaptive
-- Conserver 30 RigidBody3D et 60 Hz physique sauf décision explicitement motivée par mesures.
-- Mesurer FPS, p95 et p99 frametime, coût physique, draw calls, mémoire, température et batterie sur sessions de 15 min, départs à 30 billes, Glacier/Forge et profils graphiques. Cible : 60 FPS stables sur appareil de référence quand possible, 30 FPS réguliers sur appareils modestes, sans garantie avant mesure.
-- Prioriser les gains sans impact gameplay : instancing, culling, LOD, pooling audio/VFX, plafonds particules, ombres et shaders, suppression des allocations répétées.
-- Implémenter adaptation de qualité avec hystérésis et plafonds explicites; ne jamais réduire la précision des collisions, la lisibilité du HUD ni modifier l'équité réseau pour gagner des FPS.
-- Acceptation : tableau avant/après issu d'appareils physiques, pas seulement CI; aucun stutter majeur introduit, aucune fuite mémoire, thermique et batterie documentées.
+**Acceptation.** Deux installations stables consécutives gardent la carrière, les fantômes déjà enregistrés et les préférences. L’identité du paquet, le certificat et le code de version sont vérifiés sur les deux APK. La voie de migration par code couvre la carrière et présente son périmètre avant restauration.
 
-### P5 — Finition produit et sortie Google Play
-- Uniformiser HUD, menus, tutoriel, pause, résultats, progression, objectifs, retours haptiques, accessibilité, lisibilité et navigation tactile sur ratios Android courants.
-- Réaliser une identité sonore originale par univers, mixage adaptatif et priorité aux signaux de danger; vérifier le rendu sur haut-parleur de téléphone et écouteurs.
-- Protéger la sauvegarde et la migration de carrière, les meilleurs temps et les déblocages. Tester installation, mise à jour, reprise après mise en arrière-plan et retour hors ligne.
-- Finaliser un AAB release réellement signé, les métadonnées Play, la confidentialité et le consentement, les SDK AdMob/Billing réels, la vérification des achats côté serveur, les remboursements et l'expiration des skins temporaires. Pas de faux paiement ni de publicité simulée en production.
-- Acceptation : parcours neuf utilisateur -> première course -> résultats -> deuxième course -> reprise, APK/AAB vérifiés, aucun secret dans Git, transactions testées en environnement Play autorisé. Ne pas annoncer une publication sans preuve.
+### P2 — Garder la piste et les commandes lisibles à 30 billes
+
+La grille, le tutoriel Woodworks et plusieurs alertes de trajectoire sont en place. Le Super Jump ajoute un nouveau repère au sol. Leur coexistence mérite une passe commune dans les scènes les plus chargées.
+
+- Comparer trois séquences d’abord en rendu reproductible puis sur téléphone dès qu’un appareil est disponible. Retenir le départ Woodworks, la jonction de Glacier et le saut final de Gauntlet. Contrôler le cadrage de la bille, la prochaine ouverture, les alertes et les commandes à deux doigts.
+- Résoudre les chevauchements observés au moyen des règles de priorité existantes. Garder le danger imminent, puis la prochaine décision de pilotage. Conserver les symboles utiles en Économie, y compris les objets et la réception du Super Jump quand la piste est praticable.
+- Mesurer les temps d’image au départ, au premier obstacle, à la jonction et au saut final grâce au rapport FPS existant. Comparer Économie et Équilibré sur le même tracé et le même atout, puis vérifier une session Android de 15 minutes.
+
+**Acceptation.** Les neuf tracés passent les vérifications de collision, de caméra et de pilotage. À 30 billes, un seul conseil de direction s’affiche dans les fenêtres de transition reproduites. La cible initiale sur appareil modeste est un P95 de 33,3 ms en Économie. Le rapport avant/après sur téléphone reste requis pour conclure sur la fluidité réelle. [Procédure de mesure](ANDROID_PERFORMANCE.md)
+
+### P3 — Donner à chaque univers une décision de course et une signature visuelle
+
+- Sur **Woodworks**, comparer le couloir intérieur qui exploite l’aspiration et la trajectoire extérieure face au bras mécanique.
+- Sur **Glacier**, mesurer le temps gagné sur la glace face à la marge de pilotage de la bande adhérente, en tenant compte de la jonction et du volet.
+- Sur **Forge**, comparer la piste basse et le pont rapide en fonction de la fenêtre du portique, de la réception et du piston de sortie.
+- À ces endroits, travailler la lecture des surfaces, les silhouettes des mécanismes et un signal sonore propre à chaque décision. Réutiliser les lots de rendu, les matériaux et les canaux audio existants. Corriger les zones qui se confondent avec la piste dans les comparatifs.
+
+**Acceptation.** Mesurer, pour chaque univers et ses trois variantes, le temps du passage, les contacts et la vitesse de sortie sur deux lignes légales, avec et sans trafic. Chaque ligne a un scénario utile et une ouverture lisible. Les captures avant/après gardent le même cadrage, le même éclairage de référence et la même qualité graphique.
+
+### P4 — Rendre les duels plus crédibles en solo et en ligne
+
+- Partir des files et dépassements déjà testés. Examiner où les rivaux changent de ligne trop souvent, se retrouvent côte à côte dans une ouverture étroite ou abandonnent un dépassement au mauvais moment.
+- Comparer la jonction de Glacier et les portiques de Forge avec deux à quatre clients, en simulant 0, 80, 150 et 250 ms d’aller-retour, puis des pertes brèves et un départ de joueur. L’autorité serveur reste responsable de la physique, des objets et du classement. Les repères locaux suivent les positions fraîches.
+- Corriger les écarts mesurés avant d’élargir le système de salons. Tester le passage du contrôle à un bot lors d’une déconnexion et la revanche depuis les résultats.
+
+**Acceptation.** Les manches se terminent avec un classement cohérent. Les commandes expirées cessent d’influencer la bille. Comparer les contacts, temps passés bloqués et corrections visibles aux mêmes endroits avant et après.
+
+### P5 — Relier les résultats à la prochaine course
+
+Les quatre secteurs, le fantôme personnel, la carte de course et l’entraînement par secteur existent. Les résultats indiquent déjà le secteur où du temps a été perdu et demandent d’ouvrir la carte pour choisir le passage.
+
+- Proposer un accès direct à l’entraînement du secteur suggéré, avec le même tracé et l’atout utilisé. Si le joueur dispose d’un historique pertinent, comparer le nouvel essai au précédent.
+- Pour une première course ou un abandon, proposer une relance ou une action fondée sur les données réellement enregistrées. Laisser la revanche réseau et ses commandes séparées de l’entraînement solo.
+- Soigner les libellés mobiles et prévoir le parcours français et anglais des écrans essentiels. Consolider ensuite l’export AAB interne, les vrais SDK publicitaires et de facturation, ainsi que la vérification des skins temporaires selon les objectifs Play.
+
+**Acceptation.** Depuis les résultats d’une course solo, un geste suffit pour rejoindre le secteur proposé quand une comparaison existe. Vérifier aussi une première partie, un abandon, la reprise de carrière après redémarrage et une revanche en ligne. L’AAB interne suit sa propre vérification avec les paramètres et comptes autorisés.
 
 ## MÉTHODE D'EXÉCUTION ET LIVRABLES
 - Choisir le lot ayant le meilleur impact joueur et le risque le plus faible, dans l'ordre fiabilité > jouabilité > sécurité > architecture > performances > visuel > extras; si P1 ne peut être testé sans P4, mettre d'abord en place les mesures minimales.
@@ -686,6 +696,10 @@ Deux chevrons violets suivent brièvement chaque bille qui reçoit l'impulsion. 
 
 Les trois circuits ont été capturés à 30 billes en modes Équilibré et Économie. Les essais WebSocket locaux ont vérifié la livraison des impacts, ainsi que le comportement avec un ancien client ou un ancien serveur.
 
+### 2026-11-19 — Réceptions sur les rampes et Super Jump
+
+Les repères peints rendent les zones d’atterrissage des rampes plus lisibles. Après une collecte de Super Jump, un losange doré suit le premier contact prévu avec une surface praticable en caméra de poursuite, en Économie comme en Équilibré. En ligne, il part des instantanés frais après le décollage. Le test physique solo et l’essai à deux clients WebSocket ont réussi. [PR #50](https://github.com/dbrckk/Marble-race-/pull/50) · [PR #51](https://github.com/dbrckk/Marble-race-/pull/51)
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Sur Android, activer **FPS DISPLAY**, prendre le pont sur Gauntlet et copier le rapport après la course. Rejouer le même tracé avec **TEST ECONOMY** ou **TEST BALANCED**, reprendre le pont et copier le deuxième rapport. Comparer les lignes **GAUNTLET BRIDGE JUMP** et **BRIDGE RETURN ±8 m** et vérifier la lecture du portique, de la réception et du piston à pleine vitesse.
+Commencer par le scénario reproductible de mise à jour Android `APK A → APK B` avec deux versions signées par la même clé de test. Réutiliser les contrôles de signature et le transfert de carrière existants pour vérifier la conservation effective des données. La configuration d’une clé de diffusion durable dépend du détenteur de cette clé. Après la validation du scénario sur émulateur, enchaîner sur la lisibilité à 30 billes dans Woodworks, Glacier et Forge.
