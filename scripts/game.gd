@@ -2035,7 +2035,11 @@ func _process(delta: float) -> void:
         if is_instance_valid(trail) and is_instance_valid(player):
             audio.update_progress(clampf(-player.position.z/absf(FINISH_Z),0.0,1.0))
             var speed: float = replica_speed if net.is_client() else player.linear_velocity.length()
-            trail.emitting = graphics_quality > 0 and speed > 4.0
+            # Hysteresis prevents the premium dust trail from flickering when
+            # physics speed oscillates around the activation threshold.
+            # Keep Economy mode particle-free and retain the existing pool.
+            var trail_threshold := 3.3 if trail.emitting else 4.5
+            trail.emitting = graphics_quality > 0 and speed > trail_threshold
             trail.initial_velocity_max = 2.6 if boosting else 0.75
             trail.color = PremiumSkinVisuals.trail_tint(self,boosting)
             if is_instance_valid(airtime) and not boosting and (
