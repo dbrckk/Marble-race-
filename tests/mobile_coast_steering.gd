@@ -41,7 +41,7 @@ func _check() -> void:
             game.race_variation = layout
             game.start_race("Grip Tape")
             game.race_state = "RACING"
-            assert(game.racers.size() == 40)
+            assert(game.racers.size() == game.MARBLE_COUNT)
             var player: RigidBody3D = game.player
             player.freeze = false
             player.sleeping = false
@@ -66,5 +66,5 @@ func _check() -> void:
         await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_mobile_coast_career.cfg"))
-    print("MOBILE_COAST_PASS: 9 real layouts, distinctive biome grip, unchanged full steering and 40 fair physics racers")
+    print("MOBILE_COAST_PASS: 9 real layouts, distinctive biome grip, unchanged full steering and 30 fair physics racers")
     quit(0)

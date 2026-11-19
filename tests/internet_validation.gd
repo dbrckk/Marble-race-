@@ -13,7 +13,7 @@ func _run() -> void:
     assert(not net._local_ws_allowed("ws://192.168.1.2:8080"))
     assert(not net._local_ws_allowed("ws://evil.com"))
     assert(not net._local_ws_allowed("ws://localhost.evil.com"))
-    assert(net.input_for_slot(39) == Vector2.ZERO)
+    assert(net.input_for_slot(29) == Vector2.ZERO)
     assert(not net.can_host_start())
     assert(FileAccess.file_exists("res://config/online_server.txt"), "Missing production endpoint")
     var default_url := FileAccess.get_file_as_string("res://config/online_server.txt").strip_edges()

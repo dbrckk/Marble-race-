@@ -90,8 +90,8 @@ func _verify() -> void:
     game.start_race("Grip Tape")
     game.race_state = "RACING"
     game.player.finished = false
-    game.race_director.awarded["0:39"] = true
-    game.race_director.last_award_grade["0:39"] = 0.90
+    game.race_director.awarded["0:%d" % game.player.racer_id] = true
+    game.race_director.last_award_grade["0:%d" % game.player.racer_id] = 0.90
     game._end_race()
     assert(game.career.precision_best[0] == 0 and
         game.career.precision_total == 0,
@@ -102,13 +102,13 @@ func _verify() -> void:
     game.player.finished = true
     game.player.finish_time = 56.0
     game.race_time = 56.0
-    game.race_director.awarded["0:39"] = true
-    game.race_director.awarded["1:39"] = true
-    game.race_director.awarded["2:39"] = true
-    game.race_director.last_award_grade["0:39"] = 0.91
-    game.race_director.last_award_grade["1:39"] = 0.83
-    game.race_director.last_award_grade["2:39"] = 0.32
-    var counted: int = game.race_director.precision_pass_count(39)
+    game.race_director.awarded["0:%d" % game.player.racer_id] = true
+    game.race_director.awarded["1:%d" % game.player.racer_id] = true
+    game.race_director.awarded["2:%d" % game.player.racer_id] = true
+    game.race_director.last_award_grade["0:%d" % game.player.racer_id] = 0.91
+    game.race_director.last_award_grade["1:%d" % game.player.racer_id] = 0.83
+    game.race_director.last_award_grade["2:%d" % game.player.racer_id] = 0.32
+    var counted: int = game.race_director.precision_pass_count(game.player.racer_id)
     assert(counted == 2,
         "Only real physically awarded gates above the threshold count")
     game._end_race()
@@ -134,8 +134,8 @@ func _verify() -> void:
     game.race_state = "RACING"
     game.player.finished = true
     game.player.finish_time = 43.0
-    game.race_director.awarded["0:39"] = true
-    game.race_director.last_award_grade["0:39"] = 0.99
+    game.race_director.awarded["0:%d" % game.player.racer_id] = true
+    game.race_director.last_award_grade["0:%d" % game.player.racer_id] = 0.99
     game._end_race()
     assert(game.career.precision_best == [2,0,0] and
         game.career.precision_total == 2,

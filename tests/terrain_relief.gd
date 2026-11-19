@@ -1,6 +1,6 @@
 extends SceneTree
 ## Verify physically rideable 3D elevation, synchronized visuals and an
-## unchanged 40-marble ruleset. This is not a fake decorative ground bump.
+## unchanged 30-marble ruleset. This is not a fake decorative ground bump.
 const Path = preload("res://scripts/track_path.gd")
 
 func _initialize() -> void:
@@ -68,7 +68,7 @@ func _run() -> void:
             var sample_x: float = game.track_center_at(sample_z)+0.67
             var origin := Vector3(sample_x,game.height_at(sample_z)+1.1,sample_z)
             var destination := Vector3(sample_x,game.height_at(sample_z)-1.9,sample_z)
-            # The showroom legitimately spawns 40 frozen RigidBody3D marbles
+            # The showroom legitimately spawns 30 frozen RigidBody3D marbles
             # at the start grid. A downward ground probe must ignore them;
             # otherwise it measures the top of a marble as "terrain".
             var floor_probe := PhysicsRayQueryParameters3D.create(origin,destination)
@@ -98,10 +98,10 @@ func _run() -> void:
                 game.height_at(sample_z)) < 0.17,
                 "Collision elevation must match the visible rolling surface")
         game.start_race("Grip Tape")
-        assert(game.racers.size() == 40 and game.player != null,
+        assert(game.racers.size() == game.MARBLE_COUNT and game.player != null,
             "Richer terrain cannot reduce the real racing grid")
         game.return_to_menu()
     game.queue_free()
     await process_frame
-    print("TERRAIN_RELIEF_PASS: 3 real hill profiles, 180 physical planks, visual parity, safe grade, 40 racers")
+    print("TERRAIN_RELIEF_PASS: 3 real hill profiles, 180 physical planks, visual parity, safe grade, 30 racers")
     quit(0)

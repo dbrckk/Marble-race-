@@ -25,7 +25,7 @@ func _run() -> void:
         game.start_race("Grip Tape")
         game.countdown = 0.01
         # This check measures course traversability. A single human DNF
-        # must not stop the other 39 racers before they reach the line.
+        # must not stop the other 29 racers before they reach the line.
         # The separate end-to-end test covers actual result-screen timing.
         var elapsed := 0
         while game.race_state == "COUNTDOWN":
@@ -59,7 +59,7 @@ func _run() -> void:
         all_results.append(finished)
         print("COURSE",level,"finished",finished,"player_z",game.player.position.z,"seconds",game.race_time,
             "result",game.race_state,"elapsed_frames",elapsed)
-        assert(finished >= 30,"Most of the 40-marble field must physically finish each circuit")
+        assert(finished >= ceili(float(game.MARBLE_COUNT)*0.75),"Most of the 30-marble field must physically finish each circuit")
         game.return_to_menu()
     assert(forge_deck_breaches == 0,"A Forge racer passed under the deck near the paddle and hammer")
     print("COURSE_PASS:",all_results)

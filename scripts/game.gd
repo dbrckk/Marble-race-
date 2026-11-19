@@ -1,5 +1,5 @@
 extends Node3D
-## Full 3D toy race stage, deterministic course layout, 40 simulated rigidbodies.
+## Full 3D toy race stage, deterministic course layout, 30 simulated rigidbodies.
 ## Android-friendly: no downloaded textures, no runtime network, GLES3 compatibility.
 
 const Racer = preload("res://scripts/marble.gd")
@@ -45,7 +45,7 @@ const CourseSculptures = preload("res://scripts/course_sculptures.gd")
 const AirtimeDirector = preload("res://scripts/airtime_director.gd")
 const JumpGuides = preload("res://scripts/jump_guides.gd")
 
-const MARBLE_COUNT := 40
+const MARBLE_COUNT := 30
 const MARBLE_DETAIL_INTERVAL := 0.125
 const MARBLE_DETAIL_NEAR_DISTANCE_SQUARED := 81.0
 const SLOPE := 0.085
@@ -1286,7 +1286,7 @@ func _uses_solo_course_clearance(layout: int) -> bool:
 
 func _terrain_ramp(parent: Node3D, center_z: float, section: int) -> void:
     # Short, low physical crests alter suspension/rolling lines without
-    # closing the entire lane or trapping the 40-marble pack.
+    # closing the entire lane or trapping the 30-marble pack.
     if selected_track == 0 and section != ShortcutRoute.EXIT_SECTION:
         return
     var lane := -2.2 if (section+selected_track)%2 == 0 else 2.2
@@ -2110,7 +2110,7 @@ func _process(delta: float) -> void:
     if not racers.is_empty() and net.role != "server":
         rival_render.refresh(racers,camera)
     # Audio tension reads the local HUD's existing 10Hz physics snapshot.
-    # No extra 40-racer scans, AI updates or online rewards.
+    # No extra 30-racer scans, AI updates or online rewards.
     if is_instance_valid(audio):
         audio.set_pack_pressure(race_moments.pack_pressure if (
             race_state == "RACING" and race_moments != null and
@@ -2193,7 +2193,7 @@ func _physics_process(delta: float) -> void:
         if not is_instance_valid(m):
             continue
         var remote_input: Vector2 = net.input_for_slot(m.racer_id) if net.is_host() and m.network_controlled else Vector2.ZERO
-        # Online participants always use server-validated commands, including slot 39.
+        # Online participants always use server-validated commands, including the last assigned player slot.
         var axis: float = remote_input.x if m.network_controlled else (steer if m.is_player and not net.is_host() else 0.0)
         var turbo: bool = remote_input.y>0.5 if m.network_controlled else (boosting and boost_energy>0.0 and m.is_player and not net.is_host())
         m.drive(delta,race_time,axis,turbo)

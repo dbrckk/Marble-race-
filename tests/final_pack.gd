@@ -36,7 +36,7 @@ func _run() -> void:
     game.queue_free()
     for frame in range(4):
         await process_frame
-    print("FINAL_PACK_PASS: nine layouts and two earlier approaches with 40 real marbles")
+    print("FINAL_PACK_PASS: nine layouts and two earlier approaches with 30 real marbles")
     quit()
 
 func _check_clearance_modes(game: Node3D, biome: int, layout: int,
@@ -68,7 +68,7 @@ func _run_pack(game: Node3D, biome: int, layout: int, approach_distance: float) 
     # AI, hazard timing and the real finish-line check. Keep the
     # pack rolling after the human has finished for this measurement.
     game.set_process(false)
-    assert(game.racers.size() == 40)
+    assert(game.racers.size() == game.MARBLE_COUNT)
     for index in range(game.racers.size()):
         var racer: RigidBody3D = game.racers[index]
         var z: float = game.FINISH_Z+approach_distance+floorf(index/8.0)*1.3
@@ -85,7 +85,7 @@ func _run_pack(game: Node3D, biome: int, layout: int, approach_distance: float) 
         biome,layout,finishers,approach_distance,game.player.finish_time,game.race_time])
     assert(game.player.finished and game.player.position.z < game.FINISH_Z,
         "Player stayed trapped in the final sector (%d/%d)" % [biome,layout])
-    assert(finishers >= 38,"Final obstacle stalled the pack (%d/%d)" % [biome,layout])
+    assert(finishers >= ceili(float(game.MARBLE_COUNT)*0.95),"Final obstacle stalled the pack (%d/%d)" % [biome,layout])
     for racer in game.racers:
         assert(racer.finished or racer.eliminated,
             "Racer %d was still trapped in the final sector (%d/%d)" % [

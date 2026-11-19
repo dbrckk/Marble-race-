@@ -40,7 +40,7 @@ func _verify() -> void:
             game.race_state = "RACING"
             assert(game.built_variation == variation)
             assert(game.race_items.items.size() == 4)
-            assert(game.racers.size() == 40)
+            assert(game.racers.size() == game.MARBLE_COUNT)
             var crystal_shapes: Array[Vector3] = []
             var next_z := INF
             for i in range(ITEMS.ITEM_Z.size()):
@@ -66,12 +66,12 @@ func _verify() -> void:
             assert(game.shortcut_route.shortcut_hint(bypass_position).get(
                 "mode","") == "merge")
             assert(game.race_items.nearest_available(
-                bypass_position,39,28.0).is_empty(),
+                bypass_position,game.player.racer_id,28.0).is_empty(),
                 "Do not advertise a main-road collectible across the bridge gap")
             var main_position := Vector3(game.track_center_at(approach_z),
                 game.height_at(approach_z)+0.80,approach_z)
             var reachable: Dictionary = game.race_items.nearest_available(
-                main_position,39,28.0)
+                main_position,game.player.racer_id,28.0)
             assert(not reachable.is_empty() and int(reachable["index"]) == 1,
                 "Remaining on the main road must preserve the real pickup cue")
             # Actual next item, not one from the previous variation or a bot.
@@ -126,7 +126,7 @@ func _verify() -> void:
                 "AI contact must not collect or erase a human-only pickup")
             human.global_position = game.race_items.items[0].global_position
             game.race_items.tick(0.016,game.racers,game.net)
-            assert(game.race_items.used.has("0:39"))
+            assert(game.race_items.used.has("0:%d" % human.racer_id))
             assert(not game.race_items.items[0].visible)
             assert(game.race_items.nearest_available(
                 human.global_position,human.racer_id).is_empty(),

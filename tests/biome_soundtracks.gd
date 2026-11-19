@@ -74,7 +74,7 @@ func _run() -> void:
         assert(stage.audio.race_active and
             stage.audio.music.stream == score,
             "The race uses its own world score rather than the shared menu loop")
-        assert(stage.racers.size() == 40)
+        assert(stage.racers.size() == stage.MARBLE_COUNT)
         stage.return_to_menu()
         assert(not stage.audio.race_active,
             "Rematches and menus must reset only audio energy, not track identity")
@@ -83,5 +83,5 @@ func _run() -> void:
         await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_original_music_career.cfg"))
-    print("BIOME_SCORES_PASS: three original 12-bar masters, 112 BPM alignment, native QOA, decoded-frame looping, crossfades and 40 marbles")
+    print("BIOME_SCORES_PASS: three original 12-bar masters, 112 BPM alignment, native QOA, decoded-frame looping, crossfades and 30 marbles")
     quit(0)

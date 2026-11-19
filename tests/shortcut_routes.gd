@@ -167,10 +167,10 @@ func _run() -> void:
         game.start_race("Grip Tape")
         assert(_verify_fork_cues(game,side))
         # A minority of AI should attempt the physical bypass, rather
-        # than all 39 bots always following the same central racing line.
+        # than all 29 bots always following the same central racing line.
         var bypass_bots := 0
         for racer in game.racers:
-            if racer.racer_id == 39:
+            if racer == game.player:
                 assert(not racer.wants_shortcut(),
                     "A human player must never receive AI steering")
             elif racer.wants_shortcut():
@@ -204,18 +204,18 @@ func _run() -> void:
         var entrance: Vector3 = road.point_at(BypassScript.ENTRY_Z-8.0)
         player.global_position = entrance+Vector3.UP*0.75
         road.tick(0.016,game.racers,game.net)
-        assert(road.entered.has(39),"Real route entry must register")
+        assert(road.entered.has(player.racer_id),"Real route entry must register")
         var jump_spot: Vector3 = road.point_at(BypassScript.JUMP_Z[course])
         player.global_position = jump_spot+Vector3.UP*0.75
         road.tick(0.016,game.racers,game.net)
-        assert(road.jumped.has(39),"Taking the optional ramp grants one safe launch")
+        assert(road.jumped.has(player.racer_id),"Taking the optional ramp grants one safe launch")
         assert(game.ui.toast_remaining > 0.0,
             "A controlled launch must show immediate airtime feedback")
         road.tick(0.016,game.racers,game.net)
         assert(road.jumped.size() == 1,"Holding the launch pad cannot farm impulses")
         player.global_position = middle+Vector3.UP*0.75
         road.tick(0.016,game.racers,game.net)
-        assert(road.triggered.has(39),
+        assert(road.triggered.has(player.racer_id),
             "An admitted entrant gets exactly one finish-line dash")
         assert(game.ui.toast_remaining > 0.0,
             "The bypass must show its immediate racing reward")
@@ -226,13 +226,13 @@ func _run() -> void:
             road.jumped.is_empty(),"Fresh races reset entry, ramp and dash")
         game.net.role = "server"
         game.net.match_running = true
-        game.net.joined_slots = {2:39}
+        game.net.joined_slots = {2:player.racer_id}
         player.network_controlled = true
         player.global_position = entrance+Vector3.UP*0.75
         road.tick(0.016,game.racers,game.net)
         player.global_position = middle+Vector3.UP*0.75
         road.tick(0.016,game.racers,game.net)
-        assert(road.triggered.has(39),"Authoritative server grants validated reward")
+        assert(road.triggered.has(player.racer_id),"Authoritative server grants validated reward")
         # Remote user feedback is display only; it never applies physics.
         game.net.role = "client"
         game.net._course_event_notice("shortcut")
@@ -247,7 +247,7 @@ func _run() -> void:
         for layout in range(3):
             game.race_variation = layout
             game.start_race("Grip Tape")
-            assert(game.built_variation == layout and game.racers.size() == 40)
+            assert(game.built_variation == layout and game.racers.size() == game.MARBLE_COUNT)
             for frame in range(4):
                 await physics_frame
             assert(_verify_fork_cues(game,side))

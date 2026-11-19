@@ -49,7 +49,7 @@ func _run() -> void:
             stage.race_variation = layout
             stage.start_race("Grip Tape")
             stage.race_state = "RACING"
-            assert(stage.built_variation == layout and stage.racers.size() == 40)
+            assert(stage.built_variation == layout and stage.racers.size() == stage.MARBLE_COUNT)
             var flight: Node3D = stage.airtime
             var player: RigidBody3D = stage.player
             player.freeze = false
@@ -58,7 +58,7 @@ func _run() -> void:
             for frame in range(4):
                 await physics_frame
             _verify_jump_guides(stage)
-            assert(flight.ignored_rids.size() == 40,
+            assert(flight.ignored_rids.size() == stage.MARBLE_COUNT,
                 "Physics probes must ignore all marbles, not mistake their tops for road")
             assert(not flight.probe_floor(player).is_empty())
             # Sample a real collision floor, not an invented deck height.
@@ -70,7 +70,7 @@ func _run() -> void:
             assert(hit.has("ground") and hit["touching"],
                 "The real board must give a correct marble floor probe")
             # The physics probe is independent of video quality and uses
-            # one static ray for the local human, never 40 raycasts per tick.
+            # one static ray for the local human, never 30 raycasts per tick.
             for quality in range(3):
                 stage.set_graphics_quality(quality)
                 assert(flight.ripple.visible == (quality != 0))
@@ -79,7 +79,7 @@ func _run() -> void:
             flight.reset_round()
             var before: Vector3 = player.global_position
             var before_velocity: Vector3 = player.linear_velocity
-            assert(flight.ignored_rids.size() == 40)
+            assert(flight.ignored_rids.size() == stage.MARBLE_COUNT)
             var p := Vector3(x,stage.height_at(z)+0.40,z)
             # Prime on a real road. Then take off over 0.6 seconds and
             # land on a REAL ground hit below the player.
@@ -147,7 +147,7 @@ func _run() -> void:
             flight.reset_round()
             assert(flight.landing_count == 0 and
                 flight.longest_airtime == 0.0 and
-                flight.ignored_rids.size() == 40)
+                flight.ignored_rids.size() == stage.MARBLE_COUNT)
             if not _verify_bridge_surface(stage,flight,player,biome):
                 quit(1)
                 return
@@ -166,7 +166,7 @@ func _run() -> void:
         await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_flight_career.cfg"))
-    print("AIRTIME_PASS: nine real floor probes, safe jump and touchdown arcs, 40 marble exclusion, mobile pooled ripples and physics integrity")
+    print("AIRTIME_PASS: nine real floor probes, safe jump and touchdown arcs, 30 marble exclusion, mobile pooled ripples and physics integrity")
     print("BRIDGE_SURFACE_PASS: nine real bridge floors, contact confirmation, airborne rejection, pooled ripples and reversible audio fades")
     print("GLACIER_GRIP_PASS: three real ice layouts, lateral slip, jump rejection and one grounded recovery cue")
     print("ICE_ENTRY_PASS: confirmed dry-to-ice contact, pooled cues, unarmed spawn and warning priority")

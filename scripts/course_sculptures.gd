@@ -1,7 +1,7 @@
 extends Node3D
 ## Rideable split-slope apexes and biome-specific elevated passage vaults.
 ## Eight real StaticBody3D ramps; all decorative arches are noncolliding
-## GPU batches. The central lane remains clear for 40 physical racers.
+## GPU batches. The central lane remains clear for 30 physical racers.
 ## No impulses, speed cheats, animated collision or hidden client authority.
 const ARCHITECTURE = preload("res://scripts/course_architecture.gd")
 const BANK_SECTIONS := [2,7,12,15]

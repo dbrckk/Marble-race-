@@ -301,7 +301,7 @@ func _build_menu() -> void:
     var title = _text("MARBLE\nRACE", 63, Color.WHITE)
     title.add_theme_color_override("font_shadow_color", Color(0,0,0,0.65))
     col.add_child(title)
-    col.add_child(_text("40 glass racers. 3 distinct circuits.\nEarn medals, unlock tracks, improve your records.", 18, DIM))
+    col.add_child(_text("30 glass racers. 3 distinct circuits.\nEarn medals, unlock tracks, improve your records.", 18, DIM))
     var space = Control.new()
     space.custom_minimum_size = Vector2(0,23)
     col.add_child(space)
@@ -315,7 +315,7 @@ func _build_menu() -> void:
     wifi.add_theme_font_size_override("font_size",20)
     wifi.pressed.connect(show_online_lobby)
     col.add_child(wifi)
-    col.add_child(_text("ANALOG STEERING  •  40 MARBLES  •  SOLO / INTERNET", 14, DIM))
+    col.add_child(_text("ANALOG STEERING  •  30 MARBLES  •  SOLO / INTERNET", 14, DIM))
     col.add_child(_text("Left thumb: steer   /   Right thumb: boost", 14, DIM))
     var sound = _action("SOUND: " + ("ON" if game.audio.enabled else "OFF"), Color("#292e39"))
     sound.custom_minimum_size.y = 37
@@ -1023,7 +1023,7 @@ func _build_race_hud() -> void:
     course_progress.anchor_bottom = 0.134
     hud_layer.add_child(course_progress)
     race_radar = PROGRESS_RADAR.new()
-    race_radar.name = "FortyMarbleRadar"
+    race_radar.name = "ThirtyMarbleRadar"
     race_radar.anchor_left = 0.335
     race_radar.anchor_right = 0.665
     race_radar.anchor_top = 0.136
@@ -2032,7 +2032,7 @@ func update_hud() -> void:
     var elapsed: float = get_process_delta_time()
     # The 3D-to-screen locator performs several camera projections and
     # hazard checks. 30 Hz remains responsive on 60/120 Hz displays while
-    # reducing CPU work and CanvasItem invalidations during 40-marble races.
+    # reducing CPU work and CanvasItem invalidations during 30-marble races.
     locator_sample_time += maxf(0.0,elapsed)
     # Safety-critical opening guidance must appear and disappear on the
     # same HUD tick as the physical hazard state. Only routine tracking is

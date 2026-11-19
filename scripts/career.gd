@@ -1,6 +1,7 @@
 extends RefCounted
 ## Validated offline championship progress, kept separately from controls/graphics.
 var save_path := "user://marble_career.cfg"
+const MAX_RACE_RANK := 30
 const TRACKS := ["WOODWORKS", "SWITCHBACK", "GAUNTLET"]
 const TARGETS := [10, 8, 1]
 ## Nine permanently earned solo mastery stamps: per circuit, complete a
@@ -51,7 +52,7 @@ func load_save() -> void:
     victories = clampi(int(file.get_value("career","victories",0)),0,finishes)
     podiums = clampi(int(file.get_value("career","podiums",0)),0,finishes)
     for index in range(3):
-        track_best[index] = clampi(int(file.get_value("career","best_%d" % index,0)),0,40)
+        track_best[index] = clampi(int(file.get_value("career","best_%d" % index,0)),0,MAX_RACE_RANK)
         track_time[index] = maxf(0.0,float(file.get_value("career","time_%d" % index,0.0)))
         stars[index] = clampi(int(file.get_value("career","stars_%d" % index,0)),0,3)
         # Old pre-mastery saves contain no [mastery] section and remain valid.
@@ -135,7 +136,7 @@ func begin() -> void:
 func complete(index: int, place: int, time_seconds: float, finished: bool) -> Dictionary:
     var record := false
     var newly_unlocked := false
-    if finished and place >= 1 and place <= 40:
+    if finished and place >= 1 and place <= MAX_RACE_RANK:
         finishes += 1
         if place == 1: victories += 1
         if place <= 3: podiums += 1
@@ -318,7 +319,7 @@ func award_league(index: int, place: int, finished: bool,
         "earned":0,"previous":league_name(),"tier":league_name(),
         "promoted":false,"score":league_points,"next":league_next_goal()}
     if not finished or index < 0 or index >= TRACKS.size() or (
-        place < 1 or place > 40):
+        place < 1 or place > MAX_RACE_RANK):
         return result
     var placement: int = 25 if place == 1 else (
         18 if place <= 3 else (

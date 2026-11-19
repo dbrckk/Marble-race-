@@ -1,7 +1,7 @@
 extends SceneTree
 ## Full-physics navigation measurement. Unlike course.gd this intentionally
 ## continues after the human crosses the line, for a fair 120-second window.
-## All 40 rigid bodies, obstacles, jumps and collisions remain active.
+## All 30 rigid bodies, obstacles, jumps and collisions remain active.
 func _initialize() -> void:
     call_deferred("_run")
 
@@ -53,7 +53,7 @@ func _run() -> void:
         var unexpected_ai := 0
         var route: Node3D = game.shortcut_route
         for marble in game.racers:
-            if marble.racer_id == 39:
+            if marble == game.player:
                 assert(not marble.wants_shortcut(),
                     "The human-controlled racer must never be a navigation bot")
                 continue
@@ -89,8 +89,8 @@ func _run() -> void:
             " total_finished=",game.racer_finish_order.size())
         assert(candidates >= 3 and candidates <= 9,
             "A minority of AI rivals should take risks in each biome")
-        assert(completed >= 30,
-            "Every track must let a strong majority of 39 AI physically finish")
+        assert(completed >= ceili(float(game.MARBLE_COUNT-1)*0.77),
+            "Every track must let a strong majority of 29 AI physically finish")
         assert(entries >= 1 and launches >= 1 and bonuses >= 1,
             "Every biome must have at least one real bot takeoff and shortcut reward")
         assert(candidate_finished >= 1,

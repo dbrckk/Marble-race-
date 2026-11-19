@@ -50,11 +50,11 @@ func _verify() -> void:
         if game.net.match_running and not began:
             began = true
             assigned_slot = game.net.local_slot
-            assert(game.net.local_slot >= 36 and game.net.local_slot <= 39,
+            assert(game.net.local_slot >= 26 and game.net.local_slot <= 29,
                 "Server must assign a playable marble")
             assert(game.player != null and game.player.racer_id == game.net.local_slot,
                 "Camera must follow assigned online marble")
-            assert(game.racers.size() == 40,"Online session must show all 40 physical marbles")
+            assert(game.racers.size() == game.MARBLE_COUNT,"Online session must show all 30 physical marbles")
             var hud: CanvasLayer = game.ui
             assert(hud.opening_grid.is_visible_in_tree() and
                 hud.remaining_label.text == "%s  •  LAYOUT %d / 3" % [game.track_title(),game.built_variation+1],
@@ -65,7 +65,7 @@ func _verify() -> void:
             print("ONLINE_CLIENT_MATCH_STARTED slot=%d" % game.net.local_slot)
         if glacier_mode:
             if began and not game.net.connected:
-                var passed := snapped and (assigned_slot != 39 or glacier_cut_in_sent)
+                var passed := snapped and (assigned_slot != 29 or glacier_cut_in_sent)
                 if passed:
                     print("GLACIER_ONLINE_CLIENT_PASS slot=",assigned_slot)
                 game.queue_free()
@@ -87,7 +87,7 @@ func _verify() -> void:
                 not bridge_mode or bridge_exit_seen):
             if bridge_mode:
                 print("ONLINE_BRIDGE_FEEDBACK_PASS slot=",assigned_slot)
-            print("ONLINE_CLIENT_PASS slot=%d 40_racers=true snapshots=true controls=true ping_ms=%d server_time=%.2f" % [
+            print("ONLINE_CLIENT_PASS slot=%d 30_racers=true snapshots=true controls=true ping_ms=%d server_time=%.2f" % [
                 game.net.local_slot,int(game.net.ping_ms),game.race_time])
             game.net.leave_room()
             game.queue_free()
@@ -112,7 +112,7 @@ func _observe_bridge_feedback() -> void:
         bridge_exit_seen = true
 
 func _steer_glacier_rider() -> void:
-    if game.net.local_slot != 39:
+    if game.net.local_slot != 29:
         return
     var director: Node3D = game.race_director
     var gate: int = director.GLACIER_RETURN_GATE

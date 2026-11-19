@@ -860,7 +860,7 @@ static func valid_precision_line(horizontal: float, vertical: float,
 func _precision_tick(marble: RigidBody3D, at: Vector3,
         delta: float, net: Node) -> void:
     # One O(1) state update for a *real entrant* only, no extra raycasts
-    # or 40-marble per-frame gate search. The authority alone can pay out.
+    # or 30-marble per-frame gate search. The authority alone can pay out.
     var id: int = marble.racer_id
     var previous_z: float = float(precision_last_z.get(id,at.z))
     precision_last_z[id] = at.z

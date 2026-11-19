@@ -40,8 +40,8 @@ func _run() -> void:
             assert(kickers.cylinders.cast_shadow ==
                 GeometryInstance3D.SHADOW_CASTING_SETTING_OFF,
                 "Never create individual shadow passes for spring posts")
-            assert(game.racers.size() == 40,
-                "Keep all 39 physical opponents and the human racer")
+            assert(game.racers.size() == game.MARBLE_COUNT,
+                "Keep all 29 physical opponents and the human racer")
             await physics_frame
             for body in kickers.bodies:
                 assert(body is StaticBody3D and

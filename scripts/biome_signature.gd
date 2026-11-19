@@ -160,7 +160,7 @@ func setup(stage: Node3D, track: int, variation: int) -> void:
 
 func _process(delta: float) -> void:
     # Animate only the 24–36 decorative transforms, not physics objects.
-    # The main 40-marble simulation and rail colliders remain unchanged.
+    # The main 30-marble simulation and rail colliders remain unchanged.
     if quality == 0 or not is_instance_valid(details) or not details.visible:
         return
     motion_accumulator += minf(delta,0.10)

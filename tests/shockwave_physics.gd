@@ -38,7 +38,7 @@ func _run() -> void:
             game.race_variation = layout
             game.start_race("Grip Tape")
             game.race_state = "RACING"
-            assert(game.built_variation == layout and game.racers.size() == 40)
+            assert(game.built_variation == layout and game.racers.size() == game.MARBLE_COUNT)
             var items: Node3D = game.race_items
             assert(items.pulse_ring != null and items.pulse_ring.mesh is TorusMesh)
             assert(items.pulse_ring.get_child_count() == 0,

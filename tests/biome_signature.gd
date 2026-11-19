@@ -71,7 +71,7 @@ func _run() -> void:
             "Economy mode must skip animated GPU transform updates")
         game.set_graphics_quality(1)
         game.start_race("Grip Tape")
-        assert(game.racers.size() == 40)
+        assert(game.racers.size() == game.MARBLE_COUNT)
         assert(game.board.get_node("TrackSignatureLandmarks").hero.visible)
         game.return_to_menu()
     print("BIOME_SIGNATURE_PASS: 3 distinct scenes, 3 GPU batches, safe course geometry")

@@ -38,12 +38,12 @@ func _run() -> void:
     game.set_graphics_quality(1)
     assert(dressing.visible,"Balanced must keep the full decorative presentation")
     game.start_race("Grip Tape")
-    assert(game.racers.size() == 40,
+    assert(game.racers.size() == game.MARBLE_COUNT,
         "Static decoration optimization may not drop any physical racers")
     assert(dressing.static_batch_instance_count() == 44)
     game.return_to_menu()
     game.queue_free()
     for i in range(3):
         await process_frame
-    print("STATIC_DRESSING_BATCH_PASS: 44 identical pieces, material batches, culling, graphics presets, 40 racers")
+    print("STATIC_DRESSING_BATCH_PASS: 44 identical pieces, material batches, culling, graphics presets, 30 racers")
     quit(0)

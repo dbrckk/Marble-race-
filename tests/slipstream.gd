@@ -15,7 +15,7 @@ func _check() -> void:
     game.set_process(false)
     game.set_physics_process(false)
     assert(Draft.SAMPLE_PERIOD >= 0.12,
-        "Android slipstream must not scan 39 rivals each physics tick")
+        "Android slipstream must not scan 29 rivals each physics tick")
     assert(Draft.FORWARD_FORCE <= 2.0 and Draft.RECOVERY_PER_SECOND <= 0.10,
         "Draft should reward strategy, never replace driving skill")
     for track in range(3):
@@ -25,7 +25,7 @@ func _check() -> void:
         assert(is_equal_approx(game.boost_energy,1.0),
             "Every fresh race must start with a fully charged, fair boost meter")
         assert(game.slipstream != null)
-        assert(game.racers.size() == 40)
+        assert(game.racers.size() == game.MARBLE_COUNT)
         game.race_state = "RACING"
         var human: RigidBody3D = game.player
         var rival: RigidBody3D = game.racers[1]

@@ -23,7 +23,7 @@ func _run() -> void:
         for layout in range(3):
             stage.race_variation = layout
             stage.start_race("Grip Tape")
-            assert(stage.built_variation == layout and stage.racers.size() == 40)
+            assert(stage.built_variation == layout and stage.racers.size() == stage.MARBLE_COUNT)
             var name: String = "World_%s" % (
                 WORLDS.THEMES[biome].replace(" ","_"))
             var world: Node3D = stage.board.get_node(name) as Node3D
@@ -87,7 +87,7 @@ func _run() -> void:
                     "Speed reference beacons belong to Balanced and Ultra")
                 assert(world.accent_lights.visible == (quality >= 2),
                     "Small luminous props belong only in the ultrahigh Android tier")
-                assert(stage.racers.size() == 40,
+                assert(stage.racers.size() == stage.MARBLE_COUNT,
                     "Graphical LOD can never change the number of physical racers")
             stage.set_graphics_quality(1)
             stage.return_to_menu()

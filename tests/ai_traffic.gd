@@ -8,8 +8,8 @@ func _initialize() -> void:
 
 func _check() -> void:
     assert(Strategy.TRAFFIC_SCAN_PERIOD >= 0.30,
-        "AI must not scan 39 rivals every physics frame")
-    for id in range(39):
+        "AI must not scan 29 rivals every physics frame")
+    for id in range(29):
         for track in range(3):
             for variation in range(3):
                 var temperament: int = Strategy.temperament(id,track,variation)

@@ -21,7 +21,7 @@ func _run() -> void:
     assert(hud.woodworks_guide_label.mouse_filter == Control.MOUSE_FILTER_IGNORE)
     assert(hud.woodworks_guide_label.get_parent().mouse_filter == Control.MOUSE_FILTER_IGNORE)
     game.start_race("Grip Tape")
-    assert(game.racers.size() == 40 and hud.woodworks_guide_active)
+    assert(game.racers.size() == game.MARBLE_COUNT and hud.woodworks_guide_active)
     assert(not hud.woodworks_guide_label.is_visible_in_tree(), "Countdown stays clear")
     game.race_state = "RACING"
     game.player.freeze = false

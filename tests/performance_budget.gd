@@ -88,7 +88,7 @@ func _run() -> void:
         game.ui.performance_label.get_parent().mouse_filter == Control.MOUSE_FILTER_IGNORE,
         "The P95 diagnostics must never steal Android touch input")
     game.start_race("Grip Tape")
-    assert(game.racers.size() == 40, "Maintain all 40 real rigid-body marbles")
+    assert(game.racers.size() == game.MARBLE_COUNT, "Maintain all configured real rigid-body marbles")
     assert(game.performance_budget.frame_ms.is_empty(),
         "New races reset frame pacing samples")
     var entry: MeshInstance3D = game.board.find_child("OpeningObstacleArt",true,false)
@@ -129,7 +129,7 @@ func _run() -> void:
         marble.global_position = Vector3(0.0,game.height_at(8.0)+0.7,8.0)
     route.tick(0.016,game.racers,game.net)
     assert(route.effect_candidates_last_tick == 0,
-        "40 marbles on an unrelated track section must skip all route samples")
+        "30 marbles on an unrelated track section must skip all route samples")
     var rival: RigidBody3D = game.racers[0]
     assert(rival != game.player)
     # The harness stops the countdown and scene physics, so manually
@@ -187,5 +187,5 @@ func _run() -> void:
     for i in range(3):
         await process_frame
     print("PERFORMANCE_BUDGET_PASS: bounded P95, phone metrics, zero-touch HUD, " +
-        "40-marble spatial culling and authorized human-only collisions")
+        "30-marble spatial culling and authorized human-only collisions")
     quit(0)

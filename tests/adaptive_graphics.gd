@@ -149,7 +149,7 @@ func _check_marble_detail(game: Node3D) -> bool:
     far.global_position.z = -32.0
     game._update_marble_detail(1.0)
     assert(far.using_distant_mesh and far.collision.shape == original_shape and
-        game.player.glass_material == custom_material and game.racers.size() == 40)
+        game.player.glass_material == custom_material and game.racers.size() == game.MARBLE_COUNT)
     game.set_graphics_quality(2)
     game._update_marble_detail(1.0)
     glass.refresh(game.racers,game.camera)

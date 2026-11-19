@@ -1,12 +1,14 @@
 # Marble Race: Lost Tracks
 
+**Current race capacity: 30 physical marbles total (1 local player and 29 opponents).** Internet rooms can host up to four human racers within the same 30-marble grid. Historical update notes below may describe the former 40-marble format.
+
 Original **3D Android marble-racing game** inspired by the look and mechanics shown in Meticulai Games' [Lost Marbles](https://x.com/MeticulAi/status/2111568537684955500) reference video.
 
 Independent implementation in **Godot 4.5.1**, focused on real mobile playability, physics, and stylized toy-table graphics. No proprietary material from the reference game is redistributed.
 
 ## Current state: Android QA build (v1.163.0-rc, versionCode 177)
 
-**Playable scope (October 2026):** three visually differentiated 3D worlds with physical elevation changes, nine repeatable obstacle layouts, forty individually simulated glass marbles, real banked and elevated side-route shortcuts, six player perks, progression, ghost comparisons and optional online races. Autonomous opponents use deterministic physical steering, real route choices, anticipatory passing and forecasts of moving hazards; human steering stays entirely manual. The phone HUD previews real course geometry and estimates when Forge pistons will be open or blocked on arrival, with a nonrepeating audio danger cue. The three pistons share an illuminated shoulder beacon and matched deck markings for their current phase.
+**Playable scope (October 2026):** three visually differentiated 3D worlds with physical elevation changes, nine repeatable obstacle layouts, 30 individually simulated glass marbles, real banked and elevated side-route shortcuts, six player perks, progression, ghost comparisons and optional online races. Autonomous opponents use deterministic physical steering, real route choices, anticipatory passing and forecasts of moving hazards; human steering stays entirely manual. The phone HUD previews real course geometry and estimates when Forge pistons will be open or blocked on arrival, with a nonrepeating audio danger cue. The three pistons share an illuminated shoulder beacon and matched deck markings for their current phase.
 
 The briefing keeps the circuit name, layout and leading driving advice above the perk choices. All six perks appear before the map, with the full map and reference notes underneath. Start and Back remain pinned when the player scrolls. In race, fork guidance takes precedence over distant clear-gate forecasts and rival labels, while physical gate warnings and the rival's world-space marker stay available.
 
