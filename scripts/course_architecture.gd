@@ -166,6 +166,11 @@ static func vault_rib(biome: int, width: float) -> ArrayMesh:
             _profile(surface,[-0.50,-0.19, -0.40,-0.45, 0.40,-0.45, 0.50,-0.19,
                 0.50,0.25, 0.44,0.46, -0.44,0.46, -0.50,0.25],
                 scale,Vector2.ZERO,0.0,0.56,Color.WHITE)
+            # Stained inlays run from the copper straps toward the middle.
+            for groove in [-0.18,0.18]:
+                _profile(surface,[-0.38,-0.12, 0.38,-0.12, 0.38,0.04, -0.38,0.04],
+                    Vector2(width*0.42,0.34),Vector2(groove*width,0.0),
+                    0.28,0.03,Color("#6c4933"))
             for end in [-0.32,0.32]:
                 _profile(surface,[-0.045,-0.50, 0.045,-0.50, 0.045,0.50, -0.045,0.50],
                     scale,Vector2(end*width,0.0),0.0,0.62,Color("#dfb381"))
@@ -176,6 +181,9 @@ static func vault_rib(biome: int, width: float) -> ArrayMesh:
                 scale,Vector2.ZERO,0.0,0.62,Color("#badbe9"))
             _profile(surface,[-0.43,0.20, -0.18,0.50, 0.18,0.50, 0.43,0.20],
                 scale,Vector2.ZERO,0.0,0.44,Color.WHITE)
+            # A fracture sits partly inside the prismatic face.
+            _profile(surface,[-0.37,0.12, -0.14,-0.35, -0.07,-0.32, -0.28,0.20],
+                scale,Vector2.ZERO,0.31,0.03,Color("#7fc6d8"))
         2:
             # An exposed web between two flanges gives the steel rib a recessed edge.
             _profile(surface,[-0.47,-0.50, 0.47,-0.50, 0.50,-0.24, -0.50,-0.24],
@@ -184,6 +192,9 @@ static func vault_rib(biome: int, width: float) -> ArrayMesh:
                 scale,Vector2.ZERO,0.0,0.32,Color("#a79992"))
             _profile(surface,[-0.50,0.23, 0.50,0.23, 0.47,0.50, -0.47,0.50],
                 scale,Vector2.ZERO,0.0,0.62,Color.WHITE)
+            # The copper rail projects slightly from the recessed web.
+            _profile(surface,[-0.40,-0.16, 0.40,-0.16, 0.40,-0.04, -0.40,-0.04],
+                scale,Vector2.ZERO,0.16,0.03,Color("#d2b7a3"))
     surface.index()
     _vault_ribs[key] = surface.commit()
     return _vault_ribs[key]
@@ -196,9 +207,9 @@ static func canopy_bay(biome: int, width: float) -> ArrayMesh:
     var scale := Vector2(width,0.10)
     match biome:
         0:
-            # Three longitudinal planks expose two narrow seams to the sky.
+            # Contrasting finishes distinguish the planks beside the sky gaps.
             var plank_scale := Vector2(width*0.31,0.10)
-            var finishes := [Color("#e5c8a9"),Color.WHITE,Color("#e5c8a9")]
+            var finishes := [Color("#d2ae8c"),Color.WHITE,Color("#ebc99e")]
             for plank in range(finishes.size()):
                 _profile(surface,[-0.50,-0.32, -0.43,-0.50, 0.43,-0.50, 0.50,-0.32,
                     0.50,0.32, 0.43,0.50, -0.43,0.50, -0.50,0.32],
@@ -208,6 +219,9 @@ static func canopy_bay(biome: int, width: float) -> ArrayMesh:
             _profile(surface,[-0.50,-0.12, -0.29,-0.50, 0.18,-0.37, 0.50,-0.08,
                 0.40,0.10, 0.10,0.50, -0.20,0.36, -0.43,0.11],
                 scale,Vector2.ZERO,0.0,3.0,Color("#dfedf5"))
+            # A shallow frost vein crosses the lower facet over the lane.
+            _profile(surface,[-0.32,-0.41, -0.16,-0.37, -0.19,-0.53, -0.26,-0.64],
+                scale,Vector2.ZERO,0.0,2.82,Color("#8ccad9"))
         2:
             # Folded steel with three stiffening channels along the span of each bay.
             _profile(surface,[-0.50,-0.50, 0.50,-0.50, 0.50,-0.14,
@@ -215,6 +229,10 @@ static func canopy_bay(biome: int, width: float) -> ArrayMesh:
                 0.09,-0.14, 0.04,0.50, -0.04,0.50, -0.09,-0.14,
                 -0.21,-0.14, -0.26,0.50, -0.34,0.50, -0.39,-0.14, -0.50,-0.14],
                 scale,Vector2.ZERO,0.0,3.0,Color.WHITE)
+            # The underside exposes two seams beneath the outer stiffeners.
+            for seam in [-0.30,0.30]:
+                _profile(surface,[-0.024,-0.44, 0.024,-0.44, 0.024,-0.70, -0.024,-0.70],
+                    scale,Vector2(seam*width,0.0),0.0,2.82,Color("#e8b58c"))
     surface.index()
     _canopy_bays[key] = surface.commit()
     return _canopy_bays[key]
