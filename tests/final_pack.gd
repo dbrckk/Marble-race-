@@ -68,7 +68,7 @@ func _run_pack(game: Node3D, biome: int, layout: int, approach_distance: float) 
     # AI, hazard timing and the real finish-line check. Keep the
     # pack rolling after the human has finished for this measurement.
     game.set_process(false)
-    assert(game.racers.size() == 40)
+    assert(game.racers.size() == game.MARBLE_COUNT)
     for index in range(game.racers.size()):
         var racer: RigidBody3D = game.racers[index]
         var z: float = game.FINISH_Z+approach_distance+floorf(index/8.0)*1.3

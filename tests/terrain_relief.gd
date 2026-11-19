@@ -98,10 +98,10 @@ func _run() -> void:
                 game.height_at(sample_z)) < 0.17,
                 "Collision elevation must match the visible rolling surface")
         game.start_race("Grip Tape")
-        assert(game.racers.size() == 40 and game.player != null,
+        assert(game.racers.size() == game.MARBLE_COUNT and game.player != null,
             "Richer terrain cannot reduce the real racing grid")
         game.return_to_menu()
     game.queue_free()
     await process_frame
-    print("TERRAIN_RELIEF_PASS: 3 real hill profiles, 180 physical planks, visual parity, safe grade, 40 racers")
+    print("TERRAIN_RELIEF_PASS: 3 real hill profiles, 180 physical planks, visual parity, safe grade, 30 racers")
     quit(0)

@@ -73,7 +73,7 @@ func _run() -> void:
             assert(absf(zone.global_position.x-game.track_center_at(zone.position.z)) < 4.0,
                 "Terrain power zones must follow the active racing line")
         game.start_race("Grip Tape")
-        assert(game.racers.size() == 40)
+        assert(game.racers.size() == game.MARBLE_COUNT)
         for marble in game.racers:
             assert(marble.course_owner == game,"AI needs authoritative track center")
             assert(absf(marble.position.x-game.track_center_at(marble.position.z)) < 6.1,

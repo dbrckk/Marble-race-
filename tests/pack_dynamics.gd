@@ -67,7 +67,7 @@ func _verify() -> void:
             game.race_variation = layout
             game.start_race("Grip Tape")
             game.race_state = "RACING"
-            assert(game.built_variation == layout and game.racers.size() == 40)
+            assert(game.built_variation == layout and game.racers.size() == game.MARBLE_COUNT)
             var bend_z: float = [-128.0,-43.0,-113.0][track]
             assert(game.race_moments.approach_turn_weight(bend_z,19.0,false) > 0.45)
             assert(game.race_moments.approach_turn_weight(bend_z,2.0,false) == 0.0)
@@ -182,7 +182,7 @@ func _verify() -> void:
         await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_adaptive_pack_audio.cfg"))
-    print("PACK_DYNAMICS_PASS: 9 real courses, 40 marbles, high-deck exclusion, adaptive original audio and duel framing")
+    print("PACK_DYNAMICS_PASS: 9 real courses, 30 marbles, high-deck exclusion, adaptive original audio and duel framing")
     print("PACK_OBSTACLE_READABILITY_PASS: 9 layouts, real obstacle projection, sightline overlap and touch-safe clearance")
     print("OPENING_PACK_PASS: 6 layouts, reachable painted lanes, rival cut-ins, camera and entry handoff")
     print("OPENING_RECOVERY_PASS: six real module exits, regained speed, imminent hazard and turbo priority")

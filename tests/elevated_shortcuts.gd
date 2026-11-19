@@ -1,6 +1,6 @@
 extends SceneTree
 ## Three *physical* elevated alternate roads, not purely visual bridges.
-## Confirms GPU batches, grade continuity, actual floor contacts, and 40 racers.
+## Confirms GPU batches, grade continuity, actual floor contacts, and 30 racers.
 const Bypass = preload("res://scripts/shortcut_route.gd")
 
 func _initialize() -> void:
@@ -68,11 +68,11 @@ func _check() -> void:
                 str(collider.name) == "BypassLaunchRamp",
                 "Bridge rays must not collide with the distant main course")
         game.start_race("Grip Tape")
-        assert(game.racers.size() == 40)
+        assert(game.racers.size() == game.MARBLE_COUNT)
         game.return_to_menu()
     game.queue_free()
     await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_elevated_bypass_career.cfg"))
-    print("ELEVATED_SHORTCUTS_PASS: three real graduated bridges, 12 pylons, six trusses, physical contacts, 40 racers")
+    print("ELEVATED_SHORTCUTS_PASS: three real graduated bridges, 12 pylons, six trusses, physical contacts, 30 racers")
     quit(0)

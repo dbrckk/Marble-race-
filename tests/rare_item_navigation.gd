@@ -40,7 +40,7 @@ func _verify() -> void:
             game.race_state = "RACING"
             assert(game.built_variation == variation)
             assert(game.race_items.items.size() == 4)
-            assert(game.racers.size() == 40)
+            assert(game.racers.size() == game.MARBLE_COUNT)
             var crystal_shapes: Array[Vector3] = []
             var next_z := INF
             for i in range(ITEMS.ITEM_Z.size()):
