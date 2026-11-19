@@ -92,7 +92,7 @@ func _verify_client_results(game: Node3D) -> bool:
     assert(game.race_moments.photo_finish_seen and not hud.touch_controls.enabled,
         "A confirmed local and remote crossing triggers one cue on the client")
     var times := PackedFloat32Array()
-    times.resize(40)
+    times.resize(game.MARBLE_COUNT)
     times.fill(-1.0)
     times[29] = 42.0
     times[28] = 42.02
