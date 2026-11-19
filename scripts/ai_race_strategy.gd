@@ -160,7 +160,7 @@ static func traffic_lane(own: RigidBody3D, rivals: Array[RigidBody3D],
     var left: float = clampf(lead_offset-1.55,-TRAFFIC_SAFE_LANE,TRAFFIC_SAFE_LANE)
     var right: float = clampf(lead_offset+1.55,-TRAFFIC_SAFE_LANE,TRAFFIC_SAFE_LANE)
     var cautious: float = [1.0,0.65,0.38][clampi(temperament_id,0,2)]
-    # Evaluate both corridors in a single pass over the 40-racer field.
+    # Evaluate both corridors in a single pass over the 30-racer field.
     # Reuse the same predicted rival position and relative speed instead
     # of scanning all bodies twice per traffic decision.
     var lane_penalties := Vector2.ZERO

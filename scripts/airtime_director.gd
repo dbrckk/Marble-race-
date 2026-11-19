@@ -2,7 +2,7 @@ extends Node3D
 ## Real local marble flight and touchdown direction. This class is PURELY
 ## presentation: no velocity, position, score, purchases or server messages
 ## are written by it. One physics floor ray at ~20 Hz for only the local
-## human, using an exclusion list built once per race (39 other marbles).
+## human, using an exclusion list built once per race (29 other marbles).
 ## No lights, postprocess, skeletal animations or per-marble VFX.
 const RaceFeedback = preload("res://scripts/race_feedback.gd")
 const SHORTCUT = preload("res://scripts/shortcut_route.gd")

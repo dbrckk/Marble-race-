@@ -81,7 +81,7 @@ func _verify() -> void:
     game.player.finished = true
     game.player.finish_time = 48.0
     game.race_time = 48.0
-    game.race_director.awarded["0:39"] = true
+    game.race_director.awarded["0:%d" % game.player.racer_id] = true
     game.shortcut_route.triggered[game.player.racer_id] = true
     game._end_race()
     var now_points: int = game.career.league_points
