@@ -18,7 +18,7 @@ Once the player's marble is on the Gauntlet bridge, the HUD switches to the firs
 
 When a nearby rival could occupy that line, the gate cue advises saving boost. Traffic from the lower road stays out of the forecast. In online races, uncertain nearby motion prompts the player to check traffic.
 
-Crossing each precision portico switches the cue to the next. Amber approach stripes extend through the third and final physical gate, with traffic warnings when a rival occupies the crossing corridor. After the third gate, the exit piston forecast resumes. At the return to the main road, the race director compares arrival times of opposing marbles on Woodworks and Gauntlet. The HUD distinguishes single traffic from a pack, advises saving boost when the lane is occupied, and keeps the closest crossing rival highlighted.
+Crossing each precision portico switches the cue to the next. The final Gauntlet portico previews the ramp and tracks alignment in the air. If the projected crossing is above the scoring window, the HUD warns the player. Nearby traffic takes priority, and the exit piston forecast resumes after the gate. At the return to the main road, the race director compares arrival times of opposing marbles on Woodworks and Gauntlet. The HUD distinguishes single traffic from a pack, advises saving boost when the lane is occupied, and keeps the closest crossing rival highlighted.
 
 A fixed-size **YOU** badge projects from the local marble onto the driving view. Two contrast brackets appear at the starting grid and in close traffic, then fade as the pack opens. The overlay uses the existing 10 Hz rivalry sample, leaves camera and touch controls available, and preserves the look of equipped skins. The ceiling stops obscuring the road when a camera rises above it, while still shading the track.
 
@@ -184,7 +184,7 @@ godot --headless --path . --script res://tests/smoke.gd
 godot --headless --fixed-fps 60 --path . --script res://tests/race_diagnostic.gd
 ```
 
-The smoke test asserts scene, track, 40 physical racers, six-perk-compatible state, player selection, countdown, motion, boost and camera; the long-running diagnostic simulates 110 seconds of game physics and verifies actual racer progress and finishers. Both passed in the build environment. A GL Compatibility rendering pass at 1280×720 was also captured under Mesa; an Android device GPU performance benchmark is still required.
+The smoke test asserts scene, track, 30 physical racers, six-perk-compatible state, player selection, countdown, motion, boost and camera; the long-running diagnostic simulates 110 seconds of game physics and verifies actual racer progress and finishers. Both passed in the build environment. A GL Compatibility rendering pass at 1280×720 was also captured under Mesa; an Android device GPU performance benchmark is still required.
 
 ## Assets and reproducibility
 

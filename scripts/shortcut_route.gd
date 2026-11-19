@@ -73,6 +73,10 @@ const PRECISION_BONUS_LIFT := 0.20
 const EFFECT_WINDOW_NEAR := ENTRY_Z + 1.5
 const EFFECT_WINDOW_FAR := -92.0
 const JUMP_Z := [-71.0,-74.0,-86.0]
+const LAUNCH_RAMP_SIZE := Vector3(2.30,0.18,2.65)
+const FORGE_JUMP_LOOKAHEAD := 7.0
+const FORGE_JUMP_AIR_HEIGHT := 1.05
+const FORGE_JUMP_MAX_HEIGHT := 3.4
 const ENTRY_WINDOW := 12.0
 const MAX_BANK := 0.080
 # Extra physical clearance above the main deck at the centre of each bypass.
@@ -97,6 +101,7 @@ var precision_last_z: Dictionary = {}
 var precision_failed: Dictionary = {}
 var precision_complete: Dictionary = {}
 var launch_ramps: Array[StaticBody3D] = []
+var launch_lip: Vector3
 var precision_posts: Array[StaticBody3D] = []
 var precision_post_positions: Array[Vector3] = []
 var banked_segments := 0
@@ -296,13 +301,13 @@ func _launch_ramps(material: Material) -> void:
     # Gentle optional air sections; low edges never wall off the narrow deck.
     var at_z: float = JUMP_Z[course_id]
     var at: Vector3 = point_at(at_z)
-    var size := Vector3(2.30,0.18,2.65)
     # Local -Z points downhill. A small pitch climbs toward the lip.
     var basis := Basis(Vector3.RIGHT,-atan(bridge_grade_at(at_z))+0.18)
-    var ramp := _solid("BypassLaunchRamp",at+Vector3.UP*0.38,basis,size,0.66)
+    var ramp := _solid("BypassLaunchRamp",at+Vector3.UP*0.38,basis,LAUNCH_RAMP_SIZE,0.66)
     ramp.set_meta(ROLLING_SURFACE,true)
     launch_ramps.append(ramp)
-    _batch("BatchedJumpTakeoff",[ramp.transform.scaled_local(size)],material)
+    launch_lip = ramp.to_global(Vector3(0.0,LAUNCH_RAMP_SIZE.y*0.5,-LAUNCH_RAMP_SIZE.z*0.5))
+    _batch("BatchedJumpTakeoff",[ramp.transform.scaled_local(LAUNCH_RAMP_SIZE)],material)
 
 func _bridge_precision_corridor(material: Material) -> void:
     # The six physical posts and three open decorative frames use one
@@ -640,14 +645,17 @@ func _forge_precision_gate_ahead(at: Vector3, velocity: Vector3) -> Dictionary:
             at.z <= BRIDGE_POST_Z[FORGE_GATE_APPROACH.size()-1] or (
                 at.z > ENTRY_PORTAL_Z+PORTAL_HALF_LENGTH)):
         return {}
-    var deck := point_at(at.z)
-    var height := at.y-deck.y
-    if height < 0.24 or height > 1.35 or absf(at.x-deck.x) > WIDTH*0.5 or (
-            side*(at.x-stage.track_center_at(at.z)) < FORGE_BRIDGE_EDGE_X):
-        return {}
     var station := 0
     while at.z <= BRIDGE_POST_Z[station]:
         station += 1
+    var deck := point_at(at.z)
+    var height := at.y-deck.y
+    var last_gate := station == BRIDGE_POST_Z.size()-1
+    var past_lip := at.z <= launch_lip.z
+    var air_limit := FORGE_JUMP_MAX_HEIGHT if last_gate and past_lip else 1.35
+    if height < 0.24 or height > air_limit or absf(at.x-deck.x) > WIDTH*0.5 or (
+            side*(at.x-stage.track_center_at(at.z)) < FORGE_BRIDGE_EDGE_X):
+        return {}
     var gate_z: float = BRIDGE_POST_Z[station]
     # Look along the bend first. Extrapolating directly to the gate from
     # the portal would ask the player to steer through the outer rail.
@@ -658,6 +666,20 @@ func _forge_precision_gate_ahead(at: Vector3, velocity: Vector3) -> Dictionary:
     var action := "FOLLOW CURVE" if at.z > OUTER_START else "HOLD CENTER"
     if absf(lateral) > PRECISION_GATE_HALF_WIDTH*0.72:
         action = "AIM LEFT" if lateral > 0.0 else "AIM RIGHT"
+    if last_gate:
+        if past_lip and height >= FORGE_JUMP_AIR_HEIGHT:
+            var gate := point_at(gate_z)
+            var eta := distance/speed
+            var gravity := float(ProjectSettings.get_setting("physics/3d/default_gravity"))
+            # Judge the short flight at the scoring plane, not at its current height.
+            var crossing_height := at.y+velocity.y*eta-0.5*gravity*eta*eta-gate.y
+            var crossing_offset := at.x+velocity.x*eta-gate.x
+            if crossing_height > PRECISION_GATE_MAX_HEIGHT:
+                action = "TOO HIGH"
+            else:
+                action = "LAND CENTER" if absf(crossing_offset) <= PRECISION_GATE_HALF_WIDTH else "WATCH LANDING"
+        elif not past_lip and at.z-launch_lip.z <= FORGE_JUMP_LOOKAHEAD and action == "HOLD CENTER":
+            action = "LINE UP JUMP"
     var traffic := _forge_gate_traffic(at,velocity,at.x-deck.x,distance/speed)
     return {"number":station+1,"action":action if traffic.is_empty() else traffic,
         "distance":maxi(1,ceili(distance)),"traffic":not traffic.is_empty()}
