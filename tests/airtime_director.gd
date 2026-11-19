@@ -57,7 +57,10 @@ func _run() -> void:
                 marble.freeze = true if marble != player else false
             for frame in range(4):
                 await physics_frame
-            _verify_jump_guides(stage)
+            if not _verify_jump_guides(stage):
+                push_error("Jump guide checks failed on course %d layout %d" % [biome+1,layout+1])
+                quit(1)
+                return
             assert(flight.ignored_rids.size() == stage.MARBLE_COUNT,
                 "Physics probes must ignore all marbles, not mistake their tops for road")
             assert(not flight.probe_floor(player).is_empty())
@@ -176,7 +179,7 @@ func _run() -> void:
     print("JUMP_GUIDES_PASS: 30 ramps across nine layouts, one paint batch and lane-aware camera")
     quit(0)
 
-func _verify_jump_guides(stage: Node3D) -> void:
+func _verify_jump_guides(stage: Node3D) -> bool:
     var guide: Node3D = stage.jump_guides
     var expected := 2 if stage.selected_track == 0 else 4
     assert(guide.baked and guide.windows.size() == expected and guide.ramps.size() == expected)
@@ -185,7 +188,7 @@ func _verify_jump_guides(stage: Node3D) -> void:
     assert(shutter_count >= 2 if stage.selected_track == 1 else shutter_count == 0)
     assert(bank_count == (4 if stage.selected_track <= 1 else 0))
     assert(guide.get_child_count() == 1 and guide.paint.multimesh.instance_count == (
-        20*expected+4*shutter_count+2*bank_count),"Chevrons and bank edges share the ramp paint batch")
+        26*expected+4*shutter_count+2*bank_count),"Touchdown marks and bank edges share the ramp paint batch")
     for mark: Vector3 in guide.final_bank_marks:
         var query := PhysicsRayQueryParameters3D.create(mark+Vector3.UP*0.12,mark-Vector3.UP*0.12,
             stage.course_sculptures.BANK_PROBE_LAYER)
@@ -225,6 +228,7 @@ func _verify_jump_guides(stage: Node3D) -> void:
                 assert(lift > 0.0 and lift < 0.65 and framed["fov"] == base["fov"])
             else:
                 assert(framed == base)
+    return true
 
 func _verify_bridge_surface(stage: Node3D, flight: Node3D, player: RigidBody3D,
         biome: int) -> bool:

@@ -80,6 +80,16 @@ func _bake() -> void:
             if left.is_empty() or right.is_empty():
                 continue
             windows.append({"lip":lip,"landing":middle["position"],"half_width":size.x*0.5,"bridge":bridge})
+            # A floor-projected touchdown target remains legible from the lip.
+            var landing_normal: Vector3 = middle["normal"]
+            var landing_plane := Basis(Quaternion(Vector3.UP,landing_normal))
+            var touchdown: Vector3 = middle["position"]+landing_normal*0.032
+            _stroke(marks,inks,touchdown,landing_plane,
+                Vector2(half_width*1.32,0.15),cool)
+            for side in [-1.0,1.0]:
+                var arrow_plane := landing_plane*Basis(Vector3.UP,side*0.62)
+                var arrow_at := touchdown+landing_plane*Vector3(side*0.28,0.006,0.43)
+                _stroke(marks,inks,arrow_at,arrow_plane,Vector2(0.13,0.48),cool)
             for contact in [left,right]:
                 var normal: Vector3 = contact["normal"]
                 var ground: Vector3 = contact["position"]+normal*0.028
