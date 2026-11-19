@@ -44,7 +44,7 @@ func _run() -> void:
             game.race_variation = layout
             game.start_race("Grip Tape")
             game.race_state = "RACING"
-            assert(game.built_variation == layout and game.racers.size() == 40)
+            assert(game.built_variation == layout and game.racers.size() == game.MARBLE_COUNT)
             var director: Node3D = game.race_director
             var human: RigidBody3D = game.player
             human.freeze = false

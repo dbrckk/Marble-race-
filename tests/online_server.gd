@@ -25,7 +25,7 @@ func _run() -> void:
         await process_frame
         if game.net.joined_slots.size() >= 2:
             connected_two = true
-        if game.net.match_running and game.racers.size() == 40:
+        if game.net.match_running and game.racers.size() == game.MARBLE_COUNT:
             snapshots_seen = game.net.frame_clock >= 0.0 and game.race_time > 0.3
             for value in game.net.steer_by_slot.values():
                 if absf(float(value)) >= 0.2:

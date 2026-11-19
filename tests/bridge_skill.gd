@@ -52,7 +52,7 @@ func _check() -> void:
             game.race_variation = layout
             game.start_race("Grip Tape")
             game.race_state = "RACING"
-            assert(game.built_variation == layout and game.racers.size() == 40)
+            assert(game.built_variation == layout and game.racers.size() == game.MARBLE_COUNT)
             var road: Node3D = game.shortcut_route
             var marks := road.get_node_or_null(
                 "BypassPrecisionSkillStripes") as MultiMeshInstance3D

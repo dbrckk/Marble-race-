@@ -32,7 +32,7 @@ func _verify() -> void:
             game.race_variation = layout
             game.start_race("Grip Tape")
             game.race_state = "RACING"
-            assert(game.racers.size() == 40 and game.built_variation == layout)
+            assert(game.racers.size() == game.MARBLE_COUNT and game.built_variation == layout)
             var feature: Node3D = game.course_sculptures
             var human: RigidBody3D = game.player
             var ai: RigidBody3D = game.racers[0]

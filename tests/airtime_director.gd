@@ -49,7 +49,7 @@ func _run() -> void:
             stage.race_variation = layout
             stage.start_race("Grip Tape")
             stage.race_state = "RACING"
-            assert(stage.built_variation == layout and stage.racers.size() == 40)
+            assert(stage.built_variation == layout and stage.racers.size() == stage.MARBLE_COUNT)
             var flight: Node3D = stage.airtime
             var player: RigidBody3D = stage.player
             player.freeze = false

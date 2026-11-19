@@ -204,7 +204,7 @@ func _verify() -> void:
         assert(game.board.get_parent() == game)
         assert(game.board.get_meta("track_index") == game.selected_track)
         assert(game.ui.hazard_label != null, "Upcoming gate warning not attached")
-        assert(game.racers.size() == 40, "Race must have 40 marbles")
+        assert(game.racers.size() == game.MARBLE_COUNT, "Race must have 30 marbles")
         game.return_to_menu()
         await process_frame
     assert(layouts == [0,1,2,0], "Repeat runs must cycle all three obstacle layouts")
@@ -214,7 +214,7 @@ func _verify() -> void:
         if child.name == "HandcraftedWoodenCourse":
             boards += 1
     assert(boards == 1, "Old course was left in the scene and could double physics")
-    print("VARIATION_AND_HAZARD_PASS: 0-1-2-0, 28 edge hazards, HUD warning, one course, 40 racers")
+    print("VARIATION_AND_HAZARD_PASS: 0-1-2-0, 28 edge hazards, HUD warning, one course, 30 racers")
     game.career.unlocked = 3
     game.set_process(false)
     game.set_physics_process(false)
@@ -227,7 +227,7 @@ func _verify() -> void:
             game.race_variation = layout
             var opening_layout: int = game._obstacle_layout(1)
             game.start_race("Grip Tape")
-            assert(game.built_variation == layout and game.racers.size() == 40)
+            assert(game.built_variation == layout and game.racers.size() == game.MARBLE_COUNT)
             var finish := game.board.get_node("FinishLine") as FinishLine
             assert(is_equal_approx(finish.position.z,game.FINISH_Z))
             assert(finish.mesh.get_surface_count() == 1 and finish.get_child_count() == 2)
@@ -255,7 +255,7 @@ func _verify() -> void:
                 assert(finish.mesh == finishes_by_biome[biome])
             game.return_to_menu()
             await process_frame
-    print("RAIL_PROFILE_PASS: 9 layouts, 40 racers, all guards match physics, one rail batch")
+    print("RAIL_PROFILE_PASS: 9 layouts, 30 racers, all guards match physics, one rail batch")
     print("START_GATE_PASS: 9 built layouts, collider-derived preview, open sightline, countdown and clean launch")
     print("OPENING_ART_PASS: 9 layouts, one mesh, clear first gaps, full paddle sweep, Economy")
     print("FORGE_FINISH_VIEW_PASS: three sets of collider-checked slalom marks, pack occlusion, tall signs and chase framing")

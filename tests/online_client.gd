@@ -54,7 +54,7 @@ func _verify() -> void:
                 "Server must assign a playable marble")
             assert(game.player != null and game.player.racer_id == game.net.local_slot,
                 "Camera must follow assigned online marble")
-            assert(game.racers.size() == 40,"Online session must show all 40 physical marbles")
+            assert(game.racers.size() == game.MARBLE_COUNT,"Online session must show all 30 physical marbles")
             var hud: CanvasLayer = game.ui
             assert(hud.opening_grid.is_visible_in_tree() and
                 hud.remaining_label.text == "%s  •  LAYOUT %d / 3" % [game.track_title(),game.built_variation+1],

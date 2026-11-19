@@ -27,7 +27,7 @@ func _run() -> void:
             game.race_variation = layout
             game.start_race("Grip Tape")
             game.race_state = "RACING"
-            assert(game.built_variation == layout and game.racers.size() == 40)
+            assert(game.built_variation == layout and game.racers.size() == game.MARBLE_COUNT)
             var geometry: Node3D = game.course_sculptures
             assert(is_instance_valid(geometry) and
                 geometry == game.board.get_node("SculptedRacePassages"))
@@ -160,7 +160,7 @@ func _run() -> void:
             assert(geometry.canopy_panels.visible and
                 not geometry.canopy_trims.visible,
                 "Balanced keeps roof silhouette while avoiding extra emissive trim")
-            assert(geometry.banks.size() == 8 and game.racers.size() == 40,
+            assert(geometry.banks.size() == 8 and game.racers.size() == game.MARBLE_COUNT,
                 "Changing Android tier must never remove any track collision")
             game.set_graphics_quality(1)
             game.return_to_menu()
