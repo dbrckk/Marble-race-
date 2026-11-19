@@ -19,7 +19,7 @@ func _verify() -> void:
     assert(c.league_points == 0,"Impossible rank cannot generate replay points")
     no_finisher = c.award_league(3,1,true,3,true)
     assert(c.league_points == 0,"Unknown courses cannot generate replay points")
-    var plain: Dictionary = c.award_league(0,40,true,0,false)
+    var plain: Dictionary = c.award_league(0,c.MAX_RACE_RANK,true,0,false)
     assert(int(plain["earned"]) == 14)
     var excellent: Dictionary = c.award_league(0,1,true,20,true)
     assert(int(excellent["earned"]) == 63,
