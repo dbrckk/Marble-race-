@@ -1,6 +1,6 @@
 extends SceneTree
 ## Verify physically rideable 3D elevation, synchronized visuals and an
-## unchanged 40-marble ruleset. This is not a fake decorative ground bump.
+## unchanged 30-marble ruleset. This is not a fake decorative ground bump.
 const Path = preload("res://scripts/track_path.gd")
 
 func _initialize() -> void:
@@ -68,7 +68,7 @@ func _run() -> void:
             var sample_x: float = game.track_center_at(sample_z)+0.67
             var origin := Vector3(sample_x,game.height_at(sample_z)+1.1,sample_z)
             var destination := Vector3(sample_x,game.height_at(sample_z)-1.9,sample_z)
-            # The showroom legitimately spawns 40 frozen RigidBody3D marbles
+            # The showroom legitimately spawns 30 frozen RigidBody3D marbles
             # at the start grid. A downward ground probe must ignore them;
             # otherwise it measures the top of a marble as "terrain".
             var floor_probe := PhysicsRayQueryParameters3D.create(origin,destination)

@@ -36,7 +36,7 @@ func _run() -> void:
     game.queue_free()
     for frame in range(4):
         await process_frame
-    print("FINAL_PACK_PASS: nine layouts and two earlier approaches with 40 real marbles")
+    print("FINAL_PACK_PASS: nine layouts and two earlier approaches with 30 real marbles")
     quit()
 
 func _check_clearance_modes(game: Node3D, biome: int, layout: int,

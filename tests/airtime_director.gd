@@ -166,7 +166,7 @@ func _run() -> void:
         await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_flight_career.cfg"))
-    print("AIRTIME_PASS: nine real floor probes, safe jump and touchdown arcs, 40 marble exclusion, mobile pooled ripples and physics integrity")
+    print("AIRTIME_PASS: nine real floor probes, safe jump and touchdown arcs, 30 marble exclusion, mobile pooled ripples and physics integrity")
     print("BRIDGE_SURFACE_PASS: nine real bridge floors, contact confirmation, airborne rejection, pooled ripples and reversible audio fades")
     print("GLACIER_GRIP_PASS: three real ice layouts, lateral slip, jump rejection and one grounded recovery cue")
     print("ICE_ENTRY_PASS: confirmed dry-to-ice contact, pooled cues, unarmed spawn and warning priority")

@@ -301,7 +301,7 @@ func _build_menu() -> void:
     var title = _text("MARBLE\nRACE", 63, Color.WHITE)
     title.add_theme_color_override("font_shadow_color", Color(0,0,0,0.65))
     col.add_child(title)
-    col.add_child(_text("40 glass racers. 3 distinct circuits.\nEarn medals, unlock tracks, improve your records.", 18, DIM))
+    col.add_child(_text("30 glass racers. 3 distinct circuits.\nEarn medals, unlock tracks, improve your records.", 18, DIM))
     var space = Control.new()
     space.custom_minimum_size = Vector2(0,23)
     col.add_child(space)
@@ -2032,7 +2032,7 @@ func update_hud() -> void:
     var elapsed: float = get_process_delta_time()
     # The 3D-to-screen locator performs several camera projections and
     # hazard checks. 30 Hz remains responsive on 60/120 Hz displays while
-    # reducing CPU work and CanvasItem invalidations during 40-marble races.
+    # reducing CPU work and CanvasItem invalidations during 30-marble races.
     locator_sample_time += maxf(0.0,elapsed)
     # Safety-critical opening guidance must appear and disappear on the
     # same HUD tick as the physical hazard state. Only routine tracking is
