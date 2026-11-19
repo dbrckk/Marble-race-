@@ -9,6 +9,8 @@ const PALETTES := [
 static var _portals: Dictionary = {}
 static var _piers: Dictionary = {}
 static var _trusses: Dictionary = {}
+static var _vault_ribs: Dictionary = {}
+static var _canopy_bays: Dictionary = {}
 static var _materials: Dictionary = {}
 
 static func material(biome: int) -> StandardMaterial3D:
@@ -151,6 +153,71 @@ static func truss(biome: int) -> ArrayMesh:
     surface.index()
     _trusses[biome] = surface.commit()
     return _trusses[biome]
+
+static func vault_rib(biome: int, width: float) -> ArrayMesh:
+    var key := Vector2(biome,width)
+    if _vault_ribs.has(key):
+        return _vault_ribs[key]
+    var surface := _surface()
+    var scale := Vector2(width,0.34)
+    match biome:
+        0:
+            # Deep timber beam with bevels at the exposed ends and a copper strap.
+            _profile(surface,[-0.50,-0.19, -0.40,-0.45, 0.40,-0.45, 0.50,-0.19,
+                0.50,0.25, 0.44,0.46, -0.44,0.46, -0.50,0.25],
+                scale,Vector2.ZERO,0.0,0.56,Color.WHITE)
+            for end in [-0.32,0.32]:
+                _profile(surface,[-0.045,-0.50, 0.045,-0.50, 0.045,0.50, -0.045,0.50],
+                    scale,Vector2(end*width,0.0),0.0,0.62,Color("#dfb381"))
+        1:
+            # The shorter prismatic face under the ridge catches light from the lane.
+            _profile(surface,[-0.50,0.18, -0.28,-0.50, 0.28,-0.50, 0.50,0.18,
+                0.36,0.38, -0.36,0.38],
+                scale,Vector2.ZERO,0.0,0.62,Color("#badbe9"))
+            _profile(surface,[-0.43,0.20, -0.18,0.50, 0.18,0.50, 0.43,0.20],
+                scale,Vector2.ZERO,0.0,0.44,Color.WHITE)
+        2:
+            # An exposed web between two flanges gives the steel rib a recessed edge.
+            _profile(surface,[-0.47,-0.50, 0.47,-0.50, 0.50,-0.24, -0.50,-0.24],
+                scale,Vector2.ZERO,0.0,0.62,Color("#b1a19b"))
+            _profile(surface,[-0.44,-0.24, 0.44,-0.24, 0.44,0.23, -0.44,0.23],
+                scale,Vector2.ZERO,0.0,0.32,Color("#a79992"))
+            _profile(surface,[-0.50,0.23, 0.50,0.23, 0.47,0.50, -0.47,0.50],
+                scale,Vector2.ZERO,0.0,0.62,Color.WHITE)
+    surface.index()
+    _vault_ribs[key] = surface.commit()
+    return _vault_ribs[key]
+
+static func canopy_bay(biome: int, width: float) -> ArrayMesh:
+    var key := Vector2(biome,width)
+    if _canopy_bays.has(key):
+        return _canopy_bays[key]
+    var surface := _surface()
+    var scale := Vector2(width,0.10)
+    match biome:
+        0:
+            # Three longitudinal planks expose two narrow seams to the sky.
+            var plank_scale := Vector2(width*0.31,0.10)
+            var finishes := [Color("#e5c8a9"),Color.WHITE,Color("#e5c8a9")]
+            for plank in range(finishes.size()):
+                _profile(surface,[-0.50,-0.32, -0.43,-0.50, 0.43,-0.50, 0.50,-0.32,
+                    0.50,0.32, 0.43,0.50, -0.43,0.50, -0.50,0.32],
+                    plank_scale,Vector2(float(plank-1)*width*0.345,0.0),
+                    0.0,3.0,finishes[plank])
+        1:
+            _profile(surface,[-0.50,-0.12, -0.29,-0.50, 0.18,-0.37, 0.50,-0.08,
+                0.40,0.10, 0.10,0.50, -0.20,0.36, -0.43,0.11],
+                scale,Vector2.ZERO,0.0,3.0,Color("#dfedf5"))
+        2:
+            # Folded steel with three stiffening channels along the span of each bay.
+            _profile(surface,[-0.50,-0.50, 0.50,-0.50, 0.50,-0.14,
+                0.39,-0.14, 0.34,0.50, 0.26,0.50, 0.21,-0.14,
+                0.09,-0.14, 0.04,0.50, -0.04,0.50, -0.09,-0.14,
+                -0.21,-0.14, -0.26,0.50, -0.34,0.50, -0.39,-0.14, -0.50,-0.14],
+                scale,Vector2.ZERO,0.0,3.0,Color.WHITE)
+    surface.index()
+    _canopy_bays[key] = surface.commit()
+    return _canopy_bays[key]
 
 static func _surface() -> SurfaceTool:
     var surface := SurfaceTool.new()

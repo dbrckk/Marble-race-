@@ -73,6 +73,12 @@ func _run() -> void:
             assert(geometry.get_child_count() == 15,
                 "Eight physics banks and seven GPU batches prevent Android draw-call spikes")
             var bay: MultiMeshInstance3D = geometry.canopy_panels
+            for profile: Mesh in [geometry.vault_roofs.multimesh.mesh, bay.multimesh.mesh]:
+                assert(profile is ArrayMesh and profile.get_surface_count() == 1,
+                    "Each vault profile must fit the existing single draw batch")
+                var indices: PackedInt32Array = profile.surface_get_arrays(0)[Mesh.ARRAY_INDEX]
+                assert(indices.size() > 36 and indices.size() <= 270,
+                    "Vault detail must stay within 90 triangles per instance")
             assert(bay.get_child_count() == 0 and
                 bay.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF,
                 "Canopy must not cast costly shadows or create hidden physical traps")
