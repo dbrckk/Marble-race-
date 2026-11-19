@@ -9,8 +9,13 @@ void vertex() {
 
 void fragment() {
     vec2 q = UV * 2.0 - 1.0;
-    float dist = length(q);
-    float disc = 1.0 - smoothstep(0.12, 1.0, dist);
+    // Squared radius avoids a per-fragment square root on mobile GPUs.
+    // A broad penumbra and tight contact core anchor the marble to the
+    // inclined track without a second mesh, light or draw call.
+    float radius_sq = dot(q, q);
+    float penumbra = 1.0 - smoothstep(0.02, 1.0, radius_sq);
+    float contact_core = 1.0 - smoothstep(0.0, 0.20, radius_sq);
+    float opacity = 0.66 * penumbra + 0.34 * contact_core;
     ALBEDO = shadow_color.rgb;
-    ALPHA = shadow_color.a * disc * contact_alpha;
+    ALPHA = shadow_color.a * opacity * contact_alpha;
 }
