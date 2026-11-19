@@ -2193,7 +2193,7 @@ func _physics_process(delta: float) -> void:
         if not is_instance_valid(m):
             continue
         var remote_input: Vector2 = net.input_for_slot(m.racer_id) if net.is_host() and m.network_controlled else Vector2.ZERO
-        # Online participants always use server-validated commands, including slot 39.
+        # Online participants always use server-validated commands, including the last assigned player slot.
         var axis: float = remote_input.x if m.network_controlled else (steer if m.is_player and not net.is_host() else 0.0)
         var turbo: bool = remote_input.y>0.5 if m.network_controlled else (boosting and boost_energy>0.0 and m.is_player and not net.is_host())
         m.drive(delta,race_time,axis,turbo)
