@@ -53,7 +53,7 @@ func _verify() -> void:
             "Online race must rotate the announced track")
         assert(int(game.board.get_meta("track_index",-1)) == course,
             "Physical obstacle layout must match the announced track")
-        assert(game.racers.size() == 40, "Track switch must preserve all racers")
+        assert(game.racers.size() == game.MARBLE_COUNT, "Track switch must preserve all racers")
         game._end_race()
         assert(net.completed_rounds == course + 1 and not net.match_running,
             "Only completed online rounds advance the course")

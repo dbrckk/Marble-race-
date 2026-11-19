@@ -106,7 +106,7 @@ func _check() -> void:
             assert(not route.precision_posts.has(center_hit.get("collider")),
                 "The centerline must remain free for human and AI racing")
         game.start_race("Grip Tape")
-        assert(game.racers.size() == 40)
+        assert(game.racers.size() == game.MARBLE_COUNT)
         game.return_to_menu()
     assert(verified == 18)
     game.queue_free()
@@ -114,5 +114,5 @@ func _check() -> void:
         await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_bridge_precision.cfg"))
-    print("BRIDGE_PRECISION_PASS: 18 real raised edge colliders, open instanced frames, three safe racing corridors, 40 marbles")
+    print("BRIDGE_PRECISION_PASS: 18 real raised edge colliders, open instanced frames, three safe racing corridors, 30 marbles")
     quit(0)

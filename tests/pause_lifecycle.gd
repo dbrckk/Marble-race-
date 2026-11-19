@@ -42,7 +42,7 @@ func _verify() -> void:
     assert(is_zero_approx(scene.kinetic_time), "Retry must reset the course mechanism clock")
     assert(not paused and scene.race_state == "COUNTDOWN",
         "Restart must rebuild a live race")
-    assert(scene.racers.size() == 40 and not scene.ui.pause_layer.visible,
+    assert(scene.racers.size() == scene.MARBLE_COUNT and not scene.ui.pause_layer.visible,
         "Restart should preserve all racers and hide pause menu")
     scene.countdown = 0.02
     for n in range(5):

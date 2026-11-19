@@ -28,7 +28,7 @@ func _verify() -> void:
             game.race_variation = layout
             game.start_race("Grip Tape")
             assert(game.built_variation == layout)
-            assert(game.racers.size() == 40)
+            assert(game.racers.size() == game.MARBLE_COUNT)
             var director: Node3D = game.race_director
             assert(director.obstacles.size() == 3)
             var event_index := 1

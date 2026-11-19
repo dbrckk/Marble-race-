@@ -42,7 +42,7 @@ func _go() -> void:
     var played_layout: int = game.built_variation
     game.ui.replay_button_ref.pressed.emit()
     assert(game.race_state == "COUNTDOWN" and game.built_variation == played_layout)
-    assert(game.racers.size() == 40)
+    assert(game.racers.size() == game.MARBLE_COUNT)
     DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_results_career.cfg"))
     print("END_TO_END_PASS: all 3 courses reach final results and store progress")
     game.queue_free()

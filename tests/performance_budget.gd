@@ -129,7 +129,7 @@ func _run() -> void:
         marble.global_position = Vector3(0.0,game.height_at(8.0)+0.7,8.0)
     route.tick(0.016,game.racers,game.net)
     assert(route.effect_candidates_last_tick == 0,
-        "40 marbles on an unrelated track section must skip all route samples")
+        "30 marbles on an unrelated track section must skip all route samples")
     var rival: RigidBody3D = game.racers[0]
     assert(rival != game.player)
     # The harness stops the countdown and scene physics, so manually

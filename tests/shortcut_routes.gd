@@ -247,7 +247,7 @@ func _run() -> void:
         for layout in range(3):
             game.race_variation = layout
             game.start_race("Grip Tape")
-            assert(game.built_variation == layout and game.racers.size() == 40)
+            assert(game.built_variation == layout and game.racers.size() == game.MARBLE_COUNT)
             for frame in range(4):
                 await physics_frame
             assert(_verify_fork_cues(game,side))
