@@ -559,6 +559,11 @@ func _verify_forge_second_gate(game: Node3D) -> bool:
     assert(hud.shortcut_label.text.contains("TRAFFIC  •  SAVE BOOST"),
         "Third-gate steering must yield to a rival in the crossing corridor")
     rival.global_position = Vector3(80.0,0.0,20.0)
+    var early_flight: Vector3 = road.point_at(road.launch_lip.z+0.65)+Vector3.UP*1.62
+    _refresh_bridge_hud(hud,player,early_flight,fast)
+    assert(hud.shortcut_label.visible and hud.shortcut_label.text.contains("GATE 3 / 3") and (
+        not hud.shortcut_label.text.contains("LINE UP JUMP")),
+        "A fast launch already in flight before the lip needs a landing forecast")
     var air_z := third+0.9
     var gate_center: Vector3 = road.point_at(third)
     var aligned := Vector3(gate_center.x,gate_center.y+1.7,air_z)

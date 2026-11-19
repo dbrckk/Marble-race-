@@ -74,6 +74,7 @@ const PRECISION_BONUS_LIFT := 0.20
 const EFFECT_WINDOW_NEAR := ENTRY_Z + 1.5
 const EFFECT_WINDOW_FAR := -92.0
 const JUMP_Z := [-71.0,-74.0,-86.0]
+const LAUNCH_TRIGGER_HALF_LENGTH := 1.5
 const LAUNCH_RAMP_SIZE := Vector3(2.30,0.18,2.65)
 const FORGE_JUMP_LOOKAHEAD := 7.0
 const FORGE_JUMP_AIR_HEIGHT := 1.05
@@ -678,7 +679,9 @@ func _forge_precision_gate_ahead(at: Vector3, velocity: Vector3) -> Dictionary:
     var height := at.y-deck.y
     var last_gate := station == BRIDGE_POST_Z.size()-1
     var past_lip := at.z <= launch_lip.z
-    var air_limit := FORGE_JUMP_MAX_HEIGHT if last_gate and past_lip else 1.35
+    # The head of the launch window can lift the marble before the ramp lip.
+    var in_launch_window: bool = last_gate and at.z <= JUMP_Z[course_id]+LAUNCH_TRIGGER_HALF_LENGTH
+    var air_limit := FORGE_JUMP_MAX_HEIGHT if in_launch_window else 1.35
     if height < 0.24 or height > air_limit or absf(at.x-deck.x) > WIDTH*0.5 or (
             side*(at.x-stage.track_center_at(at.z)) < FORGE_BRIDGE_EDGE_X):
         return {}
@@ -693,7 +696,7 @@ func _forge_precision_gate_ahead(at: Vector3, velocity: Vector3) -> Dictionary:
     if absf(lateral) > PRECISION_GATE_HALF_WIDTH*0.72:
         action = "AIM LEFT" if lateral > 0.0 else "AIM RIGHT"
     if last_gate:
-        if past_lip and height >= FORGE_JUMP_AIR_HEIGHT:
+        if in_launch_window and height >= FORGE_JUMP_AIR_HEIGHT:
             var gate := point_at(gate_z)
             var eta := distance/speed
             var gravity := float(ProjectSettings.get_setting("physics/3d/default_gravity"))
@@ -972,7 +975,7 @@ func tick(delta: float, racers: Array[RigidBody3D], net: Node) -> void:
                 continue
             entered[id] = true
         _precision_tick(marble,at,delta,net)
-        var launch_due := not jumped.has(id) and absf(z-jump_z) <= 1.5
+        var launch_due := not jumped.has(id) and absf(z-jump_z) <= LAUNCH_TRIGGER_HALF_LENGTH
         var reward_due := not triggered.has(id) and absf(z-REWARD_Z) < 2.25
         if not launch_due and not reward_due:
             continue

@@ -646,6 +646,8 @@ Le HUD annonce la rampe, puis utilise la vitesse de la bille pour estimer son al
 
 Sur la base `1d648e9`, la caméra de poursuite suit le tablier jusqu’au troisième portique puis rend progressivement le cadrage à la piste principale. La rampe foncée porte des chevrons ambre et les bandes latérales suivent sa face physique. Les crochets de réception se trouvent sur une portion de tablier vérifiée après le portique. Les flèches de retour commencent après la réception. Les matériaux et le marquage réutilisent les lots de rendu existants.
 
+Le dernier portique continue de s’afficher si la bille est déjà en vol avant le bord de la rampe. La prévision de réception commence dans la fenêtre du déclenchement physique. Ce cas a été reproduit à 22 m/s sur le tablier.
+
 Les six suites Godot ciblées couvrent les ponts, les trois variantes de Gauntlet, les contacts, la caméra et le relais du piston. Douze vues comparables par version ont été rendues en GL Compatibility à 1280 × 720. En vol, l’écart horizontal entre le centre du dernier portique et le centre de l’écran est passé d’environ 39 pixels à moins d’un pixel dans les trois variantes. Cette mesure est issue du rendu logiciel sur ordinateur.
 
 ## PROCHAIN LOT RECOMMANDÉ
