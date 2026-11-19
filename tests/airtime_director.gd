@@ -58,7 +58,7 @@ func _run() -> void:
             for frame in range(4):
                 await physics_frame
             _verify_jump_guides(stage)
-            assert(flight.ignored_rids.size() == 40,
+            assert(flight.ignored_rids.size() == stage.MARBLE_COUNT,
                 "Physics probes must ignore all marbles, not mistake their tops for road")
             assert(not flight.probe_floor(player).is_empty())
             # Sample a real collision floor, not an invented deck height.
@@ -79,7 +79,7 @@ func _run() -> void:
             flight.reset_round()
             var before: Vector3 = player.global_position
             var before_velocity: Vector3 = player.linear_velocity
-            assert(flight.ignored_rids.size() == 40)
+            assert(flight.ignored_rids.size() == stage.MARBLE_COUNT)
             var p := Vector3(x,stage.height_at(z)+0.40,z)
             # Prime on a real road. Then take off over 0.6 seconds and
             # land on a REAL ground hit below the player.
@@ -147,7 +147,7 @@ func _run() -> void:
             flight.reset_round()
             assert(flight.landing_count == 0 and
                 flight.longest_airtime == 0.0 and
-                flight.ignored_rids.size() == 40)
+                flight.ignored_rids.size() == stage.MARBLE_COUNT)
             if not _verify_bridge_surface(stage,flight,player,biome):
                 quit(1)
                 return
