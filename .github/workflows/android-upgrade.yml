@@ -5,13 +5,21 @@ on:
     paths:
       - '.github/workflows/android-upgrade.yml'
       - 'ci/android_upgrade_emulator.sh'
+      - '.github/qa/android_upgrade_state.gd'
       - 'export_presets.cfg'
       - 'scripts/career.gd'
       - 'scripts/best_ghost.gd'
+      - 'scripts/game.gd'
+      - 'scripts/hud.gd'
+      - 'project.godot'
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: marble-android-upgrade-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   upgrade:
@@ -40,8 +48,8 @@ jobs:
         run: |
           set -euo pipefail
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'build-tools;35.0.0' 'platforms;android-35' 'platform-tools'
-          mkdir -p "$HOME/.local/share/godot/keystores" "$HOME/.config/godot" build
-          keytool -genkeypair -noprompt -keystore "$HOME/.local/share/godot/keystores/debug.keystore" \
+          mkdir -p "$HOME/.config/godot" build
+          keytool -genkeypair -noprompt -keystore "$RUNNER_TEMP/marble-upgrade-test.keystore" \
             -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
             -storepass android -keypass android -dname "CN=Marble Upgrade Test,O=CI,C=US"
           cat > "$HOME/.config/godot/editor_settings-4.5.tres" <<EOF
@@ -50,7 +58,7 @@ jobs:
           [resource]
           export/android/android_sdk_path = "$ANDROID_HOME"
           export/android/java_sdk_path = "$JAVA_HOME"
-          export/android/debug_keystore = "$HOME/.local/share/godot/keystores/debug.keystore"
+          export/android/debug_keystore = "$RUNNER_TEMP/marble-upgrade-test.keystore"
           export/android/debug_keystore_user = "androiddebugkey"
           export/android/debug_keystore_pass = "android"
           EOF
@@ -61,16 +69,25 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import re
+
+          # Install the regression driver only in these CI-only exports.
+          Path("android_upgrade_state.gd").write_bytes(Path(".github/qa/android_upgrade_state.gd").read_bytes())
+          project = Path("project.godot")
+          configuration = project.read_text().rstrip()
+          assert not re.search(r"(?m)^\[autoload\]$",configuration)
+          project.write_text(configuration + '\n\n[autoload]\nAndroidUpgradeState="*res://android_upgrade_state.gd"\n')
+
           path=Path('export_presets.cfg')
           s=path.read_text()
           s=s.replace('architectures/arm64-v8a=true','architectures/arm64-v8a=false',1)
           s=s.replace('architectures/x86_64=false','architectures/x86_64=true',1)
+          s=s.replace('custom_features=""','custom_features="android_upgrade_seed"',1)
           m=re.search(r'(?m)^version/code=(\d+)$',s)
           assert m, 'Missing Android version code'
           Path('build/upgrade-base-code.txt').write_text(m.group(1))
           path.write_text(s)
           PY
-          ./Godot_v4.5.1-stable_linux.x86_64 --headless --editor --path . --quit
+          ./Godot_v4.5.1-stable_linux.x86_64 --headless --editor --path . --import
           ./Godot_v4.5.1-stable_linux.x86_64 --headless --path . --export-debug Android build/upgrade-a.apk
           python3 - <<'PY'
           from pathlib import Path
@@ -78,11 +95,18 @@ jobs:
           s=p.read_text()
           old=int(Path('build/upgrade-base-code.txt').read_text())
           assert f'version/code={old}\n' in s
-          p.write_text(s.replace(f'version/code={old}\n',f'version/code={old+1}\n',1))
+          s=s.replace(f'version/code={old}\n',f'version/code={old+1}\n',1)
+          p.write_text(s.replace('android_upgrade_seed','android_upgrade_verify',1))
           PY
           ./Godot_v4.5.1-stable_linux.x86_64 --headless --path . --export-debug Android build/upgrade-b.apk
           bash ci/android_upgrade_emulator.sh preflight
-      - name: Install A, preserve private files and update to B
+      - name: Enable hardware acceleration on the Linux runner
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -r /dev/kvm && test -w /dev/kvm
+      - name: Install A, update to B and reopen the game
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -90,6 +114,7 @@ jobs:
           target: google_apis
           profile: pixel_4
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          emulator-boot-timeout: 360
           disable-animations: true
           script: bash ci/android_upgrade_emulator.sh install
       - name: Preserve build metadata if upgrade fails
@@ -100,5 +125,6 @@ jobs:
           path: |
             build/upgrade-base-code.txt
             build/upgrade-identity.txt
+            build/android-upgrade-logcat.txt
           if-no-files-found: ignore
           retention-days: 7
