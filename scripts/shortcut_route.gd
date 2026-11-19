@@ -31,6 +31,7 @@ const FORK_CHECK_END := ENTRY_PORTAL_Z-3.0
 const FORK_REACTION := 0.10
 const FORK_TRAFFIC_CLEARANCE := Racer.RADIUS*2.0+0.16
 const RETURN_ARROW_Z := [-89.0,-93.0,-97.0,-100.0,-103.0]
+const FORGE_RETURN_ARROW_Z := [-91.6,-94.4,-97.2,-100.0,-102.5]
 const OUTER_START := -60.0
 const OUTER_END := -92.0
 const INNER_OFFSET := 4.90
@@ -297,7 +298,7 @@ func bank_at(z: float) -> float:
     var fade: float = sin(PI*clampf((OUTER_START-z)/(OUTER_START-OUTER_END),0.0,1.0))
     return clampf(curvature*2.6,-MAX_BANK,MAX_BANK)*fade
 
-func _launch_ramps(material: Material) -> void:
+func _launch_ramps(material: StandardMaterial3D) -> void:
     # Gentle optional air sections; low edges never wall off the narrow deck.
     var at_z: float = JUMP_Z[course_id]
     var at: Vector3 = point_at(at_z)
@@ -307,7 +308,12 @@ func _launch_ramps(material: Material) -> void:
     ramp.set_meta(ROLLING_SURFACE,true)
     launch_ramps.append(ramp)
     launch_lip = ramp.to_global(Vector3(0.0,LAUNCH_RAMP_SIZE.y*0.5,-LAUNCH_RAMP_SIZE.z*0.5))
-    _batch("BatchedJumpTakeoff",[ramp.transform.scaled_local(LAUNCH_RAMP_SIZE)],material)
+    var paint := material
+    if course_id == 2:
+        paint = material.duplicate() as StandardMaterial3D
+        paint.albedo_color = Color("#51353a")
+        paint.roughness = 0.55
+    _batch("BatchedJumpTakeoff",[ramp.transform.scaled_local(LAUNCH_RAMP_SIZE)],paint)
 
 func _bridge_precision_corridor(material: Material) -> void:
     # The six physical posts and three open decorative frames use one
@@ -350,9 +356,13 @@ func _bridge_precision_corridor(material: Material) -> void:
                     marks.append(edge.scaled_local(Vector3(0.11,0.014,1.38)))
             else:
                 for distance: float in FORGE_GATE_APPROACH[station]:
-                    # Set the height on the real banked deck at each stripe.
-                    var approach := _deck_arrow(z+distance,0.0)
+                    var mark_z := z+distance
+                    var approach := _deck_arrow(mark_z,0.0)
                     approach.origin.y -= 0.075
+                    if is_equal_approx(mark_z,JUMP_Z[course_id]):
+                        var ramp := launch_ramps[0]
+                        approach = ramp.transform.translated_local(
+                            Vector3.UP*(LAUNCH_RAMP_SIZE.y*0.5+0.025))
                     for flank in [-1.0,1.0]:
                         var edge := approach.translated_local(Vector3(flank*PRECISION_GATE_HALF_WIDTH,0,0))
                         marks.append(edge.scaled_local(Vector3(0.15,0.014,0.86)))
@@ -364,6 +374,9 @@ func _racing_line(material: Material) -> void:
     var marks: Array[Transform3D] = []
     for index in range(15):
         var z: float = lerpf(ENTRY_Z-7.5,EXIT_Z+7.5,float(index)/14.0)
+        if course_id == 2 and z < JUMP_Z[course_id]+3.0:
+            # Ramp and return arrows already identify this stretch.
+            continue
         var pos: Vector3 = point_at(z)+Vector3.UP*0.325
         var next: Vector3 = point_at(z-0.7)
         var tangent := atan2(next.x-pos.x,0.7)
@@ -454,9 +467,11 @@ func _return_markings(signs: Array[Transform3D], paint: Array[Transform3D],
         point_at(sign_z)+Vector3(side*1.58,1.52,0.0),tint,signs)
     # Follow the deck from its straight portion to the return lip.
     var returns: Array[Transform3D] = []
-    for i in range(RETURN_ARROW_Z.size()):
-        var progress := float(i)/float(RETURN_ARROW_Z.size()-1)
-        returns.append(_deck_arrow(RETURN_ARROW_Z[i],side*0.60*smoothstep(0.0,1.0,progress)))
+    var stations := FORGE_RETURN_ARROW_Z if course_id == 2 else RETURN_ARROW_Z
+    for i in range(stations.size()):
+        var progress := float(i)/float(stations.size()-1)
+        var arrow := _deck_arrow(stations[i],side*0.60*smoothstep(0.0,1.0,progress))
+        returns.append(arrow)
     returns.append(_road_arrow(EXIT_Z-0.72,side*4.35,side*0.51))
     if course_id == 1:
         # Point to the dry corridor before the shutter, clear of the ice.
@@ -567,6 +582,17 @@ func on_separate_deck(location: Vector3) -> bool:
         return false
     var deck := point_at(location.z)
     return absf(location.x-deck.x) < WIDTH*0.5+0.65 and location.y >= deck.y-0.25
+
+func forge_camera_weight(location: Vector3) -> float:
+    if course_id != 2 or location.z > OUTER_START or location.z < EXIT_Z:
+        return 0.0
+    var deck := point_at(location.z)
+    var lateral := absf(location.x-deck.x)
+    var on_deck := (1.0-smoothstep(WIDTH*0.5,WIDTH*0.5+0.65,lateral))*(
+        smoothstep(-0.25,0.25,location.y-deck.y))
+    # Start on the detached span and hand the view back as the return joins.
+    return on_deck*smoothstep(0.0,4.0,OUTER_START-location.z)*(
+        smoothstep(0.0,6.0,location.z-EXIT_Z))
 
 func merge_traffic_lane(at: Vector3) -> int:
     if not at.is_finite() or at.z > MERGE_TRAFFIC_NEAR or at.z < MERGE_TRAFFIC_FAR:

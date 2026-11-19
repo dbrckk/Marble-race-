@@ -642,6 +642,12 @@ Le deuxième portique prend le relais dès que la bille franchit le premier. Les
 
 Le HUD annonce la rampe, puis utilise la vitesse de la bille pour estimer son alignement et sa hauteur au dernier portique. Le trafic garde la priorité. Le piston de sortie reprend le relais après le franchissement. Le HUD et la pause affichent la capacité réelle de 30 billes.
 
+### 2026-11-19 — Lecture visuelle du dernier saut de Gauntlet
+
+Sur la base `1d648e9`, la caméra de poursuite suit le tablier jusqu’au troisième portique puis rend progressivement le cadrage à la piste principale. La rampe foncée porte des chevrons ambre et les bandes latérales suivent sa face physique. Les crochets de réception se trouvent sur une portion de tablier vérifiée après le portique. Les flèches de retour commencent après la réception. Les matériaux et le marquage réutilisent les lots de rendu existants.
+
+Les six suites Godot ciblées couvrent les ponts, les trois variantes de Gauntlet, les contacts, la caméra et le relais du piston. Douze vues comparables par version ont été rendues en GL Compatibility à 1280 × 720. En vol, l’écart horizontal entre le centre du dernier portique et le centre de l’écran est passé d’environ 39 pixels à moins d’un pixel dans les trois variantes. Cette mesure est issue du rendu logiciel sur ordinateur.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Mesurer sur Android la lisibilité du saut et du retour vers le piston à pleine vitesse, puis examiner les textures et l’éclairage du pont avec les mêmes angles de caméra sur les trois variantes.
+Vérifier sur Android la lecture du saut, de la réception et du piston à pleine vitesse, puis mesurer les temps d’image en profils Économie et Équilibré sur les trois variantes.

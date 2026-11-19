@@ -43,11 +43,18 @@ func _check() -> void:
                     var right := stripes.multimesh.get_instance_transform(stripe+1).origin
                     stripe += 2
                     var center := (left+right)*0.5
-                    var deck: Vector3 = route.point_at(z)
-                    assert(absf(center.z-z) < 0.001 and absf(center.x-deck.x) < 0.001)
                     assert(absf(left.distance_to(right)-2.0*BYPASS.PRECISION_GATE_HALF_WIDTH) < 0.001)
-                    assert(center.y-deck.y > 0.20 and center.y-deck.y < 0.40,
-                        "The lead paint must sit on the banked bridge")
+                    if is_equal_approx(z,BYPASS.JUMP_Z[biome]):
+                        var ramp: StaticBody3D = route.launch_ramps[0]
+                        var top := ramp.to_local(center)
+                        assert(absf(top.x) < 0.001 and absf(top.z) < 0.001)
+                        assert(absf(top.y-BYPASS.LAUNCH_RAMP_SIZE.y*0.5-0.025) < 0.001,
+                            "Launch stripes must sit on the physical takeoff instead of under it")
+                    else:
+                        var deck: Vector3 = route.point_at(z)
+                        assert(absf(center.z-z) < 0.001 and absf(center.x-deck.x) < 0.001)
+                        assert(center.y-deck.y > 0.20 and center.y-deck.y < 0.40,
+                            "The lead paint must sit on the banked bridge")
         var frame: Mesh = arches.multimesh.mesh
         assert(frame is ArrayMesh and frame.get_surface_count() == 1)
         assert(arches.get_child_count() == 0)

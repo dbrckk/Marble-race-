@@ -202,6 +202,12 @@ func _verify_jump_guides(stage: Node3D) -> void:
         var landing: Vector3 = window["landing"]
         var bridge: bool = window["bridge"]
         assert(lip.z > landing.z and landing.z > stage.FINISH_Z)
+        if stage.selected_track == 2 and bridge:
+            var gate_z: float = stage.shortcut_route.BRIDGE_POST_Z.back()
+            assert(landing.z <= gate_z-0.84 and landing.z >= gate_z-2.01,
+                "Forge must show touchdown on the clear deck beyond its third gate")
+            var floor: Dictionary = guide._floor(landing,true,stage.airtime.ignored_rids)
+            assert(not floor.is_empty() and floor["position"].is_equal_approx(landing))
         var origin := lip+Vector3(0.0,0.39,5.0)
         var velocity := Vector3(0.0,0.0,-13.0)
         var hint: Dictionary = guide.preview(origin,velocity,bridge,false)

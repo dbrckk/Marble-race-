@@ -564,6 +564,12 @@ func _verify_forge_second_gate(game: Node3D) -> bool:
     var aligned := Vector3(gate_center.x,gate_center.y+1.7,air_z)
     _refresh_bridge_hud(hud,player,aligned,velocity)
     assert(hud.shortcut_label.visible and hud.shortcut_label.text.contains("GATE 3 / 3  •  LAND CENTER"))
+    var camera_mode: int = game.cam_mode
+    game.cam_mode = 0
+    game._update_camera(1.0/60.0,true)
+    assert(absf(game.camera_lookahead.x-gate_center.x) < 0.95,
+        "Chase camera should keep the final gate in front through the jump")
+    game.cam_mode = camera_mode
     _refresh_bridge_hud(hud,player,aligned+Vector3.RIGHT*1.2,velocity)
     assert(hud.shortcut_label.visible and hud.shortcut_label.text.contains("GATE 3 / 3  •  WATCH LANDING"))
     var high := aligned+Vector3.UP*1.05
@@ -575,6 +581,12 @@ func _verify_forge_second_gate(game: Node3D) -> bool:
     var under_bridge := Vector3(game.track_center_at(air_z),game.height_at(air_z)+0.67,air_z)
     _refresh_bridge_hud(hud,player,under_bridge,velocity)
     assert(not hud.shortcut_label.visible)
+    assert(road.forge_camera_weight(under_bridge) == 0.0,
+        "Main-road racers never adopt the bridge framing")
+    var return_mid: Vector3 = road.point_at(BypassScript.EXIT_Z+3.0)+Vector3.UP*0.67
+    assert(is_equal_approx(road.forge_camera_weight(return_mid),0.5))
+    assert(road.forge_camera_weight(road.point_at(BypassScript.EXIT_Z)+Vector3.UP) == 0.0,
+        "Camera hands back smoothly to the main road at the merge")
     _refresh_bridge_hud(hud,player,road.point_at(third-0.5)+Vector3.UP*0.67,fast)
     assert(not hud.shortcut_label.text.contains("GATE 3 / 3") and hud.timed_gate_label.visible,
         "The exit piston forecast resumes immediately after the final portico")

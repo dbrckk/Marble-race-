@@ -5,6 +5,7 @@ const Feedback = preload("res://scripts/race_feedback.gd")
 const TrackSurface = preload("res://scripts/track_surface.gd")
 const Sculptures = preload("res://scripts/course_sculptures.gd")
 const LANDING_OFFSETS := [2.8,4.4,6.0,1.6]
+const FORGE_GATE_LANDING_OFFSETS := [0.85,1.35,2.0]
 const SHUTTER_MARK_OFFSETS := [1.35,2.95,4.55,6.15,7.75,9.35]
 const SHUTTER_INK := Color("#ffdf99")
 const SHUTTER_MARK_MIN_DISTANCE := 3.2
@@ -45,23 +46,30 @@ func _bake() -> void:
         var body: StaticBody3D = ramp["body"]
         var size: Vector3 = ramp["size"]
         var bridge: bool = ramp["bridge"]
+        var forge_bridge: bool = bridge and game.selected_track == 2
         var lip: Vector3 = body.to_global(Vector3(0.0,size.y*0.5,-size.z*0.5))
         var top: Basis = body.global_basis
         var warm: Color = TAKEOFF_INK[game.selected_track]
         var cool: Color = LANDING_INK[game.selected_track]
+        var chevron_scale := 1.40 if forge_bridge else 1.0
+        var rows := [0.72,1.48] if forge_bridge else [0.65,1.22]
         # Broken threshold and two forward chevrons glazed onto the ramp.
         for side in [-1.0,1.0]:
             var threshold := lip+top*Vector3(side*size.x*0.27,0.027,0.16)
             _stroke(marks,inks,threshold,top,Vector2(size.x*0.39,0.19),warm)
-            for row in [0.65,1.22]:
-                var chevron := lip+top*Vector3(side*0.18,0.027,row)
+            for row: float in rows:
+                var chevron := lip+top*Vector3(side*0.18*chevron_scale,0.027,row)
                 var diagonal := top*Basis(Vector3.UP,side*0.64)
-                _stroke(marks,inks,chevron,diagonal,Vector2(0.14,0.42),warm)
+                _stroke(marks,inks,chevron,diagonal,Vector2(0.14,0.42)*chevron_scale,warm)
 
         var half_width := minf(1.10,size.x*0.40)
         var lane_offset: float = lip.x-game.shortcut_route.point_at(lip.z).x if bridge else 0.0
-        for offset in LANDING_OFFSETS:
-            var z: float = lip.z-offset
+        # Gauntlet's third crossing stripe already marks the gate itself.
+        # Place the grounding brackets on the first clear deck beyond it.
+        var landing_base: float = ShortcutRoute.BRIDGE_POST_Z.back() if forge_bridge else lip.z
+        var landing_offsets := FORGE_GATE_LANDING_OFFSETS if forge_bridge else LANDING_OFFSETS
+        for offset: float in landing_offsets:
+            var z := landing_base-offset
             var deck: Vector3 = game.shortcut_route.point_at(z) if bridge else Vector3(lip.x,game.height_at(z),z)
             var center := Vector3(deck.x+lane_offset,deck.y+(0.28 if bridge else 0.0),z)
             var middle := _floor(center,bridge,ignored)
