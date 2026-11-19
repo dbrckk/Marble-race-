@@ -34,23 +34,26 @@ fi
 capture_failure() {
   local result=$?
   if (( result != 0 )); then
-    adb logcat -d -t 450 > build/android-upgrade-logcat.txt 2>&1 || true
+    {
+      adb shell "run-as $pkg ls -l files" || true
+      adb logcat -d -t 450 || true
+    } > build/android-upgrade-logcat.txt 2>&1
   fi
 }
 trap capture_failure EXIT
 
 wait_for_game() {
-  local phase="$1" proof
+  local phase="$1" proof attempts=120 attempt
   adb shell monkey -p "$pkg" -c android.intent.category.LAUNCHER 1
-  for _ in {1..60}; do
+  for ((attempt=0; attempt<attempts; attempt++)); do
     proof="$(adb shell "run-as $pkg cat files/android-upgrade-$phase.txt" 2>/dev/null | tr -d '\r' || true)"
     case "$proof" in
-      pass) return 0 ;;
+      pass) echo "Game confirmed the $phase phase"; return 0 ;;
       fail) echo "Game reported a failure during $phase" >&2; return 1 ;;
     esac
     sleep 1
   done
-  echo "No game result for $phase after 60 seconds" >&2
+  echo "No game result for $phase after $attempts attempts" >&2
   return 1
 }
 
@@ -62,7 +65,10 @@ adb install "$base_apk"
 wait_for_game seed
 adb shell am force-stop "$pkg"
 before="$(save_digests)"
-[[ "$(wc -l <<< "$before")" == 3 ]]
+if (( $(wc -l <<< "$before") != 3 )); then
+  echo "Expected three save-file digests after running the first APK" >&2
+  exit 1
+fi
 
 adb install -r "$updated_apk"
 actual="$(adb shell dumpsys package "$pkg" | sed -n "s/^[[:space:]]*versionCode=\([0-9][0-9]*\)[[:space:]].*/\1/p" | tr -d '\r')"

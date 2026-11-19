@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   upgrade:
-    runs-on: macos-15-intel
+    runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
@@ -36,23 +36,23 @@ jobs:
         run: |
           set -euo pipefail
           root=https://github.com/godotengine/godot/releases/download/4.5.1-stable
-          curl -fL --retry 3 -o godot.zip "$root/Godot_v4.5.1-stable_macos.universal.zip"
+          curl -fL --retry 3 -o godot.zip "$root/Godot_v4.5.1-stable_linux.x86_64.zip"
           unzip -q godot.zip
-          test -x Godot.app/Contents/MacOS/Godot
+          chmod +x Godot_v4.5.1-stable_linux.x86_64
           curl -fL --retry 3 -o godot.tpz "$root/Godot_v4.5.1-stable_export_templates.tpz"
-          mkdir -p "$HOME/Library/Application Support/Godot/export_templates/4.5.1.stable"
+          mkdir -p "$HOME/.local/share/godot/export_templates/4.5.1.stable"
           unzip -q godot.tpz 'templates/android_debug.apk'
-          mv templates/android_debug.apk "$HOME/Library/Application Support/Godot/export_templates/4.5.1.stable/"
+          mv templates/android_debug.apk "$HOME/.local/share/godot/export_templates/4.5.1.stable/"
       - name: Configure debug signing and SDK
         shell: bash
         run: |
           set -euo pipefail
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'build-tools;35.0.0' 'platforms;android-35' 'platform-tools'
-          mkdir -p "$HOME/Library/Application Support/Godot" build
+          mkdir -p "$HOME/.config/godot" build
           keytool -genkeypair -noprompt -keystore "$RUNNER_TEMP/marble-upgrade-test.keystore" \
             -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
             -storepass android -keypass android -dname "CN=Marble Upgrade Test,O=CI,C=US"
-          cat > "$HOME/Library/Application Support/Godot/editor_settings-4.5.tres" <<EOF
+          cat > "$HOME/.config/godot/editor_settings-4.5.tres" <<EOF
           [gd_resource type="EditorSettings" format=3]
 
           [resource]
@@ -87,8 +87,8 @@ jobs:
           Path('build/upgrade-base-code.txt').write_text(m.group(1))
           path.write_text(s)
           PY
-          ./Godot.app/Contents/MacOS/Godot --headless --editor --path . --import
-          ./Godot.app/Contents/MacOS/Godot --headless --path . --export-debug Android build/upgrade-a.apk
+          ./Godot_v4.5.1-stable_linux.x86_64 --headless --editor --path . --import
+          ./Godot_v4.5.1-stable_linux.x86_64 --headless --path . --export-debug Android build/upgrade-a.apk
           python3 - <<'PY'
           from pathlib import Path
           p=Path('export_presets.cfg')
@@ -98,7 +98,7 @@ jobs:
           s=s.replace(f'version/code={old}\n',f'version/code={old+1}\n',1)
           p.write_text(s.replace('android_upgrade_seed','android_upgrade_verify',1))
           PY
-          ./Godot.app/Contents/MacOS/Godot --headless --path . --export-debug Android build/upgrade-b.apk
+          ./Godot_v4.5.1-stable_linux.x86_64 --headless --path . --export-debug Android build/upgrade-b.apk
           bash ci/android_upgrade_emulator.sh preflight
       - name: Install A, update to B and reopen the game
         uses: reactivecircus/android-emulator-runner@v2
@@ -108,7 +108,8 @@ jobs:
           target: google_apis
           profile: pixel_4
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
-          emulator-boot-timeout: 360
+          # The hosted runner may need software emulation without /dev/kvm.
+          emulator-boot-timeout: 1200
           disable-animations: true
           script: bash ci/android_upgrade_emulator.sh install
       - name: Preserve build metadata if upgrade fails
