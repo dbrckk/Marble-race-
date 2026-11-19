@@ -1023,7 +1023,7 @@ func _build_race_hud() -> void:
     course_progress.anchor_bottom = 0.134
     hud_layer.add_child(course_progress)
     race_radar = PROGRESS_RADAR.new()
-    race_radar.name = "FortyMarbleRadar"
+    race_radar.name = "ThirtyMarbleRadar"
     race_radar.anchor_left = 0.335
     race_radar.anchor_right = 0.665
     race_radar.anchor_top = 0.136

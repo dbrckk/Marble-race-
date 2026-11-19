@@ -18,8 +18,8 @@ func _run() -> void:
     game.set_process(false)
     game.set_physics_process(false)
     var radar: Control = game.ui.race_radar
-    assert(radar != null and radar.name == "FortyMarbleRadar")
-    assert(radar.opponent_dots.instance_count == 40 and
+    assert(radar != null and radar.name == "ThirtyMarbleRadar")
+    assert(radar.opponent_dots.instance_count == game.MARBLE_COUNT and
         radar.opponent_dots.transform_format == MultiMesh.TRANSFORM_2D,
         "The race radar must reuse one batch sized for all physical racers")
     assert(radar.mouse_filter == Control.MOUSE_FILTER_IGNORE,
@@ -33,9 +33,9 @@ func _run() -> void:
     radar.sample(0.02)
     assert(radar.updates == launch_updates, "Radar must not update on every rendered frame")
     radar.sample(Radar.UPDATE_PERIOD)
-    assert(radar.updates == launch_updates+1 and radar.last_count == 40,
+    assert(radar.updates == launch_updates+1 and radar.last_count == game.MARBLE_COUNT,
         "Radar must show all 30 physical competitors")
-    assert(radar.player_id >= 0 and radar.player_id < 40,
+    assert(radar.player_id >= 0 and radar.player_id < game.MARBLE_COUNT,
         "Human marble must be distinguishable from the 29 opponents")
     assert(radar.positions[radar.player_id] >= 0.0)
     var player = game.player
@@ -52,7 +52,7 @@ func _run() -> void:
     game.countdown = 0.01
     game._process(1.0/60.0)
     radar.sample(Radar.UPDATE_PERIOD)
-    assert(radar.last_count == 40,
+    assert(radar.last_count == game.MARBLE_COUNT,
         "Economy devices must retain useful race-position information")
     game.return_to_menu()
     game.queue_free()
