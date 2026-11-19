@@ -31,11 +31,26 @@ func _run() -> void:
         human.global_position = Vector3(0.0,game.height_at(10.0)+0.7,10.0)
         game.race_items.tick(0.016,game.racers,game.net)
         assert(game.race_items.used.is_empty(),"AI may not collect rare items")
+        assert(game.race_items.activation_remaining == 0.0 and not game.race_items.pulse_ring.visible)
         human.global_position = pickup.global_position
         game.race_items.tick(0.016,game.racers,game.net)
         assert(game.race_items.used.size() == 1,"Local human must instantly collect")
         assert(not pickup.visible,"Collected solo pickup must disappear")
         assert(game.ui.toast_remaining > 0.0,"Local pickup must show clear feedback")
+        var local_kind: String = game.race_items.kind_at(0,track)
+        if local_kind != "pulse":
+            var visual: MeshInstance3D = game.race_items.activation_mesh
+            assert(visual.visible and game.race_items.activation_kind == local_kind and (
+                visual.mesh.get_surface_count() == 1 and visual.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF))
+            var origin := visual.global_position
+            game.race_items._process(0.10)
+            assert(visual.global_position.distance_to(origin) > 0.2)
+            game.set_graphics_quality(0)
+            assert(not visual.visible)
+            game.set_graphics_quality(1)
+            assert(visual.visible)
+            game.race_items._process(game.race_items.ACTIVATION_DURATION)
+            assert(not visual.visible)
         game.race_items.tick(0.016,game.racers,game.net)
         assert(game.race_items.used.size() == 1,"Pickup must be single-use per human")
         # Emulate the authenticated dedicated-server slot: AI cannot collect,
@@ -60,15 +75,28 @@ func _run() -> void:
         game.net.match_running = true
         game.race_state = "RACING"
         game.race_items.reset_round()
-        game.net._rare_item_notice(1,"spring")
+        var effect: String = game.race_items.kind_at(1,track)
+        game.net._rare_item_notice(1,"invalid")
+        assert(game.race_items.items[1].visible)
+        game.net._rare_item_notice(1,"pulse" if effect != "pulse" else "turbo")
+        assert(game.race_items.items[1].visible)
+        game.net._rare_item_notice(1,effect)
         assert(not game.race_items.items[1].visible,
             "Online recipient must see its already-claimed pickup disappear")
         assert(game.ui.toast_remaining > 0.0,
             "Online recipient must see instant item feedback")
+        assert(game.race_items.pulse_remaining > 0.0 if effect == "pulse" else (
+            game.race_items.activation_kind == effect and game.race_items.activation_mesh.visible))
+        var sound_channel: int = game.audio.current_channel
+        var effect_progress: float = game.race_items.pulse_remaining if effect == "pulse" else game.race_items.activation_remaining
+        game.net._rare_item_notice(1,effect)
+        assert(game.audio.current_channel == sound_channel)
+        assert(effect_progress == (game.race_items.pulse_remaining if effect == "pulse" else game.race_items.activation_remaining))
         game.net.match_running = false
         game.net.role = "offline"
         game.net.joined_slots.clear()
         game.return_to_menu()
+        assert(not game.race_items.activation_mesh.visible and not game.race_items.pulse_ring.visible)
     print("ARCADE_ITEMS_AND_WORLDS_PASS:")
     game.queue_free()
     await process_frame

@@ -284,6 +284,14 @@ func _verify_drive_transition(stage: Node3D) -> bool:
     channel = sound.current_channel
     sound.item_pickup("turbo")
     assert(sound.channels[channel].volume_db <= sound.WARNED_BOOST_DB)
+    var cues: Array[AudioStreamWAV] = []
+    for kind in ["turbo","spring","pulse","stabilizer"]:
+        channel = sound.current_channel
+        sound.item_pickup(kind)
+        var cue := sound.channels[channel].stream as AudioStreamWAV
+        assert(cue == sound.pickup_cues[kind] and cue.get_length() <= 0.31 and not cues.has(cue))
+        assert(sound.channels[channel].volume_db <= sound.WARNED_BOOST_DB)
+        cues.append(cue)
     stage.change_boost(false)
     sound.set_drive_context(false,0.0)
     for frame in range(20):

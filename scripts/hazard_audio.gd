@@ -16,30 +16,34 @@ static func build() -> Array[AudioStreamWAV]:
         [[0.0,0.14,520.0,660.0,0.40],[0.10,0.21,660.0,905.0,0.36]],
         [[0.0,0.28,350.0,820.0,0.24]]
     ]
+    var names := ["Wood clack","Ice chimes","Piston alarm","Vent hiss"]
     for index in range(voices.size()):
-        var mix := PackedFloat32Array()
-        mix.resize(roundi(SAMPLE_RATE*0.32))
-        for note in voices[index]:
-            var start: int = roundi(note[0]*SAMPLE_RATE)
-            var frames: int = roundi(note[1]*SAMPLE_RATE)
-            for frame in range(frames):
-                var t := float(frame)/SAMPLE_RATE
-                var progress := float(frame)/frames
-                var phase: float = TAU*t*(note[2]+(note[3]-note[2])*progress*0.5)
-                var envelope := minf(1.0,t*500.0)*pow(1.0-progress,1.8)
-                var fundamental := sin(phase)
-                var overtone: float = sin(phase*(2.72 if index == 1 else 2.05))*note[4]
-                # Close-spaced upper partials make the vent sound airy.
-                var air := sin(phase*3.14)*sin(phase*1.13)*0.29 if index == 3 else 0.0
-                mix[start+frame] += 0.63*envelope*(fundamental+overtone+air)
-        var pcm := PackedByteArray()
-        pcm.resize(mix.size()*2)
-        for frame in range(mix.size()):
-            pcm.encode_s16(frame*2,roundi(clampf(mix[frame],-0.92,0.92)*32767.0))
-        var clip := AudioStreamWAV.new()
-        clip.format = AudioStreamWAV.FORMAT_16_BITS
-        clip.mix_rate = SAMPLE_RATE
-        clip.data = pcm
-        clip.resource_name = ["Wood clack","Ice chimes","Piston alarm","Vent hiss"][index]
-        cues.append(clip)
+        cues.append(render(voices[index],0.32,names[index],index == 1,index == 3))
     return cues
+
+static func render(notes: Array, duration: float, label: String, chime := false, airy := false) -> AudioStreamWAV:
+    var mix := PackedFloat32Array()
+    mix.resize(roundi(SAMPLE_RATE*duration))
+    for note in notes:
+        var start: int = roundi(note[0]*SAMPLE_RATE)
+        var frames: int = roundi(note[1]*SAMPLE_RATE)
+        for frame in range(frames):
+            var t := float(frame)/SAMPLE_RATE
+            var progress := float(frame)/frames
+            var phase: float = TAU*t*(note[2]+(note[3]-note[2])*progress*0.5)
+            var envelope := minf(1.0,t*500.0)*pow(1.0-progress,1.8)
+            var fundamental := sin(phase)
+            var overtone: float = sin(phase*(2.72 if chime else 2.05))*note[4]
+            # Close-spaced upper partials make the vent sound airy.
+            var air := sin(phase*3.14)*sin(phase*1.13)*0.29 if airy else 0.0
+            mix[start+frame] += 0.63*envelope*(fundamental+overtone+air)
+    var pcm := PackedByteArray()
+    pcm.resize(mix.size()*2)
+    for frame in range(mix.size()):
+        pcm.encode_s16(frame*2,roundi(clampf(mix[frame],-0.92,0.92)*32767.0))
+    var clip := AudioStreamWAV.new()
+    clip.format = AudioStreamWAV.FORMAT_16_BITS
+    clip.mix_rate = SAMPLE_RATE
+    clip.data = pcm
+    clip.resource_name = label
+    return clip

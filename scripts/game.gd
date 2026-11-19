@@ -1982,6 +1982,8 @@ func return_to_menu() -> void:
         race_moments.reset_round()
     if is_instance_valid(airtime):
         airtime.reset_round()
+    if is_instance_valid(race_items):
+        race_items.clear_activation()
     if slipstream != null:
         slipstream.reset_round()
     draft_cue_cooldown = 0.0
@@ -2602,6 +2604,8 @@ func _end_race() -> void:
     if is_instance_valid(player) and player.finished:
         _burst(player.global_position, true)
     race_state = "RESULTS"
+    if is_instance_valid(race_items):
+        race_items.clear_activation()
     boosting = false
     steer = 0.0
     steer_target = 0.0

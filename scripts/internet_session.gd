@@ -651,10 +651,8 @@ func _rare_item_notice(pickup_id: int, kind: String) -> void:
         return
     if pickup_id < 0 or pickup_id >= 4 or kind not in ["turbo","spring","pulse","stabilizer"]:
         return
-    if is_instance_valid(game.race_items):
+    if is_instance_valid(game.race_items) and kind == game.race_items.kind_at(pickup_id,game.selected_track):
         game.race_items.mark_local_pickup(pickup_id)
-    game.audio.item_pickup(kind)
-    game.ui.show_item_pickup(kind)
 
 func on_host_finish() -> void:
     if role != "server" or not match_running:
