@@ -53,6 +53,7 @@ func _run() -> void:
         game.start_race("Grip Tape")
         game.race_state = "RACING"
         var player: RigidBody3D = game.player
+        var player_key := "0:%d" % player.racer_id
         var ai: RigidBody3D = game.racers[0]
         player.freeze = false
         ai.freeze = false
@@ -62,7 +63,7 @@ func _run() -> void:
         if track == 0:
             assert(mechanic._kind() == "speed")
             mechanic.tick(0.016,game.racers,game.net)
-            assert(mechanic.collected.has("0:39") and mechanic.collected.has("0:0"),
+            assert(mechanic.collected.has(player_key) and mechanic.collected.has("0:0"),
                 "Speed lines apply to both human and AI racers")
             assert(game.ui.toast_remaining > 0.0,
                 "The local player must receive a speed-line notification")
@@ -76,22 +77,22 @@ func _run() -> void:
             assert(ice != null and ice.physics_material_override.friction < 0.1,
                 "Glacier course needs physical low-friction ice")
             mechanic.tick(0.016,game.racers,game.net)
-            assert(mechanic.collected.has("0:39") and mechanic.collected.has("0:0"),
+            assert(mechanic.collected.has(player_key) and mechanic.collected.has("0:0"),
                 "Both human and AI can enter an ice drift")
         else:
             assert(mechanic._kind() == "vent")
             assert(mechanic.active_marks.size() == 5)
             assert(mechanic.vent_active(0,0.1) and not mechanic.vent_active(0,2.0))
             mechanic.tick(0.016,game.racers,game.net)
-            assert(mechanic.last_burst.has("0:39") and mechanic.last_burst.has("0:0"),
+            assert(mechanic.last_burst.has(player_key) and mechanic.last_burst.has("0:0"),
                 "Timed eruption must affect real physical marbles")
-            var previous_time: float = float(mechanic.last_burst["0:39"])
+            var previous_time: float = float(mechanic.last_burst[player_key])
             mechanic.tick(0.016,game.racers,game.net)
-            assert(is_equal_approx(float(mechanic.last_burst["0:39"]),previous_time),
+            assert(is_equal_approx(float(mechanic.last_burst[player_key]),previous_time),
                 "Vent effect requires anti-spam cooldown")
             mechanic.race_clock = 4.8
             mechanic.tick(0.016,game.racers,game.net)
-            assert(float(mechanic.last_burst["0:39"]) > previous_time,
+            assert(float(mechanic.last_burst[player_key]) > previous_time,
                 "Vents must be repeatable on later eruption cycles")
             assert(is_equal_approx(mechanic.vent_charge(0,0.1),1.0),
                 "An active Forge eruption must have a full-strength visual")

@@ -87,7 +87,7 @@ func _verify() -> void:
                 not bridge_mode or bridge_exit_seen):
             if bridge_mode:
                 print("ONLINE_BRIDGE_FEEDBACK_PASS slot=",assigned_slot)
-            print("ONLINE_CLIENT_PASS slot=%d 40_racers=true snapshots=true controls=true ping_ms=%d server_time=%.2f" % [
+            print("ONLINE_CLIENT_PASS slot=%d 30_racers=true snapshots=true controls=true ping_ms=%d server_time=%.2f" % [
                 game.net.local_slot,int(game.net.ping_ms),game.race_time])
             game.net.leave_room()
             game.queue_free()

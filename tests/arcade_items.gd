@@ -41,7 +41,7 @@ func _run() -> void:
         # Emulate the authenticated dedicated-server slot: AI cannot collect,
         # accepted remote-controlled human can. Never trust a client-side flag.
         game.net.role = "server"
-        game.net.joined_slots = {2:39}
+        game.net.joined_slots = {2:human.racer_id}
         human.network_controlled = true
         game.race_items.reset_round()
         assert(game.race_items.used.is_empty())

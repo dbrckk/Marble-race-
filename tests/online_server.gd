@@ -32,7 +32,7 @@ func _run() -> void:
                     controls_seen = true
         if connected_two and controls_seen and snapshots_seen:
             await _drive_bridge_fixture(game)
-            print("ONLINE_SERVER_PASS: 2 clients, authoritative 40-body simulation, validated steering, bridge snapshots")
+            print("ONLINE_SERVER_PASS: 2 clients, authoritative 30-body simulation, validated steering, bridge snapshots")
             # Keep the server alive while each client checks at least one full
             # second of authoritative state, so test teardown is not a disconnect race.
             for n in range(210):
