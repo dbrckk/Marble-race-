@@ -48,6 +48,12 @@ static func portal(biome: int, half_span: float) -> ArrayMesh:
                     axis,offset,0.25,0.04,palette[1])
                 _profile(surface,[-0.08,2.70, 0.15,2.79, 0.22,2.63, -0.04,2.54],
                     axis,offset,0.0,0.52,palette[2])
+                # Exposed timber grain: a carved vertical inset and a
+                # contrasting knee brace baked into the portal silhouette.
+                _profile(surface,[-0.17,0.42, -0.09,0.42, -0.14,1.52,
+                    -0.23,1.52],axis,offset,0.246,0.025,palette[1])
+                _profile(surface,[-0.30,1.88, -0.17,1.94, -0.66,2.99,
+                    -0.76,3.04],axis,offset,0.249,0.028,palette[2])
             1:
                 _profile(surface,[-0.27,0, 0.37,0, 0.51,1.03, 0.24,2.49,
                     -0.53,3.83, -0.46,2.89, -0.24,1.82],
@@ -56,6 +62,11 @@ static func portal(biome: int, half_span: float) -> ArrayMesh:
                     0.41,1.51, 0.05,0.75],axis,offset,-0.05,0.46,palette[1])
                 _profile(surface,[-0.53,3.83, -0.46,2.89, -0.11,2.04,
                     -0.15,2.63],axis,offset,0.262,0.035,palette[2])
+                # Faceted ice seams: opaque, vertex-painted frost facets.
+                _profile(surface,[-0.23,0.62, -0.11,0.89, -0.16,1.63,
+                    -0.30,1.40],axis,offset,0.254,0.026,palette[2])
+                _profile(surface,[-0.39,2.58, -0.25,2.36, -0.48,3.34,
+                    -0.56,3.48],axis,offset,0.259,0.024,palette[1])
             2:
                 _profile(surface,[-0.34,0, 0.42,0, 0.38,1.99, 0.58,2.55,
                     0.57,3.10, 0.29,3.52, -0.83,3.52, -0.92,3.13,
@@ -63,6 +74,12 @@ static func portal(biome: int, half_span: float) -> ArrayMesh:
                 _profile(surface,[-0.88,3.15, -0.66,3.43, 0.48,3.43,
                     0.59,3.16, 0.28,2.97, -0.27,2.97],
                     axis,offset,0.03,0.76,palette[0])
+                # Recessed alloy strut and a bright warning cap are baked
+                # into the same vertex-colored portal mesh.
+                _profile(surface,[-0.62,2.78, -0.52,2.84, 0.21,2.12,
+                    0.11,2.04],axis,offset,0.39,0.035,palette[2])
+                _profile(surface,[-0.80,3.44, 0.44,3.44, 0.39,3.51,
+                    -0.76,3.51],axis,offset,0.415,0.03,palette[2])
                 for row in range(3):
                     var y := 0.67+float(row)*0.32
                     _profile(surface,[0.05,y, 0.34,y+0.10, 0.34,y+0.19, 0.05,y+0.09],
@@ -84,17 +101,23 @@ static func pier(biome: int) -> ArrayMesh:
                 -0.43,0.50, -0.24,-0.10],Vector2.ONE,Vector2.ZERO,0.0,0.72,palette[0])
             _profile(surface,[-0.41,0.32, 0.41,0.32, 0.45,0.37, -0.45,0.37],
                 Vector2.ONE,Vector2.ZERO,0.0,0.85,palette[2])
+            _profile(surface,[-0.31,-0.34, -0.23,-0.34, 0.27,0.19,
+                0.18,0.19],Vector2.ONE,Vector2.ZERO,0.376,0.026,palette[1])
         1:
             _profile(surface,[-0.34,-0.50, 0.31,-0.50, 0.50,-0.16, 0.29,0.50,
                 -0.36,0.50, -0.50,0.19],Vector2.ONE,Vector2.ZERO,0.0,0.83,palette[0])
             _profile(surface,[-0.36,0.50, 0.29,0.50, 0.04,0.25, -0.27,0.17],
                 Vector2.ONE,Vector2.ZERO,0.414,0.035,palette[2])
+            _profile(surface,[-0.29,-0.23, -0.16,-0.15, 0.11,0.34,
+                0.02,0.26],Vector2.ONE,Vector2.ZERO,0.44,0.025,palette[2])
         2:
             for side in [-1.0,1.0]:
                 _profile(surface,[0.11,-0.50, 0.50,-0.50, 0.39,0.50, 0.10,0.50],
                     Vector2(side,1.0),Vector2.ZERO,0.0,0.78,palette[0])
             _profile(surface,[-0.48,-0.42, -0.28,-0.46, 0.45,0.29, 0.43,0.39],
                 Vector2.ONE,Vector2.ZERO,0.0,0.54,palette[2])
+            _profile(surface,[-0.35,-0.31, -0.25,-0.31, 0.32,0.32,
+                0.23,0.32],Vector2.ONE,Vector2.ZERO,0.406,0.025,palette[1])
     surface.index()
     _piers[biome] = surface.commit()
     return _piers[biome]
@@ -109,16 +132,22 @@ static func truss(biome: int) -> ArrayMesh:
             _profile(surface,[-0.50,0.50, 0.50,0.50, 0.45,0.08, 0.34,-0.10,
                 0.12,-0.41, -0.12,-0.41, -0.34,-0.10, -0.45,0.08],
                 Vector2.ONE,Vector2.ZERO,0.0,0.83,palette[0])
+            _profile(surface,[-0.34,0.29, -0.27,0.34, 0.27,-0.25,
+                0.19,-0.30],Vector2.ONE,Vector2.ZERO,0.43,0.024,palette[2])
         1:
             _profile(surface,[-0.50,0.49, 0.50,0.49, 0.37,0.03, 0.17,-0.24,
                 0.02,-0.50, -0.20,-0.18, -0.36,-0.29],
                 Vector2.ONE,Vector2.ZERO,0.0,0.91,palette[0])
+            _profile(surface,[-0.34,0.30, -0.22,0.31, 0.12,-0.21,
+                0.03,-0.27],Vector2.ONE,Vector2.ZERO,0.47,0.023,palette[2])
         2:
             _profile(surface,[-0.50,0.50, 0.50,0.50, 0.50,0.16, 0.31,-0.12,
                 0.31,0.04, -0.31,0.04, -0.31,-0.12, -0.50,0.16],
                 Vector2.ONE,Vector2.ZERO,0.0,0.96,palette[0])
             _profile(surface,[-0.39,0.10, -0.33,0.20, 0.39,-0.42, 0.34,-0.50],
                 Vector2.ONE,Vector2.ZERO,0.0,0.70,palette[2])
+            _profile(surface,[-0.43,0.31, 0.43,0.31, 0.43,0.38,
+                -0.43,0.38],Vector2.ONE,Vector2.ZERO,0.37,0.024,palette[2])
     surface.index()
     _trusses[biome] = surface.commit()
     return _trusses[biome]
