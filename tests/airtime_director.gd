@@ -41,6 +41,10 @@ func _run() -> void:
     stage.set_process(false)
     stage.set_physics_process(false)
     assert(stage.airtime != null and stage.airtime.ripple.multimesh.instance_count == 3)
+    if not await _verify_super_jump(stage):
+        push_error("The Super Jump landing prediction failed its physics regression")
+        quit(1)
+        return
     var checked := 0
     for biome in range(3):
         stage.return_to_menu()
@@ -178,6 +182,50 @@ func _run() -> void:
     print("CONTROL_RETURN_PASS: nine real bank departures and two-sample touchdown recoveries with floor-aligned effects")
     print("JUMP_GUIDES_PASS: 30 ramps across nine layouts, one paint batch and lane-aware camera")
     quit(0)
+
+func _verify_super_jump(stage: Node3D) -> bool:
+    assert(stage.set_track(0))
+    stage.race_variation = 0
+    stage.start_race("Grip Tape")
+    stage.race_state = "RACING"
+    stage.set_graphics_quality(0)
+    for frame in range(4):
+        await physics_frame
+    var flight: Node3D = stage.airtime
+    var player: RigidBody3D = stage.player
+    var items: Node3D = stage.race_items
+    var pickup: Vector3 = items.items[1].global_position
+    assert(items.kind_at(1,0) == "spring")
+    player.global_position = Vector3(pickup.x,stage.height_at(pickup.z)+0.47,pickup.z)
+    player.freeze = false
+    player.linear_velocity = Vector3(0,0,-12)
+    player.contact_monitor = true
+    player.max_contacts_reported = 8
+    assert(not flight.super_jump_target.visible)
+    items.tick(1.0/60.0,stage.racers,stage.net)
+    assert(not items.items[1].visible and not flight.super_jump_target.visible)
+    var estimate := Vector3.INF
+    var touchdown := Vector3.INF
+    for frame in range(55):
+        await physics_frame
+        flight.tick_physics(1.0/60.0)
+        if not estimate.is_finite() and flight.super_jump_target.visible:
+            estimate = flight.super_jump_landing
+            assert(estimate.z < player.global_position.z-2.0)
+        if frame > 7 and not touchdown.is_finite() and not player.get_colliding_bodies().is_empty():
+            touchdown = flight.probe_floor(player).get("ground",Vector3.INF)
+    assert(estimate.distance_to(touchdown) < 0.55,
+        "The Economy target must track an actual spring flight to its first road contact")
+    assert(not flight.super_jump_target.visible and not flight.super_jump_landing.is_finite())
+    # Nothing should be projected beyond the physical edge or through a rail.
+    var road_z := -14.0
+    var origin := Vector3(stage.track_center_at(road_z),stage.height_at(road_z)+1.15,road_z)
+    assert(flight._predict_landing(origin+Vector3.RIGHT*14.0,Vector3(0,0,-14)).is_empty())
+    assert(flight._predict_landing(origin+Vector3.RIGHT*4.8,Vector3(14,0,0)).is_empty())
+    stage.return_to_menu()
+    assert(flight.super_jump_remaining == 0.0 and not flight.super_jump_target.visible)
+    print("SUPER_JUMP_LANDING_PASS: pickup, Economy target, first road contact, unsafe paths and reset")
+    return true
 
 func _verify_jump_guides(stage: Node3D) -> bool:
     var guide: Node3D = stage.jump_guides

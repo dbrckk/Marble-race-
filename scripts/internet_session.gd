@@ -55,6 +55,7 @@ var _connect_elapsed := 0.0
 var targets: Array[Transform3D] = []
 var targets_received := false
 var snapshot_velocities := PackedVector3Array()
+var snapshot_interval := 0.0
 var ping_ms := -1.0
 var snapshot_age_seconds := 0.0
 var _join_elapsed := 0.0
@@ -103,6 +104,7 @@ func _clear_snapshots() -> void:
     snapshot_velocities.clear()
     targets_received = false
     last_frame_time = -1.0
+    snapshot_interval = 0.0
     snapshot_age_seconds = 0.0
 
 func can_host_start() -> bool:
@@ -570,6 +572,7 @@ func _receive_snapshot(floats: PackedFloat32Array, timestamp: float, energies: P
         snapshot_velocities.resize(RACE_CAPACITY)
     var elapsed := timestamp-last_frame_time
     var can_measure := targets_received and elapsed >= FRAME_PERIOD*0.35 and elapsed <= PRESENTATION_MAX_AGE
+    snapshot_interval = elapsed if can_measure else 0.0
     var new_finisher := false
     for i in range(RACE_CAPACITY):
         var j := i*FLOATS_PER_RACER
