@@ -89,6 +89,12 @@ func _material(tint: Color, glow: float = 0.0) -> StandardMaterial3D:
     # and brushed foundry metal. Reuses the existing instanced draw batches.
     result.roughness = [0.68,0.22,0.39][biome]
     result.metallic = [0.05,0.12,0.68][biome]
+    # A restrained dielectric clearcoat gives Glacier a sharper ice highlight
+    # without transparent sorting, new geometry, or additional draw batches.
+    if biome == 1:
+        result.clearcoat_enabled = true
+        result.clearcoat = 0.42
+        result.clearcoat_roughness = 0.16
     result.emission_enabled = glow > 0.0
     if glow > 0.0:
         result.emission = tint
