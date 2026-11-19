@@ -402,6 +402,7 @@ func _verify_glacier_grip(stage: Node3D, flight: Node3D, player: RigidBody3D) ->
     assert(flight.ripple_transition.has(AIR.GRIP_RETURN) and sound.channels[next_voice].stream == sound.WOOD_HITS[1])
     stage.ui.label_timer = 0.25
     stage.ui.update_hud()
+    locator.refresh(1.0/30.0) # Ensure the grip-return icon clears before assertion.
     assert(stage.ui.speed_label.text.ends_with("GRIP") and not locator.ice_impact_center.is_finite())
     flight.advance_visuals(0.50)
     assert(flight.grip_return_seconds == 0.0)
