@@ -662,6 +662,12 @@ La caméra de poursuite suit le tablier, puis rejoint les flèches peintes sur l
 
 À l'approche de la jonction, le HUD affiche **MAIN TRAFFIC** ou **MAIN PACK** et **SAVE BOOST** si des rivaux convergent vers la sortie. Dès que la jonction se libère, le conseil de centrage et l'annonce du volet reprennent leur place. Les essais couvrent les trois variantes, les deux côtés de la jonction, les caméras manuelles et le passage de deux rivaux à un seul puis à une voie libre.
 
+### 2026-11-19 — Lisibilité des objets rares
+
+Turbo, saut, onde de choc et dash stabilisé ont chacun une silhouette, un symbole et une couleur. Le même symbole s'affiche sur le HUD lorsqu'une bille masque l'approche d'un objet à portée. Les avertissements de danger gardent la priorité et le repère disparaît après une collecte validée. Chaque objet utilise un maillage à une surface, avec son libellé.
+
+Les suites Godot vérifient les neuf tracés, les positions solo et réseau, la collecte réservée aux humains, les avertissements avant un obstacle et le repère du tutoriel au milieu du peloton.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
 Sur Android, activer **FPS DISPLAY**, prendre le pont sur Gauntlet et copier le rapport après la course. Rejouer le même tracé avec **TEST ECONOMY** ou **TEST BALANCED**, reprendre le pont et copier le deuxième rapport. Comparer les lignes **GAUNTLET BRIDGE JUMP** et **BRIDGE RETURN ±8 m** et vérifier la lecture du portique, de la réception et du piston à pleine vitesse.

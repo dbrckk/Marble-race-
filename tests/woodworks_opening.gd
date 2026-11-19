@@ -230,7 +230,7 @@ func _verify_opening_in_pack(game: Node3D) -> void:
         game.race_moments.tick(0.12)
         _refresh(game)
         if seek_turbo:
-            assert(hud.rare_item_label.visible and locator.turbo_center.is_finite())
+            assert(hud.rare_item_label.visible and locator.rare_item_center.is_finite())
             assert(hud.woodworks_guide_label.text.contains("ACTIVATE"))
         else:
             assert(not hud.rare_item_label.visible and locator.evasion_center.is_finite())
@@ -238,7 +238,7 @@ func _verify_opening_in_pack(game: Node3D) -> void:
         rival.global_position.x += 2.8
         game.race_moments.tick(0.12)
         _refresh(game)
-        assert(not locator.turbo_center.is_finite() and not locator.evasion_center.is_finite())
+        assert(not locator.rare_item_center.is_finite() and not locator.evasion_center.is_finite())
     game.race_moments.reset_round()
 
 func _verify_fork_handoff(game: Node3D) -> void:

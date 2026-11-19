@@ -73,7 +73,7 @@ var occluded_hazard_kind := ""
 var occluded_shutter_mark := Vector3.INF
 var occluded_passing_mark := Vector3.INF
 var occluded_bank_mark := Vector3.INF
-var occluded_opening_turbo := Vector3.INF
+var occluded_pickup_index := -1
 var occluded_fork_main := Vector3.INF
 var occluded_fork_bridge := Vector3.INF
 var opening_guidance: Dictionary = {}
@@ -235,7 +235,7 @@ func reset_round() -> void:
     occluded_shutter_mark = Vector3.INF
     occluded_passing_mark = Vector3.INF
     occluded_bank_mark = Vector3.INF
-    occluded_opening_turbo = Vector3.INF
+    occluded_pickup_index = -1
     occluded_fork_main = Vector3.INF
     occluded_fork_bridge = Vector3.INF
     opening_guidance.clear()
@@ -319,6 +319,7 @@ func tick(delta: float) -> void:
         merge_threat_count = 0
         merge_rival = null
         evasion_target = Vector3.INF
+        occluded_pickup_index = -1
         _set_closest_rival(null,Vector3.ZERO)
         game.ui.clear_overtake_feedback()
         return
@@ -365,7 +366,7 @@ func tick(delta: float) -> void:
         occluded_shutter_mark = Vector3.INF
         occluded_passing_mark = Vector3.INF
         occluded_bank_mark = Vector3.INF
-        occluded_opening_turbo = Vector3.INF
+        occluded_pickup_index = -1
         occluded_fork_main = Vector3.INF
         occluded_fork_bridge = Vector3.INF
         opening_guidance.clear()
@@ -413,7 +414,7 @@ func tick(delta: float) -> void:
     occluded_shutter_mark = Vector3.INF
     occluded_passing_mark = Vector3.INF
     occluded_bank_mark = Vector3.INF
-    occluded_opening_turbo = Vector3.INF
+    occluded_pickup_index = -1
     occluded_fork_main = Vector3.INF
     occluded_fork_bridge = Vector3.INF
     opening_guidance.clear()
@@ -426,7 +427,8 @@ func tick(delta: float) -> void:
     var candidate_kind := ""
     var road_mark := Vector3.INF
     var bank_mark := Vector3.INF
-    var turbo_mark := Vector3.INF
+    var pickup_index := -1
+    var pickup_mark := Vector3.INF
     var fork_main := Vector3.INF
     var fork_bridge := Vector3.INF
     var arm_gap_eta := INF
@@ -490,6 +492,11 @@ func tick(delta: float) -> void:
                     if evasion_target.is_finite():
                         arm_gap_eta = (p.z-evasion_target.z)/preview_speed
             eyes = game.camera.global_position
+            if absf(p.y-game.height_at(p.z)-0.39) <= 0.55 and is_instance_valid(game.race_items):
+                pickup_index = game.race_items.pickup_marker_ahead(p,preview_velocity,game.ui.bridge_approach_active)
+                var marker: Vector3 = game.race_items.pickup_marker_position(pickup_index)
+                if not candidate.is_finite() or candidate.z < marker.z:
+                    pickup_mark = marker
             if game.selected_track != 0 and driving and not game.airtime.airborne and (
                     absf(p.y-game.height_at(p.z)-0.39) <= 0.55):
                 var art: MeshInstance3D = game.opening_obstacle_art
@@ -510,11 +517,6 @@ func tick(delta: float) -> void:
                     var position: Vector3 = pickup.global_position
                     var distance := p.z-position.z
                     past_opening_turbo = not pickup.visible or distance <= 0.0
-                    if pickup.visible and distance > 2.3 and distance <= 15.0 and (
-                            not candidate.is_finite() or candidate.z < position.z):
-                        var aim := RaceFeedback.projected_lane_x(p.x,preview_velocity.x,distance/preview_speed)
-                        if absf(aim-position.x) < 0.8+3.8*distance/preview_speed:
-                            turbo_mark = Vector3(position.x,game.height_at(position.z)+0.39,position.z)
                 if past_opening_turbo and preview_speed >= 7.0 and is_instance_valid(road) and not bridge_contact and (
                         p.z > road.ENTRY_PORTAL_Z and p.z < road.ENTRY_PORTAL_Z+30.0 and (
                             road.shortcut_hint(p).get("mode","") == "fork")):
@@ -601,10 +603,10 @@ func tick(delta: float) -> void:
                 else:
                     occluded_passing_mark = road_mark
                 road_mark = Vector3.INF
-            if turbo_mark.is_finite() and gap < -0.20 and opponent.z >= turbo_mark.z-0.40 and (
-                    covers_hazard(eyes,turbo_mark,opponent)):
-                occluded_opening_turbo = turbo_mark
-                turbo_mark = Vector3.INF
+            if pickup_mark.is_finite() and gap < -0.20 and opponent.z >= pickup_mark.z-0.40 and (
+                    covers_hazard(eyes,pickup_mark,opponent)):
+                occluded_pickup_index = pickup_index
+                pickup_mark = Vector3.INF
             var rival_forward: float = -marble.linear_velocity.z
             if genuine_pack_rival(gap,offset.x,offset.y,own_forward,rival_forward):
                 pack_count += 1

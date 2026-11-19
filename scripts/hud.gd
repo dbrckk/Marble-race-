@@ -2582,6 +2582,7 @@ func update_hud() -> void:
     if still_racing and not timed_gate_backdrop.visible and not final_danger_active:
         _show_opening_traffic(duel.live_opening_guidance(game.player.global_position,velocity))
     _trim_driving_cues(ordinary_gate_clear,gate_eta,forward_speed,glacier_return_panel)
+    player_locator.set_pickup_preview(int(next_item["index"]) if rare_item_label.visible else -1)
     if released >= 0.25 and not grip_return and not ice_impact and ice_drift == 0 and ice_entry <= 0.12:
         var woodworks_exit: bool = game.selected_track == 0 and not return_arm_warning and (
             player_z < game.race_director.event_z(RACE_DIRECTOR.WOODWORKS_RETURN_ARM))
@@ -2895,6 +2896,7 @@ func show_course_event(kind: String) -> void:
     _refresh_race_notification()
 
 func show_item_pickup(kind: String) -> void:
+    player_locator.set_pickup_preview(-1)
     var labels := {
         "turbo": "RARE ITEM  /  INSTANT TURBO!",
         "spring": "RARE ITEM  /  SUPER JUMP!",
@@ -2902,7 +2904,9 @@ func show_item_pickup(kind: String) -> void:
         "stabilizer": "RARE ITEM  /  STEADY DASH!"
     }
     checkpoint_label.text = str(labels.get(kind,"RARE ITEM!"))
-    checkpoint_label.add_theme_color_override("font_color",Color("#9af5e2"))
+    var effect := RARE_ITEMS.ITEM_KINDS.find(kind)
+    var tint: Color = RARE_ITEMS.COLORS[effect].lightened(0.20) if effect >= 0 else Color("#9af5e2")
+    checkpoint_label.add_theme_color_override("font_color",tint)
     toast_remaining = 1.8
     _refresh_race_notification()
 

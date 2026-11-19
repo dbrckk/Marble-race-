@@ -27,6 +27,8 @@ const SOLO_LINES := [
     ]
 ]
 const PICKUP_RADIUS_SQUARED := 3.1
+const PACK_MARK_MIN_DISTANCE := 2.3
+const PACK_MARK_REACH := 15.0
 # The physical shockwave is a true radial, same-deck interaction. Remote
 # clients only render the confirmed result; no client can apply its impulse.
 const PULSE_RANGE := 4.12
@@ -38,6 +40,8 @@ const PULSE_VISUAL_DURATION := 0.52
 const ITEM_KINDS := ["turbo", "spring", "pulse", "stabilizer"]
 const ITEM_NAMES := ["TURBO", "JUMP", "SHOCKWAVE", "STEADY DASH"]
 const TRACK_PATH = preload("res://scripts/track_path.gd")
+const RARE_ART = preload("res://scripts/rare_item_art.gd")
+const RaceFeedback = preload("res://scripts/race_feedback.gd")
 const COLORS := [
     Color("#5ff0ff"), Color("#fce67b"), Color("#df90ff"), Color("#70edb8")
 ]
@@ -80,8 +84,8 @@ func nearest_available(at: Vector3, racer_id: int, max_distance: float = 28.0,
         continuing_merge := false) -> Dictionary:
     if not at.is_finite() or not is_finite(max_distance) or max_distance <= 0.0:
         return {}
-    # Only four candidate pickups. Called by HUD at 9Hz, never the 60Hz
-    # racing simulation. A collected client pickup stays hidden until reset.
+    # Only four candidates for the HUD and local race guidance.
+    # A collected client pickup stays hidden until reset.
     # A racer committed to the exterior bridge cannot reach main-road items
     # before the physical merge. Suppress misleading impossible pickup cues.
     var on_outer_bridge: bool = is_instance_valid(game.shortcut_route) and (
@@ -103,61 +107,43 @@ func nearest_available(at: Vector3, racer_id: int, max_distance: float = 28.0,
             "label":label_at(i,game.selected_track)}
     return {}
 
+func pickup_marker_ahead(at: Vector3, velocity: Vector3, continuing_merge: bool) -> int:
+    var forward := -velocity.z
+    if forward < 5.0 or not velocity.is_finite() or not at.is_finite() or game.airtime.airborne:
+        return -1
+    var hint := nearest_available(at,game.player.racer_id,PACK_MARK_REACH,continuing_merge)
+    var index := int(hint.get("index",-1))
+    if index < 0 or (game.selected_track == 0 and index == 0 and not game.woodworks_opening_cleared(at.z)):
+        return -1
+    var target := items[index].global_position
+    var distance: float = hint["distance"]
+    var eta := distance/forward
+    var aim := RaceFeedback.projected_lane_x(at.x,velocity.x,eta)
+    return index if distance > PACK_MARK_MIN_DISTANCE and absf(aim-target.x) < 0.8+3.8*eta else -1
+
+func pickup_marker_position(index: int) -> Vector3:
+    if index < 0 or index >= items.size() or not is_instance_valid(items[index]) or not items[index].visible:
+        return Vector3.INF
+    var target := items[index].global_position
+    return Vector3(target.x,game.height_at(target.z)+0.39,target.z)
+
 func setup(owner: Node3D, track: int, variation: int) -> void:
     game = owner
-    var halo := TorusMesh.new()
-    halo.inner_radius = 0.57
-    halo.outer_radius = 0.65
-    halo.rings = 16
-    halo.ring_segments = 8
+    var finish := StandardMaterial3D.new()
+    finish.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    finish.cull_mode = BaseMaterial3D.CULL_DISABLED
+    finish.vertex_color_use_as_albedo = true
+    finish.vertex_color_is_srgb = true
     for i in range(ITEM_Z.size()):
         var pickup := Node3D.new()
         pickup.name = "RarePickup_%02d" % i
         var effect_index := posmod(i+track,ITEM_KINDS.size())
         var shell := MeshInstance3D.new()
         shell.name = "EffectCrystal"
-        var crystal := SphereMesh.new()
-        crystal.radius = [0.43,0.36,0.49,0.47][effect_index]
-        crystal.height = [1.03,1.25,0.61,0.78][effect_index]
-        crystal.radial_segments = [4,3,8,6][effect_index]
-        crystal.rings = 1
-        shell.mesh = crystal
-        var material := StandardMaterial3D.new()
-        material.albedo_color = COLORS[effect_index]
-        # Unshaded emission preserves the item identity in dark sections and
-        # under dense racer shadows without introducing dynamic lights.
-        material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-        material.metallic = 0.0
-        material.roughness = 1.0
-        material.emission_enabled = true
-        material.emission = material.albedo_color
-        material.emission_energy_multiplier = 1.5
-        shell.material_override = material
+        shell.mesh = RARE_ART.build(effect_index,COLORS[effect_index])
+        shell.material_override = finish
         shell.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
         pickup.add_child(shell)
-        var ring := MeshInstance3D.new()
-        ring.mesh = halo
-        ring.rotation.z = [0.0,0.42,0.0,-0.32][effect_index]
-        ring.material_override = material
-        ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-        pickup.add_child(ring)
-        # A dark outer contour separates the collectible from similarly
-        # colored marbles. It shares the halo mesh and adds no light/shadow.
-        var contour := MeshInstance3D.new()
-        contour.name = "PickupContrastContour"
-        var contour_mesh := TorusMesh.new()
-        contour_mesh.inner_radius = 0.69
-        contour_mesh.outer_radius = 0.76
-        contour_mesh.rings = 16
-        contour_mesh.ring_segments = 8
-        contour.mesh = contour_mesh
-        contour.rotation.z = ring.rotation.z
-        var contour_material := StandardMaterial3D.new()
-        contour_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-        contour_material.albedo_color = Color("#091522")
-        contour.material_override = contour_material
-        contour.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-        pickup.add_child(contour)
         pickup.position = placement_at(i,track,variation)
         # Readable identity from the approach, without changing hitbox size.
         # One billboard per rare collectible; no extra lights or shadows.
@@ -167,9 +153,9 @@ func setup(owner: Node3D, track: int, variation: int) -> void:
         title.font_size = 34
         title.pixel_size = 0.010
         title.outline_size = 10
-        title.modulate = material.albedo_color.lightened(0.27)
+        title.modulate = COLORS[effect_index].lightened(0.27)
         title.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-        title.position = Vector3(0.0,0.92,0.0)
+        title.position = Vector3(0.0,1.00,0.0)
         pickup.add_child(title)
         add_child(pickup)
         items.append(pickup)
@@ -261,6 +247,7 @@ func reset_round() -> void:
         var item := items[i]
         item.position = placement_at(i,game.selected_track,game.built_variation,
             not game.net.is_active())
+        item.rotation.y = 0.0
         item.visible = true
 
 func _is_human(marble: RigidBody3D, net: Node) -> bool:
@@ -279,7 +266,7 @@ func tick(delta: float, racers: Array[RigidBody3D], net: Node) -> void:
         var pickup := items[i]
         if not is_instance_valid(pickup):
             continue
-        pickup.rotation.y += delta * 1.8
+        pickup.rotation.y = sin(clock*1.65+i)*0.52
         pickup.position.y = game.height_at(pickup.position.z)+1.05+sin(clock*2.5+i)*0.16
         for marble in eligible_collectors:
             var key := "%d:%d" % [i,marble.racer_id]
