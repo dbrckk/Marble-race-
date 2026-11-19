@@ -57,6 +57,7 @@ func _run() -> void:
             var near_ai: RigidBody3D = game.racers[0]
             var far_ai: RigidBody3D = game.racers[1]
             var bridge_ai: RigidBody3D = game.racers[2]
+            var frozen_ai: RigidBody3D = game.racers[3]
             for marble in game.racers:
                 marble.freeze = true
             # Isolate the real impulses from unrelated track contacts.
@@ -71,6 +72,7 @@ func _run() -> void:
             near_ai.global_position = origin+Vector3(inward*1.30,0.0,0.0)
             far_ai.global_position = origin+Vector3(0.0,0.0,6.0)
             bridge_ai.global_position = origin+Vector3(inward*0.85,3.2,0.0)
+            frozen_ai.global_position = origin+Vector3(inward*0.85,0.0,1.1)
             human.linear_velocity = Vector3.ZERO
             near_ai.linear_velocity = Vector3.ZERO
             far_ai.linear_velocity = Vector3.ZERO
@@ -85,6 +87,9 @@ func _run() -> void:
                 "A human must collect the shockwave immediately on contact")
             assert(items.confirmed_pulses == 1 and items.pulse_remaining > 0.0,
                 "Only a confirmed human pickup can start a local shockwave")
+            var expected_hits := 1 << int(near_ai.racer_id)
+            assert(items.pulse_hit_mask == expected_hits,
+                "The contact cue must identify only the actual physical recipient")
             assert(items.pulse_ring.visible == (game.graphics_quality > 0))
             assert(items.pulse_ring.material_override == items.pulse_material,
                 "Effect has its own reusable unlit material")
@@ -99,14 +104,20 @@ func _run() -> void:
                 "A raised-deck rival cannot be knocked through solid floors")
             real_hits += 1
             game.set_graphics_quality(0)
-            assert(not items.pulse_ring.visible,
-                "Economy must disable cosmetic wave rendering, never physics")
+            assert(not items.pulse_ring.visible and items.pulse_hit_mask == expected_hits,
+                "Economy keeps contact cues without the 3D wave")
+            game._update_camera(0.12,true)
+            game.ui.player_locator.refresh(0.12)
+            assert(game.ui.player_locator.pulse_hit_lines.size() == 8,
+                "A confirmed rival gets one screen marker in Economy")
             game.set_graphics_quality(1)
             assert(items.pulse_ring.visible,
                 "Restoring balanced while a wave is active shows the current effect")
             items._process(ITEMS.PULSE_VISUAL_DURATION)
-            assert(items.pulse_remaining == 0.0 and not items.pulse_ring.visible,
+            assert(items.pulse_remaining == 0.0 and not items.pulse_ring.visible and items.pulse_hit_mask == 0,
                 "One shockwave must finish cleanly with no endless GPU work")
+            game.ui.player_locator.refresh(0.0)
+            assert(game.ui.player_locator.pulse_hit_lines.is_empty())
             items.reset_round()
             assert(items.confirmed_pulses == 0 and items.used.is_empty(),
                 "Replay must clear both reward state and the optional visual")
@@ -114,10 +125,21 @@ func _run() -> void:
             # a replicated server event may show FX, never apply local forces.
             game.net.role = "client"
             game.net.match_running = true
-            items.mark_local_pickup(pulse_index)
+            game.net._rare_item_notice(pulse_index,"pulse")
+            assert(items.confirmed_pulses == 1 and items.pulse_hit_mask == 0,
+                "A legacy server still shows the wave without guessing contacts")
+            items.reset_round()
+            var prefix: String = game.net.PULSE_HITS_PREFIX
+            for invalid in ["broken","-1","0","1073741824",str(1 << game.net.local_slot)]:
+                game.net._rare_item_notice(pulse_index,prefix+invalid)
+                assert(items.items[pulse_index].visible)
+            game.net._rare_item_notice(posmod(pulse_index+1,4),prefix+str(expected_hits))
+            assert(items.items[posmod(pulse_index+1,4)].visible)
+            game.net._rare_item_notice(pulse_index,prefix+str(expected_hits))
+            game.net._rare_item_notice(pulse_index,"pulse")
             assert(items.confirmed_pulses == 1 and
-                not items.items[pulse_index].visible and items.pulse_ring.visible,
-                "A server-confirmed remote pickup renders only its own FX")
+                not items.items[pulse_index].visible and items.pulse_ring.visible and items.pulse_hit_mask == expected_hits,
+                "The detailed notice starts the wave only once and keeps its confirmed contacts")
             var vel_before: Vector3 = near_ai.linear_velocity
             items.tick(1.0/60.0,game.racers,game.net)
             assert(near_ai.linear_velocity.is_equal_approx(vel_before),
@@ -131,5 +153,5 @@ func _run() -> void:
         await process_frame
     DirAccess.remove_absolute(ProjectSettings.globalize_path(
         "user://qa_shockwave_physics.cfg"))
-    print("SHOCKWAVE_PHYSICS_PASS: 9 real human pickups, bounded falloff, same-deck hits, client FX, Android budget")
+    print("SHOCKWAVE_PHYSICS_PASS: 9 real pickups, exclusive contact cues, online fallback and deduplication, Android budget")
     quit(0)

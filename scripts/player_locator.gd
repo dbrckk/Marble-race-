@@ -44,6 +44,7 @@ var rare_item_preview := -1
 var rare_item_effect := 0
 var rare_badge_profiles: Array[PackedVector2Array] = []
 var rare_badge_glyphs: Array[PackedVector2Array] = []
+var pulse_hit_lines := PackedVector2Array()
 var fork_main_center := Vector2.INF
 var fork_bridge_center := Vector2.INF
 var merge_rival_center := Vector2.INF
@@ -72,6 +73,7 @@ func begin_round() -> void:
     ice_impact_center = Vector2.INF
     rare_item_center = Vector2.INF
     rare_item_preview = -1
+    pulse_hit_lines.clear()
     fork_main_center = Vector2.INF
     fork_bridge_center = Vector2.INF
     merge_rival_center = Vector2.INF
@@ -90,6 +92,7 @@ func refresh(delta: float) -> void:
     ice_arrow_center = Vector2.INF
     ice_impact_center = Vector2.INF
     rare_item_center = Vector2.INF
+    pulse_hit_lines.clear()
     fork_main_center = Vector2.INF
     fork_bridge_center = Vector2.INF
     merge_rival_center = Vector2.INF
@@ -201,6 +204,8 @@ func refresh(delta: float) -> void:
                             pin.distance_to(screen_center) > screen_radius+21.0 and (
                                 pin.distance_to(hazard_center) > 35.0 and pin.distance_to(evasion_center) > 35.0)):
                         merge_rival_center = pin
+    if game.race_state == "RACING" and is_instance_valid(game.race_items) and game.race_items.pulse_hit_mask != 0:
+        _refresh_pulse_hits(camera,game.race_items.pulse_hit_mask,safe_gutter)
     var raised: bool = game.race_state == "COUNTDOWN" or game.race_time < GRID_HANDOFF or (
         moments != null and (moments.nearby_pack_count >= 2 or moments.closest_rival_gap <= 1.6))
     bracket_strength = move_toward(bracket_strength,1.0 if raised else 0.0,maxf(0.0,delta)*7.0)
@@ -248,7 +253,43 @@ func _project_road_mark(camera: Camera3D, z: float, target: Vector3, safe: Rect2
         return Vector2.INF
     return pointer
 
+func _refresh_pulse_hits(camera: Camera3D, mask: int, safe: Rect2) -> void:
+    var badge_clearance := _badge_rect().grow_individual(14.0,7.0,14.0,10.0)
+    var badge_center := badge_clearance.get_center()
+    for slot in game.racers.size():
+        if (mask & (1 << slot)) == 0:
+            continue
+        var rival: RigidBody3D = game.racers[slot]
+        if not is_instance_valid(rival) or rival.finished or rival.eliminated:
+            continue
+        var top := rival.global_position+Vector3.UP*(Racer.RADIUS+0.19)
+        if not top.is_finite() or camera.is_position_behind(top):
+            continue
+        var point := camera.unproject_position(top)
+        if badge_clearance.has_point(point):
+            var edge_x := badge_clearance.position.x-1.0 if point.x < badge_center.x else badge_clearance.end.x+1.0
+            var edge_y := badge_clearance.position.y-1.0 if point.y < badge_center.y else badge_clearance.end.y+1.0
+            if absf(point.x-edge_x) < absf(point.y-edge_y):
+                point.x = edge_x
+            else:
+                point.y = edge_y
+        if not safe.has_point(point) or (
+                point.distance_squared_to(hazard_center) < 31.0*31.0 or (
+                    point.distance_squared_to(evasion_center) < 28.0*28.0)):
+            continue
+        for side in [-1.0,1.0]:
+            var elbow := point+Vector2(side*8.0,0.0)
+            pulse_hit_lines.append(point+Vector2(side*11.0,-7.0))
+            pulse_hit_lines.append(elbow)
+            pulse_hit_lines.append(elbow)
+            pulse_hit_lines.append(point+Vector2(side*3.0,4.0))
+
 func _draw() -> void:
+    if not pulse_hit_lines.is_empty() and is_instance_valid(game.race_items):
+        var fade := smoothstep(0.0,0.20,game.race_items.pulse_remaining)
+        if fade > 0.0:
+            draw_multiline(pulse_hit_lines,Color(INK,fade),5.5,true)
+            draw_multiline(pulse_hit_lines,Color(ITEMS.COLORS[2],fade),2.8,true)
     if ice_impact_center.is_finite():
         var p := ice_impact_center
         var fade: float = clampf(game.airtime.ice_impact_seconds/(Air.ICE_IMPACT_SECONDS*0.55),0.0,1.0)
