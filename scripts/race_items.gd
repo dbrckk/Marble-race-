@@ -124,8 +124,11 @@ func setup(owner: Node3D, track: int, variation: int) -> void:
         shell.mesh = crystal
         var material := StandardMaterial3D.new()
         material.albedo_color = COLORS[effect_index]
-        material.metallic = 0.35
-        material.roughness = 0.16
+        # Unshaded emission preserves the item identity in dark sections and
+        # under dense racer shadows without introducing dynamic lights.
+        material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+        material.metallic = 0.0
+        material.roughness = 1.0
         material.emission_enabled = true
         material.emission = material.albedo_color
         material.emission_energy_multiplier = 1.5
@@ -138,6 +141,23 @@ func setup(owner: Node3D, track: int, variation: int) -> void:
         ring.material_override = material
         ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
         pickup.add_child(ring)
+        # A dark outer contour separates the collectible from similarly
+        # colored marbles. It shares the halo mesh and adds no light/shadow.
+        var contour := MeshInstance3D.new()
+        contour.name = "PickupContrastContour"
+        var contour_mesh := TorusMesh.new()
+        contour_mesh.inner_radius = 0.69
+        contour_mesh.outer_radius = 0.76
+        contour_mesh.rings = 16
+        contour_mesh.ring_segments = 8
+        contour.mesh = contour_mesh
+        contour.rotation.z = ring.rotation.z
+        var contour_material := StandardMaterial3D.new()
+        contour_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+        contour_material.albedo_color = Color("#091522")
+        contour.material_override = contour_material
+        contour.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+        pickup.add_child(contour)
         pickup.position = placement_at(i,track,variation)
         # Readable identity from the approach, without changing hitbox size.
         # One billboard per rare collectible; no extra lights or shadows.
