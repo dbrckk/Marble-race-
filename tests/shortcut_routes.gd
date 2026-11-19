@@ -692,6 +692,7 @@ func _verify_merge_cues(game: Node3D, side: int) -> bool:
         moments.tick(0.12)
         hud.label_timer = 0.25
         hud.update_hud()
+        hud.player_locator.refresh(1.0/30.0) # Sample the cleared merge cue deterministically.
         assert(moments.merge_traffic == 0 and not is_instance_valid(moments.merge_rival) and (
             not hud.player_locator.merge_rival_center.is_finite()),
             "The same rival no longer reaches the merge within the player's window")

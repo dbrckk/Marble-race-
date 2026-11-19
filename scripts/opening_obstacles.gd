@@ -71,6 +71,11 @@ func build(section: Node3D, game: Node3D, floor_z: float, section_index: int, la
             var far_edge := center+Vector2(0,0.36)
             _ground_strip(surface,game,floor_z,far_edge-half_width*0.78,
                 far_edge+half_width*0.78,0.11,MARKING_OUTLINE)
+            # A second thin amber stripe remains readable against both bright
+            # ice and dark timber at racing speed, without adding a draw call.
+            var warning_edge := center+Vector2(0,0.72)
+            _marked_strip(surface,game,floor_z,warning_edge-half_width*0.70,
+                warning_edge+half_width*0.70,0.12,palette[2])
 
     var spinner := section.get_node_or_null("KineticPaddle_%02d" % section_index) as AnimatableBody3D
     if spinner != null:

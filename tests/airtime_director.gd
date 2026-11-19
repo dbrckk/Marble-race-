@@ -345,6 +345,7 @@ func _verify_glacier_grip(stage: Node3D, flight: Node3D, player: RigidBody3D) ->
     stage.ui.update_hud()
     assert(stage.ui.speed_label.text.ends_with("SLIDE →"))
     var locator: Control = stage.ui.player_locator
+    locator.refresh(1.0/30.0) # HUD locator is intentionally sampled at 30 Hz.
     assert(locator.ice_arrow_center.is_finite() and locator.ice_arrow_axis.x > 0.0)
     player.linear_velocity.x = -13.0*slope-3.6
     flight.tick_physics(0.05)
@@ -355,6 +356,7 @@ func _verify_glacier_grip(stage: Node3D, flight: Node3D, player: RigidBody3D) ->
     stage.ui.label_timer = 0.25
     stage.ui.update_hud()
     assert(stage.ui.speed_label.text.ends_with("SLIDE ←"))
+    locator.refresh(1.0/30.0) # Force a deterministic locator sample in headless CI.
     assert(locator.ice_arrow_center.is_finite() and locator.ice_arrow_axis.x < 0.0)
     sound.set_ice_feedback(true,true,flight.ice_skid,flight.ice_entry_weight())
     sound._process(0.12)
@@ -378,6 +380,7 @@ func _verify_glacier_grip(stage: Node3D, flight: Node3D, player: RigidBody3D) ->
     stage.set_graphics_quality(0)
     stage.ui.label_timer = 0.25
     stage.ui.update_hud()
+    locator.refresh(1.0/30.0) # Contact icon must be sampled before asserting it.
     assert(stage.ui.speed_label.text.ends_with("HIT") and locator.ice_impact_center.is_finite())
     stage.set_graphics_quality(1)
     rival.global_position = rival_position
@@ -399,6 +402,7 @@ func _verify_glacier_grip(stage: Node3D, flight: Node3D, player: RigidBody3D) ->
     assert(flight.ripple_transition.has(AIR.GRIP_RETURN) and sound.channels[next_voice].stream == sound.WOOD_HITS[1])
     stage.ui.label_timer = 0.25
     stage.ui.update_hud()
+    locator.refresh(1.0/30.0) # Ensure the grip-return icon clears before assertion.
     assert(stage.ui.speed_label.text.ends_with("GRIP") and not locator.ice_impact_center.is_finite())
     flight.advance_visuals(0.50)
     assert(flight.grip_return_seconds == 0.0)
