@@ -680,6 +680,12 @@ Les traînées cyan du turbo et les guides verts du dash stabilisé suivent la b
 
 Dans un scénario à 30 billes reproduit sur les trois circuits à 1 280 × 720 sur ordinateur, le centre des effets est passé de 50 à 74 pixels d'écart à moins de 5 pixels de la bille, 160 ms après activation. Les tests couvrent le suivi après collecte solo ou confirmation en ligne et le passage par le mode Économie.
 
+### 2026-11-19 — Billes touchées par l'onde de choc
+
+Deux chevrons violets suivent brièvement chaque bille qui reçoit l'impulsion. Ils restent visibles en mode Économie. Le repère se décale près du badge joueur et s'efface s'il masque une alerte de danger. En ligne, le serveur transmet les identifiants des seules billes qu'il a déplacées. Le message de collecte d'origine reste compatible dans les deux sens avec la version précédente.
+
+Les trois circuits ont été capturés à 30 billes en modes Équilibré et Économie. Les essais WebSocket locaux ont vérifié la livraison des impacts, ainsi que le comportement avec un ancien client ou un ancien serveur.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
 Sur Android, activer **FPS DISPLAY**, prendre le pont sur Gauntlet et copier le rapport après la course. Rejouer le même tracé avec **TEST ECONOMY** ou **TEST BALANCED**, reprendre le pont et copier le deuxième rapport. Comparer les lignes **GAUNTLET BRIDGE JUMP** et **BRIDGE RETURN ±8 m** et vérifier la lecture du portique, de la réception et du piston à pleine vitesse.

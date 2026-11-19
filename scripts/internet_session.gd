@@ -23,6 +23,8 @@ const PING_INTERVAL := 2.5
 const MIN_PING_INTERVAL_MS := 800
 const COMMAND_TIMEOUT_MS := 650 # Dead-man switch: stop stale steering/boost after packet loss.
 const TRACK_COUNT := 3
+const PULSE_HITS_PREFIX := "pulse_hits:"
+const RACER_MASK := (1 << RACE_CAPACITY)-1
 
 var game: Node3D
 var role := "offline" # offline | client | server
@@ -634,7 +636,7 @@ func _course_event_notice(kind: String) -> void:
         game.race_director.flash_local_near_miss(
             game.player.global_position.z,1.0 if kind != "near_miss" else 0.40)
 
-func notify_item_collected(slot: int, pickup_id: int, kind: String) -> void:
+func notify_item_collected(slot: int, pickup_id: int, kind: String, hit_mask: int) -> void:
     # Triggered only by the authoritative human-only pickup detector.
     if role != "server" or not match_running:
         return
@@ -642,6 +644,10 @@ func notify_item_collected(slot: int, pickup_id: int, kind: String) -> void:
         return
     for peer_id in joined_slots.keys():
         if int(joined_slots[peer_id]) == slot and _can_send(int(peer_id)):
+            # Recent clients consume the detailed notice first. Older clients ignore
+            # the unknown kind and accept the regular notice on the same channel.
+            if kind == "pulse" and hit_mask > 0:
+                _rare_item_notice.rpc_id(int(peer_id),pickup_id,PULSE_HITS_PREFIX+str(hit_mask))
             _rare_item_notice.rpc_id(int(peer_id),pickup_id,kind)
             return
 
@@ -649,10 +655,18 @@ func notify_item_collected(slot: int, pickup_id: int, kind: String) -> void:
 func _rare_item_notice(pickup_id: int, kind: String) -> void:
     if role != "client" or not match_running or game.race_state != "RACING":
         return
-    if pickup_id < 0 or pickup_id >= 4 or kind not in ["turbo","spring","pulse","stabilizer"]:
+    if pickup_id < 0 or pickup_id >= 4 or not is_instance_valid(game.race_items):
         return
-    if is_instance_valid(game.race_items) and kind == game.race_items.kind_at(pickup_id,game.selected_track):
+    var expected: String = game.race_items.kind_at(pickup_id,game.selected_track)
+    if kind == expected:
         game.race_items.mark_local_pickup(pickup_id)
+    elif expected == "pulse" and kind.begins_with(PULSE_HITS_PREFIX):
+        var encoded := kind.trim_prefix(PULSE_HITS_PREFIX)
+        if encoded.length() > 10 or not encoded.is_valid_int() or local_slot < 0 or local_slot >= RACE_CAPACITY:
+            return
+        var hit_mask := int(encoded)
+        if hit_mask > 0 and hit_mask <= RACER_MASK and (hit_mask & (1 << local_slot)) == 0:
+            game.race_items.mark_local_pickup(pickup_id,hit_mask)
 
 func on_host_finish() -> void:
     if role != "server" or not match_running:

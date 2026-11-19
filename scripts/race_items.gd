@@ -56,6 +56,7 @@ var eligible_collectors: Array[RigidBody3D] = []
 var pulse_ring: MeshInstance3D
 var pulse_material: StandardMaterial3D
 var pulse_remaining := 0.0
+var pulse_hit_mask := 0
 var visual_quality := 1
 var confirmed_pulses := 0
 var activation_mesh: MeshInstance3D
@@ -210,11 +211,12 @@ func set_quality(quality: int) -> void:
         if activation_mesh.visible:
             _update_activation()
 
-func _show_pulse(at: Vector3) -> void:
+func _show_pulse(at: Vector3, hit_mask: int) -> void:
     # Triggered only after offline/server-authoritative human collection.
     # The client uses the validated dedicated-server notification instead.
     confirmed_pulses += 1
     pulse_remaining = PULSE_VISUAL_DURATION
+    pulse_hit_mask = hit_mask
     if not is_instance_valid(pulse_ring):
         return
     pulse_ring.global_position = at+Vector3(0.0,-0.46,0.0)
@@ -222,9 +224,9 @@ func _show_pulse(at: Vector3) -> void:
     pulse_material.albedo_color = COLORS[2]
     set_quality(visual_quality)
 
-func _present_pickup(kind: String, at: Vector3) -> void:
+func _present_pickup(kind: String, at: Vector3, hit_mask: int) -> void:
     if kind == "pulse":
-        _show_pulse(at)
+        _show_pulse(at,hit_mask)
     else:
         activation_kind = kind
         activation_origin = at
@@ -278,6 +280,8 @@ func _process(delta: float) -> void:
     if pulse_remaining <= 0.0:
         return
     pulse_remaining = maxf(0.0,pulse_remaining-delta)
+    if pulse_remaining == 0.0:
+        pulse_hit_mask = 0
     if not is_instance_valid(pulse_ring):
         return
     if visual_quality == 0 or pulse_remaining <= 0.0:
@@ -292,6 +296,7 @@ func _process(delta: float) -> void:
 
 func clear_activation() -> void:
     pulse_remaining = 0.0
+    pulse_hit_mask = 0
     activation_remaining = 0.0
     activation_kind = ""
     pulse_ring.hide()
@@ -353,17 +358,17 @@ func tick(delta: float, racers: Array[RigidBody3D], net: Node) -> void:
                 continue
             used[key] = true
             var kind: String = kind_at(i,game.selected_track)
-            _activate(kind,marble,racers)
+            var hit_mask := _activate(kind,marble,racers)
             if net.role == "server":
-                net.notify_item_collected(marble.racer_id,i,kind)
+                net.notify_item_collected(marble.racer_id,i,kind,hit_mask)
             if net.role == "offline":
                 pickup.visible = false
-                _present_pickup(kind,marble.global_position)
+                _present_pickup(kind,marble.global_position,hit_mask)
             # Shared pickups remain visible in multiplayer: each human can
             # independently claim each one exactly once on the authority.
             break
 
-func mark_local_pickup(index: int) -> void:
+func mark_local_pickup(index: int, hit_mask := 0) -> void:
     # Client display only: the dedicated server already applied the effect.
     if index < 0 or index >= items.size() or not is_instance_valid(items[index]) or not items[index].visible:
         return
@@ -374,9 +379,10 @@ func mark_local_pickup(index: int) -> void:
         at = game.player.global_position
     else:
         at.y = game.height_at(at.z)+0.39
-    _present_pickup(kind_at(index,game.selected_track),at)
+    _present_pickup(kind_at(index,game.selected_track),at,hit_mask)
 
-func _activate(kind: String, racer: RigidBody3D, racers: Array[RigidBody3D]) -> void:
+func _activate(kind: String, racer: RigidBody3D, racers: Array[RigidBody3D]) -> int:
+    var hit_mask := 0
     if kind == "turbo":
         racer.apply_central_impulse(Vector3(0.0,0.8,-9.5)*racer.mass)
     elif kind == "spring":
@@ -395,8 +401,10 @@ func _activate(kind: String, racer: RigidBody3D, racers: Array[RigidBody3D]) -> 
             if impulse == Vector3.ZERO:
                 continue
             opponent.apply_central_impulse(impulse*opponent.mass)
+            hit_mask |= 1 << opponent.racer_id
         racer.apply_central_impulse(Vector3(0.0,0.5,-2.4)*racer.mass)
     else:
         racer.linear_velocity.x *= 0.25
         racer.angular_velocity *= 0.35
         racer.apply_central_impulse(Vector3(0.0,0.35,-4.0)*racer.mass)
+    return hit_mask
