@@ -233,6 +233,8 @@ func _present_pickup(kind: String, at: Vector3, hit_mask: int) -> void:
         activation_remaining = ACTIVATION_DURATION
         activation_mesh.mesh = RARE_ART.activation(kind)
         set_quality(visual_quality)
+        if kind == "spring":
+            game.airtime.begin_super_jump()
     game.audio.item_pickup(kind)
     game.ui.show_item_pickup(kind)
 

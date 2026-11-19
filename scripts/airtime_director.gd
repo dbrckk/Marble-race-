@@ -1,12 +1,13 @@
 extends Node3D
 ## Real local marble flight and touchdown direction. This class is PURELY
 ## presentation: no velocity, position, score, purchases or server messages
-## are written by it. One physics floor ray at ~20 Hz for only the local
-## human, using an exclusion list built once per race (29 other marbles).
+## are written by it. Floor probes and Super Jump prediction run at ~20 Hz
+## for the local human, using an exclusion list built once per race.
 ## No lights, postprocess, skeletal animations or per-marble VFX.
 const RaceFeedback = preload("res://scripts/race_feedback.gd")
 const SHORTCUT = preload("res://scripts/shortcut_route.gd")
 const SCULPTURE = preload("res://scripts/course_sculptures.gd")
+const TrackSurface = preload("res://scripts/track_surface.gd")
 
 const SAMPLE_PERIOD := 0.050
 const RADIUS := 0.39
@@ -32,6 +33,9 @@ const LANDING_CONTROL := 1
 const CONTROL_RETURN_SECONDS := 0.38
 const RETURN_WINDOW := 0.36
 const GLACIER_ICE_FRICTION := 0.15
+const SUPER_JUMP_WINDOW := 1.15
+const LANDING_STEP := 0.04
+const LANDING_STEPS := 22
 const Racer = preload("res://scripts/marble.gd")
 const BRIDGE_TINTS := [
     Color("#ffc872"),Color("#a1f3ff"),Color("#ffa46e")
@@ -91,6 +95,14 @@ var last_contact_on_bank := false
 var secure_contacts := 0
 var control_return_seconds := 0.0
 var jump_preview: Dictionary = {}
+var super_jump_landing := Vector3.INF
+var super_jump_remaining := 0.0
+var super_jump_launched := false
+var super_jump_launch_frame := -1.0
+var super_jump_target: MeshInstance3D
+var landing_query := PhysicsShapeQueryParameters3D.new()
+var gravity := Vector3.ZERO
+var world_damping := 0.0
 
 func _ready() -> void:
     var loop := TorusMesh.new()
@@ -123,9 +135,44 @@ func _ready() -> void:
         ripple_normal.append(Vector3.UP)
         ripple_transition.append(0)
         _hide_ripple(i)
+    _build_super_jump_target()
+
+func _build_super_jump_target() -> void:
+    var material := StandardMaterial3D.new()
+    material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    material.cull_mode = BaseMaterial3D.CULL_DISABLED
+    material.vertex_color_use_as_albedo = true
+    var geometry := SurfaceTool.new()
+    geometry.begin(Mesh.PRIMITIVE_TRIANGLES)
+    geometry.set_material(material)
+    var diamond := [Vector3(-1.08,0,0),Vector3(0,0,-0.88),
+        Vector3(1.08,0,0),Vector3(0,0,0.88)]
+    var gold := Color("#fce67b")
+    for band: Vector2 in [Vector2(1.13,0.65),Vector2(1.02,0.78)]:
+        var accent := band.x < 1.1
+        var lift := Vector3.UP*0.012 if accent else Vector3.ZERO
+        geometry.set_color(gold if accent else Color("#151722"))
+        for i in diamond.size():
+            var a: Vector3 = diamond[i]
+            var b: Vector3 = diamond[(i+1)%diamond.size()]
+            for vertex: Vector3 in [a*band.x,b*band.x,b*band.y,a*band.x,b*band.y,a*band.y]:
+                geometry.add_vertex(vertex+lift)
+    super_jump_target = MeshInstance3D.new()
+    super_jump_target.name = "SuperJumpLandingTarget"
+    super_jump_target.mesh = geometry.commit()
+    super_jump_target.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    super_jump_target.hide()
+    add_child(super_jump_target)
 
 func configure(owner: Node3D) -> void:
     game = owner
+    gravity = Vector3(ProjectSettings.get_setting("physics/3d/default_gravity_vector"))*(
+        float(ProjectSettings.get_setting("physics/3d/default_gravity")))
+    world_damping = float(ProjectSettings.get_setting("physics/3d/default_linear_damp"))
+    var sphere := SphereShape3D.new()
+    sphere.radius = RADIUS
+    landing_query.shape = sphere
+    landing_query.collision_mask = 1
     set_quality(owner.graphics_quality)
 
 func set_quality(value: int) -> void:
@@ -140,7 +187,7 @@ func _hide_ripple(index: int) -> void:
         Transform3D(Basis().scaled(Vector3.ZERO),ripple_position[index]))
     ripple.multimesh.set_instance_color(index,Color.TRANSPARENT)
 
-func clear_motion() -> void:
+func clear_motion(cancel_super_jump := true) -> void:
     armed = false
     airborne = false
     course_grounded = false
@@ -159,6 +206,10 @@ func clear_motion() -> void:
     secure_contacts = 0
     control_return_seconds = 0.0
     jump_preview.clear()
+    _hide_super_jump()
+    if cancel_super_jump:
+        super_jump_remaining = 0.0
+        super_jump_launched = false
 
 func _clear_rolling_surface() -> void:
     rolling_surface = Surface.OTHER
@@ -194,6 +245,7 @@ func reset_round() -> void:
         for marble in game.racers:
             if is_instance_valid(marble):
                 ignored_rids.append(marble.get_rid())
+    landing_query.exclude = ignored_rids
     for i in range(RIPPLE_POOL):
         ripple_age[i] = 0.0
         ripple_transition[i] = 0
@@ -463,12 +515,101 @@ func sample_control_contact(delta: float, hit: Dictionary, position: Vector3,
 func control_weight() -> float:
     return control_return_seconds/CONTROL_RETURN_SECONDS
 
+func begin_super_jump() -> void:
+    super_jump_remaining = SUPER_JUMP_WINDOW
+    super_jump_launched = false
+    super_jump_launch_frame = -1.0
+    _hide_super_jump()
+
+func _hide_super_jump() -> void:
+    super_jump_landing = Vector3.INF
+    if is_instance_valid(super_jump_target):
+        super_jump_target.hide()
+
+func _sample_super_jump(hit: Dictionary, position: Vector3, velocity: Vector3) -> void:
+    if super_jump_remaining <= 0.0:
+        return
+    if not super_jump_launched:
+        if hit["touching"] or (velocity.y < 0.45 and float(hit["clearance"]) < 0.30):
+            return
+        super_jump_launched = true
+        if game.net.is_client():
+            super_jump_launch_frame = game.net.last_frame_time
+    elif hit["touching"] and float(hit["clearance"]) <= 0.07:
+        super_jump_remaining = 0.0
+        _hide_super_jump()
+        return
+    if game.cam_mode != 0:
+        _hide_super_jump()
+        return
+    if game.net.is_client():
+        var interval: float = game.net.snapshot_interval
+        # Start with an interval after the first observed lift. Its velocity
+        # cannot average rolling before takeoff with motion after the impulse.
+        if interval <= 0.0 or game.net.last_frame_time <= super_jump_launch_frame or (
+                game.net.snapshot_age_seconds > game.net.FRAME_PERIOD*1.65):
+            _hide_super_jump()
+            return
+        position = game.net.targets[game.player.racer_id].origin
+        # A snapshot velocity is an interval average, sampled at its midpoint.
+        velocity += _flight_acceleration(velocity)*(interval*0.5)
+    var contact := _predict_landing(position,velocity)
+    if contact.is_empty():
+        _hide_super_jump()
+        return
+    var normal: Vector3 = contact["normal"]
+    super_jump_landing = contact["point"]
+    super_jump_target.global_transform = Transform3D(
+        Basis(Quaternion(Vector3.UP,normal)),super_jump_landing+normal*0.04)
+    super_jump_target.show()
+
+func _flight_acceleration(velocity: Vector3) -> Vector3:
+    return gravity-velocity*(world_damping+game.player.linear_damp)
+
+func _predict_landing(position: Vector3, velocity: Vector3) -> Dictionary:
+    var space := game.get_world_3d().direct_space_state
+    landing_query.transform = Transform3D(Basis.IDENTITY,position)
+    landing_query.motion = Vector3.ZERO
+    # Sweeps ignore shapes already intersecting the marble at their start.
+    if not space.get_rest_info(landing_query).is_empty():
+        return {}
+    for i in range(LANDING_STEPS):
+        var acceleration := _flight_acceleration(velocity)
+        var motion := (velocity+acceleration*(LANDING_STEP*0.5))*LANDING_STEP
+        landing_query.transform = Transform3D(Basis.IDENTITY,position)
+        landing_query.motion = motion
+        var fractions := space.cast_motion(landing_query)
+        if fractions.size() != 2:
+            return {}
+        if fractions[0] < 1.0:
+            # Sample just inside the first contact so we can identify its surface.
+            landing_query.transform.origin += motion*fractions[1]+motion.normalized()*0.01
+            landing_query.motion = Vector3.ZERO
+            var contact := space.get_rest_info(landing_query)
+            if contact.is_empty():
+                return {}
+            var normal: Vector3 = contact["normal"]
+            var collider := instance_from_id(contact["collider_id"]) as StaticBody3D
+            if normal.y >= 0.55 and (velocity+acceleration*(LANDING_STEP*fractions[1])).y <= 0.0 and (
+                    is_instance_valid(collider) and (collider.has_meta(TrackSurface.ROAD_FLOOR) or (
+                        collider.has_meta(SHORTCUT.ROLLING_SURFACE) or collider.has_meta(SCULPTURE.BANK_EXIT_Z)))):
+                return contact
+            return {}
+        position += motion
+        velocity += acceleration*LANDING_STEP
+    return {}
+
 func tick_physics(delta: float) -> void:
     if not is_instance_valid(game) or game.race_state != "RACING" or (
             not is_instance_valid(game.player) or
             game.player.finished or
             game.player.eliminated or game.net.role == "server"):
+        _hide_super_jump()
+        super_jump_remaining = 0.0
         return
+    super_jump_remaining = maxf(0.0,super_jump_remaining-delta)
+    if super_jump_remaining <= 0.0 and super_jump_landing.is_finite():
+        _hide_super_jump()
     var position: Vector3 = game.player.global_position
     var replica: bool = game.net.is_client()
     var glacier: bool = game.selected_track == 1
@@ -476,9 +617,11 @@ func tick_physics(delta: float) -> void:
     if replica:
         velocity = game.net.local_replica_velocity()
         if not velocity.is_finite():
-            clear_motion()
+            # A confirmed pickup can arrive ahead of the matching snapshots.
+            clear_motion(false)
             return
     elif game.player.freeze:
+        _hide_super_jump()
         return
     probe_clock += delta
     if probe_clock < SAMPLE_PERIOD:
@@ -488,10 +631,12 @@ func tick_physics(delta: float) -> void:
     var hit: Dictionary = probe_floor(game.player)
     if hit.is_empty():
         course_grounded = false
+        _hide_super_jump()
         return
     course_grounded = bool(hit["touching"]) and (
         hit.get("bridge",false) or is_finite(hit.get("bank_exit",NAN)) or _is_main_road(hit["ground"]))
     var event := sample_motion(dt,bool(hit["touching"]),float(hit["clearance"]),position,velocity,not replica)
+    _sample_super_jump(hit,position,velocity)
     if game.cam_mode == 0 and (hit["touching"] or airborne):
         var bridge: bool = hit.get("bridge",false) or (
             airborne and game.shortcut_route.on_separate_deck(position))
@@ -586,6 +731,8 @@ func _animate_ripple(index: int) -> void:
 func advance_visuals(delta: float) -> void:
     if not is_finite(delta) or delta <= 0.0:
         return
+    if super_jump_landing.is_finite() and (game.race_state != "RACING" or game.cam_mode != 0):
+        _hide_super_jump()
     control_return_seconds = maxf(0.0,control_return_seconds-delta)
     ice_entry_seconds = maxf(0.0,ice_entry_seconds-delta)
     ice_impact_seconds = maxf(0.0,ice_impact_seconds-delta)
