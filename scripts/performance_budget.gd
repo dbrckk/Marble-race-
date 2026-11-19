@@ -10,8 +10,9 @@ const LAUNCH_SECONDS := 5.0
 const GRID_SECONDS := 1.15
 const FIRST_OBSTACLE_HALF_LENGTH := 4.0
 const BRIDGE_RETURN_HALF_LENGTH := 8.0
-const FOCUS_NAMES := ["FIRST 5s","BRIDGE RETURN ±8 m","GRID LAST 1.15s","FIRST OBSTACLE ±4 m"]
-enum Focus { LAUNCH, BRIDGE_RETURN, GRID, FIRST_OBSTACLE, NONE }
+const FOCUS_NAMES := ["FIRST 5s","BRIDGE RETURN ±8 m","GRID LAST 1.15s","FIRST OBSTACLE ±4 m",
+    "GAUNTLET BRIDGE JUMP"]
+enum Focus { LAUNCH, BRIDGE_RETURN, GRID, FIRST_OBSTACLE, FORGE_BRIDGE_JUMP, NONE }
 
 class PhaseSamples:
     var durations := PackedInt32Array()
@@ -62,7 +63,7 @@ var focus_windows: Array[PhaseSamples] = []
 var previous_frame_us := -1
 var current_phase := 0
 var current_focus := Focus.NONE
-var current_near_first_obstacle := false
+var current_course_focus := Focus.NONE
 
 func reset() -> void:
     frame_ms.clear()
@@ -74,7 +75,7 @@ func reset() -> void:
     focus_windows.clear()
     current_phase = 0
     current_focus = Focus.NONE
-    current_near_first_obstacle = false
+    current_course_focus = Focus.NONE
     suspend()
 
 func suspend() -> void:
@@ -91,7 +92,7 @@ static func near_first_obstacle(z: float, entry_z: float) -> bool:
     return absf(z-entry_z) <= FIRST_OBSTACLE_HALF_LENGTH
 
 func record_frame(now_us: int, phase: int, focus: Focus = Focus.NONE,
-        near_opening := false) -> void:
+        course_focus: Focus = Focus.NONE) -> void:
     if phases.is_empty():
         for i in PHASE_NAMES.size():
             phases.append(PhaseSamples.new())
@@ -109,12 +110,12 @@ func record_frame(now_us: int, phase: int, focus: Focus = Focus.NONE,
                 samples.add_monitors(float(report["physics_ms"]),int(report["draw_calls"]))
         if current_focus != Focus.NONE:
             _record_window(current_focus,seconds,monitor_updated)
-        if current_near_first_obstacle:
-            _record_window(Focus.FIRST_OBSTACLE,seconds,monitor_updated)
+        if current_course_focus != Focus.NONE:
+            _record_window(current_course_focus,seconds,monitor_updated)
     # Countdown adds to the grid observation, outside official race timing.
     current_phase = -1 if phase < 0 else maxi(current_phase,mini(phase,PHASE_NAMES.size()-1))
     current_focus = focus
-    current_near_first_obstacle = near_opening
+    current_course_focus = course_focus
 
 func _record_window(focus: Focus, seconds: float, monitor_updated: bool) -> void:
     var window := focus_windows[focus]
@@ -125,7 +126,7 @@ func _record_window(focus: Focus, seconds: float, monitor_updated: bool) -> void
         # A fast crossing can be shorter than the one-second monitor interval.
         window.add_monitors(_physics_ms(),_draw_calls())
 
-func race_summary() -> String:
+func race_summary(include_forge_jump := false) -> String:
     var any_frames := false
     for samples in phases:
         if samples.frames > 0:
@@ -137,6 +138,8 @@ func race_summary() -> String:
     for i in PHASE_NAMES.size():
         lines.append("%s | %s" % [PHASE_NAMES[i],phases[i].summary()])
     for i in FOCUS_NAMES.size():
+        if i == Focus.FORGE_BRIDGE_JUMP and not include_forge_jump:
+            continue
         lines.append("%s | %s" % [FOCUS_NAMES[i],focus_windows[i].summary()])
     return "\n".join(lines)
 

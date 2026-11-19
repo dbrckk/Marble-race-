@@ -642,6 +642,20 @@ Le deuxième portique prend le relais dès que la bille franchit le premier. Les
 
 Le HUD annonce la rampe, puis utilise la vitesse de la bille pour estimer son alignement et sa hauteur au dernier portique. Le trafic garde la priorité. Le piston de sortie reprend le relais après le franchissement. Le HUD et la pause affichent la capacité réelle de 30 billes.
 
+### 2026-11-19 — Lecture visuelle du dernier saut de Gauntlet
+
+Sur la base `1d648e9`, la caméra de poursuite suit le tablier jusqu’au troisième portique puis rend progressivement le cadrage à la piste principale. La rampe foncée porte des chevrons ambre et les bandes latérales suivent sa face physique. Les crochets de réception se trouvent sur une portion de tablier vérifiée après le portique. Les flèches de retour commencent après la réception. Les matériaux et le marquage réutilisent les lots de rendu existants.
+
+Le dernier portique continue de s’afficher si la bille est déjà en vol avant le bord de la rampe. La prévision de réception commence dans la fenêtre du déclenchement physique. Ce cas a été reproduit à 22 m/s sur le tablier.
+
+Les six suites Godot ciblées couvrent les ponts, les trois variantes de Gauntlet, les contacts, la caméra et le relais du piston. Douze vues comparables par version ont été rendues en GL Compatibility à 1280 × 720. En vol, l’écart horizontal entre le centre du dernier portique et le centre de l’écran est passé d’environ 39 pixels à moins d’un pixel dans les trois variantes. Cette mesure est issue du rendu logiciel sur ordinateur.
+
+### 2026-11-19 — Mesure du saut final de Gauntlet
+
+Le rapport FPS affiche **GAUNTLET BRIDGE JUMP** sur Gauntlet. La fenêtre débute quatre mètres avant le centre de la rampe et se termine cinq mètres après le troisième portique. La mesure suit le tablier et le vol du joueur. Les images de la piste basse restent hors de cette ligne. Le rapport mesure aussi la jonction dans sa fenêtre habituelle.
+
+Avec Godot 4.5.1, la suite de télémétrie vérifie l'approche, le vol, la réception et l'exclusion de la piste basse sur les trois variantes. Les suites de raccourcis, de contact aérien, de chronométrage et de pause passent également.
+
 ## PROCHAIN LOT RECOMMANDÉ
 
-Mesurer sur Android la lisibilité du saut et du retour vers le piston à pleine vitesse, puis examiner les textures et l’éclairage du pont avec les mêmes angles de caméra sur les trois variantes.
+Sur Android, activer **FPS DISPLAY**, prendre le pont sur Gauntlet et copier le rapport après la course. Rejouer le même tracé avec **TEST ECONOMY** ou **TEST BALANCED**, reprendre le pont et copier le deuxième rapport. Comparer les lignes **GAUNTLET BRIDGE JUMP** et **BRIDGE RETURN ±8 m** et vérifier la lecture du portique, de la réception et du piston à pleine vitesse.
