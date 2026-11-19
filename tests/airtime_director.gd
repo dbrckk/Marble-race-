@@ -380,6 +380,7 @@ func _verify_glacier_grip(stage: Node3D, flight: Node3D, player: RigidBody3D) ->
     stage.set_graphics_quality(0)
     stage.ui.label_timer = 0.25
     stage.ui.update_hud()
+    locator.refresh(1.0/30.0) # Contact icon must be sampled before asserting it.
     assert(stage.ui.speed_label.text.ends_with("HIT") and locator.ice_impact_center.is_finite())
     stage.set_graphics_quality(1)
     rival.global_position = rival_position
