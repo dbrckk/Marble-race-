@@ -315,7 +315,7 @@ func _build_menu() -> void:
     wifi.add_theme_font_size_override("font_size",20)
     wifi.pressed.connect(show_online_lobby)
     col.add_child(wifi)
-    col.add_child(_text("ANALOG STEERING  •  40 MARBLES  •  SOLO / INTERNET", 14, DIM))
+    col.add_child(_text("ANALOG STEERING  •  30 MARBLES  •  SOLO / INTERNET", 14, DIM))
     col.add_child(_text("Left thumb: steer   /   Right thumb: boost", 14, DIM))
     var sound = _action("SOUND: " + ("ON" if game.audio.enabled else "OFF"), Color("#292e39"))
     sound.custom_minimum_size.y = 37

@@ -34,9 +34,9 @@ func _run() -> void:
     assert(radar.updates == launch_updates, "Radar must not update on every rendered frame")
     radar.sample(Radar.UPDATE_PERIOD)
     assert(radar.updates == launch_updates+1 and radar.last_count == 40,
-        "Radar must show all 40 physical competitors")
+        "Radar must show all 30 physical competitors")
     assert(radar.player_id >= 0 and radar.player_id < 40,
-        "Human marble must be distinguishable from the 39 opponents")
+        "Human marble must be distinguishable from the 29 opponents")
     assert(radar.positions[radar.player_id] >= 0.0)
     var player = game.player
     player.global_position.z = -92.5

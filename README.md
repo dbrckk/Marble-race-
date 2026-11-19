@@ -1,4 +1,7 @@
-# Marble Race: Lost Tracks
+# Marble Race
+
+**Current race capacity: 30 physical marbles total (1 local player and 29 opponents).** Internet rooms can host up to four human racers within the same 30-marble grid. Historical update notes below may describe the former 40-marble format.
+: Lost Tracks
 
 Original **3D Android marble-racing game** inspired by the look and mechanics shown in Meticulai Games' [Lost Marbles](https://x.com/MeticulAi/status/2111568537684955500) reference video.
 

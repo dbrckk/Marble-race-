@@ -1,5 +1,5 @@
 extends SceneTree
-## Authentic opponent-pack audio and camera tension. Real 40-marble scene,
+## Authentic opponent-pack audio and camera tension. Real 30-marble scene,
 ## nine biome/layout combinations, same-height checks and zero physics cheats.
 const MOMENTS = preload("res://scripts/race_moments.gd")
 const FEEDBACK = preload("res://scripts/race_feedback.gd")
@@ -21,7 +21,7 @@ func _verify() -> void:
     assert(MOMENTS.pack_intensity(0) == 0.0 and
         MOMENTS.pack_intensity(2) == 0.5 and
         MOMENTS.pack_intensity(40) == 1.0,
-        "The 40-marble crowd detector must saturate at four true rivals")
+        "The 30-marble crowd detector must saturate at four true rivals")
     assert(AUDIO.pack_percussion_lift(0.0) == 0.0 and
         AUDIO.pack_percussion_lift(1.0) <= 5.5)
     assert(AUDIO.pack_wind_trim(1.0) == 3.0 and

@@ -47,7 +47,7 @@ Public mobile connections must use encrypted wss:// URLs; unencrypted ws:// is a
 
 ## Capacity and behavior
 
-- One live room per server process, maximum four human participants, up to 40 simulated marbles.
+- One live room per server process, maximum four human participants, up to 30 simulated marbles.
 - Quick Match selects a public room. A private room is opened by one player and joined by the code of that room.
 - Remaining marbles are AI-controlled, and AI takes over on a player's disconnect.
 - Player commands are bound to the remote peer and rate-limited to 50 Hz.

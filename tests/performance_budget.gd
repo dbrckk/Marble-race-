@@ -187,5 +187,5 @@ func _run() -> void:
     for i in range(3):
         await process_frame
     print("PERFORMANCE_BUDGET_PASS: bounded P95, phone metrics, zero-touch HUD, " +
-        "40-marble spatial culling and authorized human-only collisions")
+        "30-marble spatial culling and authorized human-only collisions")
     quit(0)

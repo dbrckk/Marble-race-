@@ -56,7 +56,7 @@ jobs:
           set -euo pipefail
           timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --path . --script res://tests/adaptive_graphics.gd 2>&1 | tee adaptive-graphics.log
           grep -Fq "ADAPTIVE_GRAPHICS_PASS:" adaptive-graphics.log
-      - name: Bounded Android frame telemetry and 40-marble spatial broad-phase
+      - name: Bounded Android frame telemetry and 30-marble spatial broad-phase
         shell: bash
         run: |
           set -euo pipefail
@@ -164,7 +164,7 @@ jobs:
           set -euo pipefail
           timeout 90s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 520 --path . --script res://tests/race_feedback.gd 2>&1 | tee race-feedback.log
           grep -Fq "RACE_FEEL_PASS:" race-feedback.log
-      - name: Touch-safe 40-marble live course radar
+      - name: Touch-safe 30-marble live course radar
         shell: bash
         run: |
           set -euo pipefail
@@ -176,7 +176,7 @@ jobs:
           set -euo pipefail
           timeout 95s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 950 --path . --script res://tests/slipstream.gd 2>&1 | tee slipstream.log
           grep -Fq "SLIPSTREAM_PASS:" slipstream.log
-      - name: True 40-marble proximity mix and cinematic race-duel camera
+      - name: True 30-marble proximity mix and cinematic race-duel camera
         shell: bash
         run: |
           set -euo pipefail
@@ -277,7 +277,7 @@ jobs:
           set -euo pipefail
           timeout 95s ./Godot_v4.5.1-stable_linux.x86_64 --headless --quit-after 620 --path . --script res://tests/terrain_relief.gd 2>&1 | tee terrain-relief.log
           grep -Fq "TERRAIN_RELIEF_PASS:" terrain-relief.log
-      - name: Nine-layout triple-bridge precision skill, real 40-marble physics and online anti-cheat
+      - name: Nine-layout triple-bridge precision skill, real 30-marble physics and online anti-cheat
         shell: bash
         run: |
           set -euo pipefail
@@ -472,7 +472,7 @@ jobs:
           set -euo pipefail
           timeout 60s ./Godot_v4.5.1-stable_linux.x86_64 --headless --fixed-fps 60 --quit-after 450 --path . --script res://tests/finish_crossing.gd 2>&1 | tee finish-crossing.log
           grep -Fq "FINISH_CROSSING_PASS:" finish-crossing.log
-      - name: Final obstacle recovery with 40 marbles on all nine layouts
+      - name: Final obstacle recovery with 30 marbles on all nine layouts
         shell: bash
         run: |
           set -euo pipefail
