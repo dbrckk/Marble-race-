@@ -166,6 +166,12 @@ static func vault_rib(biome: int, width: float) -> ArrayMesh:
             _profile(surface,[-0.50,-0.19, -0.40,-0.45, 0.40,-0.45, 0.50,-0.19,
                 0.50,0.25, 0.44,0.46, -0.44,0.46, -0.50,0.25],
                 scale,Vector2.ZERO,0.0,0.56,Color.WHITE)
+            # Shallow joinery and twin inlaid strips are fused into the same
+            # rib mesh; they add no material slot or draw call.
+            for groove in [-0.18,0.18]:
+                _profile(surface,[-0.38,-0.10, 0.38,-0.10, 0.38,0.01, -0.38,0.01],
+                    Vector2(width*0.42,0.34),Vector2(groove*width,0.0),
+                    0.292,0.016,Color("#6c4933"))
             for end in [-0.32,0.32]:
                 _profile(surface,[-0.045,-0.50, 0.045,-0.50, 0.045,0.50, -0.045,0.50],
                     scale,Vector2(end*width,0.0),0.0,0.62,Color("#dfb381"))
@@ -176,6 +182,9 @@ static func vault_rib(biome: int, width: float) -> ArrayMesh:
                 scale,Vector2.ZERO,0.0,0.62,Color("#badbe9"))
             _profile(surface,[-0.43,0.20, -0.18,0.50, 0.18,0.50, 0.43,0.20],
                 scale,Vector2.ZERO,0.0,0.44,Color.WHITE)
+            # A thin glacial fracture follows the roof slope, not the road.
+            _profile(surface,[-0.37,0.12, -0.14,-0.35, -0.07,-0.32, -0.28,0.20],
+                scale,Vector2.ZERO,0.323,0.018,Color("#7fc6d8"))
         2:
             # An exposed web between two flanges gives the steel rib a recessed edge.
             _profile(surface,[-0.47,-0.50, 0.47,-0.50, 0.50,-0.24, -0.50,-0.24],
@@ -184,6 +193,9 @@ static func vault_rib(biome: int, width: float) -> ArrayMesh:
                 scale,Vector2.ZERO,0.0,0.32,Color("#a79992"))
             _profile(surface,[-0.50,0.23, 0.50,0.23, 0.47,0.50, -0.47,0.50],
                 scale,Vector2.ZERO,0.0,0.62,Color.WHITE)
+            # Recessed web rivet rail: a continuous metallic highlight.
+            _profile(surface,[-0.40,-0.13, 0.40,-0.13, 0.40,-0.06, -0.40,-0.06],
+                scale,Vector2.ZERO,0.174,0.014,Color("#d2b7a3"))
     surface.index()
     _vault_ribs[key] = surface.commit()
     return _vault_ribs[key]
@@ -204,10 +216,20 @@ static func canopy_bay(biome: int, width: float) -> ArrayMesh:
                     0.50,0.32, 0.43,0.50, -0.43,0.50, -0.50,0.32],
                     plank_scale,Vector2(float(plank-1)*width*0.345,0.0),
                     0.0,3.0,finishes[plank])
+            # Two inset plank seams stay in the baked mesh and never cast
+            # additional shadows on the racing lane.
+            for seam in [-0.345,0.345]:
+                _profile(surface,[-0.50,-0.35, 0.50,-0.35, 0.50,0.35, -0.50,0.35],
+                    Vector2(width*0.014,0.10),Vector2(seam*width,0.0),
+                    1.506,0.008,Color("#71513d"))
         1:
             _profile(surface,[-0.50,-0.12, -0.29,-0.50, 0.18,-0.37, 0.50,-0.08,
                 0.40,0.10, 0.10,0.50, -0.20,0.36, -0.43,0.11],
                 scale,Vector2.ZERO,0.0,3.0,Color("#dfedf5"))
+            # Opaque frost ridge, not an expensive transparent ice layer.
+            _profile(surface,[-0.36,-0.04, -0.10,0.33, 0.13,0.24, 0.34,-0.12,
+                0.20,-0.01, 0.02,0.36, -0.16,0.40],
+                scale,Vector2.ZERO,1.51,0.012,Color("#8ccad9"))
         2:
             # Folded steel with three stiffening channels along the span of each bay.
             _profile(surface,[-0.50,-0.50, 0.50,-0.50, 0.50,-0.14,
@@ -215,6 +237,9 @@ static func canopy_bay(biome: int, width: float) -> ArrayMesh:
                 0.09,-0.14, 0.04,0.50, -0.04,0.50, -0.09,-0.14,
                 -0.21,-0.14, -0.26,0.50, -0.34,0.50, -0.39,-0.14, -0.50,-0.14],
                 scale,Vector2.ZERO,0.0,3.0,Color.WHITE)
+            # Thin folded-steel seam over the centre stiffener.
+            _profile(surface,[-0.06,0.18, 0.06,0.18, 0.06,0.31, -0.06,0.31],
+                scale,Vector2.ZERO,1.51,0.012,Color("#e8b58c"))
     surface.index()
     _canopy_bays[key] = surface.commit()
     return _canopy_bays[key]
